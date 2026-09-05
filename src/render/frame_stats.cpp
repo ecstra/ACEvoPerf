@@ -10,8 +10,9 @@ static int64_t g_lastPresentQpc = 0;
 std::atomic<uint64_t> g_frames{0}, g_frameSumUs{0}, g_frameMaxUs{0}, g_hitch20{0}, g_hitchCfg{0};
 std::atomic<int> g_hitchLogBudget{5};
 CRITICAL_SECTION g_frameCs;
-std::vector<std::pair<float, float>> g_frameBuf;
+std::vector<FrameSample> g_frameBuf;
 static uint64_t g_hitchSnap[5] = {};
+static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
 
 void InitFrameStats()
@@ -57,9 +58,18 @@ static void OnPresent(UINT syncInterval)
         }
     }
 
+        uint64_t req[5];
+        for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
+        FrameSample sample;
+        sample.t = (float)NowSec();
+        sample.ms = (float)ms;
+        sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
+        sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
+        sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
+        for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
     if (g_cfg.frames) {
         EnterCriticalSection(&g_frameCs);
-        if (g_frameBuf.size() < 200000) g_frameBuf.emplace_back((float)NowSec(), (float)ms);
+        if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);
         LeaveCriticalSection(&g_frameCs);
     }
 }

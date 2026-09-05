@@ -42,8 +42,10 @@ One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
 
 ## acevo_perf_frames.csv
 
-One line per presented frame: `t_s` and `frame_ms`. Frames longer than two seconds are dropped as
-pauses. About 1 MB per ten minutes at 90 fps.
+One line per presented frame: `t_s`, `frame_ms`, and the DirectStorage requests enqueued since
+the previous present, `tile_req` (texture tiles), `f2m_req` (package to memory) and `gpumem_req`
+(memory to GPU). Frames longer than two seconds are dropped as pauses. About 1.5 MB per ten
+minutes at 90 fps. The three request columns say whether a slow frame came with streaming work.
 
 ## Device events in the log
 
