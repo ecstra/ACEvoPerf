@@ -5,6 +5,7 @@
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/dstorage/stats.h"
 #include "acevo/engine/input_probe.h"
+#include "acevo/render/gpu_timing.h"
 
 static HANDLE g_timelineThread = nullptr;
 
@@ -52,6 +53,7 @@ static DWORD WINAPI TimelineThread(void*)
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb,input_polls,input_ms,input_max_ms\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,present_ms,wait_ms,fence_ms,tilemap_ms,execute_ms,mapped_tiles,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
+    HANDLE gpuCsv = g_cfg.gpuTiming ? OpenCsv(L"acevo_perf_gpu.csv", "t_s,submits,gpu_busy_ms,gpu_span_ms,gpu_lag_ms\r\n") : INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = FindRenderAdapter();
 
     SYSTEM_INFO si; GetSystemInfo(&si);
@@ -113,6 +115,18 @@ static DWORD WINAPI TimelineThread(void*)
             procPct, sysPct, (unsigned long long)(pmc.WorkingSetSize >> 20), (unsigned long long)(pmc.PrivateUsage >> 20),
             (unsigned long long)inputPolls, inputUs / 1000.0, inputMaxUs / 1000.0);
         if (csv != INVALID_HANDLE_VALUE && n > 0) { DWORD w; WriteFile(csv, line, (DWORD)n, &w, nullptr); }
+
+        if (gpuCsv != INVALID_HANDLE_VALUE) {
+            std::vector<GpuFrameRow> rows;
+            GpuTimingDrain(rows);
+            std::string gpuOut;
+            char gpuLine[96];
+            for (auto& r : rows) {
+                int m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, "%.3f,%u,%.3f,%.3f,%.3f\r\n", r.t, r.submits, r.busyMs, r.spanMs, r.lagMs);
+                gpuOut.append(gpuLine, m);
+            }
+            if (!gpuOut.empty()) { DWORD w; WriteFile(gpuCsv, gpuOut.data(), (DWORD)gpuOut.size(), &w, nullptr); }
+        }
 
         if (framesCsv == INVALID_HANDLE_VALUE) continue;
         std::vector<FrameSample> buf;

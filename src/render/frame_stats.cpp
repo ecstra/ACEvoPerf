@@ -4,6 +4,7 @@
 #include "acevo/core/iat.h"
 #include "acevo/dstorage/stats.h"
 #include "acevo/telemetry/sampler.h"
+#include "acevo/render/gpu_timing.h"
 
 static LARGE_INTEGER g_qpf = {};
 static LARGE_INTEGER g_qpcStart = {};
@@ -67,6 +68,19 @@ static void AccountWait(HANDLE handle, int64_t ticks)
     if (g_waitTallyCount < 32) g_waitTally[g_waitTallyCount++] = { handle, (uint64_t)(ms * 1000.0), 1 };
 }
 
+// the kernel object type behind a handle (Event, Semaphore, Mutant, Thread), for the wait tally
+typedef LONG (NTAPI *PFN_NtQueryObject)(HANDLE, int, void*, ULONG, ULONG*);
+static void HandleTypeName(HANDLE h, char* out, size_t outSize)
+{
+    strcpy_s(out, outSize, "?");
+    static PFN_NtQueryObject query = (PFN_NtQueryObject)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryObject");
+    if (!query) return;
+    struct { USHORT length; USHORT maximumLength; wchar_t* buffer; wchar_t storage[128]; } info = {};
+    ULONG got = 0;
+    if (query(h, 2 /* ObjectTypeInformation */, &info, sizeof info, &got) != 0 || !info.buffer) return;
+    _snprintf_s(out, outSize, _TRUNCATE, "%.*ls", (int)(info.length / 2), info.buffer);
+}
+
 static void LogWaitTally()
 {
     double now = NowSec();
@@ -75,7 +89,9 @@ static void LogWaitTally()
     for (int i = 0; i < g_waitTallyCount; ++i) {
         const WaitTally& w = g_waitTally[i];
         if (w.us < 20000) continue;
-        Log("[wait] render thread waited %.1f ms in %u calls on %p%s in the last minute", w.us / 1000.0, w.count, w.handle,
+        char type[64];
+        HandleTypeName(w.handle, type, sizeof type);
+        Log("[wait] render thread waited %.1f ms in %u calls on %p (%s)%s in the last minute", w.us / 1000.0, w.count, w.handle, type,
             IsFenceEvent(w.handle) ? " (D3D12 fence event)" : w.handle == g_latencyObject ? " (frame latency object)" : "");
     }
     g_waitTallyCount = 0;
@@ -160,11 +176,19 @@ static void STDMETHODCALLTYPE Hook_UpdateTileMappings(ID3D12CommandQueue* self, 
 
 static void STDMETHODCALLTYPE Hook_ExecuteCommandLists(ID3D12CommandQueue* self, UINT count, ID3D12CommandList* const* lists)
 {
+    bool timed = GpuTimingIsPresentQueue(self);
+    if (timed) GpuTimingMark(self);
     LARGE_INTEGER a, b;
     QueryPerformanceCounter(&a);
     g_origExecuteCommandLists(self, count, lists);
     QueryPerformanceCounter(&b);
     g_frameExecuteUs += (uint64_t)((b.QuadPart - a.QuadPart) * 1000000 / g_qpf.QuadPart);
+    if (timed) GpuTimingMark(self);
+}
+
+void* OriginalExecuteCommandLists()
+{
+    return (void*)g_origExecuteCommandLists;
 }
 
 // every queue of the device is hooked, they may or may not share a vtable
@@ -336,11 +360,13 @@ static void OnPresent(UINT syncInterval)
         }
     }
 
+    float frameT = (float)NowSec();
+    GpuTimingOnPresent(frameT);
     if (g_cfg.frames) {
         uint64_t req[5];
         for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
         FrameSample sample;
-        sample.t = (float)NowSec();
+        sample.t = frameT;
         sample.ms = (float)ms;
         sample.present = (float)g_lastPresentCallMs;
         sample.wait = (float)g_frameWaitMs;

@@ -11,7 +11,7 @@ namespace {
 enum Bucket { kGame, kCohtml, kV8, kRenoir, kD3D12, kDriver, kDxgi, kWait, kLock, kHeap, kMemcpy, kSystem, kDStorage, kAudio, kOther, kBucketCount };
 const char* const kBucketNames[kBucketCount] = { "game", "cohtml", "v8", "renoir", "d3d12", "driver", "dxgi", "wait", "lock", "heap", "memcpy", "system", "dstorage", "audio", "other" };
 
-struct ModuleRange { uintptr_t base; uintptr_t end; int bucket; bool system; };
+struct ModuleRange { uintptr_t base; uintptr_t end; int bucket; bool system; char name[24]; };
 ModuleRange g_modules[512];
 int g_moduleCount = 0;
 
@@ -40,10 +40,15 @@ std::atomic<uint32_t> g_unknownHits{0};
 
 // every sample in a ring, and the frames as spans over it, so the minute's slowest frames can
 // be told apart from its median frames after the fact. The caller of a sample outside the
-// game packs the first two modules on the stack (buckets, 4 bits each) over the first game
-// code address (64 byte bucket, 24 bits).
+// game packs the first two modules on the stack (indices into the module table plus one,
+// 8 bits each) over the first game code address (64 byte bucket, 16 bits of the exe's 20).
 struct Sample { uintptr_t rip; uint32_t label; uint32_t caller; };
-inline uint32_t PackCaller(int via1, int via2, uint32_t gameKey) { return ((uint32_t)via1 << 28) | ((uint32_t)via2 << 24) | (gameKey & 0xFFFFFF); }
+inline uint32_t PackCaller(int via1, int via2, uint32_t gameKey) { return ((uint32_t)(via1 + 1) << 24) | ((uint32_t)(via2 + 1) << 16) | (gameKey & 0xFFFF); }
+const char* ViaName(uint32_t caller, int which)
+{
+    int index = (int)((caller >> (which ? 16 : 24)) & 0xFF) - 1;
+    return index < 0 ? "-" : g_modules[index].name;
+}
 const uint32_t kSampleRing = 1u << 19;
 Sample g_samples[kSampleRing];
 std::atomic<uint32_t> g_sampleWrite{0};
@@ -160,15 +165,15 @@ int ModuleIndexOf(uintptr_t addr)
 uint32_t CallerOnStack(uintptr_t rsp)
 {
     if (!g_gameTextBegin) return 0;
-    int via[2] = { kOther, kOther };
+    int via[2] = { -1, -1 };
     int found = 0;
     for (int i = 0; i < 768; ++i) {
         uintptr_t v;
         if (!ReadQword(rsp + i * 8, &v)) break;
-        if (v >= g_gameTextBegin && v < g_gameTextEnd) return PackCaller(via[0], via[1], (uint32_t)((v - g_gameBase) >> 6));
+        if (v >= g_gameTextBegin && v < g_gameTextEnd) return PackCaller(via[0], via[1], (uint32_t)((v - g_gameBase) >> 10));
         int m = ModuleIndexOf(v);
         if (m < 0 || g_modules[m].system || g_modules[m].bucket == kGame) continue;
-        if (found == 0 || (found == 1 && g_modules[m].bucket != via[0])) via[found++] = g_modules[m].bucket;
+        if (found == 0 || (found == 1 && m != via[0])) via[found++] = m;
     }
     return found ? PackCaller(via[0], via[1], 0) : 0;
 }
@@ -189,7 +194,10 @@ void RefreshModules()
         file = file ? file + 1 : name;
         bool system = false;
         int bucket = BucketForModule(file, &system);
-        table[n++] = { (uintptr_t)info.lpBaseOfDll, (uintptr_t)info.lpBaseOfDll + info.SizeOfImage, bucket, system };
+        ModuleRange& range = table[n++];
+        range = { (uintptr_t)info.lpBaseOfDll, (uintptr_t)info.lpBaseOfDll + info.SizeOfImage, bucket, system };
+        strncpy_s(range.name, file, _TRUNCATE);
+        if (char* dot = strrchr(range.name, '.')) *dot = 0;
         if (bucket == kGame) { g_gameBase = (uintptr_t)info.lpBaseOfDll; FindGameText(mods[i]); }
         if (system) CollectExports(mods[i], file);
     }
@@ -287,8 +295,8 @@ void LogHotSpots()
     Log("sampler: function, the modules it was called through and the game call site under it, most extra samples in the slowest 1%% first");
     for (const Ranked& r : Rank(pairSlow, pairFast, scale, 14, true)) {
         uint32_t caller = (uint32_t)(r.key & 0xFFFFFFFF);
-        Log("sampler:   %-40s via %s > %s  rva 0x%06X  slow %5u  fast %7.1f", g_labels.data() + (uint32_t)(r.key >> 32),
-            kBucketNames[(caller >> 28) & 15], kBucketNames[(caller >> 24) & 15], (unsigned)((caller & 0xFFFFFF) << 6), r.slow, r.fastScaled);
+        Log("sampler:   %-40s via %s > %s  rva 0x%06X (1 KB)  slow %5u  fast %7.1f", g_labels.data() + (uint32_t)(r.key >> 32),
+            ViaName(caller, 0), ViaName(caller, 1), (unsigned)((caller & 0xFFFF) << 10), r.slow, r.fastScaled);
     }
 }
 

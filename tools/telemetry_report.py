@@ -91,6 +91,34 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
                           f"ExecuteCommandLists {statistics.fmean(fr[8] for fr in group):4.2f} ms per frame")
 
 
+def print_gpu_split(path: str, stamped: list[tuple]) -> None:
+    """GPU time per frame from the timestamp marks, the slowest 1% of frames against the faster half."""
+    if not os.path.exists(path) or not stamped:
+        return
+    with open(path, newline="") as f:
+        rows = {float(r["t_s"]): (int(r["submits"]), float(r["gpu_busy_ms"]), float(r["gpu_span_ms"]), float(r["gpu_lag_ms"]))
+                for r in csv.DictReader(f)}
+    if not rows:
+        return
+    n1 = max(1, len(stamped) // 100)
+    slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
+    faster = sorted(stamped, key=lambda fr: fr[1])[:len(stamped) // 2]
+    print("\n== GPU time per frame (timestamp marks on the present queue) ==")
+    for label, group in (("slowest 1%", slowest), ("faster half", faster), ("all frames", stamped)):
+        hits = [rows[fr[0]] for fr in group if fr[0] in rows]
+        if not hits:
+            print(f"{label:12} no GPU rows")
+            continue
+        print(f"{label:12} {len(hits):5d} of {len(group)} frames with GPU rows: {statistics.fmean(h[0] for h in hits):4.1f} batches, "
+              f"GPU busy {statistics.fmean(h[1] for h in hits):5.2f} ms, span {statistics.fmean(h[2] for h in hits):5.2f} ms, "
+              f"lag behind the CPU {statistics.fmean(h[3] for h in hits):5.2f} ms (max {max(h[3] for h in hits):5.2f})")
+    matched = [(fr[1], rows[fr[0]][1]) for fr in stamped if fr[0] in rows]
+    if len(matched) > 100:
+        frame_ms = [m[0] for m in matched]
+        busy = [m[1] for m in matched]
+        print(f"correlation frame time vs GPU busy time: {statistics.correlation(frame_ms, busy):+.2f} over {len(matched)} frames")
+
+
 def print_sample_mix(path: str, t_lo: float, t_hi: float) -> None:
     """Where the render thread was, by module, in the slowest 1% of frames against the rest."""
     if not os.path.exists(path):
@@ -261,6 +289,7 @@ def main() -> None:
             print(f">{limit:<5} ms: {n:6d} frames ({100.0 * n / len(frames):.2f} %)")
         print("\n== frame time spread ==")
         print_spread(stamped)
+        print_gpu_split(os.path.join(a.session, "acevo_perf_gpu.csv"), stamped)
         print_sample_mix(os.path.join(a.session, "acevo_perf_samples.csv"),
                          min(fr[0] for fr in stamped), max(fr[0] for fr in stamped))
 

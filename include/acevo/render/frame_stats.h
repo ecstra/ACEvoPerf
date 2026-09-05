@@ -25,5 +25,6 @@ extern std::vector<FrameSample> g_frameBuf;
 
 void InitFrameStats();          // QPC base and the frame buffer lock, call from DllMain
 void InstallWaitHooks();        // time the render thread's waits, sorted by fence, latency object or other
+void* OriginalExecuteCommandLists();   // the unhooked ID3D12CommandQueue::ExecuteCommandLists, null before the device exists
 double NowSec();                // seconds since attach
 void HookSwapChain(IUnknown* swapChain);

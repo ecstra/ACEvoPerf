@@ -3,6 +3,7 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 #include "acevo/render/frame_stats.h"
+#include "acevo/render/gpu_timing.h"
 
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChainForHwnd)(IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChain)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**);
@@ -36,6 +37,7 @@ static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self
         }
     }
     HookSwapChain(*pp);
+    GpuTimingSetPresentQueue(device, (PFN_ExecuteCommandListsOriginal)OriginalExecuteCommandLists());
     return hr;
 }
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChain(IDXGIFactory* self, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** pp)

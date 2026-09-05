@@ -39,6 +39,7 @@ struct Config {
     // [profile]
     bool sampler = false;           // sample the render thread's module per frame
     int  sampleUs = 250;            // sampling interval
+    bool gpuTiming = false;         // GPU timestamps around every command list batch on the present queue
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";

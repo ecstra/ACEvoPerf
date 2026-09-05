@@ -95,6 +95,7 @@ void LoadConfig()
     g_cfg.sampler = IniBool(L"profile", L"sampler", false);
     g_cfg.sampleUs = IniInt(L"profile", L"sample_us", 250);
     if (g_cfg.sampleUs < 50) g_cfg.sampleUs = 50;
+    g_cfg.gpuTiming = IniBool(L"profile", L"gpu_timing", false);
 
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
