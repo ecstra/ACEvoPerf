@@ -38,6 +38,16 @@ After a game update that replaces `dstorage.dll`, copy the three files in again.
 `build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK. Output goes to
 `dist\dstorage.dll`. `release.ps1` builds and zips the drag and drop payload into `release\`.
 
+## Layout
+
+- `include/acevo/` and `src/`: the DLL, headers and sources in matching folders per concern
+  (`core`, `dstorage`, `engine`, `render`, `telemetry`, `overlay`), `src/dllmain.cpp` wires them
+- `dist/`: the files that go into the game folder (ini, readme, built DLLs)
+- `tools/`: Python tools for the package and the settings files, data files in `tools/data/`
+- `third_party/directstorage/`: Microsoft's DirectStorage headers and runtime
+- `logs/`: telemetry sessions copied from the game folder, gitignored
+- `.agent/`: docs, bugs, todos, decisions
+
 ## Where to read more
 
 - `.agent/INDEX.md`: the map of every document, bug, todo and decision in this repo

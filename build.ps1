@@ -17,8 +17,9 @@ Push-Location "$root\build"
 try {
     & rc.exe /nologo /fo "$root\build\version.res" "$root\src\version.rc"
     if ($LASTEXITCODE -ne 0) { throw "rc.exe failed with $LASTEXITCODE" }
+    $sources = Get-ChildItem "$root\src" -Recurse -Filter *.cpp | ForEach-Object { $_.FullName }
     & cl.exe /nologo /O2 /W4 /MT /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DNOMINMAX `
-        /I"$root\third_party\directstorage" /Fo"$root\build\\" "$root\src\dllmain.cpp" `
+        /I"$root\include" /I"$root\third_party\directstorage" /Fo"$root\build\\" $sources `
         /link /DLL /MACHINE:X64 /DEF:"$root\src\exports.def" /OUT:"$root\dist\dstorage.dll" `
         /IMPLIB:"$root\build\dstorage_proxy.lib" /PDB:"$root\build\dstorage_proxy.pdb" /DEBUG:FULL /OPT:REF /OPT:ICF `
         "$root\build\version.res" kernel32.lib user32.lib

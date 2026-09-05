@@ -15,7 +15,7 @@ superseded-by:
 At attach and again at first DirectStorage use, scan the game's `.text` for the `FlagRegisterer`
 call sites (the `lea r9,[__FILE__]` load, the two storage pointers stored at `[rsp+20h]` and
 `[rsp+28h]`, the constructor call), recover name and type per flag, and write the values from the
-ini straight into the storage (`ScanFlags` and `ApplyFlags` in `src/dllmain.cpp`).
+ini straight into the storage (`ScanFlags` and `ApplyFlags` in `src/engine/flags.cpp`).
 
 ## Alternatives
 

@@ -11,7 +11,7 @@ links: [DEC-002-flags-by-memory-write, release-build-ignores-gflags-cli, proxy-a
 The engine declares 216 gflags (126 bool, 32 double, 31 string, 27 int32). Names, files,
 defaults and help text are in `tools/data/gflags_full.tsv`, recovered from the exe. The release build
 does not parse them from the command line (see the memory `release-build-ignores-gflags-cli`), so
-the mod writes their storage directly (DEC-002, `ScanFlags` in `src/dllmain.cpp`). The runtime
+the mod writes their storage directly (DEC-002, `ScanFlags` in `src/engine/flags.cpp`). The runtime
 scan finds 203 of them on 0.9.0 in about 70 ms.
 
 Any bool, int32 or double name from the table works in the `[flags]` section of the ini as

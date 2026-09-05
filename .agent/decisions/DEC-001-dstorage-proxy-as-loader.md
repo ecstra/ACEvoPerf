@@ -15,7 +15,7 @@ superseded-by:
 Ship the mod as `dstorage.dll`. The game imports `DStorageGetFactory` from the DLL in its own
 folder, so the loader maps the proxy before the game's entry point runs. The original Microsoft
 runtime is kept beside it as `dstorage_orig.dll` and every export is forwarded to it
-(`src/dllmain.cpp`, the four `extern "C"` exports).
+(`src/dstorage/proxy.cpp`, the four `extern "C"` exports).
 
 ## Alternatives
 

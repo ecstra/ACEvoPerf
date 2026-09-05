@@ -21,7 +21,7 @@ with the streaming activity since the previous hitch, and swap chain events.
 
 ## acevo_perf_timeline.csv
 
-One line per second (`TimelineThread` in `src/dllmain.cpp`):
+One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
 
 - `clock`, `t_s`: wall clock `HH:MM:SS` for lining up with the game log, seconds since attach
 - `frames`, `fps`, `avg_ms`, `max_ms`: presented frames in the second, rate, mean and worst frame
