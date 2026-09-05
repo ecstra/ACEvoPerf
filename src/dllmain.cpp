@@ -80,6 +80,7 @@ struct Config {
     bool stats = true;
     int  statsIntervalS = 10;
     bool logRequests = false;
+    int  tileQueuePriority = 99;   // DSTORAGE_PRIORITY value, 99 = leave the game's choice
     // [process]
     int  priority = 1;          // 0 normal, 1 above normal, 2 high
     bool disablePowerThrottling = true;
@@ -145,6 +146,10 @@ static void LoadConfig()
     g_cfg.stats = IniBool(L"directstorage", L"stats", true);
     g_cfg.statsIntervalS = IniInt(L"directstorage", L"stats_interval_s", 10);
     g_cfg.logRequests = IniBool(L"directstorage", L"log_requests", false);
+    std::wstring tilePr = IniStr(L"directstorage", L"tile_queue_priority", L"unchanged");
+    for (auto& ch : tilePr) ch = (wchar_t)towlower(ch);
+    g_cfg.tileQueuePriority = (tilePr == L"low") ? DSTORAGE_PRIORITY_LOW : (tilePr == L"normal") ? DSTORAGE_PRIORITY_NORMAL
+                            : (tilePr == L"high") ? DSTORAGE_PRIORITY_HIGH : (tilePr == L"realtime") ? DSTORAGE_PRIORITY_REALTIME : 99;
 
     std::wstring pr = IniStr(L"process", L"priority", L"above_normal");
     for (auto& ch : pr) ch = (wchar_t)towlower(ch);
@@ -387,6 +392,9 @@ struct FactoryProxy : IDStorageFactory {
     {
         DSTORAGE_QUEUE_DESC d = *desc;
         UINT16 origCap = d.Capacity;
+        // The engine names its texture tile queue "GpuUpload File Queue" (observed on 0.9.0).
+        bool isTileQueue = d.Name && strstr(d.Name, "GpuUpload File") != nullptr;
+        if (isTileQueue && g_cfg.tileQueuePriority != 99) d.Priority = (DSTORAGE_PRIORITY)g_cfg.tileQueuePriority;
         if (g_cfg.minQueueCapacity > 0) {
             int c = g_cfg.minQueueCapacity;
             if (c < DSTORAGE_MIN_QUEUE_CAPACITY) c = DSTORAGE_MIN_QUEUE_CAPACITY;
@@ -394,9 +402,10 @@ struct FactoryProxy : IDStorageFactory {
             if ((int)d.Capacity < c) d.Capacity = (UINT16)c;
         }
         HRESULT hr = real->CreateQueue(&d, riid, ppv);
-        Log("CreateQueue name='%s' source=%s capacity=%u%s priority=%d device=%p -> hr=0x%08X",
+        Log("CreateQueue name='%s' source=%s capacity=%u%s priority=%d%s device=%p -> hr=0x%08X",
             d.Name ? d.Name : "", d.SourceType == DSTORAGE_REQUEST_SOURCE_FILE ? "FILE" : "MEMORY",
-            d.Capacity, d.Capacity != origCap ? " (raised)" : "", (int)d.Priority, d.Device, (unsigned)hr);
+            d.Capacity, d.Capacity != origCap ? " (raised)" : "", (int)d.Priority,
+            d.Priority != desc->Priority ? " (changed)" : "", d.Device, (unsigned)hr);
         if (FAILED(hr) && d.Capacity != origCap) {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
