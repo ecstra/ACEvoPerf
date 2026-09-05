@@ -110,13 +110,31 @@ shown fps."
   is the view itself. The owner's settings: clouds Ultra, volumetrics Ultra, grass Ultra, motion
   blur Ultra, GI update High, DLSS Ultra Quality.
 
+- Three attribution runs, 2026-09-05 22:00 to 22:08, one restart each, the first 45 s from the
+  pit exit and the 45 s after on the same stretch (settings restored from the backup afterwards,
+  verified byte for byte):
+
+  | run | avg fps | 1% low | slowest 1% mean | median | p99 / median | GPU clock |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | baseline | 83 | 61 | 16.4 ms | 12.0 ms | 1.29 | 1584 MHz |
+  | `no_gi=true` | 92 / 81 | 64 / 61 | 15.6 / 16.5 ms | 10.9 / 12.5 ms | 1.30 / 1.26 | 1807 / 1646 |
+  | `disable_dynamic_track=true` | 88 / 78 | 60 / 59 | 16.6 / 16.9 ms | 11.5 / 13.1 ms | 1.32 / 1.24 | 1721 / 1585 |
+  | `gpu-relief` profile | 94 / 84 | 64 / 61 | 15.7 / 16.4 ms | 10.5 / 12.0 ms | 1.41 / 1.30 | 1776 / 1613 |
+
+  None of the three narrows the spread. The higher averages in every first window are the GPU
+  clock after a restart (cooled GPU), gone in the second window. The slowest 1 percent sit at
+  15.6 to 16.9 ms in every run while the median moves with the clock, so the slow frames have a
+  cost that does not scale with GPU load. Not a 60 Hz wall: both displays run at 165 and 300 Hz
+  and the histogram is a smooth tail from the median with no peak near 16.7 ms.
+
 ## Fix
 
-Absent. The cap is off (DEC-008). The gap is the GPU rendering the most expensive views at a
-throttled clock, so it closes with headroom or with less variance in specific systems. Running
-now, one restart each, one minute from the pit exit on the same stretch: `no_gi=true`
-(attribution), `disable_dynamic_track=true`, then the `gpu-relief` settings profile as the
-headroom test. `fps_limit` remains the direct pacing tool, declined by the owner for now.
+Absent. The cap is off (DEC-008). GI, the dynamic track and the heavy settings are ruled out
+as the variance source. Next: the frames CSV now carries `present_ms`, the time the previous
+Present call blocked. A slow frame spent inside Present waited for the GPU or the queue, a slow
+frame spent outside it was render thread work, and that split decides whether the next step is
+GPU side (a queue depth or a frame pacing change) or CPU side (the render thread's own periodic
+work). `fps_limit` remains the direct pacing tool, declined by the owner for now.
 
 ## Verification
 
