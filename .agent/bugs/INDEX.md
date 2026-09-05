@@ -17,6 +17,7 @@ bug
 - [BUG-007-blurry-road-and-textures](BUG-007-blurry-road-and-textures.md), soft surfaces, settings and upscaler related
 - [BUG-008-ui-opens-slowly-with-loading-spinner](BUG-008-ui-opens-slowly-with-loading-spinner.md), UI waits on something other than page loading, preload ruled out
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), p99 frame time 18.7 ms against a 13.3 ms median
+- [BUG-010-texture-pool-shrinks-on-race-load-and-restart](BUG-010-texture-pool-shrinks-on-race-load-and-restart.md), race gets a 633 MB pool, restart 526 MB, a gigabyte of VRAM unused
 
 nit
 

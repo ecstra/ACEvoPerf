@@ -1,13 +1,13 @@
 ---
 name: DEC-004-canonical-pools-off-by-default
 kind: decision
-description: force_canonical_pool_sizes ships commented out
+description: force_canonical_pool_sizes shipped commented out, superseded by DEC-005
 updated: 2026-09-05
-links: [engine-flags, DEC-003-staging-buffer-128mb]
+links: [engine-flags, DEC-003-staging-buffer-128mb, DEC-005-fixed-pool-sizes-by-default]
 date: 2026-09-05
 area: streaming
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-005-fixed-pool-sizes-by-default
 ---
 
 ## Decision

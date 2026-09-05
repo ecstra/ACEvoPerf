@@ -38,9 +38,19 @@ shown fps."
   at 16 per frame (`gibake_probes_per_frame`), plus the present path through the integrated GPU
   in windowed mode.
 
+- Lap three of 2026-09-05 (car reflections Medium, `gibake_probes_per_frame=8`, windowed):
+  first stint mean 11.1 ms (90 fps), p99 14.7 ms (68 fps), lag 2 autocorrelation down from
+  +0.50 to +0.34 and lag 1 at minus 0.14. The alternation weakened and p99 improved by 1.7 ms,
+  the gap to the average is still about 22 fps. The owner reports fps now reaching 100 and the
+  gap unchanged in feel. Fullscreen made no difference and was reverted. Lower GI probes made
+  shadows flicker and were reverted.
+
 ## Fix
 
-Absent.
+Absent. Remaining candidates: a frame rate cap just under the typical rate (removes the peaks
+that widen the gap), the waitable swap chain with `max_frame_latency=1` (stops the CPU running
+three frames ahead and then stalling), clouds time slicing, and the mirror `alternate_rendering`
+setting.
 
 ## Verification
 

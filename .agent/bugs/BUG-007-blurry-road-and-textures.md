@@ -27,10 +27,16 @@ From the owner's `video.videosettings` of 2026-09-05 16:25:
 - Anisotropic filtering High with a custom block of 8x main, 4x low, 1x cubemap and
   `mainAnisotropicMipBias` at 0.
 
+- Root cause found on 2026-09-05 18:13: in a race the texture tile pool is only 633 MB (526 MB
+  after a session restart) because the engine sizes it during the scene transition, see
+  BUG-010. The menu gets 1117 MB from the same formula. Road and tyre textures are the most
+  visible casualties of a small pool. `texture_tier0` was tested the same day and pins textures
+  to the lowest tier, never enable.
+
 ## Fix
 
-Absent. Sharper textures and a higher frame rate pull in opposite directions on this GPU, the
-trade is the owner's, see TODO-005.
+Absent, follows BUG-010. Texture quality Ultra and `texturePoolSize` Ultra remain the settings
+side once the pool is fixed.
 
 ## Verification
 
