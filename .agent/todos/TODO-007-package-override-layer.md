@@ -4,11 +4,11 @@ kind: todo
 description: let loose files under the game folder replace or add package entries without repacking content.kspkg
 updated: 2026-09-05
 links: [directstorage-streaming, content-package, BUG-008-ui-opens-slowly-with-loading-spinner]
-status: open
+status: done
 by: agent
 area: streaming
 born: 2026-09-05
-done:
+done: 2026-09-05
 ---
 
 ## What
@@ -40,3 +40,17 @@ way to change package content, and repacking a 64 GB file is not it.
 A modified copy of `uiresources\menu.html` (one visible text change) in `acevo_mods\` shows in
 the game, a new file added under `acevo_mods\` is readable by path, the log lists both, and the
 game runs a lap with the layer on with no new errors in `acevo_perf.log`.
+
+## Result
+
+Built as `src/overlay/overlay.cpp`, documented in `package-override-layer`. Verified 2026-09-05:
+
+- Replace: `menu.html` with an extra `console.log` in the head, `acevo_perf.log` shows `replace
+  uiresources\menu.html`, `table rebuilt, 122398 entries used, 1 replaced`, `redirected request #1
+  uiresources\menu.html +0 size 1029 -> MEMORY`, the game log shows the marker under `[gameface]`.
+- Add: `acevo_overlay_test.js` referenced from the page, `add uiresources\acevo_overlay_test.js
+  (83 bytes)`, `2 added`, and its marker in the game log (19:49 run).
+- Lap: the 19:27 session (three stints, one override active) ran with no overlay error line.
+- Two things learned on the way: the table read starts before the first `ReadFile` returns, so
+  the package size must be taken at `CreateFileW` time, and kernel32's own import table must not
+  be patched (its exports jump through it, the hook recursed and the game failed to start).
