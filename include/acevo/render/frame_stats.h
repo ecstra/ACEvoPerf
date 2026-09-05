@@ -12,7 +12,8 @@ struct FrameSample {
     float t;            // seconds since attach
     float ms;           // time since the previous present
     float present;      // time the previous Present call itself took (blocked waiting)
-    float wait;         // time the game waited on the swap chain's frame latency object in this frame
+    float wait;         // time the render thread spent in wait calls during this frame
+    float fence;        // the part of it spent on events D3D12 fences signal (waiting for the GPU)
     uint32_t tiles;     // texture tile requests
     uint32_t f2m;       // file to memory requests
     uint32_t gpumem;    // memory to GPU uploads
@@ -20,5 +21,6 @@ struct FrameSample {
 extern std::vector<FrameSample> g_frameBuf;
 
 void InitFrameStats();          // QPC base and the frame buffer lock, call from DllMain
+void InstallWaitHooks();        // time the render thread's waits, sorted by fence, latency object or other
 double NowSec();                // seconds since attach
 void HookSwapChain(IUnknown* swapChain);

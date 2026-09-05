@@ -53,6 +53,7 @@ static void OnAttach(HMODULE h)
     ApplyProcessTweaks();
     ApplyFlags("early");
     InstallDxgiHooks();
+    InstallWaitHooks();
     overlay::Install();
 }
 

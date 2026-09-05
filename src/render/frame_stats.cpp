@@ -17,54 +17,199 @@ static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
 static double g_lastPresentCallMs = 0.0;   // how long the previous Present call blocked
 
-// The game waits on the swap chain's frame latency waitable object at the start of a frame,
-// which is where a GPU bound frame spends its waiting outside Present. Both wait calls of
-// the exe are hooked and the waits on that one handle are timed per frame.
+// Every wait of the render thread is timed and sorted by what it waits for: an event a D3D12
+// fence signals (the GPU), the swap chain's frame latency object, or anything else (worker
+// threads, streaming). The exe's wait imports are hooked, fences are caught at creation so
+// their events are known.
 typedef DWORD (WINAPI *PFN_WaitForSingleObjectEx)(HANDLE, DWORD, BOOL);
 typedef DWORD (WINAPI *PFN_WaitForSingleObject)(HANDLE, DWORD);
+typedef DWORD (WINAPI *PFN_WaitForMultipleObjectsEx)(DWORD, const HANDLE*, BOOL, DWORD, BOOL);
+typedef DWORD (WINAPI *PFN_WaitForMultipleObjects)(DWORD, const HANDLE*, BOOL, DWORD);
 static PFN_WaitForSingleObjectEx g_origWaitForSingleObjectEx = nullptr;
 static PFN_WaitForSingleObject g_origWaitForSingleObject = nullptr;
+static PFN_WaitForMultipleObjectsEx g_origWaitForMultipleObjectsEx = nullptr;
+static PFN_WaitForMultipleObjects g_origWaitForMultipleObjects = nullptr;
 static HANDLE g_latencyObject = nullptr;
-static double g_frameLatencyWaitMs = 0.0;
+static std::atomic<DWORD> g_presentThreadId{0};
+static double g_frameWaitMs = 0.0, g_frameFenceWaitMs = 0.0;
+
+static const int kMaxFenceEvents = 128;
+static HANDLE g_fenceEvents[kMaxFenceEvents];
+static std::atomic<int> g_fenceEventCount{0};
+
+static bool IsFenceEvent(HANDLE h)
+{
+    int n = std::min(g_fenceEventCount.load(), kMaxFenceEvents);
+    for (int i = 0; i < n; ++i) if (g_fenceEvents[i] == h) return true;
+    return false;
+}
+
+static void NoteFenceEvent(HANDLE h)
+{
+    if (IsFenceEvent(h)) return;
+    int i = g_fenceEventCount.fetch_add(1);
+    if (i < kMaxFenceEvents) g_fenceEvents[i] = h;
+}
+
+// per handle totals of the render thread's waits, logged once a minute
+struct WaitTally { HANDLE handle; uint64_t us; uint32_t count; };
+static WaitTally g_waitTally[32];
+static int g_waitTallyCount = 0;
+static double g_lastTallyLog = 0.0;
+
+static void AccountWait(HANDLE handle, int64_t ticks)
+{
+    double ms = (double)ticks * 1000.0 / (double)g_qpf.QuadPart;
+    g_frameWaitMs += ms;
+    if (IsFenceEvent(handle)) g_frameFenceWaitMs += ms;
+    for (int i = 0; i < g_waitTallyCount; ++i)
+        if (g_waitTally[i].handle == handle) { g_waitTally[i].us += (uint64_t)(ms * 1000.0); g_waitTally[i].count++; return; }
+    if (g_waitTallyCount < 32) g_waitTally[g_waitTallyCount++] = { handle, (uint64_t)(ms * 1000.0), 1 };
+}
+
+static void LogWaitTally()
+{
+    double now = NowSec();
+    if (now - g_lastTallyLog < 60.0) return;
+    g_lastTallyLog = now;
+    for (int i = 0; i < g_waitTallyCount; ++i) {
+        const WaitTally& w = g_waitTally[i];
+        if (w.us < 20000) continue;
+        Log("[wait] render thread waited %.1f ms in %u calls on %p%s in the last minute", w.us / 1000.0, w.count, w.handle,
+            IsFenceEvent(w.handle) ? " (D3D12 fence event)" : w.handle == g_latencyObject ? " (frame latency object)" : "");
+    }
+    g_waitTallyCount = 0;
+}
 
 static DWORD WINAPI Hook_WaitForSingleObjectEx(HANDLE handle, DWORD timeout, BOOL alertable)
 {
-    if (handle != g_latencyObject) return g_origWaitForSingleObjectEx(handle, timeout, alertable);
+    if (GetCurrentThreadId() != g_presentThreadId.load()) return g_origWaitForSingleObjectEx(handle, timeout, alertable);
     LARGE_INTEGER a, b;
     QueryPerformanceCounter(&a);
     DWORD r = g_origWaitForSingleObjectEx(handle, timeout, alertable);
     QueryPerformanceCounter(&b);
-    g_frameLatencyWaitMs += (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    AccountWait(handle, b.QuadPart - a.QuadPart);
     return r;
 }
 
 static DWORD WINAPI Hook_WaitForSingleObject(HANDLE handle, DWORD timeout)
 {
-    if (handle != g_latencyObject) return g_origWaitForSingleObject(handle, timeout);
+    if (GetCurrentThreadId() != g_presentThreadId.load()) return g_origWaitForSingleObject(handle, timeout);
     LARGE_INTEGER a, b;
     QueryPerformanceCounter(&a);
     DWORD r = g_origWaitForSingleObject(handle, timeout);
     QueryPerformanceCounter(&b);
-    g_frameLatencyWaitMs += (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    AccountWait(handle, b.QuadPart - a.QuadPart);
     return r;
+}
+
+static DWORD WINAPI Hook_WaitForMultipleObjectsEx(DWORD count, const HANDLE* handles, BOOL all, DWORD timeout, BOOL alertable)
+{
+    if (GetCurrentThreadId() != g_presentThreadId.load()) return g_origWaitForMultipleObjectsEx(count, handles, all, timeout, alertable);
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    DWORD r = g_origWaitForMultipleObjectsEx(count, handles, all, timeout, alertable);
+    QueryPerformanceCounter(&b);
+    HANDLE which = (count && handles) ? handles[r < count ? r : 0] : nullptr;
+    AccountWait(which, b.QuadPart - a.QuadPart);
+    return r;
+}
+
+static DWORD WINAPI Hook_WaitForMultipleObjects(DWORD count, const HANDLE* handles, BOOL all, DWORD timeout)
+{
+    if (GetCurrentThreadId() != g_presentThreadId.load()) return g_origWaitForMultipleObjects(count, handles, all, timeout);
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    DWORD r = g_origWaitForMultipleObjects(count, handles, all, timeout);
+    QueryPerformanceCounter(&b);
+    HANDLE which = (count && handles) ? handles[r < count ? r : 0] : nullptr;
+    AccountWait(which, b.QuadPart - a.QuadPart);
+    return r;
+}
+
+// D3D12 fences: catch the device at creation, then every fence, then the events it signals
+typedef HRESULT (WINAPI *PFN_D3D12CreateDevice)(IUnknown*, D3D_FEATURE_LEVEL, REFIID, void**);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateFence)(ID3D12Device*, UINT64, D3D12_FENCE_FLAGS, REFIID, void**);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_SetEventOnCompletion)(ID3D12Fence*, UINT64, HANDLE);
+static PFN_D3D12CreateDevice g_origD3D12CreateDevice = nullptr;
+static PFN_CreateFence g_origCreateFence = nullptr;
+static PFN_SetEventOnCompletion g_origSetEventOnCompletion = nullptr;
+
+// With a null event the call itself blocks until the GPU reaches the value, so it is timed
+// like a wait on a fence event.
+static HRESULT STDMETHODCALLTYPE Hook_SetEventOnCompletion(ID3D12Fence* self, UINT64 value, HANDLE event)
+{
+    if (event) { NoteFenceEvent(event); return g_origSetEventOnCompletion(self, value, event); }
+    if (GetCurrentThreadId() != g_presentThreadId.load()) return g_origSetEventOnCompletion(self, value, event);
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    HRESULT hr = g_origSetEventOnCompletion(self, value, event);
+    QueryPerformanceCounter(&b);
+    NoteFenceEvent(self);
+    AccountWait(self, b.QuadPart - a.QuadPart);
+    return hr;
+}
+
+static HRESULT STDMETHODCALLTYPE Hook_CreateFence(ID3D12Device* self, UINT64 initial, D3D12_FENCE_FLAGS flags, REFIID riid, void** ppv)
+{
+    HRESULT hr = g_origCreateFence(self, initial, flags, riid, ppv);
+    if (SUCCEEDED(hr) && ppv && *ppv) {
+        ID3D12Fence* fence = nullptr;
+        if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(ID3D12Fence), (void**)&fence)) && fence) {
+            HookVtableSlot(*(void***)fence, 9, (void*)&Hook_SetEventOnCompletion, (void**)&g_origSetEventOnCompletion, "ID3D12Fence::SetEventOnCompletion");
+            fence->Release();
+        }
+    }
+    return hr;
+}
+
+// Waits are hooked in every module, so the render thread's waits inside d3d12 and the driver
+// count too. The driver only exists after the device is created, so the patch runs again then.
+static int PatchWaitImports()
+{
+    struct { const char* name; void* hook; void** orig; } hooks[] = {
+        { "WaitForSingleObjectEx", (void*)&Hook_WaitForSingleObjectEx, (void**)&g_origWaitForSingleObjectEx },
+        { "WaitForSingleObject", (void*)&Hook_WaitForSingleObject, (void**)&g_origWaitForSingleObject },
+        { "WaitForMultipleObjectsEx", (void*)&Hook_WaitForMultipleObjectsEx, (void**)&g_origWaitForMultipleObjectsEx },
+        { "WaitForMultipleObjects", (void*)&Hook_WaitForMultipleObjects, (void**)&g_origWaitForMultipleObjects },
+    };
+    int patched = 0;
+    for (auto& h : hooks) patched += PatchEverywhere(h.name, h.hook, h.orig);
+    return patched;
+}
+
+static HRESULT WINAPI Hook_D3D12CreateDevice(IUnknown* adapter, D3D_FEATURE_LEVEL level, REFIID riid, void** ppv)
+{
+    HRESULT hr = g_origD3D12CreateDevice(adapter, level, riid, ppv);
+    if (SUCCEEDED(hr) && ppv && *ppv) {
+        ID3D12Device* device = nullptr;
+        if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(ID3D12Device), (void**)&device)) && device) {
+            HookVtableSlot(*(void***)device, 36, (void*)&Hook_CreateFence, (void**)&g_origCreateFence, "ID3D12Device::CreateFence");
+            device->Release();
+        }
+        Log("wait hooks: %d more wait import slots patched after the D3D12 device was created", PatchWaitImports());
+    }
+    return hr;
+}
+
+void InstallWaitHooks()
+{
+    if (!g_cfg.frameStats) return;
+    int patched = PatchWaitImports();
+    HMODULE d3d12 = GetModuleHandleW(L"d3d12.dll");
+    int d3dPatched = 0;
+    if (d3d12) {
+        g_origD3D12CreateDevice = (PFN_D3D12CreateDevice)GetProcAddress(d3d12, "D3D12CreateDevice");
+        if (g_origD3D12CreateDevice) d3dPatched = PatchIatByAddress(GetModuleHandleW(nullptr), (void*)g_origD3D12CreateDevice, (void*)&Hook_D3D12CreateDevice);
+    }
+    Log("wait hooks: %d wait import slots patched, D3D12CreateDevice %s", patched, d3dPatched ? "hooked" : "not hooked");
 }
 
 static void HookLatencyWaits(IDXGISwapChain2* sc2)
 {
     if (g_latencyObject) return;
     g_latencyObject = sc2->GetFrameLatencyWaitableObject();
-    if (!g_latencyObject) { Log("swap chain has no frame latency waitable object"); return; }
-    HMODULE exe = GetModuleHandleW(nullptr);
-    int patched = 0;
-    for (const wchar_t* lib : { L"kernel32.dll", L"kernelbase.dll" }) {
-        HMODULE m = GetModuleHandleW(lib);
-        if (!m) continue;
-        void* ex = (void*)GetProcAddress(m, "WaitForSingleObjectEx");
-        void* single = (void*)GetProcAddress(m, "WaitForSingleObject");
-        if (ex) { if (!g_origWaitForSingleObjectEx) g_origWaitForSingleObjectEx = (PFN_WaitForSingleObjectEx)ex; patched += PatchIatByAddress(exe, ex, (void*)&Hook_WaitForSingleObjectEx); }
-        if (single) { if (!g_origWaitForSingleObject) g_origWaitForSingleObject = (PFN_WaitForSingleObject)single; patched += PatchIatByAddress(exe, single, (void*)&Hook_WaitForSingleObject); }
-    }
-    Log("frame latency waitable object %p, %d wait import slots of the exe hooked", g_latencyObject, patched);
+    Log("frame latency waitable object %p", g_latencyObject);
 }
 
 // Optional frame limiter: hold the present thread until the frame interval has passed.
@@ -110,6 +255,7 @@ static void OnPresent(UINT syncInterval)
 
     double ms = (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart;
     if (ms > 2000.0) return;                     // alt-tab or loading screen pause, not a frame
+    g_presentThreadId.store(GetCurrentThreadId());
     SamplerOnPresent(ms);
     uint64_t us = (uint64_t)(ms * 1000.0);
     g_frames++; g_frameSumUs += us;
@@ -135,8 +281,10 @@ static void OnPresent(UINT syncInterval)
         sample.t = (float)NowSec();
         sample.ms = (float)ms;
         sample.present = (float)g_lastPresentCallMs;
-        sample.wait = (float)g_frameLatencyWaitMs;
-        g_frameLatencyWaitMs = 0.0;
+        sample.wait = (float)g_frameWaitMs;
+        sample.fence = (float)g_frameFenceWaitMs;
+        g_frameWaitMs = 0.0; g_frameFenceWaitMs = 0.0;
+        LogWaitTally();
         sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);

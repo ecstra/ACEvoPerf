@@ -50,6 +50,12 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   answers them by rebuilding its input devices and restarting its audio (a 660 ms frame).
 - Per frame streaming counters: the frames CSV carries the tile, package to memory and memory to
   GPU requests enqueued since the previous frame, so a slow frame can be matched to streaming.
+- Per frame wait split: the frames CSV carries `present_ms` (how long the Present call blocked),
+  `wait_ms` (every wait call of the render thread in the frame, in the game, in D3D12 and in the
+  driver) and `fence_ms` (the part of it spent on events D3D12 fences signal, which is waiting for
+  the GPU). The log gets a `[wait]` line per minute and handle, so a slow frame can be read as GPU
+  wait, other wait, present or render thread work. The report prints that split for the slowest
+  1 percent against the faster half.
 - Frame limiter (`[dxgi] fps_limit=N`, off by default): holds the present call to the interval
   with a sleep and a short spin, accurate to tens of microseconds, for an even pace.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's

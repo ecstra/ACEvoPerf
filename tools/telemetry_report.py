@@ -42,7 +42,7 @@ def read_frames(path: str) -> list[tuple[float, float, int, int, float, float]]:
         return []
     with open(path, newline="") as f:
         return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0),
-                 float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0))
+                 float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0), float(row.get("fence_ms") or 0.0))
                 for row in csv.DictReader(f)]
 
 
@@ -74,9 +74,13 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
               f"{blocked} of the slowest {n1} frames spent over half their time inside Present")
         if any(fr[5] > 0 for fr in stamped):
             faster = sorted(stamped, key=lambda fr: fr[1])[:len(stamped) // 2]
-            print(f"frame latency wait: median {statistics.median(fr[5] for fr in stamped):.2f} ms, "
-                  f"slowest 1% mean {statistics.fmean(fr[5] for fr in slowest):.2f} ms against {statistics.fmean(fr[5] for fr in faster):.2f} ms in the faster half, "
-                  f"so a slow frame is frame {statistics.fmean(fr[1] for fr in slowest):.1f} = wait {statistics.fmean(fr[5] for fr in slowest):.1f} + present {statistics.fmean(fr[4] for fr in slowest):.1f} + rest {statistics.fmean(fr[1] - fr[5] - fr[4] for fr in slowest):.1f} ms")
+            def split(group):
+                return (statistics.fmean(fr[1] for fr in group), statistics.fmean(fr[6] for fr in group),
+                        statistics.fmean(fr[5] - fr[6] for fr in group), statistics.fmean(fr[4] for fr in group),
+                        statistics.fmean(fr[1] - fr[5] - fr[4] for fr in group))
+            for label, group in (("slowest 1%", slowest), ("faster half", faster)):
+                total, fence, other, present, rest = split(group)
+                print(f"{label:12} frame {total:5.1f} ms = GPU fence wait {fence:4.1f} + other waits {other:4.1f} + present {present:4.1f} + render thread work {rest:5.1f}")
 
 
 def print_sample_mix(path: str, t_lo: float, t_hi: float) -> None:
