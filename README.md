@@ -33,11 +33,11 @@ everything to the original runtime and fixes the engine's video memory budget on
 ## Where to read more
 
 - `.agent/INDEX.md`: the map of every document, bug, todo and decision in this repo
-- `.agent/docs/moddability.md`: how the game is built and what can be changed
-- `.agent/docs/architecture.md`: how the DLL works
-- `.agent/docs/telemetry.md`: what the log and CSV files contain
-- `.agent/docs/tools.md`: the Python tools for the package and the settings files
-- `CLAUDE.md`: house rules for working in this repo
+- `.agent/docs/research/moddability.md`: how the game is built and what can be changed
+- `.agent/docs/foundation/proxy-architecture.md`: how the DLL works
+- `.agent/docs/ops/telemetry.md`: what the log and CSV files contain
+- `.agent/docs/ops/tools.md`: the Python tools for the package and the settings files
+- `CLAUDE.md` and `CONTRIBUTING.md`: house rules for working in this repo
 
 The DirectStorage headers in `third_party/directstorage` come from the Microsoft NuGet package
 `Microsoft.Direct3D.DirectStorage` 1.2.3 (MIT, license included).

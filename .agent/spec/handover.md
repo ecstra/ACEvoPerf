@@ -1,19 +1,22 @@
 ---
-title: Spec for handover notes
-updated: 2026-09-05
+name: spec-handover
+kind: doc
+description: format for .agent/handover, session handoffs
+updated: 2026-08-12
+links: [conventions]
 ---
 
-# Handover spec
+# Spec: handover/
 
-Applies to every file under `.agent/handover/`. Write one when work is paused or passed on, so the next session resumes without reconstructing the previous one's head.
+Notes written when work passes on or pauses mid task, so the next session
+picks up without reconstructing a head. One file per handoff, named for
+the work, standard frontmatter with `kind: doc`. The folder is born with
+its first file.
 
-File name: `YYYY-MM-DD-short-slug.md`.
+A handover states: where the work stands, what is verified against what
+is merely written, the next step, and the traps. It is a snapshot, dated,
+and never updated after the fact: a resumed work stream that pauses again
+writes a new one and links the old.
 
-Frontmatter: `title`, `date`, `branch`.
-
-Sections, in this order:
-
-- `## State`: what is built, installed, verified, and what is not
-- `## In flight`: what was being done when the session paused, with the exact next command or step
-- `## Open questions`: things only the user can answer
-- `## Pointers`: the bugs, todos and decisions that matter for the next step
+When the work completes, the handover's knowledge either graduates into
+docs/ or dies with the file. Handovers are not documentation.

@@ -1,50 +1,46 @@
 ---
-title: ACEvoPerf agent index
+name: agent-index
+kind: doc
+description: the spine of the agent directory, what exists and where
 updated: 2026-09-05
+links: [agent-readme, conventions, house-rules-agent]
 ---
 
 # Index
 
-Read this first. It lists every durable file in `.agent/` and what it is for.
+The spine. Read this first, then follow into the folder indexes. The
+upkeep rule (spec/conventions.md): every file change updates its index
+line in the same commit.
 
-## Specs
+## The directory itself
 
-The rules each kind of file must follow. A file that breaks its spec is a bug.
+- [README.md](README.md), what this directory is and how to boot from it
+- [house-rules.md](house-rules.md), the branch contract and review protocol, the operating version
+- [spec/conventions.md](spec/conventions.md), the shared law: frontmatter, naming, links, indexes
+- [spec/docs.md](spec/docs.md), format and folder rules for the knowledge library
+- [spec/memory.md](spec/memory.md), format and boundaries for project memory
+- [spec/bugs.md](spec/bugs.md), the defect tracker's format and lifecycle
+- [spec/todos.md](spec/todos.md), the work tracker's format, intake, and lifecycle
+- [spec/decisions.md](spec/decisions.md), one decision per file, how
+- [spec/reviews.md](spec/reviews.md), the review ledger format and lifecycle
+- [spec/handover.md](spec/handover.md), session handoff notes, how
 
-- [spec/doc.md](spec/doc.md): knowledge documents under `docs/`
-- [spec/bug.md](spec/bug.md): defect reports under `bugs/`
-- [spec/todo.md](spec/todo.md): work items under `todos/`
-- [spec/decision.md](spec/decision.md): decision records under `decisions/`
-- [spec/memory.md](spec/memory.md): durable project facts under `memory/`
-- [spec/handover.md](spec/handover.md): session handover notes under `handover/`
+## The knowledge
 
-## Docs
+- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 10 docs in four categories
+  - foundation: [proxy-architecture](docs/foundation/proxy-architecture.md), the DLL in load order
+  - systems: [directstorage-streaming](docs/systems/directstorage-streaming.md), [engine-flags](docs/systems/engine-flags.md), [content-package](docs/systems/content-package.md), [settings-files](docs/systems/settings-files.md)
+  - ops: [telemetry](docs/ops/telemetry.md), [build-and-release](docs/ops/build-and-release.md), [tools](docs/ops/tools.md)
+  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md)
 
-- [docs/moddability.md](docs/moddability.md): how Assetto Corsa EVO 0.9.0 is built and what can be changed
-- [docs/architecture.md](docs/architecture.md): what the proxy DLL does, in load order, and why each piece exists
-- [docs/telemetry.md](docs/telemetry.md): the log and CSV files the mod writes and what each column means
-- [docs/tools.md](docs/tools.md): the Python tools for the package and the settings files
+## The trackers
 
-## Trackers
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 5 open (TODO-001 to TODO-005), 1 done
+- [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 7 open (2 breaks, 4 bug, 1 nit), 1 fixed (BUG-003)
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 4 standing (DEC-001 to DEC-004)
+- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet
 
-- [bugs/](bugs/): one file per defect, status in the frontmatter
-- [todos/](todos/): one file per work item, with a done when line
+## Memory and handovers
 
-## Decisions
-
-- [decisions/2026-09-05-dstorage-proxy-as-loader.md](decisions/2026-09-05-dstorage-proxy-as-loader.md)
-- [decisions/2026-09-05-flags-by-memory-write.md](decisions/2026-09-05-flags-by-memory-write.md)
-- [decisions/2026-09-05-staging-buffer-128mb.md](decisions/2026-09-05-staging-buffer-128mb.md)
-- [decisions/2026-09-05-canonical-pools-off-by-default.md](decisions/2026-09-05-canonical-pools-off-by-default.md)
-
-## Memory
-
-- [memory/game-build.md](memory/game-build.md): facts about the game build the mod targets
-
-## Handover
-
-- [handover/2026-09-05-telemetry-lap.md](handover/2026-09-05-telemetry-lap.md): state at the end of the first session
-
-## House rules
-
-- [house-rules.md](house-rules.md): review protocol pointer
+- [memory/INDEX.md](memory/INDEX.md), project facts: 5 (3 project, 1 reference, 1 feedback)
+- [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
