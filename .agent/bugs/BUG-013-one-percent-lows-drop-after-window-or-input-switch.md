@@ -45,14 +45,35 @@ time (cuz its not)."
   second costing about 1 ms per second, slowest poll 0.09 ms, in the menu and the race, so
   controller polling is not the cost either, at least before a device change.
 
+- 21:26 session, twenty minutes with the swap chain hooks logging and the game's own latency:
+  the game never touched `SetMaximumFrameLatency`, `ResizeBuffers` or `SetFullscreenState` after
+  startup, and the GPU clock stayed at about 1560 MHz through a switch. Every frame over 80 ms
+  lines up with a discrete event in the game log:
+
+  | event | stall |
+  | --- | --- |
+  | session load | up to 1.2 s |
+  | window loses focus: the game pauses itself and loads the pause page | 130 to 170 ms |
+  | focus returns: resume, the HUD page reloads | 90 to 150 ms, two or three in a row |
+  | back to pits: dynamic track preset load (BUG-012) | 1.5 s |
+  | a device change at 21:37:52: all 21 DirectInput devices recreated, audio system restarted | 660 ms |
+
+  The owner's overlay computes its 1 percent low over a rolling window, so each of these pulls
+  the reading down and it recovers when the stall leaves the window, which is the "drops and
+  comes back" pattern. The steady state after a switch is unchanged (BUG-009 holds the clean
+  driving numbers).
+- What triggered the 21:37:52 device change is not known yet. The exe does not call
+  `RegisterDeviceNotificationW`, so the DirectInput rebuild answers the plain `WM_DEVICECHANGE`
+  broadcast (or FMOD's own device list callback for the audio side). The proxy now logs every
+  device interface arrival and removal and every audio endpoint change with its time.
+
 ## Fix
 
-Absent. The proxy now logs every `SetMaximumFrameLatency`, `ResizeBuffers` and
-`SetFullscreenState` call with a timestamp and leaves the values alone (DEC-008). The next run
-does the window switch and the repeated session restarts and reads the log against the frames
-CSV: a latency or swap chain change at those moments is the root cause, no change means the
-present path itself (composed against flip presentation after focus loss) is next, readable
-through `GetFrameStatistics` or PresentMon.
+Absent. Each stall has its own owner: the pause page and HUD reloads belong to the UI (out of
+scope for now), the pit lane return is BUG-012, the device rebuild waits for the device watch
+to name the device. If the watch shows an audio endpoint flapping (a virtual device of a sound
+utility), the fix is on the machine, or a window procedure filter that swallows device change
+broadcasts that carry no game controller.
 
 ## Verification
 

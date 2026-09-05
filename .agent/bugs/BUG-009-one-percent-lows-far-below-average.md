@@ -92,12 +92,19 @@ shown fps."
   43 to 45 fps instead of 80 or more (DEC-008). Whatever removed the alternation on lap four was
   not the cap, the fixed pools landed in the same session and are the remaining candidate.
 
+- Clean driving, 21:36:29 to 21:37:50 (game's own latency of 2, GPU at 99 percent): average
+  89 fps, 1 percent low 48.7 fps, median frame 11.0 ms, p99 15.4 ms. The slowest 1 percent are
+  75 frames in 68 separate runs, 62 of them single frames, one every 0.45 s on median. Lag 1
+  autocorrelation is gone (minus 0.06), lag 2 still +0.32. So the gap is isolated slow frames at
+  a steady rhythm plus a little alternation, not sections and not the menu.
+
 ## Fix
 
-Absent again. The cap is off (DEC-008), the proxy now logs every latency call so the pacing can
-be read against what the game really sets. The remaining gap is the GPU load spread between
-sections, and any menu opened during a stint. Remaining candidates: a frame rate cap just under
-the typical rate, the `gpu-relief` settings profile, and cooling.
+Absent. The cap is off (DEC-008). Next: the frames CSV now carries the streaming requests of
+every frame, so the half second spikes get matched to tile uploads or not. If they are streaming,
+the queue proxy can spread batches. If not, the engine's time sliced work is next (`gibake_probes_per_frame`, car update budgets, reflection faces) and `no_gi` as the attribution
+experiment. The mod's frame limiter (`fps_limit`) closes the gap by design at the cost of the
+fastest frames, the owner's call.
 
 ## Verification
 
