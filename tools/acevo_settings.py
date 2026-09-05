@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""acevo_settings.py - view / edit Assetto Corsa EVO's binary settings files.
+r"""acevo_settings.py - view / edit Assetto Corsa EVO's binary settings files.
 
 The game stores settings as protobuf messages (video.videosettings etc.) and
 embeds the protobuf schema inside AssettoCorsaEVO.exe. This tool extracts that
@@ -13,7 +13,8 @@ Usage:
   acevo_settings.py profiles
   acevo_settings.py restore [BACKUP_FILE]
 
-Options: --exe PATH (game exe), --file PATH (settings file), --message NAME
+Options: --exe PATH (game exe, default ACEVO_GAME_DIR\AssettoCorsaEVO.exe),
+         --file PATH (settings file), --message NAME
 Every write creates <file>.bak-YYYYmmdd-HHMMSS first. Close the game before editing.
 Requires: pip install protobuf
 """
@@ -21,6 +22,7 @@ import argparse, glob, os, shutil, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from protodesc import load, msg_class  # noqa: E402
+from gamedir import game_file  # noqa: E402
 from google.protobuf import text_format, descriptor  # noqa: E402
 
 PROFILES = {
@@ -57,14 +59,6 @@ PROFILES = {
         "graphics.depthOfField": "DepthOfFieldQuality_Off",
     },
 }
-
-
-def default_exe():
-    for c in (r"C:\InfinityX\Games\Assetto Corsa EVO\AssettoCorsaEVO.exe",
-              r"C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO\AssettoCorsaEVO.exe"):
-        if os.path.exists(c):
-            return c
-    return "AssettoCorsaEVO.exe"
 
 
 def default_file():
@@ -149,7 +143,7 @@ def cmd_restore(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--exe", default=default_exe())
+    ap.add_argument("--exe", help="game exe (default: ACEVO_GAME_DIR\\AssettoCorsaEVO.exe)")
     ap.add_argument("--file", default=default_file())
     ap.add_argument("--message", default="VideoSettings")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -159,6 +153,8 @@ def main():
     sub.add_parser("profiles").set_defaults(fn=cmd_profiles)
     p = sub.add_parser("restore"); p.add_argument("backup", nargs="?"); p.set_defaults(fn=cmd_restore)
     a = ap.parse_args()
+    if not a.exe:
+        a.exe = game_file("AssettoCorsaEVO.exe")
     if not os.path.exists(a.exe):
         raise SystemExit(f"game exe not found: {a.exe} (use --exe)")
     if a.cmd != "restore" and not os.path.exists(a.file):

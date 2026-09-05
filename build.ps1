@@ -1,10 +1,15 @@
 # Builds dist\dstorage.dll (ACEvoPerf proxy) with the installed MSVC + Windows SDK.
+# -Install copies the result into the game folder named by ACEVO_GAME_DIR (development only,
+# users install by drag and drop).
+param([switch]$Install)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$vsRoot = "C:\Program Files\Microsoft Visual Studio\2022"
-$vc = Get-ChildItem "$vsRoot\*\VC\Tools\MSVC" -ErrorAction Stop | Select-Object -First 1
-$msvc = Get-ChildItem $vc.FullName | Sort-Object Name -Descending | Select-Object -First 1
-$kits = "C:\Program Files (x86)\Windows Kits\10"
+$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found, install Visual Studio 2022 with the C++ workload" }
+$vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+if (-not $vsPath) { throw "no Visual Studio with the C++ toolset found" }
+$msvc = Get-ChildItem "$vsPath\VC\Tools\MSVC" | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+$kits = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10"
 $sdkVer = (Get-ChildItem "$kits\Include" | Where-Object { Test-Path "$($_.FullName)\um\d3d12.h" } | Sort-Object Name -Descending | Select-Object -First 1).Name
 Write-Host "MSVC: $($msvc.FullName)"
 Write-Host "SDK : $sdkVer"
@@ -28,3 +33,14 @@ try {
 # the zip payload also needs the original Microsoft runtime under the name the proxy forwards to
 Copy-Item "$root\third_party\directstorage\bin\x64\dstorage.dll" "$root\dist\dstorage_orig.dll" -Force
 Write-Host "Built: $root\dist\dstorage.dll (+ dstorage_orig.dll)"
+
+if ($Install) {
+    $game = $env:ACEVO_GAME_DIR
+    if (-not $game) { throw "set ACEVO_GAME_DIR to the game folder (the one with AssettoCorsaEVO.exe) to use -Install" }
+    if (-not (Test-Path "$game\AssettoCorsaEVO.exe")) { throw "ACEVO_GAME_DIR=$game does not contain AssettoCorsaEVO.exe" }
+    if (Get-Process AssettoCorsaEVO -ErrorAction SilentlyContinue) { throw "close the game before installing" }
+    Copy-Item "$root\dist\dstorage.dll" "$game\dstorage.dll" -Force
+    if (-not (Test-Path "$game\dstorage_orig.dll")) { Copy-Item "$root\dist\dstorage_orig.dll" "$game\dstorage_orig.dll" }
+    if (-not (Test-Path "$game\acevo_perf.ini")) { Copy-Item "$root\dist\acevo_perf.ini" "$game\acevo_perf.ini" }
+    Write-Host "Installed into $game (existing ini kept)"
+}

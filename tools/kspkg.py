@@ -27,6 +27,9 @@ Usage:
 import argparse, fnmatch, os, struct, sys
 from collections import Counter, defaultdict, namedtuple
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gamedir import game_file  # noqa: E402
+
 KEY = bytes.fromhex("c135117da921979f")
 SLOT = 256
 FLAG_DIR = 1 << 0
@@ -52,14 +55,6 @@ def xor_at(buf: bytes, rel_off: int) -> bytes:
     krot = KEY[r:] + KEY[:r]
     ks = (krot * (n // 8 + 2))[:n]
     return (int.from_bytes(buf, "little") ^ int.from_bytes(ks, "little")).to_bytes(n, "little")
-
-
-def default_path():
-    for c in (r"C:\InfinityX\Games\Assetto Corsa EVO\content.kspkg",
-              r"C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO\content.kspkg"):
-        if os.path.exists(c):
-            return c
-    return "content.kspkg"
 
 
 def parse_slot(raw: bytes):
@@ -196,7 +191,7 @@ def cmd_stats(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-p", "--package", default=default_path())
+    ap.add_argument("-p", "--package", help="path of content.kspkg (default: ACEVO_GAME_DIR\\content.kspkg)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("info").set_defaults(fn=cmd_info)
     p = sub.add_parser("list"); p.add_argument("-f", "--filter"); p.add_argument("--sort", default="path", choices=["path", "size", "offset"]); p.set_defaults(fn=cmd_list)
@@ -205,6 +200,10 @@ def main():
     sub.add_parser("verify").set_defaults(fn=cmd_verify)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
     a = ap.parse_args()
+    if not a.package:
+        a.package = game_file("content.kspkg")
+    if not os.path.exists(a.package):
+        raise SystemExit(f"package not found: {a.package} (use -p)")
     a.fn(a)
 
 

@@ -37,6 +37,8 @@ After a game update that replaces `dstorage.dll`, copy the three files in again.
 
 `build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK. Output goes to
 `dist\dstorage.dll`. `release.ps1` builds and zips the drag and drop payload into `release\`.
+For development set `ACEVO_GAME_DIR` to your game folder: `build.ps1 -Install` then copies the
+build there, and the Python tools find the package and the exe through the same variable.
 
 ## Layout
 

@@ -23,7 +23,7 @@ def blob_end(b,i0):
         except Exception: break
         i=j
     return i
-def load(exe=r"C:\InfinityX\Games\Assetto Corsa EVO\AssettoCorsaEVO.exe"):
+def load(exe):
     d=open(exe,"rb").read(); seen={}; 
     for m in re.finditer(rb"\x0a[\x01-\x7f]([\x20-\x7e]{3,120}?\.proto)[\x12\x1a\x22\x2a\x32]", d):
         st=m.start(); ln=d[st+1]; name=d[st+2:st+2+ln]

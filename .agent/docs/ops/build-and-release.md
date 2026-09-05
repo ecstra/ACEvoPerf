@@ -15,7 +15,13 @@ with the newest installed MSVC 2022 toolset and the newest Windows 10 SDK that h
 Headers are found through `/I include`. Flags: `/O2 /W4 /MT /std:c++17`, linked against
 `kernel32.lib` and `user32.lib` only, exports from `src/exports.def`, version resource from
 `src/version.rc` (compiled with `rc.exe`). A new source file needs no build script change, a new
-folder neither.
+folder neither. The toolset is found through `vswhere.exe` and the `ProgramFiles(x86)` variable,
+nothing in the script names a machine specific folder.
+
+For development, `build.ps1 -Install` copies the fresh `dstorage.dll` into the folder named by the
+`ACEVO_GAME_DIR` environment variable (refuses while the game runs, keeps an existing ini). Users
+never run it, they install by drag and drop.
+
 The DirectStorage headers come from `third_party/directstorage` (Microsoft NuGet package
 `Microsoft.Direct3D.DirectStorage` 1.2.3, MIT, license included). A clean build has zero errors
 and one known warning (`C4244` inside the STL, from a `wchar_t` to `char` copy).

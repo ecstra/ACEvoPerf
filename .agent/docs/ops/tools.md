@@ -11,6 +11,10 @@ links: [content-package, settings-files, telemetry]
 All in `tools/`, Python 3.10 or newer (`py -3` on Windows, `python3` elsewhere). `pip install
 protobuf` is the only dependency, needed by the settings tool and the schema extractor.
 
+No tool guesses where the game is. Set the environment variable `ACEVO_GAME_DIR` to the folder
+that holds `AssettoCorsaEVO.exe` (`gamedir.py` reads it), or pass the tool's own path option.
+`build.ps1 -Install` uses the same variable to copy a fresh build into the game folder.
+
 ## kspkg.py
 
 Reads `content.kspkg` (format in content-package).
@@ -22,7 +26,7 @@ Reads `content.kspkg` (format in content-package).
 - `verify`: recompute every path hash
 - `stats`: size by extension and cipher flag
 
-The package path defaults to the known install folders, pass `-p` otherwise.
+The package is `ACEVO_GAME_DIR\content.kspkg`, pass `-p` for another file.
 
 ## acevo_settings.py
 
