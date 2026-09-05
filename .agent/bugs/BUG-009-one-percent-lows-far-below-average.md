@@ -23,7 +23,20 @@ shown fps."
   observation in numbers.
 - The slow frames are not hitches: nothing over 23 ms while driving. They are a spread of
   16 to 20 ms frames inside a 13 ms stream.
-- Periodicity analysis of `acevo_perf_frames.csv` is recorded below the evidence once run.
+- Periodicity analysis of the driving window (55,758 frames, seconds 150 to 860 of lap one):
+  mean 12.7 ms, p99 16.4 ms (61 fps), 0.9 percent of frames over 16.6 ms, almost all of them
+  isolated single frames (336 runs of length 1, only 5 runs longer than 3).
+  Autocorrelation of frame time: lag 1 is slightly negative (minus 0.07) while lag 2 is plus 0.50,
+  lag 4 plus 0.38, lag 6 plus 0.44 and every longer lag plus 0.2 to 0.3. So two things overlap:
+  slow neighbourhoods (heavier sections, the same GPU story as BUG-002) and a strong every other
+  frame alternation, a long frame followed by a short one.
+- Streaming is not involved: seconds with tile requests and seconds without have the same
+  spread (standard deviation 1.29 ms, worst frame 16.3 ms in both groups), same for GPU uploads.
+- Alternating frame cost matches the engine's time sliced work: car reflection cubemaps rendered a
+  few faces per frame (`facesPerFrame` in the exe, `CarReflectionQuality_High` in the owner's
+  settings), clouds spread over 16 frames (`renderingTimeslicedOverFramesNumber: 16`), GI probes
+  at 16 per frame (`gibake_probes_per_frame`), plus the present path through the integrated GPU
+  in windowed mode.
 
 ## Fix
 

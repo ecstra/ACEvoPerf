@@ -24,6 +24,21 @@ from protodesc import load, msg_class  # noqa: E402
 from google.protobuf import text_format, descriptor  # noqa: E402
 
 PROFILES = {
+    # Frame pacing: fewer per frame cubemap faces, and the present path of a
+    # fullscreen swap chain instead of the composited window.
+    "pacing": {
+        "graphics.carReflection.carReflectionQuality": "CarReflectionQuality_Medium",
+        "display.is_fullscreen": "true",
+    },
+    # GPU relief without touching texture quality: about 22 percent fewer
+    # rendered pixels plus the four Ultra effects one step down.
+    "gpu-relief": {
+        "graphics.upscaling.dlss_preset": "DLSS_Quality",
+        "graphics.clouds.cloudsQuality": "CloudsQuality_High",
+        "graphics.volumetricsQuality": "VolumetricsQuality_High",
+        "graphics.motionBlur.quality": "MotionBlurQuality_Medium",
+        "graphics.grass": "GrassDensity_High",
+    },
     # Uses the VRAM the mod frees (staging buffer cap) for sharper textures only.
     "vram6-textures": {
         "graphics.textureQuality": "TextureQuality_High",
