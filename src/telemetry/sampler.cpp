@@ -2,6 +2,7 @@
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
 #include "acevo/render/frame_stats.h"
+#include <unordered_map>
 
 namespace {
 
@@ -14,38 +15,41 @@ struct ModuleRange { uintptr_t base; uintptr_t end; int bucket; bool system; };
 ModuleRange g_modules[512];
 int g_moduleCount = 0;
 
-// exports of the system DLLs, sorted by address, for the nearest export lookup. The name
-// points into the DLL's own export table, the system DLLs never unload.
-struct Export { uintptr_t addr; int bucket; const char* name; };
+// labels a sample is tallied under: "module!export" for the system DLLs, the bucket name for
+// everything else. An append only arena of strings, addressed by offset, sampler thread only.
+std::vector<char> g_labels;
+uint32_t g_bucketLabel[kBucketCount];
+
+uint32_t AddLabel(const char* text)
+{
+    uint32_t offset = (uint32_t)g_labels.size();
+    g_labels.insert(g_labels.end(), text, text + strlen(text) + 1);
+    return offset;
+}
+
+// exports of the system DLLs, sorted by address, for the nearest export lookup
+struct Export { uintptr_t addr; int bucket; uint32_t label; };
 std::vector<Export> g_exports;
 
 std::atomic<uint32_t> g_counts[kBucketCount];
 std::atomic<uint32_t> g_unknownHits{0};
 
-// game code addresses sampled in the frame under way, cut at every present
-const int kRipsPerFrame = 512;
-uintptr_t g_rips[2][kRipsPerFrame];
-std::atomic<int> g_ripCount[2];
-std::atomic<int> g_ripBuffer{0};
+// every sample in a ring, and the frames as spans over it, so the minute's slowest frames can
+// be told apart from its median frames after the fact
+struct Sample { uintptr_t rip; uint32_t label; uint32_t callerKey; };
+const uint32_t kSampleRing = 1u << 19;
+Sample g_samples[kSampleRing];
+std::atomic<uint32_t> g_sampleWrite{0};
 
-// histograms of game code by 64 byte bucket, slow frames against the rest
-CRITICAL_SECTION g_histCs;
-std::vector<std::pair<uint32_t, uint32_t>> g_slowHist;   // (bucket, count), small and sorted on demand
-std::vector<std::pair<uint32_t, uint32_t>> g_fastHist;
+struct FrameSpan { float ms; uint32_t begin; uint32_t end; };
+const uint32_t kFrameRing = 1u << 14;
+FrameSpan g_spans[kFrameRing];
+std::atomic<uint32_t> g_spanWrite{0};
+uint32_t g_spanRead = 0;          // sampler thread
+uint32_t g_nextSpanBegin = 0;     // render thread
+
 uintptr_t g_gameBase = 0;
 uintptr_t g_gameTextBegin = 0, g_gameTextEnd = 0;
-double g_typicalMs = 0.0;
-
-// samples outside the game code, with the function they are in (the nearest export for a
-// system DLL, the module name otherwise) and the first game return address on the stack
-struct OutsideSample { const char* name; uint32_t callerKey; };
-const int kOutsidePerFrame = 128;
-OutsideSample g_outside[2][kOutsidePerFrame];
-std::atomic<int> g_outsideCount[2];
-struct NameTally { const char* name; uint32_t slow; uint32_t fast; };
-std::vector<NameTally> g_nameTally;
-std::vector<std::pair<uint32_t, uint32_t>> g_callerSlowHist;
-std::vector<std::pair<uint32_t, uint32_t>> g_callerFastHist;
 
 struct FrameRecord { float t; float ms; uint32_t counts[kBucketCount]; };
 std::vector<FrameRecord> g_records;
@@ -89,7 +93,7 @@ int BucketForModule(const char* name, bool* system)
     return kOther;
 }
 
-void CollectExports(HMODULE mod)
+void CollectExports(HMODULE mod, const char* file)
 {
     BYTE* base = (BYTE*)mod;
     auto dos = (IMAGE_DOS_HEADER*)base;
@@ -101,11 +105,16 @@ void CollectExports(HMODULE mod)
     auto names = (DWORD*)(base + exp->AddressOfNames);
     auto ordinals = (WORD*)(base + exp->AddressOfNameOrdinals);
     auto functions = (DWORD*)(base + exp->AddressOfFunctions);
+    char module[64];
+    strncpy_s(module, file, _TRUNCATE);
+    if (char* dot = strrchr(module, '.')) *dot = 0;
+    char label[256];
     for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
         DWORD rva = functions[ordinals[i]];
         if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size) continue;   // forwarder
         const char* name = (const char*)(base + names[i]);
-        g_exports.push_back({ (uintptr_t)(base + rva), BucketForName(name), name });
+        _snprintf_s(label, sizeof label, _TRUNCATE, "%s!%s", module, name);
+        g_exports.push_back({ (uintptr_t)(base + rva), BucketForName(name), AddLabel(label) });
     }
 }
 
@@ -131,7 +140,7 @@ bool ReadQword(uintptr_t addr, uintptr_t* out)
 
 // The first game code address on top of the suspended thread's stack, as a 64 byte bucket
 // key, or zero. A return address into the exe's code section is what the sample was called
-// from, give or take a data pointer that happens to point into the code.
+// from, give or take a function pointer that happens to sit on the stack.
 uint32_t GameCallerOnStack(uintptr_t rsp)
 {
     if (!g_gameTextBegin) return 0;
@@ -149,8 +158,6 @@ void RefreshModules()
     if (!K32EnumProcessModules(GetCurrentProcess(), mods, sizeof mods, &needed)) return;
     int count = (int)std::min<DWORD>(needed / sizeof(HMODULE), 512);
     ModuleRange table[512]; int n = 0;
-    std::vector<Export> exports;
-    g_exports.swap(exports);
     g_exports.clear();
     for (int i = 0; i < count; ++i) {
         MODULEINFO info = {};
@@ -158,23 +165,24 @@ void RefreshModules()
         if (!K32GetModuleInformation(GetCurrentProcess(), mods[i], &info, sizeof info)) continue;
         K32GetModuleFileNameExA(GetCurrentProcess(), mods[i], name, MAX_PATH);
         const char* file = strrchr(name, '\\');
+        file = file ? file + 1 : name;
         bool system = false;
-        int bucket = BucketForModule(file ? file + 1 : name, &system);
+        int bucket = BucketForModule(file, &system);
         table[n++] = { (uintptr_t)info.lpBaseOfDll, (uintptr_t)info.lpBaseOfDll + info.SizeOfImage, bucket, system };
         if (bucket == kGame) { g_gameBase = (uintptr_t)info.lpBaseOfDll; FindGameText(mods[i]); }
-        if (system) CollectExports(mods[i]);
+        if (system) CollectExports(mods[i], file);
     }
     std::sort(g_exports.begin(), g_exports.end(), [](const Export& a, const Export& b) { return a.addr < b.addr; });
     memcpy(g_modules, table, sizeof(ModuleRange) * n);
     g_moduleCount = n;
 }
 
-// bucket of the address, and the name to tally it under when it is outside the game
-int Classify(uintptr_t rip, const char** name)
+// bucket of the address, and the label to tally it under
+int Classify(uintptr_t rip, uint32_t* label)
 {
     for (int i = 0; i < g_moduleCount; ++i) {
         if (rip < g_modules[i].base || rip >= g_modules[i].end) continue;
-        *name = kBucketNames[g_modules[i].bucket];
+        *label = g_bucketLabel[g_modules[i].bucket];
         if (!g_modules[i].system) return g_modules[i].bucket;
         // nearest export at or before the address
         size_t lo = 0, hi = g_exports.size();
@@ -182,68 +190,83 @@ int Classify(uintptr_t rip, const char** name)
         if (lo == 0) return kSystem;
         const Export& e = g_exports[lo - 1];
         if (e.addr < g_modules[i].base || rip - e.addr >= 0x4000) return kSystem;
-        *name = e.name;
+        *label = e.label;
         return e.bucket;
     }
+    *label = g_bucketLabel[kOther];
     return -1;
 }
 
-void Bump(std::vector<std::pair<uint32_t, uint32_t>>& hist, uint32_t key)
-{
-    for (auto& kv : hist) if (kv.first == key) { kv.second++; return; }
-    if (hist.size() < 20000) hist.push_back({ key, 1 });
-}
+// The minute's frames sorted by time: the slowest 1 percent against the median half, the
+// same cut the report makes, so loading stalls and pauses do not colour the picture.
+typedef std::unordered_map<uint64_t, uint32_t> Hist;
 
-uint32_t CountIn(const std::vector<std::pair<uint32_t, uint32_t>>& hist, uint32_t key)
+struct Ranked { uint64_t key; uint32_t slow; double fastScaled; };
+
+std::vector<Ranked> Rank(const Hist& slow, const Hist& fast, double scale, size_t top, bool byExtra)
 {
-    for (auto& kv : hist) if (kv.first == key) return kv.second;
-    return 0;
+    std::vector<Ranked> rows;
+    rows.reserve(slow.size() + fast.size());
+    for (auto& kv : slow) {
+        auto f = fast.find(kv.first);
+        rows.push_back({ kv.first, kv.second, (f == fast.end() ? 0.0 : f->second) * scale });
+    }
+    if (!byExtra)
+        for (auto& kv : fast)
+            if (slow.find(kv.first) == slow.end()) rows.push_back({ kv.first, 0, kv.second * scale });
+    std::sort(rows.begin(), rows.end(), [&](const Ranked& a, const Ranked& b) {
+        return byExtra ? (a.slow - a.fastScaled) > (b.slow - b.fastScaled) : a.fastScaled > b.fastScaled;
+    });
+    if (rows.size() > top) rows.resize(top);
+    return rows;
 }
 
 void LogHotSpots()
 {
-    EnterCriticalSection(&g_histCs);
-    std::vector<std::pair<uint32_t, uint32_t>> slow = g_slowHist;
-    std::vector<std::pair<uint32_t, uint32_t>> fast = g_fastHist;
-    LeaveCriticalSection(&g_histCs);
-    if (slow.empty()) return;
-    uint32_t slowTotal = 0, fastTotal = 0;
-    for (auto& kv : slow) slowTotal += kv.second;
-    for (auto& kv : fast) fastTotal += kv.second;
-    if (!slowTotal || !fastTotal) return;
-    // rank by how much more often a bucket appears in slow frames than its share of the fast frames predicts
-    std::sort(slow.begin(), slow.end(), [&](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
-        double ea = (double)a.second - (double)CountIn(fast, a.first) * slowTotal / fastTotal;
-        double eb = (double)b.second - (double)CountIn(fast, b.first) * slowTotal / fastTotal;
-        return ea > eb;
-    });
-    Log("sampler: game code with the most extra samples in slow frames (rva, slow samples, fast samples scaled to the same total; %u slow, %u fast samples)", slowTotal, fastTotal);
-    for (size_t i = 0; i < slow.size() && i < 12; ++i) {
-        double scaled = (double)CountIn(fast, slow[i].first) * slowTotal / fastTotal;
-        Log("sampler:   rva 0x%06X  slow %5u  fast %7.1f", (unsigned)(slow[i].first << 6), slow[i].second, scaled);
+    uint32_t write = g_spanWrite.load();
+    std::vector<FrameSpan> frames;
+    for (uint32_t i = g_spanRead; i != write; ++i) {
+        const FrameSpan& s = g_spans[i % kFrameRing];
+        if (s.ms < 100.0f && s.end != s.begin) frames.push_back(s);
     }
+    g_spanRead = write;
+    if (frames.size() < 200) return;
 
-    // the same for the samples outside the game: by function, and by the game code under them
-    EnterCriticalSection(&g_histCs);
-    std::vector<NameTally> names = g_nameTally;
-    std::vector<std::pair<uint32_t, uint32_t>> callerSlow = g_callerSlowHist;
-    std::vector<std::pair<uint32_t, uint32_t>> callerFast = g_callerFastHist;
-    LeaveCriticalSection(&g_histCs);
-    double scale = (double)slowTotal / fastTotal;
-    std::sort(names.begin(), names.end(), [&](const NameTally& a, const NameTally& b) {
-        return (double)a.slow - a.fast * scale > (double)b.slow - b.fast * scale;
-    });
-    Log("sampler: outside the game code, functions with the most extra samples in slow frames (slow, fast scaled)");
-    for (size_t i = 0; i < names.size() && i < 10; ++i)
-        Log("sampler:   %-40s slow %5u  fast %7.1f", names[i].name, names[i].slow, names[i].fast * scale);
-    uint32_t callerSlowTotal = 0;
-    for (auto& kv : callerSlow) callerSlowTotal += kv.second;
-    std::sort(callerSlow.begin(), callerSlow.end(), [&](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
-        return (double)a.second - CountIn(callerFast, a.first) * scale > (double)b.second - CountIn(callerFast, b.first) * scale;
-    });
-    Log("sampler: game code on the stack under those samples, the call site with the most extra slow samples first (%u slow samples with a game caller)", callerSlowTotal);
-    for (size_t i = 0; i < callerSlow.size() && i < 12; ++i)
-        Log("sampler:   rva 0x%06X  slow %5u  fast %7.1f", (unsigned)(callerSlow[i].first << 6), callerSlow[i].second, CountIn(callerFast, callerSlow[i].first) * scale);
+    std::sort(frames.begin(), frames.end(), [](const FrameSpan& a, const FrameSpan& b) { return a.ms < b.ms; });
+    size_t slowCount = std::max<size_t>(5, frames.size() / 100);
+    size_t fastCount = frames.size() / 2;
+    Hist gameSlow, gameFast, outSlow, outFast, pairSlow, pairFast;
+    uint32_t slowSamples = 0, fastSamples = 0;
+    double slowMs = 0.0, fastMs = 0.0;
+    auto tally = [&](const FrameSpan& f, Hist& game, Hist& out, Hist& pair, uint32_t& samples) {
+        for (uint32_t i = f.begin; i != f.end; ++i) {
+            const Sample& s = g_samples[i % kSampleRing];
+            samples++;
+            if (s.rip >= g_gameTextBegin && s.rip < g_gameTextEnd) { game[(s.rip - g_gameBase) >> 6]++; continue; }
+            out[s.label]++;
+            pair[((uint64_t)s.label << 32) | s.callerKey]++;
+        }
+    };
+    for (size_t i = frames.size() - slowCount; i < frames.size(); ++i) { tally(frames[i], gameSlow, outSlow, pairSlow, slowSamples); slowMs += frames[i].ms; }
+    for (size_t i = 0; i < fastCount; ++i) { tally(frames[i], gameFast, outFast, pairFast, fastSamples); fastMs += frames[i].ms; }
+    if (!slowSamples || !fastSamples) return;
+    double scale = (double)slowSamples / fastSamples;
+
+    Log("sampler: last minute, %zu frames: slowest 1%% = %zu frames over %.1f ms (mean %.1f ms, %.1f samples each), median half under %.1f ms (mean %.1f ms, %.1f samples each)",
+        frames.size(), slowCount, frames[frames.size() - slowCount].ms, slowMs / slowCount, (double)slowSamples / slowCount,
+        frames[fastCount].ms, fastMs / fastCount, (double)fastSamples / fastCount);
+    Log("sampler: game code with the most extra samples in the slowest 1%% (rva, slow, median half scaled)");
+    for (const Ranked& r : Rank(gameSlow, gameFast, scale, 12, true))
+        Log("sampler:   rva 0x%06X  slow %5u  fast %7.1f", (unsigned)(r.key << 6), r.slow, r.fastScaled);
+    Log("sampler: outside the game code, functions with the most extra samples in the slowest 1%%");
+    for (const Ranked& r : Rank(outSlow, outFast, scale, 10, true))
+        Log("sampler:   %-44s slow %5u  fast %7.1f", g_labels.data() + r.key, r.slow, r.fastScaled);
+    Log("sampler: outside the game code, functions with the most samples in the median half (the steady cost)");
+    for (const Ranked& r : Rank(outSlow, outFast, scale, 8, false))
+        Log("sampler:   %-44s slow %5u  fast %7.1f", g_labels.data() + r.key, r.slow, r.fastScaled);
+    Log("sampler: function and the game call site under it with the most extra samples in the slowest 1%%");
+    for (const Ranked& r : Rank(pairSlow, pairFast, scale, 12, true))
+        Log("sampler:   %-44s under rva 0x%06X  slow %5u  fast %7.1f", g_labels.data() + (uint32_t)(r.key >> 32), (unsigned)((r.key & 0xFFFFFFFF) << 6), r.slow, r.fastScaled);
 }
 
 void WriteRecords(HANDLE csv)
@@ -273,6 +296,8 @@ DWORD WINAPI SamplerThread(void*)
 {
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf sampler");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+    g_labels.reserve(1 << 20);
+    for (int b = 0; b < kBucketCount; ++b) g_bucketLabel[b] = AddLabel(kBucketNames[b]);
     RefreshModules();
     Log("sampler: %d modules, %zu system exports for the wait, lock, heap and memcpy split", g_moduleCount, g_exports.size());
 
@@ -307,22 +332,17 @@ DWORD WINAPI SamplerThread(void*)
             if (SuspendThread(thread) != (DWORD)-1) {
                 bool ok = GetThreadContext(thread, &ctx) != 0;
                 uintptr_t rip = (uintptr_t)ctx.Rip;
-                const char* name = kBucketNames[kOther];
-                int bucket = ok ? Classify(rip, &name) : -1;
+                uint32_t label = g_bucketLabel[kOther];
+                int bucket = ok ? Classify(rip, &label) : -1;
                 // the stack is read while the thread is still suspended
                 uint32_t caller = (ok && bucket != kGame) ? GameCallerOnStack((uintptr_t)ctx.Rsp) : 0;
                 ResumeThread(thread);
                 if (ok) {
                     if (bucket < 0) { g_unknownHits++; bucket = kOther; }
                     g_counts[bucket]++;
-                    int buf = g_ripBuffer.load();
-                    if (bucket == kGame) {
-                        int idx = g_ripCount[buf].fetch_add(1);
-                        if (idx < kRipsPerFrame) g_rips[buf][idx] = rip;
-                    } else {
-                        int idx = g_outsideCount[buf].fetch_add(1);
-                        if (idx < kOutsidePerFrame) g_outside[buf][idx] = { name, caller };
-                    }
+                    uint32_t w = g_sampleWrite.load();
+                    g_samples[w % kSampleRing] = { rip, label, caller };
+                    g_sampleWrite.store(w + 1);
                 }
             }
         }
@@ -365,33 +385,12 @@ void SamplerOnPresent(double frameMs)
     if (g_records.size() < 200000) g_records.push_back(r);
     LeaveCriticalSection(&g_recordCs);
 
-    // the game code addresses of the frame that just ended: slow frames and the rest apart
-    int finished = g_ripBuffer.load();
-    g_ripBuffer.store(finished ^ 1);
-    int n = std::min(g_ripCount[finished].exchange(0), kRipsPerFrame);
-    int outside = std::min(g_outsideCount[finished].exchange(0), kOutsidePerFrame);
-    if (g_typicalMs <= 0.0) g_typicalMs = frameMs;
-    bool slow = frameMs > 1.4 * g_typicalMs;
-    g_typicalMs += (frameMs - g_typicalMs) * 0.02;
-    if ((n > 0 || outside > 0) && g_gameBase) {
-        EnterCriticalSection(&g_histCs);
-        auto& hist = slow ? g_slowHist : g_fastHist;
-        for (int i = 0; i < n; ++i) Bump(hist, (uint32_t)((g_rips[finished][i] - g_gameBase) >> 6));
-        auto& callerHist = slow ? g_callerSlowHist : g_callerFastHist;
-        for (int i = 0; i < outside; ++i) {
-            const OutsideSample& s = g_outside[finished][i];
-            if (s.callerKey) Bump(callerHist, s.callerKey);
-            bool found = false;
-            for (auto& t : g_nameTally) {
-                if (t.name != s.name && strcmp(t.name, s.name) != 0) continue;
-                (slow ? t.slow : t.fast)++;
-                found = true;
-                break;
-            }
-            if (!found && g_nameTally.size() < 2000) g_nameTally.push_back({ s.name, slow ? 1u : 0u, slow ? 0u : 1u });
-        }
-        LeaveCriticalSection(&g_histCs);
-    }
+    // the frame that just ended owns the samples taken since the previous present
+    uint32_t end = g_sampleWrite.load();
+    uint32_t w = g_spanWrite.load();
+    g_spans[w % kFrameRing] = { (float)frameMs, g_nextSpanBegin, end };
+    g_spanWrite.store(w + 1);
+    g_nextSpanBegin = end;
 }
 
 void StartSampler()
@@ -400,7 +399,6 @@ void StartSampler()
     static HANDLE thread = nullptr;
     if (thread) return;
     InitializeCriticalSection(&g_recordCs);
-    InitializeCriticalSection(&g_histCs);
     thread = CreateThread(nullptr, 0, SamplerThread, nullptr, 0, nullptr);
     Log("sampler: started, one sample every %d us, buckets: game, cohtml, v8, renoir, d3d12, driver, dxgi, wait, lock, heap, memcpy, system, dstorage, audio, other", g_cfg.sampleUs);
 }

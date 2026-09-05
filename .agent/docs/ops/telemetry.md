@@ -71,12 +71,14 @@ the system DLLs split by the nearest export at the sampled address into `wait` (
 and `system` (the rest), then `dstorage`, `audio` and `other`. Multiply a count by `sample_us`
 for the time.
 
-Game code addresses are kept per frame in 64 byte buckets, slow frames (over 1.4 times the
-running typical frame time) apart from the rest. Every minute the log gets `sampler:` lines with
-the twelve relative virtual addresses that have the most samples in slow frames beyond what
-their share of the fast frames predicts, with both counts. Samples outside the game code get
-two more lists: the functions they were in (the nearest export of a system DLL, or the module
-bucket), and the game call sites under them, found as the first address of the exe's code
+Every sample is kept for a minute with the frame it fell in. Once a minute the log gets
+`sampler:` lines for that minute's frames under 100 ms, the slowest 1 percent against the median
+half, the same cut the report makes, so loading stalls do not colour the picture: the game code
+addresses (64 byte buckets, relative virtual addresses) with the most samples in the slowest
+frames beyond what the median half predicts, the functions outside the game code with the most
+extra samples (the nearest export of a system DLL as `module!export`, or the module bucket), the
+functions outside the game code with the most samples in the median half (the steady cost), and
+the function plus the game call site under it, found as the first address of the exe's code
 section on the suspended thread's stack. Read those addresses in the exe statically (function
 bounds from the unwind table, calls resolved through the exe's jump thunks, strings and imports
 of the function and its callers). The report's sample mix section prints the bucket shares of
