@@ -1,0 +1,6 @@
+LIBRARY dstorage
+EXPORTS
+    DStorageGetFactory
+    DStorageSetConfiguration
+    DStorageSetConfiguration1
+    DStorageCreateCompressionCodec

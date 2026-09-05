@@ -1,0 +1,13 @@
+# build output
+build/
+dist/dstorage.dll
+
+# runtime output copied from the game folder
+*.log
+acevo_perf_*.csv
+
+# python
+__pycache__/
+
+# local agent worktrees (see CLAUDE.md rule 10.2)
+.agent/.worktrees/
