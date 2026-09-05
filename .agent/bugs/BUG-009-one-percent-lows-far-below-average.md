@@ -69,6 +69,23 @@ shown fps."
   a 1.2 GB package extraction also ran on the machine during stint 2. So nothing in the mod
   changed the frame distribution, the run was contaminated and needs a clean repeat.
 
+- Lap six of 2026-09-05 (clean repeat, machine idle, same build): the owner reads 84 fps with a
+  72 fps 1 percent low on the in game counter before switching windows, and 86 with 55 after
+  coming back. The frames CSV, windowed:
+
+  | window | avg fps | 1% low | p99 | streaming in the window | GPU clock |
+  | --- | --- | --- | --- | --- | --- |
+  | 19:54:13 to 19:54:58, before the switch | 98.4 | 77.2 | 12.3 ms | 160 MB tiles, 0 MB uploads | 1583 MHz |
+  | 19:55:14 to 19:55:25, the return | 82.0 | 12.1 | 39.3 ms | resume reloads the HUD document | |
+  | 19:55:25 to 19:56:25, after the return | 80.5 | 53.2 | 16.9 ms | 819 MB tiles, 669 MB uploads | 1520 MHz |
+
+  GPU utilisation is 98 to 99 percent in both driving windows and thermal throttling is active
+  in both. The return costs one HUD document reload (BUG-008, worst frame 131 ms). After that
+  the car is in a section that streams 819 MB of tiles and uploads 669 MB of meshes and
+  textures in a minute, with the GPU clock 60 MHz lower, and that is where the 1 percent low
+  sits at 53. The window switch itself leaves the pacing intact, the section does the rest. So
+  the owner's reading is the reload stall plus BUG-002, not a new defect.
+
 ## Fix
 
 Partial: `max_frame_latency=1` is the default now (DEC-006). The remaining gap is the GPU load
