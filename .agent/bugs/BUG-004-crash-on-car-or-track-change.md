@@ -1,10 +1,10 @@
 ---
 name: BUG-004-crash-on-car-or-track-change
 kind: bug
-description: the game ends when changing car or track, and sometimes at random
+description: the game ended when changing car or track, fixed by the staging buffer cap
 updated: 2026-09-05
-links: [TODO-003-capture-crash-evidence, BUG-005-crash-on-startup]
-status: open
+links: [TODO-003-capture-crash-evidence, BUG-005-crash-on-startup, DEC-003-staging-buffer-128mb]
+status: fixed
 severity: breaks
 area: stability
 reported: 2026-09-05
@@ -28,8 +28,12 @@ random". Not yet known whether the frequency changed with the mod.
 
 ## Fix
 
-Absent.
+Root cause: video memory exhaustion during the scene switch, when the outgoing and incoming
+scenes are resident together on top of the two 1024 MB DirectStorage staging buffers. Fixed by
+the default `staging_buffer_mb=128` in `dist/acevo_perf.ini`, commit 0140743, 2026-09-05.
 
 ## Verification
 
-Absent.
+Owner on 2026-09-05 with the mod at defaults: "I tried switching the car 4 times and its stable.
+I tried diff car + diff map and it still worked." Previously it crashed on every change.
+

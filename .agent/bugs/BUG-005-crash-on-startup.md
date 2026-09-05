@@ -1,10 +1,10 @@
 ---
 name: BUG-005-crash-on-startup
 kind: bug
-description: some launches end before the menu appears
+description: some launches ended before the menu appeared, fixed by the staging buffer cap
 updated: 2026-09-05
-links: [BUG-004-crash-on-car-or-track-change, TODO-003-capture-crash-evidence]
-status: open
+links: [BUG-004-crash-on-car-or-track-change, TODO-003-capture-crash-evidence, DEC-003-staging-buffer-128mb]
+status: fixed
 severity: breaks
 area: stability
 reported: 2026-09-05
@@ -23,8 +23,12 @@ Owner wording: "crashes while opening".
 
 ## Fix
 
-Absent.
+Same root cause as BUG-004, video memory exhaustion while the first scene loads next to the two
+1024 MB staging buffers. Fixed by the default `staging_buffer_mb=128`, commit 0140743, 2026-09-05.
 
 ## Verification
 
-Absent.
+Owner on 2026-09-05: "the VRAM fix indeed fixed the car switching crashed the game and startup
+crash atleast on my machine". About twenty launches by the agent the same day all reached the
+menu.
+
