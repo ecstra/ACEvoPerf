@@ -10,6 +10,10 @@ links: [agent-index, spec-todos]
 
 ## Open
 
+ui
+
+- [TODO-008-ui-shell-one-document](TODO-008-ui-shell-one-document.md), one UI document for all pages, swap markup instead of reloading, phase one is the race set
+
 render
 
 - [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure
