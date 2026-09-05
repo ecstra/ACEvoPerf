@@ -8,9 +8,10 @@ ACEvoPerf is a `dstorage.dll` proxy mod for Assetto Corsa EVO plus Python tools.
 - Gates before any review: `build.ps1` completes with zero errors, and a game launch writes an
   `acevo_perf.log` that shows the changed behaviour. Tool changes run against the real package or
   settings file.
-- Tooling: PowerShell for `build.ps1` and `dist/install.ps1`, `py -3` for `tools/*.py` on the
-  owner's machine, `python3` in Git Bash.
-- The game must be closed before the installer can replace the DLL.
+- Tooling: PowerShell for `build.ps1` and `release.ps1`, `py -3` for `tools/*.py` on the owner's
+  machine, `python3` in Git Bash.
+- Installing is copying the zip payload into the game folder, never a script. The game must be
+  closed before `dstorage.dll` can be replaced.
 - Runtime output (`acevo_perf*.log`, `*.csv`, game logs) never enters the repo. Analysis sessions
   live in a folder outside the repo and are summarised into `.agent/docs/research/`.
 - Areas used by the trackers: `streaming`, `render`, `ui`, `stability`, `engine-flags`,

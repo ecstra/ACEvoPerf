@@ -30,7 +30,7 @@
 #include <atomic>
 #include "dstorage.h"
 
-#define ACEVO_PERF_VERSION "0.2.0"
+#define ACEVO_PERF_VERSION "0.3.0"
 
 // ---------------------------------------------------------------------------
 // Logging
@@ -213,8 +213,8 @@ static bool EnsureReal()
             Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", path.c_str(), err);
             MessageBoxW(nullptr,
                 L"ACEvoPerf: dstorage_orig.dll was not found next to the game executable.\n\n"
-                L"The mod needs the original Microsoft DirectStorage DLL renamed to dstorage_orig.dll.\n"
-                L"Run install.ps1 again or restore the original dstorage.dll.",
+                L"Copy all three files from the mod zip (dstorage.dll, dstorage_orig.dll,\n"
+                L"acevo_perf.ini) into the game folder, then start the game again.",
                 L"ACEvoPerf", MB_ICONERROR | MB_OK);
         } else {
             g_realGetFactory = (PFN_DStorageGetFactory)GetProcAddress(g_real, "DStorageGetFactory");

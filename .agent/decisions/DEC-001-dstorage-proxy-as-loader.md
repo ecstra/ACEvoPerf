@@ -29,5 +29,5 @@ runtime is kept beside it as `dstorage_orig.dll` and every export is forwarded t
 ## Consequences
 
 - The DirectStorage factory and queues can be wrapped with no extra hooking.
-- A game update that ships a new `dstorage.dll` overwrites the proxy, so `dist/install.ps1` has to
-  be rerun after updates and recognises a fresh Microsoft DLL by its version info.
+- A game update that ships a new `dstorage.dll` overwrites the proxy, so the three files have to
+  be copied in again after updates (DEC-007).

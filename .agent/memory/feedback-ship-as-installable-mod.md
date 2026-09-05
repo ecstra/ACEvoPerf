@@ -7,13 +7,14 @@ links: [TODO-004-release-packaging]
 type: feedback
 ---
 
-The owner asked for best practices "so that anyone can install this as a mod later". Every change
-is judged against a stranger installing it from a zip: no machine specific paths in the shipped
-files, an installer that finds the game, an uninstaller that leaves no trace, and settings in one
+The owner asked for best practices "so that anyone can install this as a mod later" and then
+sharpened it: "The installation must be as simple as drag and drop to your game folder thats it."
+Every change is judged against a stranger copying files from a zip: no scripts to run, no machine
+specific paths in the shipped files, an uninstall that is a delete and a rename, settings in one
 commented ini.
 
-It matters because it rules out quick local hacks (hardcoded addresses, edited game files) even
-when they would be faster.
+It matters because it rules out installer logic and quick local hacks (hardcoded addresses,
+edited game files) even when they would be faster.
 
-Apply it by keeping the game folder detection in `dist/install.ps1` generic and by treating
-TODO-004 as part of every feature, not a chore for later.
+Apply it by keeping the payload to files that work by being present (DEC-007) and by treating
+packaging as part of every feature, not a chore for later.

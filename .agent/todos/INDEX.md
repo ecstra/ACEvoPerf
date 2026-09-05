@@ -14,14 +14,11 @@ render
 
 - [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure
 
-release
-
-- [TODO-004-release-packaging](TODO-004-release-packaging.md), zip plus one script install
-
 ## Done
 
 - streaming: 2 (TODO-001, TODO-005)
 - tooling: 1 (TODO-006)
+- release: 1 (TODO-004)
 
 ## Dropped
 

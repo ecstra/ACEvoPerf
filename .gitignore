@@ -1,6 +1,8 @@
 # build output
 build/
 dist/dstorage.dll
+dist/dstorage_orig.dll
+release/
 
 # runtime output copied from the game folder
 *.log

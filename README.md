@@ -20,11 +20,14 @@ everything to the original runtime and fixes the engine's video memory budget on
 
 ## Install
 
-1. Close the game.
-2. Run `dist\install.ps1` (pass `-GameDir` if the game is not in one of the known folders).
-3. Start the game. `acevo_perf.log` next to the exe shows what was applied.
+Close the game, copy the three files from the release zip (`dstorage.dll`, `dstorage_orig.dll`,
+`acevo_perf.ini`) into the game folder next to `AssettoCorsaEVO.exe`, let Windows replace the
+existing `dstorage.dll`, start the game. `acevo_perf.log` next to the exe shows what was applied.
 
-`dist\uninstall.ps1` puts the original DLL back. After a game update rerun the installer.
+`dstorage_orig.dll` is Microsoft's DirectStorage 1.2.3 runtime, byte identical to the one the game
+ships and redistributable under its license, so nothing needs renaming. To uninstall, delete
+`dstorage.dll`, rename `dstorage_orig.dll` back to `dstorage.dll`, delete the ini and the logs.
+After a game update that replaces `dstorage.dll`, copy the three files in again.
 
 ## Configure
 
@@ -33,7 +36,7 @@ everything to the original runtime and fixes the engine's video memory budget on
 ## Build
 
 `build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK. Output goes to
-`dist\dstorage.dll`.
+`dist\dstorage.dll`. `release.ps1` builds and zips the drag and drop payload into `release\`.
 
 ## Where to read more
 
