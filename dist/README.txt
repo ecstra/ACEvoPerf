@@ -11,10 +11,18 @@ SETTINGS
   Defaults are tuned for a 6 GB GPU. On 8 GB set tile_pool_mb=1536, on 12 GB or
   more tile_pool_mb=2048.
 
+MODS FOLDER (optional)
+  Files placed under acevo_mods\ next to the exe replace the file of the same
+  path inside the game's content package, new paths are added. For example
+  acevo_mods\uiresources\menu.html replaces the main menu page. The package
+  itself is never modified, delete the folder to undo everything. Files are
+  picked up at game start and listed in acevo_perf.log.
+
 UNINSTALL
   Delete dstorage.dll, then rename dstorage_orig.dll to dstorage.dll. Delete
-  acevo_perf.ini and any acevo_perf*.log / acevo_perf_*.csv files. Or verify the
-  game files in Steam, which restores the original dstorage.dll.
+  acevo_perf.ini, the acevo_mods folder if you made one, and any acevo_perf*.log /
+  acevo_perf_*.csv files. Or verify the game files in Steam, which restores the
+  original dstorage.dll.
 
 AFTER A GAME UPDATE
   If an update replaces dstorage.dll, copy the three files in again.
