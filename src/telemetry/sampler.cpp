@@ -14,8 +14,9 @@ struct ModuleRange { uintptr_t base; uintptr_t end; int bucket; bool system; };
 ModuleRange g_modules[512];
 int g_moduleCount = 0;
 
-// exports of the system DLLs, sorted by address, for the nearest export lookup
-struct Export { uintptr_t addr; int bucket; };
+// exports of the system DLLs, sorted by address, for the nearest export lookup. The name
+// points into the DLL's own export table, the system DLLs never unload.
+struct Export { uintptr_t addr; int bucket; const char* name; };
 std::vector<Export> g_exports;
 
 std::atomic<uint32_t> g_counts[kBucketCount];
@@ -32,7 +33,19 @@ CRITICAL_SECTION g_histCs;
 std::vector<std::pair<uint32_t, uint32_t>> g_slowHist;   // (bucket, count), small and sorted on demand
 std::vector<std::pair<uint32_t, uint32_t>> g_fastHist;
 uintptr_t g_gameBase = 0;
+uintptr_t g_gameTextBegin = 0, g_gameTextEnd = 0;
 double g_typicalMs = 0.0;
+
+// samples outside the game code, with the function they are in (the nearest export for a
+// system DLL, the module name otherwise) and the first game return address on the stack
+struct OutsideSample { const char* name; uint32_t callerKey; };
+const int kOutsidePerFrame = 128;
+OutsideSample g_outside[2][kOutsidePerFrame];
+std::atomic<int> g_outsideCount[2];
+struct NameTally { const char* name; uint32_t slow; uint32_t fast; };
+std::vector<NameTally> g_nameTally;
+std::vector<std::pair<uint32_t, uint32_t>> g_callerSlowHist;
+std::vector<std::pair<uint32_t, uint32_t>> g_callerFastHist;
 
 struct FrameRecord { float t; float ms; uint32_t counts[kBucketCount]; };
 std::vector<FrameRecord> g_records;
@@ -91,8 +104,43 @@ void CollectExports(HMODULE mod)
     for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
         DWORD rva = functions[ordinals[i]];
         if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size) continue;   // forwarder
-        g_exports.push_back({ (uintptr_t)(base + rva), BucketForName((const char*)(base + names[i])) });
+        const char* name = (const char*)(base + names[i]);
+        g_exports.push_back({ (uintptr_t)(base + rva), BucketForName(name), name });
     }
+}
+
+void FindGameText(HMODULE mod)
+{
+    BYTE* base = (BYTE*)mod;
+    auto dos = (IMAGE_DOS_HEADER*)base;
+    auto nt = (IMAGE_NT_HEADERS64*)(base + dos->e_lfanew);
+    auto section = IMAGE_FIRST_SECTION(nt);
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (memcmp(section->Name, ".text", 6) != 0) continue;
+        g_gameTextBegin = (uintptr_t)base + section->VirtualAddress;
+        g_gameTextEnd = g_gameTextBegin + section->Misc.VirtualSize;
+        return;
+    }
+}
+
+bool ReadQword(uintptr_t addr, uintptr_t* out)
+{
+    __try { *out = *(volatile uintptr_t*)addr; return true; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+// The first game code address on top of the suspended thread's stack, as a 64 byte bucket
+// key, or zero. A return address into the exe's code section is what the sample was called
+// from, give or take a data pointer that happens to point into the code.
+uint32_t GameCallerOnStack(uintptr_t rsp)
+{
+    if (!g_gameTextBegin) return 0;
+    for (int i = 0; i < 128; ++i) {
+        uintptr_t v;
+        if (!ReadQword(rsp + i * 8, &v)) return 0;
+        if (v >= g_gameTextBegin && v < g_gameTextEnd) return (uint32_t)((v - g_gameBase) >> 6);
+    }
+    return 0;
 }
 
 void RefreshModules()
@@ -113,7 +161,7 @@ void RefreshModules()
         bool system = false;
         int bucket = BucketForModule(file ? file + 1 : name, &system);
         table[n++] = { (uintptr_t)info.lpBaseOfDll, (uintptr_t)info.lpBaseOfDll + info.SizeOfImage, bucket, system };
-        if (bucket == kGame) g_gameBase = (uintptr_t)info.lpBaseOfDll;
+        if (bucket == kGame) { g_gameBase = (uintptr_t)info.lpBaseOfDll; FindGameText(mods[i]); }
         if (system) CollectExports(mods[i]);
     }
     std::sort(g_exports.begin(), g_exports.end(), [](const Export& a, const Export& b) { return a.addr < b.addr; });
@@ -121,17 +169,21 @@ void RefreshModules()
     g_moduleCount = n;
 }
 
-int Classify(uintptr_t rip)
+// bucket of the address, and the name to tally it under when it is outside the game
+int Classify(uintptr_t rip, const char** name)
 {
     for (int i = 0; i < g_moduleCount; ++i) {
         if (rip < g_modules[i].base || rip >= g_modules[i].end) continue;
+        *name = kBucketNames[g_modules[i].bucket];
         if (!g_modules[i].system) return g_modules[i].bucket;
         // nearest export at or before the address
         size_t lo = 0, hi = g_exports.size();
         while (lo < hi) { size_t mid = (lo + hi) / 2; if (g_exports[mid].addr <= rip) lo = mid + 1; else hi = mid; }
         if (lo == 0) return kSystem;
         const Export& e = g_exports[lo - 1];
-        return (e.addr >= g_modules[i].base && rip - e.addr < 0x4000) ? e.bucket : kSystem;
+        if (e.addr < g_modules[i].base || rip - e.addr >= 0x4000) return kSystem;
+        *name = e.name;
+        return e.bucket;
     }
     return -1;
 }
@@ -170,6 +222,28 @@ void LogHotSpots()
         double scaled = (double)CountIn(fast, slow[i].first) * slowTotal / fastTotal;
         Log("sampler:   rva 0x%06X  slow %5u  fast %7.1f", (unsigned)(slow[i].first << 6), slow[i].second, scaled);
     }
+
+    // the same for the samples outside the game: by function, and by the game code under them
+    EnterCriticalSection(&g_histCs);
+    std::vector<NameTally> names = g_nameTally;
+    std::vector<std::pair<uint32_t, uint32_t>> callerSlow = g_callerSlowHist;
+    std::vector<std::pair<uint32_t, uint32_t>> callerFast = g_callerFastHist;
+    LeaveCriticalSection(&g_histCs);
+    double scale = (double)slowTotal / fastTotal;
+    std::sort(names.begin(), names.end(), [&](const NameTally& a, const NameTally& b) {
+        return (double)a.slow - a.fast * scale > (double)b.slow - b.fast * scale;
+    });
+    Log("sampler: outside the game code, functions with the most extra samples in slow frames (slow, fast scaled)");
+    for (size_t i = 0; i < names.size() && i < 10; ++i)
+        Log("sampler:   %-40s slow %5u  fast %7.1f", names[i].name, names[i].slow, names[i].fast * scale);
+    uint32_t callerSlowTotal = 0;
+    for (auto& kv : callerSlow) callerSlowTotal += kv.second;
+    std::sort(callerSlow.begin(), callerSlow.end(), [&](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
+        return (double)a.second - CountIn(callerFast, a.first) * scale > (double)b.second - CountIn(callerFast, b.first) * scale;
+    });
+    Log("sampler: game code on the stack under those samples, the call site with the most extra slow samples first (%u slow samples with a game caller)", callerSlowTotal);
+    for (size_t i = 0; i < callerSlow.size() && i < 12; ++i)
+        Log("sampler:   rva 0x%06X  slow %5u  fast %7.1f", (unsigned)(callerSlow[i].first << 6), callerSlow[i].second, CountIn(callerFast, callerSlow[i].first) * scale);
 }
 
 void WriteRecords(HANDLE csv)
@@ -232,16 +306,22 @@ DWORD WINAPI SamplerThread(void*)
             ctx.ContextFlags = CONTEXT_CONTROL;
             if (SuspendThread(thread) != (DWORD)-1) {
                 bool ok = GetThreadContext(thread, &ctx) != 0;
+                uintptr_t rip = (uintptr_t)ctx.Rip;
+                const char* name = kBucketNames[kOther];
+                int bucket = ok ? Classify(rip, &name) : -1;
+                // the stack is read while the thread is still suspended
+                uint32_t caller = (ok && bucket != kGame) ? GameCallerOnStack((uintptr_t)ctx.Rsp) : 0;
                 ResumeThread(thread);
                 if (ok) {
-                    uintptr_t rip = (uintptr_t)ctx.Rip;
-                    int bucket = Classify(rip);
                     if (bucket < 0) { g_unknownHits++; bucket = kOther; }
                     g_counts[bucket]++;
+                    int buf = g_ripBuffer.load();
                     if (bucket == kGame) {
-                        int buf = g_ripBuffer.load();
                         int idx = g_ripCount[buf].fetch_add(1);
                         if (idx < kRipsPerFrame) g_rips[buf][idx] = rip;
+                    } else {
+                        int idx = g_outsideCount[buf].fetch_add(1);
+                        if (idx < kOutsidePerFrame) g_outside[buf][idx] = { name, caller };
                     }
                 }
             }
@@ -289,13 +369,27 @@ void SamplerOnPresent(double frameMs)
     int finished = g_ripBuffer.load();
     g_ripBuffer.store(finished ^ 1);
     int n = std::min(g_ripCount[finished].exchange(0), kRipsPerFrame);
+    int outside = std::min(g_outsideCount[finished].exchange(0), kOutsidePerFrame);
     if (g_typicalMs <= 0.0) g_typicalMs = frameMs;
     bool slow = frameMs > 1.4 * g_typicalMs;
     g_typicalMs += (frameMs - g_typicalMs) * 0.02;
-    if (n > 0 && g_gameBase) {
+    if ((n > 0 || outside > 0) && g_gameBase) {
         EnterCriticalSection(&g_histCs);
         auto& hist = slow ? g_slowHist : g_fastHist;
         for (int i = 0; i < n; ++i) Bump(hist, (uint32_t)((g_rips[finished][i] - g_gameBase) >> 6));
+        auto& callerHist = slow ? g_callerSlowHist : g_callerFastHist;
+        for (int i = 0; i < outside; ++i) {
+            const OutsideSample& s = g_outside[finished][i];
+            if (s.callerKey) Bump(callerHist, s.callerKey);
+            bool found = false;
+            for (auto& t : g_nameTally) {
+                if (t.name != s.name && strcmp(t.name, s.name) != 0) continue;
+                (slow ? t.slow : t.fast)++;
+                found = true;
+                break;
+            }
+            if (!found && g_nameTally.size() < 2000) g_nameTally.push_back({ s.name, slow ? 1u : 0u, slow ? 0u : 1u });
+        }
         LeaveCriticalSection(&g_histCs);
     }
 }

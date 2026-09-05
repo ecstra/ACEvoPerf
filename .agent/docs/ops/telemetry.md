@@ -74,10 +74,13 @@ for the time.
 Game code addresses are kept per frame in 64 byte buckets, slow frames (over 1.4 times the
 running typical frame time) apart from the rest. Every minute the log gets `sampler:` lines with
 the twelve relative virtual addresses that have the most samples in slow frames beyond what
-their share of the fast frames predicts, with both counts. Read those addresses in the exe
-statically (function bounds from the unwind table, strings and imports of the function and its
-callers). The report's sample mix section prints the bucket shares of the slowest 1 percent
-against the median half and the extra samples per slow frame.
+their share of the fast frames predicts, with both counts. Samples outside the game code get
+two more lists: the functions they were in (the nearest export of a system DLL, or the module
+bucket), and the game call sites under them, found as the first address of the exe's code
+section on the suspended thread's stack. Read those addresses in the exe statically (function
+bounds from the unwind table, calls resolved through the exe's jump thunks, strings and imports
+of the function and its callers). The report's sample mix section prints the bucket shares of
+the slowest 1 percent against the median half and the extra samples per slow frame.
 
 ## Device events in the log
 
