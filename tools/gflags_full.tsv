@@ -1,0 +1,217 @@
+file	name	type	default	help
+AcEvoDriverManager.cpp	profile_id	string		profile id
+AIGFlagsDeclarations.cpp	ai_curb_consistency_factor	double	None	how much consistency is applied to use the track width and curbs
+AIGFlagsDeclarations.cpp	ai_debug_csv_dump_directory	string		Directory AI debug CSV dumps get written to. Empty = disabled.
+AIGFlagsDeclarations.cpp	ai_disable_brake_mistakes	bool	None	disables (late) brake mistakes
+AIGFlagsDeclarations.cpp	ai_disable_exit_mistakes	bool	None	disables exit mistakes, like short lifts
+AIGFlagsDeclarations.cpp	ai_disable_optimum_tyres	bool	None	no optimum pressures and temps for the tyres
+AIGFlagsDeclarations.cpp	ai_disable_psychological_pressure	bool	None	disables pressure on AIs that drive them into mistakes
+AIGFlagsDeclarations.cpp	ai_disable_slipstream	bool	None	disables slipstream for AI cars. maybe safer on high aero cars, but they can't overtake
+AIGFlagsDeclarations.cpp	ai_disable_variations	bool	None	tries to get rid of variations, inconsistencies, errors, basically disables the consistency skill
+AIGFlagsDeclarations.cpp	ai_globally_comparable	bool	None	will set (a lot!) other ai related flags to remove any kind of variation and randomness; also kills most of the gameplay, so don't use outside aiTester and evaluation runs
+AIGFlagsDeclarations.cpp	ai_mayhem	bool	None	overrides the grid car selection to maximize the performance differences
+AIGFlagsDeclarations.cpp	ai_mayhem_live_content_only	bool	None	restricts ai_mayhem to Content_TestStage_LiveContent
+AIGFlagsDeclarations.cpp	ai_mayhem_rc_content_only	bool	None	restricts ai_mayhem to Content_TestStage_ReleaseCandidate
+AIGFlagsDeclarations.cpp	ai_push_gamma	double	1.7	defines how much the AI strength/quickness translates into cornering speed. values above 1.0 will make the 80{}I go even slower; a gamma of 0 would let the 80{}I go as fast as a 100{}I
+AIGFlagsDeclarations.cpp	ai_run_dynamic_track	bool	True	let's the Ai watch for dynamic track values. may be a performance issue, so we can switch the behaviour
+AIGFlagsDeclarations.cpp	ai_simulated_pressure	double	None	how much pressure 'from behind' do AI drivers feel. if you don't know what this is, don't touch it
+AIGFlagsDeclarations.cpp	ai_superhuman_code	bool	True	runs really weird code that may be important for stability, but looks highly critical
+AIGFlagsDeclarations.cpp	ai_tester_car_override	string		Override the car for the AI Tester
+AIGFlagsDeclarations.cpp	ai_tester_laps	int32	3	override to how many laps any combination is doing
+AIGFlagsDeclarations.cpp	ai_tester_push	int32	100	override to the aiSkills
+AIGFlagsDeclarations.cpp	ai_tester_skip_movables	bool	True	no simulation of movable polygons and such
+AIGFlagsDeclarations.cpp	ai_tester_track__eventname	string		track name + __ + event name (ie Brands Hatch__Indy Hotstint)
+AIGFlagsDeclarations.cpp	recreate_aispline_cache	bool	None	Forcefully recreate the .aispline files
+AIGFlagsDeclarations.cpp	run_ai_optimization_code	bool	None	runs the optimization code for AI stuff. is experimental, but we need to start somewhere
+AIGFlagsDeclarations.cpp	update_steering_data	bool	None	Update steering data
+AISplineReferenceSimulator.cpp	ai_spline_ref_sim	bool	True	Enable ai spline ref simulation that works only on a limited number of slices
+ApplicationInfo.cpp	minimumcores	bool	None	Use only the minimum supported number of cores
+AudioManager.cpp	no_audio	bool	None	Disable audio bank loading
+Car.cpp	random_starting_fuel	bool	None	Random starting fuel (low)
+CarAudio.cpp	no_audio_raycast	bool	None	Disable raycast
+CarPresenter.cpp	disable_skidmarks	bool	None	Disable skidmarks
+CarRenderer.cpp	no_unique_car_batches	bool	None	Disable car unique batches creation, meant to be used in editor when modifying materials applied to cars
+CarUpdateScheduler.cpp	car_update_animations_budget	int32	3	Non focused cars receiving an animations graphics update per frame
+CarUpdateScheduler.cpp	car_update_complete_budget	int32	2	Non focused cars receiving a complete graphics update per frame
+CarUpdateScheduler.cpp	car_update_complete_max_interval	int32	20	Maximum frames a car can go without a complete graphics update
+CarUpdateScheduler.cpp	car_update_scheduler	bool	True	Budgeted per-car graphics update scheduling (basics/animations/complete classes)
+CommunicationChannel.cpp	messages_to_ignore	string		Messages to ignore
+CommunicationChannel.cpp	messages_to_log	string		Messages to log
+CrashGuard.cpp	dumplevel	int32	2	Level of info in crash dump
+CrashGuard.cpp	veh_crashdumps	bool	None	Write crash dumps for each exception thrown
+Device.cpp	disable_vrs	bool	None	Disable variable rate shading
+Device.cpp	dx12_amd_memory_allocator	bool	True	Enable AMD memory allocator
+Device.cpp	dx12_amd_memory_allocator_within_budget	bool	None	Strict mode where the allocator crashes if a request exceed the memory budget
+Device.cpp	dx12_debug_layer	bool	None	Enable debug layer
+Device.cpp	dx12_debug_layer_break_on_error	bool	True	Break into the debugger on debug layer errors (disable to log and continue)
+Device.cpp	dx12_debug_layer_gpu_validation	bool	None	Enable bug layer gpu validation
+Device.cpp	dx12_dred	bool	None	Enable DX12 Device Removed Extended Data
+Device.cpp	dx12_dump_extended_info	bool	None	Output additional data when creating crash dumps
+Device.cpp	dx12_instances_tiled	bool	True	Use sparse/tiled buffer for the instances pool (requires Tiled Resources Tier 2)
+Device.cpp	dx12_instances_tiled_log_verbose	bool	None	Verbose log for tiled instances buffer (map/unmap operations)
+DeviceAllocator.cpp	force_canonical_pool_sizes	bool	None	Ignore the dynamic VRAM budget and size both the texture tile pool and the mesh streamer pool to their canonical define-based value (e.g. ~1.4 GB for Low texture pool size)
+DeviceAllocator.cpp	tile_pool_mb	int32	None	Size of texture tile pool
+EvoCoreGame.cpp	ai_player_car	bool	None	Player car spawns with AI controller
+EvoMain.cpp	disable_lpp	bool	False	Disable LPP
+EvoUi.cpp	hyundai	bool	None	menu with hyundai
+FreeRoamRemote.cpp	traffic	bool	None	Enable traffic in Cruise mode
+GameCar.cpp	use_microsectors2	bool	True	Enable alternative microsectors
+GameModeSelectionClientCommunication.cpp	opponent_count	int32	-1	overriding the UI to spawn as many AI opponents
+GameScenePresenter.cpp	no_gi	bool	None	Disable global illumination
+GameScenePresenter.cpp	no_instances	bool	None	Disable mesh instances
+GameScenePresenter.cpp	physics_late_latching	bool	None	Enables the late latching physicsState->camera position
+GameScenePresenter.cpp	traffic_damage_min_kmh	double	25.0	Wrecked (released) traffic cars start showing damage above this post-impact speed (km/h)
+GameScenePresenter.cpp	traffic_damage_range_kmh	double	40.0	Speed range (km/h) above the min over which the traffic damage value ramps 0..1
+GameScenePresenter.cpp	traffic_ground_snap	bool	True	Visually snap kinematic traffic cars near the camera onto the collision geometry (height + tilt) via a ground raycast
+GameScenePresenter.cpp	traffic_ground_snap_distance	double	10.0	Max distance (m) from the camera at which the traffic ground snap is applied
+GameScenePresenter.cpp	traffic_ground_snap_offset	double	-0.1	Vertical offset (m) of the car mesh above the raycast hit point (~ default mesh_up_offset)
+GameUi.cpp	ui_force_resource_preloading	bool	None	force resource preloading also in dev builds
+gflags_completions.cc	tab_completion_columns	int32	80	Number of columns to use in output for tab completion
+gflags_completions.cc	tab_completion_word	string		If non-empty, HandleCommandLineCompletions() will hijack the process and attempt to do bash-style command line flag completion on this value.
+gflags_reporting.cc	help	bool	None	show help on all flags [tip: all flags can have two dashes]
+gflags_reporting.cc	helpfull	bool	None	show help on all flags -- same as -help
+gflags_reporting.cc	helpmatch	string		show help on modules whose name contains the specified substr
+gflags_reporting.cc	helpon	string		show help on the modules named by this flag value
+gflags_reporting.cc	helppackage	bool	None	show help on all modules in the main package
+gflags_reporting.cc	helpshort	bool	None	show help on only the main module for this program
+gflags_reporting.cc	helpxml	bool	None	produce an xml version of help
+gflags_reporting.cc	version	bool	None	show version and build info and exit
+GFlagsDeclarations.cpp	ai_enable_evo_next	bool	None	allows to spawn experimental AIControllers
+GFlagsDeclarations.cpp	ai_experimental_feature	bool	None	tester/beta-adjustable switch for AI experiments
+GFlagsDeclarations.cpp	ai_stay_in_pits	bool	None	Forces all AI cars to stay in the pits
+GFlagsDeclarations.cpp	ai_thread_interval_ms	int32	100	interval for AI and rating predictions
+GFlagsDeclarations.cpp	ai_version	int32	1	tester/beta-adjustable version for AI code
+GFlagsDeclarations.cpp	all_academy_events	bool	None	enable all academy events
+GFlagsDeclarations.cpp	audio_stats	bool	None	Enable audio stats
+GFlagsDeclarations.cpp	backend	string		insert 'wss://localhost:448/communicationNode/42' for default debugging capabilities
+GFlagsDeclarations.cpp	backend_protocol_version	int32	4	v4 = 0.7.0
+GFlagsDeclarations.cpp	comm_channel_callstack	bool	None	allows passthrough message handling where possible, granting callstacks during debugging. bad: changes timings drastically
+GFlagsDeclarations.cpp	dev_ui_on_start	bool	None	dev ui on start
+GFlagsDeclarations.cpp	disable_content_validation	bool	None	server list content validation
+GFlagsDeclarations.cpp	disable_dynamic_track	bool	None	Disables the calculation of the dynamic track for singthreaded scenarios
+GFlagsDeclarations.cpp	disable_performance_validation	bool	None	server join performance validation
+GFlagsDeclarations.cpp	dump_sha_tables	string		dump the sha validation tables to <prefix>_sha_tables.txt, empty disables the dump
+GFlagsDeclarations.cpp	dx12_nv_aftermath	bool	None	enables nvidia aftermath
+GFlagsDeclarations.cpp	dynamic_weather	bool	None	Force dynamic weather
+GFlagsDeclarations.cpp	editor_modder	bool	None	starts the editor in modder mode
+GFlagsDeclarations.cpp	enable_control_point_track_limits	bool	True	uses controlpoints for track limits IF configured in the control point
+GFlagsDeclarations.cpp	free_roaming	bool	True	temporally use this for having the expected freeroaming experience
+GFlagsDeclarations.cpp	freeroaming_psw	string		unlocks the Free Roam gamemode and the Eifel scene when the expected password is provided
+GFlagsDeclarations.cpp	game_economy_import	bool	None	Game economy without backend - import
+GFlagsDeclarations.cpp	ignore_h_shifter	bool	None	ignore the h shifter inputs even if it's connected
+GFlagsDeclarations.cpp	listen_all_actions	bool	None	Listen all actions
+GFlagsDeclarations.cpp	load_result	bool	None	load result from disk
+GFlagsDeclarations.cpp	load_single_car	string		folder name of the single car
+GFlagsDeclarations.cpp	lobby_ping_batch_artificial_paket_payload	int32	None	added bytes in payload; bigger pakets might look more like game/media content and less like DDOS attacks and malicious scans
+GFlagsDeclarations.cpp	lobby_ping_batch_delay_ms	int32	-1	delay after every lobby_ping_batch_size'th server ping request
+GFlagsDeclarations.cpp	lobby_ping_batch_size	int32	-1	amount of server pings before we delay by lobby_ping_batch_delay_ms
+GFlagsDeclarations.cpp	lobby_ping_group_target_ips	bool	True	reduces redundant server pings
+GFlagsDeclarations.cpp	lobby_serverlist_dev_include_liveservers	bool	None	will include the (recent) live server list by querying the live backend, if possible
+GFlagsDeclarations.cpp	lobby_serverlist_dev_multiplier	int32	None	set this to N and the backend will return every server N times
+GFlagsDeclarations.cpp	mandatory_pitstop_end_ms	int32	None	end in ms
+GFlagsDeclarations.cpp	mandatory_pitstop_refuel	bool	None	
+GFlagsDeclarations.cpp	mandatory_pitstop_start_ms	int32	None	start in ms
+GFlagsDeclarations.cpp	mandatory_pitstop_tyrechange	bool	None	
+GFlagsDeclarations.cpp	netcar_physics_blend	double	16.0	quickness of the netcar's blends (rpm, wobble, steer, pedals). higher = faster
+GFlagsDeclarations.cpp	netcode_enable_latency_compensation	bool	True	switch to let netcars compensate the latency
+GFlagsDeclarations.cpp	netcode_experimental_feature	bool	None	tester/beta-adjustable switch for netcode experiments
+GFlagsDeclarations.cpp	netcode_proxy_body_collision_magnetism	double	None	how short the collider proxy leash is starting at the moment of a collision
+GFlagsDeclarations.cpp	netcode_proxy_body_magnetism	double	1.0	how short the collider proxy leash is
+GFlagsDeclarations.cpp	netcode_proxy_body_relief	double	1.0	seconds how long (after a collision) a proxy body floats more freely
+GFlagsDeclarations.cpp	netcode_use_proxy_body	bool	True	uses a physical collider proxy to ensure smooth netcar collisions
+GFlagsDeclarations.cpp	netcode_use_proxy_body_visual_dist_high	double	12.0	high threshold to render the car at the proxy body matrix (beyond it's always the pred mat)
+GFlagsDeclarations.cpp	netcode_use_proxy_body_visual_dist_low	double	-1.0	low threshold to render the car at the proxy body matrix (below it's always the proxy mat)
+GFlagsDeclarations.cpp	netcode_version	int32	2	tester/beta-adjustable version for netcode code
+GFlagsDeclarations.cpp	never_ending_sessions	bool	None	change all the SE into never ending timed sessions
+GFlagsDeclarations.cpp	no_backend	bool	None	Disable backend
+GFlagsDeclarations.cpp	no_dash	bool	None	disables gameface car dashboards
+GFlagsDeclarations.cpp	no_hud	bool	None	disables gameface hud
+GFlagsDeclarations.cpp	no_idle_camera_sequence	bool	None	Disable idle camera sequence
+GFlagsDeclarations.cpp	no_intro	bool	None	Disable intro scenes
+GFlagsDeclarations.cpp	override_videosettings_width_height_fullscreen	string		Override resolution
+GFlagsDeclarations.cpp	physics_no_collision_skip	bool	None	3x as many collision checks, but potentially required for reliably smooth collisions
+GFlagsDeclarations.cpp	player_guid_prefix	string		Player GUID prefix
+GFlagsDeclarations.cpp	print_input_conflict	bool	None	print input conflict when input are changed
+GFlagsDeclarations.cpp	print_race_cut_logic	bool	None	print on console the full logic
+GFlagsDeclarations.cpp	result_event	int32	-1	result of event
+GFlagsDeclarations.cpp	result_session	int32	-1	result of session
+GFlagsDeclarations.cpp	save_result	bool	None	save result to disk
+GFlagsDeclarations.cpp	shutdown_gameface	bool	None	gameface shutdown after first drive
+GFlagsDeclarations.cpp	simexpo_ai_expert_mode	bool	None	uses the finetuned spline version. not advised without simexpo_ai_skill_min=83 or similar 
+GFlagsDeclarations.cpp	simexpo_ai_skill_max	int32	100	highest AI skill in the simexpo #1 event (name David Perel)
+GFlagsDeclarations.cpp	simexpo_ai_skill_min	int32	88	lowest AI skill in the simexpo #1 event (and anything in between scales accordingly)
+GFlagsDeclarations.cpp	skip_cars_preload	bool	None	skip the preload for in order to reload the assets at runtime
+GFlagsDeclarations.cpp	startup_gamemode	string		Startup gamemode
+GFlagsDeclarations.cpp	startup_last_season	bool	None	Startup last season
+GFlagsDeclarations.cpp	startup_season	string		Startup season
+GFlagsDeclarations.cpp	sync_cars_preload	bool	None	preload the car in sync to grab errors
+GFlagsDeclarations.cpp	testing_remote_traffic	bool	None	Enable remote traffic and disable client side one, testing
+GFlagsDeclarations.cpp	track_limit_safezone	double	0.3	general extra margin on track boundaries
+GFlagsDeclarations.cpp	track_limit_safezone_pre_control_point	double	5.0	more extreme version when gates override splines
+GFlagsDeclarations.cpp	url	string		Open URL with Evo protocol
+GFlagsDeclarations.cpp	use_dev_saving_mode	bool	None	use a bin -> json and json -> missing bin saving procedure
+GFlagsDeclarations.cpp	virtual_ai_cars	int32	-1	spawns so many virtual AI cars (servers only atm). 0 enables vAI cars, but doesn't spawn them
+GlobalIllumination.cpp	gibake_probes_per_frame	int32	16	Numbers of probes to render per each frame
+InputManager.cpp	experimental_input	bool	True	
+IPhysicsCore.cpp	use_experimental_ode	bool	None	uses PhysicsCoreExperimental instead of PhysicsCore
+LayeredInputCarControlsProvider.cpp	use_old_steer_assist	bool	None	Use deprecated steer assist function
+Logging.cpp	log_copypaste_mode	bool	None	Enable easy copy-paste and compare from terminal by removing the date.
+Logging.cpp	log_critical	string		Loggers to be set to CRITICAL
+Logging.cpp	log_debug	string		Loggers to be set to DEBUG
+Logging.cpp	log_error	string		Loggers to be set to ERROR
+Logging.cpp	log_file	string		Override destination log filename
+Logging.cpp	log_info	string		Loggers to be set to INFO
+Logging.cpp	log_off	string		Loggers to be set to OFF
+Logging.cpp	log_trace	string		Loggers to be set to TRACE
+Logging.cpp	log_warning	string		Loggers to be set to WARNING
+Material.cpp	no_material	bool	None	Disable material loading
+Mesh.cpp	enable_skeleton_validation	bool	None	Log all the bones with a scale different than one
+Mesh.cpp	force_lowest_lod	bool	None	Forces the lowest lod
+OnlineServices.cpp	special_events_show_hidden_dev_events	bool	None	Can turn on hidden events that aren't meant for the public eye, but reside in the live system
+PhysicsEngine.cpp	cars_hot_reload	bool	None	Enable car reload
+PhysicsEngine.cpp	override_car_stance	bool	None	Override AI CarStances to RaceFullSend
+PlatformClient.cpp	quick_gamemode_swap	bool	True	Enable fast game mode swap when track is unchanged.
+PlatformClient.cpp	startup_scene	string		Startup scene
+PlatformCore.cpp	ghostcar_enabled	bool	None	enable ghost car
+PlatformCore.cpp	steam_id	string		steam id
+Renderer.cpp	editor_skip_first_cache_update	bool	None	Skip firs cache update and rendedring lock on assets
+Renderer.cpp	enable_pso_cache	bool	None	Enable the pso cache
+Renderer.cpp	log_pso_on_creation	bool	None	Log pso creation
+Renderer.cpp	no_renderer	bool	None	Disable engine renderer
+Renderer.cpp	single_pass_stereo	bool	None	VR/stereo: render both eyes in one pass (instanced stereo) instead of once per eye.
+RenderWindow.cpp	ipd_mm	double	63.5	IPD in millimeters used by -stereo to emulate VR eye separation
+RenderWindow.cpp	stereo	bool	None	Enables stereo mode
+RenderWindow.cpp	triple	bool	None	Enables triple mode
+TextureStreamer.cpp	texture_tier0	bool	None	Force Texture Tier 0
+TrafficManager.cpp	traffic_awareness_headway_s	double	1.5	Seconds of forward awareness: trajectory points are registered up to speed * headway ahead, so fast cars detect conflicts early enough to stop
+TrafficManager.cpp	traffic_center_on_camera	bool	True	Center traffic spawn/despawn/cap on the free camera (true, good for showcasing) instead of the player car (false, replication-consistent)
+TrafficManager.cpp	traffic_debug_log	bool	None	Periodically dump per-car traffic state and right-of-way yields to the traffic log
+TrafficManager.cpp	traffic_debug_log_interval	double	1.0	Seconds between traffic debug log dumps
+TrafficManager.cpp	traffic_follow_decel	double	6.5	Comfort deceleration (m/s^2) used to compute the speed allowed by the distance to a conflict; must stay below max_acceleration / 3.6
+TrafficManager.cpp	traffic_indicator_hold_s	double	2.0	
+TrafficManager.cpp	traffic_lane_change_cooldown_s	double	8.0	Minimum seconds between two lane changes of the same car
+TrafficManager.cpp	traffic_lane_change_duration_s	double	3.0	Nominal duration of a lane-change blend, scaled by speed
+TrafficManager.cpp	traffic_lane_change_min_advantage_kmh	double	8.0	Overtake only if our desired speed exceeds the lead car's speed by this margin
+TrafficManager.cpp	traffic_lane_change_no_intersection_m	double	20.0	Extra clearance (metres) past the blend end that must be intersection-free for a lane change
+TrafficManager.cpp	traffic_lane_changes	bool	True	Allow traffic cars to change lane on same-direction multi-lane roads (overtake left, keep right)
+TrafficManager.cpp	traffic_lane_clear_lateral_m	double	2.5	A lane is blocked if any car is within this lateral distance of the target path
+TrafficManager.cpp	traffic_meters_per_car	double	50.0	Desired metres of drivable lane per traffic car; the live car cap scales with local lane-length so small/isolated roads aren't packed with the full max_cars
+TrafficManager.cpp	traffic_min_local_cars	int32	None	Lower bound for the locally-scaled traffic car cap
+TrafficManager.cpp	traffic_night_end_hour	double	7.0	
+TrafficManager.cpp	traffic_night_start_hour	double	19.0	
+TrafficManager.cpp	traffic_right_of_way	bool	True	Use the geometric right-of-way heuristic at crossings (off = the encroaching car always yields, original behaviour)
+TrafficManager.cpp	traffic_taillight_min	double	0.1	
+TrafficManager.cpp	traffic_test_speed_spread	double	None	TEST ONLY: widen the per-car random speed spread to +/- this fraction (e.g. 0.3 = 70%..130%) to force the speed differences that trigger lane changes; 0 = off
+TrafficManager.cpp	traffic_trajectory_horizon_m	double	70.0	How far ahead (metres) a traffic car builds its trajectory; needed for early indicators and lane-change planning
+TrafficManager.cpp	traffic_use_render_connections	bool	None	Use Render connections, instead of Ai ones, when traversing intersections
+TrafficManager.cpp	traffic_vertical_separation	double	4.0	Max vertical (Y) gap in metres for two cars to interact; separates tunnels/overpasses from the road above/below
+VehicleAnalysisModeClient.cpp	analysis_mode_parallel_cars	int32	1	VehicleAnalysisMode will spawn and keep that many cars in parallel
+VehicleAnalysisModeClient.cpp	analysis_mode_wait_for_devui	bool	None	VehicleAnalysisMode will only start when the DEVUI is there
+VehicleAnalysisModeRemote.cpp	analysis_mode_cars	string		VehicleAnalysisMode only runs this car
+VehicleAnalysisModeRemote.cpp	analysis_mode_carstage	string		TestStage of those cars, inactive if analysis_mode_cars is set
+VehicleAnalysisModeRemote.cpp	analysis_mode_only_is_ai_drivable	bool	None	VehicleAnalysisMode only runs cars with ai_drivable
+VehicleAnalysisModeRemote.cpp	analysis_mode_only_is_release	bool	True	VehicleAnalysisMode only runs cars with is_release
+VehicleAnalysisModeRemote.cpp	analysis_mode_only_missing_cars	bool	None	VehicleAnalysisMode only runs cars where something is missing
+VehicleAnalysisModeRemote.cpp	analysis_mode_skip_cars	string		VehicleAnalysisMode will skip those cars
+Visibility.cpp	disable_shadow_depth_rendering	bool	None	Disable shadow depth rendering
+VRManager.cpp	vr	bool	None	Enables vr mode
