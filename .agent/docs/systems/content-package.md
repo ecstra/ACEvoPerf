@@ -16,10 +16,13 @@ links: [tools, community-tools-assume-32mb-toc, moddability]
   bit 8 XOR ciphered), `u16 pathlen`, `u64 hash`, `u64 size`, `u64 offset`.
 - Hash: FNV 1a 64 over the UTF 16 LE path (`fnv1a64_utf16` in `kspkg.py`), verified on every
   entry by `kspkg.py verify`.
-- Cipher: XOR with the 8 byte key `C1 35 11 7D A9 21 97 9F` indexed by absolute file offset
-  modulo 8 (`xor_at`). The table and 78,687 files are ciphered (meshes 10 GB, animations 1.3 GB,
-  scenes, materials, audio banks, UI). All 38,783 `.texturemips` files (50 GB) are stored plain
-  so DirectStorage can DMA tiles into GPU memory.
+- Cipher: XOR with the 8 byte key `C1 35 11 7D A9 21 97 9F`, byte `i` of an entry XORed with
+  `key[i mod 8]`, so the phase restarts at every entry (`xor_at` in `kspkg.py`, verified on
+  `uiresources\menu.html` which sits at an offset that is 6 modulo 8). The table starts on an 8
+  byte boundary, so for the table the entry relative and the absolute offset agree. The table and
+  78,687 files are ciphered (meshes 10 GB, animations 1.3 GB, scenes, materials, audio banks, UI).
+  All 38,783 `.texturemips` files (50 GB) are stored plain so DirectStorage can DMA tiles into GPU
+  memory.
 - Roots: `content` (cars, tracks, weather, sfx, characters), `editor` (2,297 files, the editor's
   own assets), `uiresources` (the Gameface UI, 949 files), `system`, `serverconfig`, `cfg`.
 - Asset formats are protobuf messages whose schemas sit in the exe. `tools/data/proto_schema.txt`

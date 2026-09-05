@@ -9,10 +9,12 @@ Layout (this build):
           | u64 hash | u64 size | u64 offset   (flags live at 0xE4 as a u16:
           bit0 = directory, bit8 = payload is XOR ciphered)
   * hash: FNV-1a 64 over the path encoded as UTF-16LE.
-  * cipher: XOR with the 8-byte key below, indexed by ABSOLUTE file offset mod 8.
-    The whole TOC is ciphered; payloads only when bit8 is set (everything except
-    the big streamed .texturemips tile files, which are stored plain so
-    DirectStorage can DMA them straight into GPU tile pools).
+  * cipher: XOR with the 8-byte key below, indexed by the offset INSIDE the entry
+    (byte i of a file is XORed with key[i % 8]). The TOC starts on an 8 byte
+    boundary, so for the table this equals the absolute offset. Payloads are
+    ciphered only when bit8 is set (everything except the big streamed
+    .texturemips tile files, which are stored plain so DirectStorage can DMA
+    them straight into GPU tile pools).
 
 Usage:
   kspkg.py [-p content.kspkg] info
@@ -41,12 +43,12 @@ def fnv1a64_utf16(path: str) -> int:
     return h
 
 
-def xor_at(buf: bytes, abs_off: int) -> bytes:
-    """XOR buf with the key phase-aligned to its absolute file offset."""
+def xor_at(buf: bytes, rel_off: int) -> bytes:
+    """XOR buf with the key phase-aligned to rel_off, the offset inside the entry."""
     n = len(buf)
     if n == 0:
         return buf
-    r = abs_off % 8
+    r = rel_off % 8
     krot = KEY[r:] + KEY[:r]
     ks = (krot * (n // 8 + 2))[:n]
     return (int.from_bytes(buf, "little") ^ int.from_bytes(ks, "little")).to_bytes(n, "little")
@@ -75,7 +77,7 @@ def read_toc(f, fsize):
             continue
         start = fsize - tbl
         f.seek(start)
-        dec = xor_at(f.read(tbl), start)
+        dec = xor_at(f.read(tbl), 0)
         first = parse_slot(dec[:SLOT])
         if first is None or first.offset + first.size > fsize:
             continue
@@ -106,7 +108,7 @@ def read_entry(f, e: Entry, chunk=8 << 20):
         if not buf:
             break
         if e.flags & FLAG_XOR:
-            buf = xor_at(buf, pos)
+            buf = xor_at(buf, pos - e.offset)
         yield buf
         pos += len(buf)
         remaining -= len(buf)
