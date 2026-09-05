@@ -28,11 +28,14 @@ ace loading). The lag and loading needs to go. Its a UI for christs sake."
 - The engine flag `ui_force_resource_preloading` ("force resource preloading also in dev builds",
   `GameUi.cpp`) is false in the release build. Its name says the shipped build only preloads in
   dev builds.
+- Smoke test 2026-09-05 17:38 with the flag on through the mod: the game log gained
+  `[ui] [info] Preloaded 1037 files for 181 MB` six seconds after start, no errors, menu VRAM
+  unchanged (2999 MB). Every UI page is then already in memory when opened.
 
 ## Fix
 
-Absent. First experiment: `ui_force_resource_preloading=true` through the mod ini, measured by
-the time between the `goTo` line and the page's first render in the game log, and by feel.
+Candidate: `ui_force_resource_preloading=true` in the mod ini. Awaiting the owner's verdict on
+UI opening speed in race and in the menu (lap two of 2026-09-05).
 
 ## Verification
 

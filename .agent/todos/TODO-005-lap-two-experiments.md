@@ -17,20 +17,27 @@ Changes to try against the lap of 2026-09-05, one at a time so each effect is at
 
 Mod side, no visual cost:
 
-1. Tile queue priority raised from `NORMAL` to `REALTIME` in `FactoryProxy::CreateQueue`, to cut
-   queueing behind the two other queues during bursts.
-2. Engine flag `texture_tier0=true`, first checked alone in the menu for tile pool use and VRAM,
-   then a lap.
-3. `force_canonical_pool_sizes=true` so revisited sections stay resident (1433 MB pools measured,
+1. Tile queue priority raised from `NORMAL` to `REALTIME` through the new `tile_queue_priority`
+   ini key (commit for "tile_queue_priority option"). Smoke tested 2026-09-05 17:38, queue created
+   at priority 2 without error.
+2. Engine flag `texture_tier0=true`. Smoke tested the same run: flag written, no error, tile pool
+   and VRAM identical in the menu scene, so its effect has to be judged on a lap (texture
+   sharpness, tile traffic, VRAM).
+3. Engine flag `ui_force_resource_preloading=true` for BUG-008. Smoke tested: the game preloads
+   1037 UI files (181 MB) at start.
+4. `force_canonical_pool_sizes=true` so revisited sections stay resident (1433 MB pools measured,
    margin to check in the timeline).
 
-Settings side, owner's trade:
+Lap two of 2026-09-05 runs items 1 to 3 together with the owner's settings unchanged, so the
+frame rate and texture results compare directly with lap one.
 
-4. DLSS Quality instead of Ultra Quality.
-5. Clouds Ultra to High, volumetrics Ultra to High, motion blur Ultra to Medium, grass Ultra to
+Settings side, owner's trade, for lap three:
+
+5. DLSS Quality instead of Ultra Quality.
+6. Clouds Ultra to High, volumetrics Ultra to High, motion blur Ultra to Medium, grass Ultra to
    High.
-6. `texturePoolSize` Ultra and `textureQuality` Ultra with the mod's larger pool, for sharpness.
-7. LOD custom mode with `mainLodDistanceScale` 1.25 for BUG-006.
+7. `texturePoolSize` Ultra and `textureQuality` Ultra with the mod's larger pool, for sharpness.
+8. LOD custom mode with `mainLodDistanceScale` 1.25 for BUG-006.
 
 ## Done when
 
