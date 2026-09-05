@@ -35,13 +35,14 @@ def read_timeline(path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def read_frames(path: str) -> list[tuple[float, float, int, int]]:
-    """(seconds since attach, frame ms, tile requests, GPU uploads) per presented frame.
-    The request columns exist since the per frame counters landed, older files read as zero."""
+def read_frames(path: str) -> list[tuple[float, float, int, int, float]]:
+    """(seconds since attach, frame ms, tile requests, GPU uploads, previous Present call ms) per
+    presented frame. The request and present columns landed later, older files read as zero."""
     if not os.path.exists(path):
         return []
     with open(path, newline="") as f:
-        return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0))
+        return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0),
+                 float(row.get("present_ms") or 0.0))
                 for row in csv.DictReader(f)]
 
 
@@ -65,6 +66,12 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
         slow_uploads = sum(1 for fr in slowest if fr[3] > 0)
         print(f"slowest 1% ({n1} frames): {slow_tiles} with tile requests, {slow_uploads} with GPU uploads, "
               f"against {100.0 * all_tiles / len(stamped):.1f} % of all frames with tile requests")
+    if any(fr[4] > 0 for fr in stamped):
+        n1 = max(1, len(stamped) // 100)
+        slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
+        blocked = sum(1 for fr in slowest if fr[4] > 0.5 * fr[1])
+        print(f"Present call: median {statistics.median(fr[4] for fr in stamped):.2f} ms over all frames, "
+              f"{blocked} of the slowest {n1} frames spent over half their time inside Present")
 
 
 def low_fps(values: list[float], fraction: float) -> float:

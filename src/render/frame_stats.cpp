@@ -14,6 +14,27 @@ std::vector<FrameSample> g_frameBuf;
 static uint64_t g_hitchSnap[5] = {};
 static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
+static double g_lastPresentCallMs = 0.0;   // how long the previous Present call blocked
+
+static HRESULT TimedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    HRESULT hr = g_origPresent(self, sync, flags);
+    QueryPerformanceCounter(&b);
+    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return hr;
+}
+
+static HRESULT TimedPresent1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    HRESULT hr = g_origPresent1(self, sync, flags, pp);
+    QueryPerformanceCounter(&b);
+    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return hr;
+}
 
 // Optional frame limiter: hold the present thread until the frame interval has passed.
 // Sleeps while more than two milliseconds remain (the mod runs a 0.5 ms timer), spins
@@ -81,6 +102,7 @@ static void OnPresent(UINT syncInterval)
         FrameSample sample;
         sample.t = (float)NowSec();
         sample.ms = (float)ms;
+        sample.present = (float)g_lastPresentCallMs;
         sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
@@ -130,13 +152,17 @@ static HRESULT STDMETHODCALLTYPE Hook_SetFullscreenState(IDXGISwapChain* self, B
 
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
-    if (!(flags & DXGI_PRESENT_TEST)) { LimitFrameRate(); OnPresent(sync); }
-    return g_origPresent(self, sync, flags);
+    if (flags & DXGI_PRESENT_TEST) return g_origPresent(self, sync, flags);
+    LimitFrameRate();
+    OnPresent(sync);
+    return TimedPresent(self, sync, flags);
 }
 static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
 {
-    if (!(flags & DXGI_PRESENT_TEST)) { LimitFrameRate(); OnPresent(sync); }
-    return g_origPresent1(self, sync, flags, pp);
+    if (flags & DXGI_PRESENT_TEST) return g_origPresent1(self, sync, flags, pp);
+    LimitFrameRate();
+    OnPresent(sync);
+    return TimedPresent1(self, sync, flags, pp);
 }
 
 void HookSwapChain(IUnknown* sc)

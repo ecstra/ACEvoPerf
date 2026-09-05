@@ -11,6 +11,7 @@ extern CRITICAL_SECTION g_frameCs;
 struct FrameSample {
     float t;            // seconds since attach
     float ms;           // time since the previous present
+    float present;      // time the previous Present call itself took (blocked waiting)
     uint32_t tiles;     // texture tile requests
     uint32_t f2m;       // file to memory requests
     uint32_t gpumem;    // memory to GPU uploads
