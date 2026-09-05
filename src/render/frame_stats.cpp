@@ -127,13 +127,74 @@ static DWORD WINAPI Hook_WaitForMultipleObjects(DWORD count, const HANDLE* handl
     return r;
 }
 
-// D3D12 fences: catch the device at creation, then every fence, then the events it signals
+// D3D12 fences: catch the device at creation, then every fence, then the events it signals.
+// Command queues too: tile mapping updates and command list submits are timed per frame,
+// both run on the GPU's queue and can hold the frame.
 typedef HRESULT (WINAPI *PFN_D3D12CreateDevice)(IUnknown*, D3D_FEATURE_LEVEL, REFIID, void**);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateFence)(ID3D12Device*, UINT64, D3D12_FENCE_FLAGS, REFIID, void**);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_SetEventOnCompletion)(ID3D12Fence*, UINT64, HANDLE);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateCommandQueue)(ID3D12Device*, const D3D12_COMMAND_QUEUE_DESC*, REFIID, void**);
+typedef void (STDMETHODCALLTYPE *PFN_UpdateTileMappings)(ID3D12CommandQueue*, ID3D12Resource*, UINT, const D3D12_TILED_RESOURCE_COORDINATE*, const D3D12_TILE_REGION_SIZE*, ID3D12Heap*, UINT, const D3D12_TILE_RANGE_FLAGS*, const UINT*, const UINT*, D3D12_TILE_MAPPING_FLAGS);
+typedef void (STDMETHODCALLTYPE *PFN_ExecuteCommandLists)(ID3D12CommandQueue*, UINT, ID3D12CommandList* const*);
 static PFN_D3D12CreateDevice g_origD3D12CreateDevice = nullptr;
 static PFN_CreateFence g_origCreateFence = nullptr;
 static PFN_SetEventOnCompletion g_origSetEventOnCompletion = nullptr;
+static PFN_CreateCommandQueue g_origCreateCommandQueue = nullptr;
+static PFN_UpdateTileMappings g_origUpdateTileMappings = nullptr;
+static PFN_ExecuteCommandLists g_origExecuteCommandLists = nullptr;
+static std::atomic<uint64_t> g_frameTileMapUs{0}, g_frameExecuteUs{0};
+static std::atomic<uint32_t> g_frameMappedTiles{0};
+
+static void STDMETHODCALLTYPE Hook_UpdateTileMappings(ID3D12CommandQueue* self, ID3D12Resource* resource, UINT regionCount, const D3D12_TILED_RESOURCE_COORDINATE* coords,
+    const D3D12_TILE_REGION_SIZE* sizes, ID3D12Heap* heap, UINT rangeCount, const D3D12_TILE_RANGE_FLAGS* rangeFlags, const UINT* rangeStarts, const UINT* rangeTileCounts, D3D12_TILE_MAPPING_FLAGS flags)
+{
+    uint32_t tiles = 0;
+    for (UINT i = 0; i < regionCount; ++i) tiles += sizes ? sizes[i].NumTiles : 1;
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    g_origUpdateTileMappings(self, resource, regionCount, coords, sizes, heap, rangeCount, rangeFlags, rangeStarts, rangeTileCounts, flags);
+    QueryPerformanceCounter(&b);
+    g_frameMappedTiles += tiles;
+    g_frameTileMapUs += (uint64_t)((b.QuadPart - a.QuadPart) * 1000000 / g_qpf.QuadPart);
+}
+
+static void STDMETHODCALLTYPE Hook_ExecuteCommandLists(ID3D12CommandQueue* self, UINT count, ID3D12CommandList* const* lists)
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    g_origExecuteCommandLists(self, count, lists);
+    QueryPerformanceCounter(&b);
+    g_frameExecuteUs += (uint64_t)((b.QuadPart - a.QuadPart) * 1000000 / g_qpf.QuadPart);
+}
+
+// every queue of the device is hooked, they may or may not share a vtable
+static void HookQueueSlot(void** vt, int idx, void* hook, void** orig, const char* what)
+{
+    if (vt[idx] == hook) return;
+    if (*orig) {
+        DWORD old = 0;
+        if (!VirtualProtect(&vt[idx], sizeof(void*), PAGE_READWRITE, &old)) return;
+        vt[idx] = hook;
+        VirtualProtect(&vt[idx], sizeof(void*), old, &old);
+        return;
+    }
+    HookVtableSlot(vt, idx, hook, orig, what);
+}
+
+static HRESULT STDMETHODCALLTYPE Hook_CreateCommandQueue(ID3D12Device* self, const D3D12_COMMAND_QUEUE_DESC* desc, REFIID riid, void** ppv)
+{
+    HRESULT hr = g_origCreateCommandQueue(self, desc, riid, ppv);
+    if (SUCCEEDED(hr) && ppv && *ppv) {
+        ID3D12CommandQueue* queue = nullptr;
+        if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) && queue) {
+            HookQueueSlot(*(void***)queue, 8, (void*)&Hook_UpdateTileMappings, (void**)&g_origUpdateTileMappings, "ID3D12CommandQueue::UpdateTileMappings");
+            HookQueueSlot(*(void***)queue, 10, (void*)&Hook_ExecuteCommandLists, (void**)&g_origExecuteCommandLists, "ID3D12CommandQueue::ExecuteCommandLists");
+            Log("D3D12 command queue created: type %d priority %d flags 0x%X", desc ? (int)desc->Type : -1, desc ? (int)desc->Priority : 0, desc ? (unsigned)desc->Flags : 0);
+            queue->Release();
+        }
+    }
+    return hr;
+}
 
 // With a null event the call itself blocks until the GPU reaches the value, so it is timed
 // like a wait on a fence event.
@@ -185,6 +246,7 @@ static HRESULT WINAPI Hook_D3D12CreateDevice(IUnknown* adapter, D3D_FEATURE_LEVE
         ID3D12Device* device = nullptr;
         if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(ID3D12Device), (void**)&device)) && device) {
             HookVtableSlot(*(void***)device, 36, (void*)&Hook_CreateFence, (void**)&g_origCreateFence, "ID3D12Device::CreateFence");
+            HookVtableSlot(*(void***)device, 8, (void*)&Hook_CreateCommandQueue, (void**)&g_origCreateCommandQueue, "ID3D12Device::CreateCommandQueue");
             device->Release();
         }
         Log("wait hooks: %d more wait import slots patched after the D3D12 device was created", PatchWaitImports());
@@ -284,6 +346,9 @@ static void OnPresent(UINT syncInterval)
         sample.wait = (float)g_frameWaitMs;
         sample.fence = (float)g_frameFenceWaitMs;
         g_frameWaitMs = 0.0; g_frameFenceWaitMs = 0.0;
+        sample.tileMap = (float)(g_frameTileMapUs.exchange(0) / 1000.0);
+        sample.execute = (float)(g_frameExecuteUs.exchange(0) / 1000.0);
+        sample.mappedTiles = g_frameMappedTiles.exchange(0);
         LogWaitTally();
         sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);

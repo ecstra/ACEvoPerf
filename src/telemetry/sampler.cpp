@@ -18,12 +18,16 @@ int g_moduleCount = 0;
 // labels a sample is tallied under: "module!export" for the system DLLs, the bucket name for
 // everything else. An append only arena of strings, addressed by offset, sampler thread only.
 std::vector<char> g_labels;
+std::unordered_map<std::string, uint32_t> g_labelIndex;
 uint32_t g_bucketLabel[kBucketCount];
 
 uint32_t AddLabel(const char* text)
 {
+    auto known = g_labelIndex.find(text);
+    if (known != g_labelIndex.end()) return known->second;
     uint32_t offset = (uint32_t)g_labels.size();
     g_labels.insert(g_labels.end(), text, text + strlen(text) + 1);
+    g_labelIndex.emplace(text, offset);
     return offset;
 }
 
@@ -35,8 +39,11 @@ std::atomic<uint32_t> g_counts[kBucketCount];
 std::atomic<uint32_t> g_unknownHits{0};
 
 // every sample in a ring, and the frames as spans over it, so the minute's slowest frames can
-// be told apart from its median frames after the fact
-struct Sample { uintptr_t rip; uint32_t label; uint32_t callerKey; };
+// be told apart from its median frames after the fact. The caller of a sample outside the
+// game packs the first two modules on the stack (buckets, 4 bits each) over the first game
+// code address (64 byte bucket, 24 bits).
+struct Sample { uintptr_t rip; uint32_t label; uint32_t caller; };
+inline uint32_t PackCaller(int via1, int via2, uint32_t gameKey) { return ((uint32_t)via1 << 28) | ((uint32_t)via2 << 24) | (gameKey & 0xFFFFFF); }
 const uint32_t kSampleRing = 1u << 19;
 Sample g_samples[kSampleRing];
 std::atomic<uint32_t> g_sampleWrite{0};
@@ -138,18 +145,32 @@ bool ReadQword(uintptr_t addr, uintptr_t* out)
     __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 
-// The first game code address on top of the suspended thread's stack, as a 64 byte bucket
-// key, or zero. A return address into the exe's code section is what the sample was called
-// from, give or take a function pointer that happens to sit on the stack.
-uint32_t GameCallerOnStack(uintptr_t rsp)
+int ModuleIndexOf(uintptr_t addr)
+{
+    int lo = 0, hi = g_moduleCount;
+    while (lo < hi) { int mid = (lo + hi) / 2; if (g_modules[mid].base <= addr) lo = mid + 1; else hi = mid; }
+    if (lo == 0) return -1;
+    return addr < g_modules[lo - 1].end ? lo - 1 : -1;
+}
+
+// What the suspended thread was called through: the first two modules outside the system
+// DLLs whose code appears on top of the stack, and the first game code address, as a 64 byte
+// bucket. Return addresses are what the sample was called from, give or take a function
+// pointer that happens to sit on the stack. Packed as PackCaller, zero when nothing was found.
+uint32_t CallerOnStack(uintptr_t rsp)
 {
     if (!g_gameTextBegin) return 0;
-    for (int i = 0; i < 128; ++i) {
+    int via[2] = { kOther, kOther };
+    int found = 0;
+    for (int i = 0; i < 768; ++i) {
         uintptr_t v;
-        if (!ReadQword(rsp + i * 8, &v)) return 0;
-        if (v >= g_gameTextBegin && v < g_gameTextEnd) return (uint32_t)((v - g_gameBase) >> 6);
+        if (!ReadQword(rsp + i * 8, &v)) break;
+        if (v >= g_gameTextBegin && v < g_gameTextEnd) return PackCaller(via[0], via[1], (uint32_t)((v - g_gameBase) >> 6));
+        int m = ModuleIndexOf(v);
+        if (m < 0 || g_modules[m].system || g_modules[m].bucket == kGame) continue;
+        if (found == 0 || (found == 1 && g_modules[m].bucket != via[0])) via[found++] = g_modules[m].bucket;
     }
-    return 0;
+    return found ? PackCaller(via[0], via[1], 0) : 0;
 }
 
 void RefreshModules()
@@ -173,6 +194,7 @@ void RefreshModules()
         if (system) CollectExports(mods[i], file);
     }
     std::sort(g_exports.begin(), g_exports.end(), [](const Export& a, const Export& b) { return a.addr < b.addr; });
+    std::sort(table, table + n, [](const ModuleRange& a, const ModuleRange& b) { return a.base < b.base; });
     memcpy(g_modules, table, sizeof(ModuleRange) * n);
     g_moduleCount = n;
 }
@@ -180,21 +202,19 @@ void RefreshModules()
 // bucket of the address, and the label to tally it under
 int Classify(uintptr_t rip, uint32_t* label)
 {
-    for (int i = 0; i < g_moduleCount; ++i) {
-        if (rip < g_modules[i].base || rip >= g_modules[i].end) continue;
-        *label = g_bucketLabel[g_modules[i].bucket];
-        if (!g_modules[i].system) return g_modules[i].bucket;
-        // nearest export at or before the address
-        size_t lo = 0, hi = g_exports.size();
-        while (lo < hi) { size_t mid = (lo + hi) / 2; if (g_exports[mid].addr <= rip) lo = mid + 1; else hi = mid; }
-        if (lo == 0) return kSystem;
-        const Export& e = g_exports[lo - 1];
-        if (e.addr < g_modules[i].base || rip - e.addr >= 0x4000) return kSystem;
-        *label = e.label;
-        return e.bucket;
-    }
     *label = g_bucketLabel[kOther];
-    return -1;
+    int i = ModuleIndexOf(rip);
+    if (i < 0) return -1;
+    *label = g_bucketLabel[g_modules[i].bucket];
+    if (!g_modules[i].system) return g_modules[i].bucket;
+    // nearest export at or before the address
+    size_t lo = 0, hi = g_exports.size();
+    while (lo < hi) { size_t mid = (lo + hi) / 2; if (g_exports[mid].addr <= rip) lo = mid + 1; else hi = mid; }
+    if (lo == 0) return kSystem;
+    const Export& e = g_exports[lo - 1];
+    if (e.addr < g_modules[i].base || rip - e.addr >= 0x4000) return kSystem;
+    *label = e.label;
+    return e.bucket;
 }
 
 // The minute's frames sorted by time: the slowest 1 percent against the median half, the
@@ -244,7 +264,7 @@ void LogHotSpots()
             samples++;
             if (s.rip >= g_gameTextBegin && s.rip < g_gameTextEnd) { game[(s.rip - g_gameBase) >> 6]++; continue; }
             out[s.label]++;
-            pair[((uint64_t)s.label << 32) | s.callerKey]++;
+            pair[((uint64_t)s.label << 32) | s.caller]++;
         }
     };
     for (size_t i = frames.size() - slowCount; i < frames.size(); ++i) { tally(frames[i], gameSlow, outSlow, pairSlow, slowSamples); slowMs += frames[i].ms; }
@@ -264,9 +284,12 @@ void LogHotSpots()
     Log("sampler: outside the game code, functions with the most samples in the median half (the steady cost)");
     for (const Ranked& r : Rank(outSlow, outFast, scale, 8, false))
         Log("sampler:   %-44s slow %5u  fast %7.1f", g_labels.data() + r.key, r.slow, r.fastScaled);
-    Log("sampler: function and the game call site under it with the most extra samples in the slowest 1%%");
-    for (const Ranked& r : Rank(pairSlow, pairFast, scale, 12, true))
-        Log("sampler:   %-44s under rva 0x%06X  slow %5u  fast %7.1f", g_labels.data() + (uint32_t)(r.key >> 32), (unsigned)((r.key & 0xFFFFFFFF) << 6), r.slow, r.fastScaled);
+    Log("sampler: function, the modules it was called through and the game call site under it, most extra samples in the slowest 1%% first");
+    for (const Ranked& r : Rank(pairSlow, pairFast, scale, 14, true)) {
+        uint32_t caller = (uint32_t)(r.key & 0xFFFFFFFF);
+        Log("sampler:   %-40s via %s > %s  rva 0x%06X  slow %5u  fast %7.1f", g_labels.data() + (uint32_t)(r.key >> 32),
+            kBucketNames[(caller >> 28) & 15], kBucketNames[(caller >> 24) & 15], (unsigned)((caller & 0xFFFFFF) << 6), r.slow, r.fastScaled);
+    }
 }
 
 void WriteRecords(HANDLE csv)
@@ -335,7 +358,7 @@ DWORD WINAPI SamplerThread(void*)
                 uint32_t label = g_bucketLabel[kOther];
                 int bucket = ok ? Classify(rip, &label) : -1;
                 // the stack is read while the thread is still suspended
-                uint32_t caller = (ok && bucket != kGame) ? GameCallerOnStack((uintptr_t)ctx.Rsp) : 0;
+                uint32_t caller = (ok && bucket != kGame) ? CallerOnStack((uintptr_t)ctx.Rsp) : 0;
                 ResumeThread(thread);
                 if (ok) {
                     if (bucket < 0) { g_unknownHits++; bucket = kOther; }

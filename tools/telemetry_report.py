@@ -35,14 +35,16 @@ def read_timeline(path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def read_frames(path: str) -> list[tuple[float, float, int, int, float, float]]:
+def read_frames(path: str) -> list[tuple[float, float, int, int, float, float, float, float, float, int]]:
     """(seconds since attach, frame ms, tile requests, GPU uploads, previous Present call ms,
-    frame latency wait ms) per presented frame. The later columns read as zero in older files."""
+    wait ms, fence wait ms, tile mapping ms, ExecuteCommandLists ms, tiles mapped) per presented
+    frame. The later columns read as zero in older files."""
     if not os.path.exists(path):
         return []
     with open(path, newline="") as f:
         return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0),
-                 float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0), float(row.get("fence_ms") or 0.0))
+                 float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0), float(row.get("fence_ms") or 0.0),
+                 float(row.get("tilemap_ms") or 0.0), float(row.get("execute_ms") or 0.0), int(row.get("mapped_tiles") or 0))
                 for row in csv.DictReader(f)]
 
 
@@ -81,6 +83,12 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
             for label, group in (("slowest 1%", slowest), ("faster half", faster)):
                 total, fence, other, present, rest = split(group)
                 print(f"{label:12} frame {total:5.1f} ms = GPU fence wait {fence:4.1f} + other waits {other:4.1f} + present {present:4.1f} + render thread work {rest:5.1f}")
+            if any(fr[9] > 0 or fr[8] > 0 for fr in stamped):
+                for label, group in (("slowest 1%", slowest), ("faster half", faster)):
+                    with_maps = sum(1 for fr in group if fr[9] > 0)
+                    print(f"{label:12} queue: tile mappings in {100.0 * with_maps / len(group):4.1f} % of frames, "
+                          f"{statistics.fmean(fr[9] for fr in group):6.1f} tiles and {statistics.fmean(fr[7] for fr in group):4.2f} ms per frame, "
+                          f"ExecuteCommandLists {statistics.fmean(fr[8] for fr in group):4.2f} ms per frame")
 
 
 def print_sample_mix(path: str, t_lo: float, t_hi: float) -> None:
