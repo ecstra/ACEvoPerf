@@ -56,6 +56,12 @@ default device). Each carries the seconds since attach, to line up with the fram
 rebuilds its DirectInput devices and restarts its audio on such events, a frame of several hundred
 milliseconds.
 
+## Frame limiter
+
+`[dxgi] fps_limit=N` holds the present call until the frame interval has passed, sleeping while
+more than two milliseconds remain and spinning the rest. Off at 0. A limit a little under the
+usual rate evens the pace, the frames CSV shows the result directly.
+
 ## GPU sampler
 
 Run beside the game, the report script joins it on the clock second:

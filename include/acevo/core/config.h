@@ -32,6 +32,7 @@ struct Config {
     bool dxgiEnabled = true;
     bool frameStats = true;
     int  maxFrameLatency = 0;
+    int  fpsLimit = 0;              // hold Present until this frame rate, 0 = off
     // [input]
     bool inputProbe = false;        // time controller polling, columns in the timeline CSV
     bool deviceEvents = true;       // log device arrivals, removals and audio endpoint changes

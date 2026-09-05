@@ -50,6 +50,8 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   answers them by rebuilding its input devices and restarting its audio (a 660 ms frame).
 - Per frame streaming counters: the frames CSV carries the tile, package to memory and memory to
   GPU requests enqueued since the previous frame, so a slow frame can be matched to streaming.
+- Frame limiter (`[dxgi] fps_limit=N`, off by default): holds the present call to the interval
+  with a sleep and a short spin, accurate to tens of microseconds, for an even pace.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.

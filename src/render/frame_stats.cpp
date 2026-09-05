@@ -15,6 +15,23 @@ static uint64_t g_hitchSnap[5] = {};
 static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
 
+// Optional frame limiter: hold the present thread until the frame interval has passed.
+// Sleeps while more than two milliseconds remain (the mod runs a 0.5 ms timer), spins
+// the rest, so the interval is met within a few tens of microseconds.
+static void LimitFrameRate()
+{
+    if (g_cfg.fpsLimit <= 0 || !g_lastPresentQpc) return;
+    int64_t target = g_lastPresentQpc + g_qpf.QuadPart / g_cfg.fpsLimit;
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    while (now.QuadPart < target) {
+        int64_t remainingUs = (target - now.QuadPart) * 1000000 / g_qpf.QuadPart;
+        if (remainingUs > 2000) Sleep(1);
+        else YieldProcessor();
+        QueryPerformanceCounter(&now);
+    }
+}
+
 void InitFrameStats()
 {
     InitializeCriticalSection(&g_frameCs);
@@ -58,6 +75,7 @@ static void OnPresent(UINT syncInterval)
         }
     }
 
+    if (g_cfg.frames) {
         uint64_t req[5];
         for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
         FrameSample sample;
@@ -67,7 +85,6 @@ static void OnPresent(UINT syncInterval)
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
         for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
-    if (g_cfg.frames) {
         EnterCriticalSection(&g_frameCs);
         if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);
         LeaveCriticalSection(&g_frameCs);
@@ -113,12 +130,12 @@ static HRESULT STDMETHODCALLTYPE Hook_SetFullscreenState(IDXGISwapChain* self, B
 
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
-    if (!(flags & DXGI_PRESENT_TEST)) OnPresent(sync);
+    if (!(flags & DXGI_PRESENT_TEST)) { LimitFrameRate(); OnPresent(sync); }
     return g_origPresent(self, sync, flags);
 }
 static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
 {
-    if (!(flags & DXGI_PRESENT_TEST)) OnPresent(sync);
+    if (!(flags & DXGI_PRESENT_TEST)) { LimitFrameRate(); OnPresent(sync); }
     return g_origPresent1(self, sync, flags, pp);
 }
 
