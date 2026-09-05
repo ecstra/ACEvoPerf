@@ -16,6 +16,7 @@ bug
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-008-ui-opens-slowly-with-loading-spinner](BUG-008-ui-opens-slowly-with-loading-spinner.md), the UI reloads its whole document on every page switch and stalls the render thread, needs a UI change
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), alternation fixed by the latency cap, the section spread remains
+- [BUG-011-menu-icons-load-slowly-every-time](BUG-011-menu-icons-load-slowly-every-time.md), icons appear late and reload on every page visit, not measured yet
 
 nit
 
