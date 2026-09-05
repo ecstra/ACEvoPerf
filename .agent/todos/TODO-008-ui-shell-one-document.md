@@ -48,6 +48,25 @@ Every pause, resume, settings open and pitlane return costs 150 to 500 ms of ren
 stalls and shows the spinner. It is the owner's first complaint about the UI and the reason the
 override layer was built.
 
+## Phase one result (2026-09-05 20:24 session)
+
+- The swap works: every pause and resume switched in 4 to 11 ms (`ACEVO_SHELL switch` lines)
+  instead of a 150 to 240 ms document load, no `ACEVO_PAGE_START` during the race.
+- It did not remove the stall: the frames after a switch still cost 150 to 400 ms of time over
+  16.7 ms in the following 2.5 s, the same as the stock reload. The page's own component build
+  is the cost, not the bundle re run. The shell stays as the base for the fix, the target moved
+  to the build itself (see BUG-008 and the probe measurements).
+- Crash: markup inserted into a live document upgrades its custom elements at once, so the free
+  roam HUD variant (`ks-hud-freeroam`, `data-bind-if` false in a race) initialised before its
+  binding removed it, registered the racing HUD's `ViewSettings` model a second time, ran a half
+  initialised cleanup and requested `content\tracks\eifel\eifel.terrainchart`, which the track
+  does not have. The resource manager worker threw and the game died (0xc0000409 in ucrtbase,
+  20:30:01). Fix: the shell now builds the HUD and in race markup for the current game mode and
+  leaves out top level elements whose binding could not apply.
+- Owner after the run: the pause menu itself never lagged, the pages inside the menus do
+  (controls, vehicle control, replay). The controls page runs at 21 to 54 fps for as long as it
+  is open, with 60 ms frames while the list is scrolled or hovered.
+
 ## Done when
 
 Pause and resume in a race produce no `ACEVO_PAGE_START` line (no document load) and no frame
