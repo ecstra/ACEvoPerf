@@ -23,8 +23,8 @@ Mod side, no visual cost:
 2. Engine flag `texture_tier0=true`. Smoke tested the same run: flag written, no error, tile pool
    and VRAM identical in the menu scene, so its effect has to be judged on a lap (texture
    sharpness, tile traffic, VRAM).
-3. Engine flag `ui_force_resource_preloading=true` for BUG-008. Smoke tested: the game preloads
-   1037 UI files (181 MB) at start.
+3. Engine flag `ui_force_resource_preloading=true`. Smoke tested: the game preloads 1037
+   interface files (181 MB) at start.
 4. `force_canonical_pool_sizes=true` so revisited sections stay resident (1433 MB pools measured,
    margin to check in the timeline).
 
@@ -32,7 +32,7 @@ Lap two of 2026-09-05 ran items 1 to 3 together with the owner's settings unchan
 item 2 is a regression (tile traffic fell to 1.3 GB in four minutes, whole minutes at 1 MB, the
 car stayed at low detail, the owner's screenshot shows base mips on the livery), item 3 changed
 nothing the owner could feel, item 1 showed no measurable difference. All three are off again.
-Item 4 remains open, and the UI lag (BUG-008) needs a different cause than resource loading.
+Item 4 remains open.
 
 Settings side, owner's trade, for lap three:
 

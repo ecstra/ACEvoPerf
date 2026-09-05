@@ -64,8 +64,8 @@ shown fps."
 
   Stint 2 has the same 1 percent low as lap four, the averages are 7 fps lower with the GPU
   clock 50 MHz lower and throttling the whole time (15 minutes into the session). Stint 1 is
-  ruined by the UI: every pause menu and settings open is a 100 to 300 ms document reload
-  (BUG-008) and the settings page pushed VRAM to 5337 MB, over the 5226 MB budget. A build and
+  ruined by menu use: every pause and settings open costs 100 to 300 ms of stall, and the
+  settings page pushed VRAM to 5337 MB, over the 5226 MB budget. A build and
   a 1.2 GB package extraction also ran on the machine during stint 2. So nothing in the mod
   changed the frame distribution, the run was contaminated and needs a clean repeat.
 
@@ -80,7 +80,7 @@ shown fps."
   | 19:55:25 to 19:56:25, after the return | 80.5 | 53.2 | 16.9 ms | 819 MB tiles, 669 MB uploads | 1520 MHz |
 
   GPU utilisation is 98 to 99 percent in both driving windows and thermal throttling is active
-  in both. The return costs one HUD document reload (BUG-008, worst frame 131 ms). After that
+  in both. The return costs one stall while the HUD comes back (worst frame 131 ms). After that
   the car is in a section that streams 819 MB of tiles and uploads 669 MB of meshes and
   textures in a minute, with the GPU clock 60 MHz lower, and that is where the 1 percent low
   sits at 53. The window switch itself leaves the pacing intact, the section does the rest. So
@@ -89,7 +89,7 @@ shown fps."
 ## Fix
 
 Partial: `max_frame_latency=1` is the default now (DEC-006). The remaining gap is the GPU load
-spread between sections, and any UI page opened during a stint (BUG-008). Remaining candidates:
+spread between sections, and any menu opened during a stint. Remaining candidates:
 a frame rate cap just under the typical rate, the `gpu-relief` settings profile, and cooling.
 
 ## Verification

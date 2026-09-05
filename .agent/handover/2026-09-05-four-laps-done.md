@@ -28,7 +28,7 @@ Continues [2026-09-05-lap-analysed](2026-09-05-lap-analysed.md).
 
 TODO-002: measure the `gpu-relief` profile on one lap for the average and the section spread,
 then decide the recommended profile. TODO-004: release zip. BUG-001 (low mips on first sight) has
-no engine knob found yet, BUG-006 is the grass distance, BUG-008 needs a UI change.
+no engine knob found yet, BUG-006 is the grass distance.
 
 ## Traps
 

@@ -29,8 +29,7 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 - Package override layer: files under `acevo_mods\<package path>` next to the exe replace or add
   entries of `content.kspkg` without touching the 64 GB package. The proxy rewrites the package
   table in memory when the game reads it and points the game's DirectStorage requests at the
-  loose files. First use: a modified `uiresources\menu.html` served to the game's UI. This is the
-  base for UI, HUD and content changes.
+  loose files. Verified with a replaced and an added file. This is the base for content changes.
 - Engine flags from the ini: any bool, int32 or double gflag of the game can be set under
   `[flags]`, the mod finds the flag storage inside the exe at start (the release build ignores
   flags on the command line). Defaults on: `enable_pso_cache=true` (fewer shader compile stalls
@@ -59,7 +58,5 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 - The first second after a texture streams in shows a lower mip (engine feedback loop, BUG-001).
 - Grass and distant object pop in (level of detail scales, BUG-006).
-- UI pages open with a loading spinner and a hitch, in the menu and in the race (the UI reloads
-  the whole page, BUG-008). Next target through the override layer.
 - Frame drops in a few sections of the Nordschleife and low 1 percent lows: the GPU is at 100
   percent with thermal slowdown active for most of the lap (BUG-002, BUG-009).

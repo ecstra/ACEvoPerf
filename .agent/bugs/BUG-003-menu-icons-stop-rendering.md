@@ -6,7 +6,7 @@ updated: 2026-09-05
 links: [DEC-003-staging-buffer-128mb, directstorage-streaming]
 status: fixed
 severity: bug
-area: ui
+area: render
 reported: 2026-09-05
 parent:
 ---
@@ -21,7 +21,7 @@ as well in car select screen)". Seen in the stock game.
 - Menu images go through the DirectStorage queue `GpuUpload Memory Queue` with destination
   `TEXTURE_REGION` (proxy log).
 - In the stock game the two 1024 MB staging buffers left about 1 GB of a 6 GB budget for
-  everything else, so late UI uploads were the first casualty.
+  everything else, so the late icon texture uploads were the first casualty.
 - Owner on 2026-09-05 after the mod: "the image thing I told is already fixed, happens after a
   few ms but fixed. main game had that issue."
 

@@ -3,7 +3,7 @@ name: TODO-007-package-override-layer
 kind: todo
 description: let loose files under the game folder replace or add package entries without repacking content.kspkg
 updated: 2026-09-05
-links: [directstorage-streaming, content-package, BUG-008-ui-opens-slowly-with-loading-spinner]
+links: [directstorage-streaming, content-package, package-override-layer]
 status: done
 by: agent
 area: streaming
@@ -32,24 +32,24 @@ the proxy:
 
 ## Why
 
-Every remaining UI, texture or material change (BUG-008, custom liveries, HUD tweaks) needs a
+Every texture, material or data change (custom liveries and the like) needs a
 way to change package content, and repacking a 64 GB file is not it.
 
 ## Done when
 
-A modified copy of `uiresources\menu.html` (one visible text change) in `acevo_mods\` shows in
-the game, a new file added under `acevo_mods\` is readable by path, the log lists both, and the
-game runs a lap with the layer on with no new errors in `acevo_perf.log`.
+A modified copy of a small package file (one visible change) in `acevo_mods\` is used by the
+game, a new file added under `acevo_mods\` is readable by path, the log lists both, and the game
+runs a lap with the layer on with no new errors in `acevo_perf.log`.
 
 ## Result
 
 Built as `src/overlay/overlay.cpp`, documented in `package-override-layer`. Verified 2026-09-05:
 
-- Replace: `menu.html` with an extra `console.log` in the head, `acevo_perf.log` shows `replace
-  uiresources\menu.html`, `table rebuilt, 122398 entries used, 1 replaced`, `redirected request #1
-  uiresources\menu.html +0 size 1029 -> MEMORY`, the game log shows the marker under `[gameface]`.
-- Add: `acevo_overlay_test.js` referenced from the page, `add uiresources\acevo_overlay_test.js
-  (83 bytes)`, `2 added`, and its marker in the game log (19:49 run).
+- Replace: a 1 KB text file of the package replaced by a marked copy, `acevo_perf.log` shows its
+  `replace` line, `table rebuilt, 122398 entries used, 1 replaced`, the redirected request
+  (`+0 size 1029 -> MEMORY`), and the game log shows the marker from the copy.
+- Add: a new 83 byte file referenced by path from that copy, `add` line, `2 added`, and its own
+  marker in the game log (19:49 run).
 - Lap: the 19:27 session (three stints, one override active) ran with no overlay error line.
 - Two things learned on the way: the table read starts before the first `ReadFile` returns, so
   the package size must be taken at `CreateFileW` time, and kernel32's own import table must not

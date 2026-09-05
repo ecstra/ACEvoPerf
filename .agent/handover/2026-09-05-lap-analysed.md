@@ -22,7 +22,7 @@ links: [lap-2026-09-05-nordschleife, TODO-005-lap-two-experiments, TODO-003-capt
 ## Next step
 
 Run the TODO-005 experiments one at a time, mod side ones first (tile queue priority, then
-`texture_tier0`, then `ui_force_resource_preloading` for BUG-008), each as a short menu check
+`texture_tier0`, then `ui_force_resource_preloading`), each as a short menu check
 followed by a lap when it looks safe, and compare with `tools/telemetry_report.py`.
 
 ## Traps

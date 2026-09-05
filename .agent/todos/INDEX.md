@@ -10,10 +10,6 @@ links: [agent-index, spec-todos]
 
 ## Open
 
-ui
-
-- [TODO-008-ui-shell-one-document](TODO-008-ui-shell-one-document.md), one UI document for all pages, swap works in 5 to 11 ms, the component build is the remaining cost
-
 streaming
 
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs

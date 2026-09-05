@@ -26,7 +26,7 @@ path, not a handle, so the copy is the simple way.
 
 ## Why
 
-Iterating on UI overrides (TODO-008) and on any future content override needs edit, restart, look,
+Iterating on any content override needs edit, restart, look,
 without fighting a locked file. The lock also confuses anyone syncing a mod folder while playing.
 
 ## Done when

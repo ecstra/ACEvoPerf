@@ -17,8 +17,8 @@ links: [tools, community-tools-assume-32mb-toc, moddability]
 - Hash: FNV 1a 64 over the UTF 16 LE path (`fnv1a64_utf16` in `kspkg.py`), verified on every
   entry by `kspkg.py verify`.
 - Cipher: XOR with the 8 byte key `C1 35 11 7D A9 21 97 9F`, byte `i` of an entry XORed with
-  `key[i mod 8]`, so the phase restarts at every entry (`xor_at` in `kspkg.py`, verified on
-  `uiresources\menu.html` which sits at an offset that is 6 modulo 8). The table starts on an 8
+  `key[i mod 8]`, so the phase restarts at every entry (`xor_at` in `kspkg.py`, verified on a
+  text file that sits at an offset that is 6 modulo 8). The table starts on an 8
   byte boundary, so for the table the entry relative and the absolute offset agree. The table and
   78,687 files are ciphered (meshes 10 GB, animations 1.3 GB, scenes, materials, audio banks, UI).
   All 38,783 `.texturemips` files (50 GB) are stored plain so DirectStorage can DMA tiles into GPU

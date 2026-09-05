@@ -24,11 +24,10 @@ times out of three in the 2026-09-05 20:24 session (frames of 1426, 1454 and 131
   content\tracks\nurburgring/dynamic_track/24h.dynamictrackpresetcompressed` appears. Dynamic
   track presets are among the largest single assets in the package (60 MB) and this one is loaded
   and decompressed on the render thread during the teleport.
-- The freeze is followed by two document loads of the pit lane page (the engine sends the
-  `goto ingame.html pitlane/main` command twice, 1.7 s apart) at 150 to 260 ms each.
-- Not a UI cost: the same freeze appears with the stock UI on the first pit lane entry of a
-  session at a smaller scale (207 ms on 2026-09-05 19:51:54), the preset load dominates only on
-  the return.
+- The freeze is followed by two stalls of 150 to 260 ms while the pit lane screen comes up (the
+  engine sends its page command twice, 1.7 s apart).
+- Not a menu cost: the same freeze appears on the first pit lane entry of a session at a smaller
+  scale (207 ms on 2026-09-05 19:51:54), the preset load dominates only on the return.
 
 ## Fix
 

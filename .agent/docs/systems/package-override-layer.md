@@ -3,7 +3,7 @@ name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
 updated: 2026-09-05
-links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, BUG-008-ui-opens-slowly-with-loading-spinner]
+links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable]
 ---
 
 # Package override layer
@@ -17,10 +17,10 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
   reads the last 64 MB, the table of contents, in 4 KB `ReadFile` calls starting at the table
   offset. It opens and closes the package a few more times right after, without reading.
 - Everything else goes through DirectStorage. Every request is one whole entry: offset and size
-  come straight from the table. UI files (`uiresources\*`) travel on the `FileToMemory Queue`
-  (destination `MEMORY`), textures on the `GpuUpload File Queue` (destination `TILES`).
+  come straight from the table. Small files (text, scripts, data) travel on the `FileToMemory
+  Queue` (destination `MEMORY`), textures on the `GpuUpload File Queue` (destination `TILES`).
 - An entry whose table flag bit 8 is set is XOR ciphered (see `content-package`). Clearing the bit
-  makes the engine take the data as is: the overridden `menu.html` was served plain and ran.
+  makes the engine take the data as is: an overridden text file was served plain and used.
 
 ## What the layer does
 
@@ -35,8 +35,8 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    the package size rounded up to 64 KB and are 64 KB aligned. The table is re encoded and every
    later read in the table range is answered from this copy.
 3. Reads at a virtual offset (`Hook_ReadFile`) are served from the loose file and the file
-   position is advanced as if the package had the data. Seen for no file yet, all UI reads go
-   through DirectStorage, the path exists for completeness.
+   position is advanced as if the package had the data. Seen for no file yet, every read observed
+   so far went through DirectStorage, the path exists for completeness.
 4. DirectStorage requests whose offset is virtual (`OverlayRedirect`, called from
    `QueueProxy::EnqueueRequest`) get their source swapped to an `IDStorageFile` opened on the
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
@@ -44,11 +44,11 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
 
 ## Verified on 2026-09-05
 
-`acevo_mods\uiresources\menu.html` with an extra `console.log` in the head: `acevo_perf.log`
-shows `replace uiresources\menu.html (1029 bytes) -> virtual offset 69070749696`, `table rebuilt,
-122398 entries used, 1 replaced`, `redirected request #1 uiresources\menu.html +0 size 1029 ->
-MEMORY`, and the game log shows the marker line under `[gameface] [info]`. Table rebuild costs
-80 ms at startup (64 MB read and decoded once).
+A 1 KB text file of the package replaced by a marked copy, plus a new 83 byte file added next to
+it: `acevo_perf.log` shows `replace ... (1029 bytes) -> virtual offset 69070749696`, `add ...
+(83 bytes)`, `table rebuilt, 122398 entries used, 1 replaced` (later `2 added`), `redirected
+request #1 ... +0 size 1029 -> MEMORY`, and the game log shows the markers from both files. Table
+rebuild costs 80 ms at startup (64 MB read and decoded once).
 
 ## Limits
 

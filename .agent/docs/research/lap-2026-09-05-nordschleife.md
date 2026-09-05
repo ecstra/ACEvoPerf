@@ -58,13 +58,11 @@ and only single digit PSO events during the lap. Not a factor while driving.
 
 ## Laps two to four, same day
 
-- Lap two (tile queue realtime, `texture_tier0`, UI preload): `texture_tier0` pinned textures to
+- Lap two (tile queue realtime, `texture_tier0`, resource preload): `texture_tier0` pinned textures to
   their lowest tier, tile traffic fell to 1.3 GB in four minutes with whole minutes at 1 MB. The
   other two showed nothing. All three reverted.
 - Session of 17:47 (defaults, `veh_crashdumps`): three race loads, two car changes and a track
-  change with no crash, the crashes of BUG-004 and BUG-005 were the staging buffers. The pause
-  menu costs two render stalls of about 60 and 130 ms, the settings page 1.2 s at 23 fps, on
-  every open (BUG-008).
+  change with no crash, the crashes of BUG-004 and BUG-005 were the staging buffers.
 - Lap three (car reflections Medium, `gibake_probes_per_frame=8`): first stint 90 fps mean,
   p99 14.7 ms, lag 2 autocorrelation +0.34 from +0.50. Shadows flickered with the GI flag, it
   was reverted. Fullscreen changed nothing. The game log revealed the pool sizing: race 633 MB,
@@ -75,4 +73,4 @@ and only single digit PSO events during the lap. Not a factor while driving.
   and lag 2 +0.22. Owner: road sharp, restart clean, pacing improved.
 
 Still open after four laps: the second of low mips on first sight (BUG-001), grass pop in
-(BUG-006), the UI reload stalls (BUG-008) and the GPU spread between sections (BUG-009, TODO-002).
+(BUG-006) and the GPU spread between sections (BUG-009, TODO-002).

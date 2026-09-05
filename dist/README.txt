@@ -14,7 +14,7 @@ SETTINGS
 MODS FOLDER (optional)
   Files placed under acevo_mods\ next to the exe replace the file of the same
   path inside the game's content package, new paths are added. For example
-  acevo_mods\uiresources\menu.html replaces the main menu page. The package
+  acevo_mods\content\<same folders as in the package>\<file>. The package
   itself is never modified, delete the folder to undo everything. Files are
   picked up at game start and listed in acevo_perf.log.
 
