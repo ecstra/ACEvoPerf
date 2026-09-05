@@ -16,26 +16,6 @@ static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
 static double g_lastPresentCallMs = 0.0;   // how long the previous Present call blocked
 
-static HRESULT TimedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
-{
-    LARGE_INTEGER a, b;
-    QueryPerformanceCounter(&a);
-    HRESULT hr = g_origPresent(self, sync, flags);
-    QueryPerformanceCounter(&b);
-    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
-    return hr;
-}
-
-static HRESULT TimedPresent1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
-{
-    LARGE_INTEGER a, b;
-    QueryPerformanceCounter(&a);
-    HRESULT hr = g_origPresent1(self, sync, flags, pp);
-    QueryPerformanceCounter(&b);
-    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
-    return hr;
-}
-
 // Optional frame limiter: hold the present thread until the frame interval has passed.
 // Sleeps while more than two milliseconds remain (the mod runs a 0.5 ms timer), spins
 // the rest, so the interval is met within a few tens of microseconds.
@@ -123,6 +103,28 @@ static PFN_Present1 g_origPresent1 = nullptr;
 static PFN_SetMaximumFrameLatency g_origSetMaximumFrameLatency = nullptr;
 static PFN_ResizeBuffers g_origResizeBuffers = nullptr;
 static PFN_SetFullscreenState g_origSetFullscreenState = nullptr;
+
+// The Present call is where a frame waits for the swap chain queue or the display, so its
+// duration separates waiting from rendering in the frames CSV.
+static HRESULT TimedPresent(IDXGISwapChain* self, UINT sync, UINT flags)
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    HRESULT hr = g_origPresent(self, sync, flags);
+    QueryPerformanceCounter(&b);
+    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return hr;
+}
+
+static HRESULT TimedPresent1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    HRESULT hr = g_origPresent1(self, sync, flags, pp);
+    QueryPerformanceCounter(&b);
+    g_lastPresentCallMs = (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return hr;
+}
 
 // The game manages the waitable swap chain itself. If it re applies its own latency after a
 // focus change or a session restart, the pacing fix (DEC-006) silently goes away, so every
