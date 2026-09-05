@@ -127,14 +127,59 @@ shown fps."
   cost that does not scale with GPU load. Not a 60 Hz wall: both displays run at 165 and 300 Hz
   and the histogram is a smooth tail from the median with no peak near 16.7 ms.
 
+- Present split, 22:10 session: of the 42 slowest frames of a clean minute none spent more than
+  half its time inside the Present call. The slow frames are not the swap chain queue.
+
+- Render thread sampling, 22:26 session (`[profile] sampler=1`, one sample of the render
+  thread's instruction pointer every 250 us, sorted by module and by the nearest export of the
+  system DLLs). Two clean 45 s windows on the same stretch, shares of the slowest 1 percent
+  against the median half:
+
+  | bucket | window 1 slowest 1% | window 1 median half | window 2 slowest 1% | window 2 median half |
+  | --- | --- | --- | --- | --- |
+  | game code | 59.4 % | 68.9 % | 49.7 % | 65.0 % |
+  | kernel waits | 15.8 % | 11.2 % | 35.1 % | 15.9 % |
+  | driver | 8.0 % | | | |
+  | v8 (UI script) | 4.8 % | 0 % | | |
+  | cohtml | under 1 % | | | |
+
+  Samples per frame: 65.6 in the slowest 1 percent against 39.9 in the median half. The extra
+  samples of a slow frame are game code (+11.5, about 2.9 ms), kernel waits (+5.9 in window 1,
+  +16.9 in window 2), v8 (+3.2, so the UI's script runs on the render thread in slow frames
+  only) and the driver (+2.0).
+
+- Where the extra game code is (the exe read statically at the sampled addresses, calls in this
+  build go through jump thunks, callers resolved through them): a third of the slow frames' game
+  samples sit in the engine's fiber job scheduler (the functions that log "Ran out of fibers" and
+  "Ran out of jobs"). The hottest address, rva `0x27ADC80`, is a test and set spin lock
+  (`xchg` on the int at offset 0x20 of the scheduler, `pause` loop), 882 samples in slow frames
+  against 233 expected from the fast frames. Its unlock at `0x27AF740` has 544 against 146. The
+  render thread reaches them from `0x27AF7A0`, a wait on a job counter that runs jobs itself
+  while the counter is above zero, called from the renderer's frame function (the one that names
+  `TextureFeedbackPass`, `ZPrepass` and `Velocity`) and from the game thread. So in a slow frame
+  the render thread spends about 2 ms more spinning for jobs that have not finished, plus the
+  extra kernel waits. Work that appears only in slow frames: a sort inside the physics world's
+  actor add and remove path (`0x27482D0`, 87 samples against 0), a float3 copy loop
+  (`0xB26760`, 69 against 0), and a small parameter apply helper called from 89 places
+  (`0x2897A80`, 104 against 1). Each is under a quarter of a millisecond per slow frame.
+
+- The spin lock plus the kernel waits make the slow frames a waiting problem: the render thread
+  is idle for most of its extra time, either helping the scheduler or blocked in the kernel. What
+  it waits for is not in the samples. The 22:26 build timed only waits on the swap chain's frame
+  latency object from the exe's own import table, and that column stayed at zero for all 10,940
+  frames, so the game does not wait on that object through the exe's imports.
+
 ## Fix
 
 Absent. The cap is off (DEC-008). GI, the dynamic track and the heavy settings are ruled out
-as the variance source. Next: the frames CSV now carries `present_ms`, the time the previous
-Present call blocked. A slow frame spent inside Present waited for the GPU or the queue, a slow
-frame spent outside it was render thread work, and that split decides whether the next step is
-GPU side (a queue depth or a frame pacing change) or CPU side (the render thread's own periodic
-work). `fps_limit` remains the direct pacing tool, declined by the owner for now.
+as the variance source, the swap chain queue too. The slow frames are the render thread waiting,
+in the job scheduler's spin lock and in kernel waits. Next: the frames CSV now carries `wait_ms`
+and `fence_ms`, every wait of the render thread from any module timed and the part spent on
+D3D12 fence events (the GPU) told apart, with a `[wait]` log line per handle and minute. That
+decides between the GPU (fence waits grow in slow frames, then the fix is on the GPU side or in
+the queue depth) and the worker threads (other handles grow, then thread priorities and
+affinities of the job workers are the lever). `fps_limit` remains the direct pacing tool,
+declined by the owner for now.
 
 ## Verification
 
