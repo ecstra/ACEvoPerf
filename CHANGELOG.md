@@ -41,6 +41,8 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   second: fps, hitches, streaming volume, VRAM against budget, CPU), `acevo_perf_frames.csv` (one
   line per frame). `tools/telemetry_report.py` summarises a session folder and joins an
   `nvidia-smi` sample log on the clock second.
+- Input polling diagnostics (`[input] probe=1`): XInput and DirectInput polls are counted and
+  timed per second into the timeline CSV, single polls over 1 ms are logged.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.

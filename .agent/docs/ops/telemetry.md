@@ -35,6 +35,10 @@ One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
   adapter, local segment
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
 - `ws_mb`, `commit_mb`: working set and private commit of the game process
+- `input_polls`, `input_ms`, `input_max_ms`: controller polls (XInput `GetState` and
+  `GetCapabilities`, DirectInput `Poll` and `GetDeviceState`) in the second, their total time and
+  the slowest single call. Zero unless `[input] probe=1`. Polls over 1 ms also get an `[input]`
+  line in the log (first 20).
 
 ## acevo_perf_frames.csv
 

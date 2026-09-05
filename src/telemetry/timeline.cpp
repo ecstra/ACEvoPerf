@@ -4,6 +4,7 @@
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/dstorage/stats.h"
+#include "acevo/engine/input_probe.h"
 
 static HANDLE g_timelineThread = nullptr;
 
@@ -49,7 +50,7 @@ static DWORD WINAPI TimelineThread(void*)
 {
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf timeline");
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
-        "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
+        "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb,input_polls,input_ms,input_max_ms\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms\r\n") : INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = FindRenderAdapter();
 
@@ -95,10 +96,12 @@ static DWORD WINAPI TimelineThread(void*)
         PROCESS_MEMORY_COUNTERS_EX pmc = {}; pmc.cb = sizeof pmc;
         GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof pmc);
 
+        uint64_t inputPolls = g_inputCalls.exchange(0), inputUs = g_inputUs.exchange(0), inputMaxUs = g_inputMaxUs.exchange(0);
+
         SYSTEMTIME st; GetLocalTime(&st);
         char line[1024];
         int n = _snprintf_s(line, sizeof line, _TRUNCATE,
-            "%02d:%02d:%02d,%.1f,%llu,%.1f,%.2f,%.1f,%llu,%llu,%llu,%.1f,%llu,%llu,%llu,%.1f,%llu,%.1f,%llu,%llu,%llu,%llu,%.1f,%.1f,%llu,%llu\r\n",
+            "%02d:%02d:%02d,%.1f,%llu,%.1f,%.2f,%.1f,%llu,%llu,%llu,%.1f,%llu,%llu,%llu,%.1f,%llu,%.1f,%llu,%llu,%llu,%llu,%.1f,%.1f,%llu,%llu,%llu,%.2f,%.2f\r\n",
             st.wHour, st.wMinute, st.wSecond, t,
             (unsigned long long)frames, frames / dt, frames ? (sumUs / 1000.0) / frames : 0.0, maxUs / 1000.0,
             (unsigned long long)h20, (unsigned long long)hc,
@@ -107,7 +110,8 @@ static DWORD WINAPI TimelineThread(void*)
             (unsigned long long)(dReq[1] + dReq[2] + dReq[3]), (dBytes[1] + dBytes[2] + dBytes[3]) / 1048576.0,
             (unsigned long long)dSubs,
             (unsigned long long)(vm.CurrentUsage >> 20), (unsigned long long)(vm.Budget >> 20), (unsigned long long)(vm.AvailableForReservation >> 20),
-            procPct, sysPct, (unsigned long long)(pmc.WorkingSetSize >> 20), (unsigned long long)(pmc.PrivateUsage >> 20));
+            procPct, sysPct, (unsigned long long)(pmc.WorkingSetSize >> 20), (unsigned long long)(pmc.PrivateUsage >> 20),
+            (unsigned long long)inputPolls, inputUs / 1000.0, inputMaxUs / 1000.0);
         if (csv != INVALID_HANDLE_VALUE && n > 0) { DWORD w; WriteFile(csv, line, (DWORD)n, &w, nullptr); }
 
         if (framesCsv == INVALID_HANDLE_VALUE) continue;

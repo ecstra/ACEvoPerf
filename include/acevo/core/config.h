@@ -32,6 +32,8 @@ struct Config {
     bool dxgiEnabled = true;
     bool frameStats = true;
     int  maxFrameLatency = 0;
+    // [input]
+    bool inputProbe = false;        // time controller polling, columns in the timeline CSV
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";
