@@ -45,6 +45,15 @@ One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
 One line per presented frame: `t_s` and `frame_ms`. Frames longer than two seconds are dropped as
 pauses. About 1 MB per ten minutes at 90 fps.
 
+## Device events in the log
+
+With `[input] device_events=1` (default) the log gets a `[device]` line for every device interface
+arrival or removal Windows broadcasts to the process (HID, USB, keyboard, mouse, audio, monitor,
+display adapter, unknown classes as a GUID) and for audio endpoint changes (state, added, removed,
+default device). Each carries the seconds since attach, to line up with the frames CSV. The game
+rebuilds its DirectInput devices and restarts its audio on such events, a frame of several hundred
+milliseconds.
+
 ## GPU sampler
 
 Run beside the game, the report script joins it on the clock second:

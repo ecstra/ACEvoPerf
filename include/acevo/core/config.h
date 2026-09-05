@@ -34,6 +34,7 @@ struct Config {
     int  maxFrameLatency = 0;
     // [input]
     bool inputProbe = false;        // time controller polling, columns in the timeline CSV
+    bool deviceEvents = true;       // log device arrivals, removals and audio endpoint changes
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";

@@ -89,6 +89,7 @@ void LoadConfig()
     g_cfg.maxFrameLatency = IniInt(L"dxgi", L"max_frame_latency", 0);
 
     g_cfg.inputProbe = IniBool(L"input", L"probe", false);
+    g_cfg.deviceEvents = IniBool(L"input", L"device_events", true);
 
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
