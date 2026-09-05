@@ -56,15 +56,34 @@ ace loading). The lag and loading needs to go. Its a UI for christs sake."
   is idle in those frames (`tiles 0 req` on the hitch lines), the stall is UI script and layout
   work on the render thread.
 
+- How the pages hang together (read from `uiresources\js\components.js`, 2.3 MB, one bundle
+  shared by all 19 pages, plus `css\uicomponents.css` 1.1 MB): `ksUI.goTo(page, path)` calls
+  `window.location.replace(page)` whenever the target page is not the current document, so the
+  HUD (`hud.html`) to pause menu (`ingame.html`, path `pause`) switch is a document swap, resume
+  (`GameMode Resume`) swaps back to `hud.html`, settings is a third document. Only a path change
+  inside the same document (`changePage`) is cheap. Every document re parses the bundle and the
+  CSS, re registers 19 data models and re binds.
+- Page timing markers through the override layer (`acevo_pagetiming.js`, 19:49 run): main menu
+  document 137 ms to `DOMContentLoaded` (bundle compiled and run), 178 ms to `load`, 548
+  elements. Settings 101 ms to DOM, 150 ms to load, 876 elements. The frame stalls measured
+  earlier (60 plus 130 ms) are this document load running on the render thread.
+
 ## Fix
 
 Absent. Root cause is the UI framework reloading the whole document and re running its
 initialisation on every page switch, on the render thread. `ui_force_resource_preloading` is
-ruled out. A fix from outside the game means changing the UI itself (the HTML and JS under
-`uiresources\` in the package). The package override layer in TODO-007 is the prerequisite: it
-lets loose files replace package entries without repacking. What to change in the UI once that
-exists is unknown, the stall is document load and script init inside Gameface, so the gain is not
-guaranteed.
+ruled out. The override layer (TODO-007, done) lets loose files replace `uiresources\*`.
+Candidates, cheapest first:
+
+1. Keep the HUD and the pause menu in one document: serve a `hud.html` that also holds
+   `ks-ingame` and `ks-pausemenu`, and patch `goTo` in the bundle so `hud.html` and
+   `ingame.html` count as the same document (path change instead of `location.replace`). Removes
+   the two reloads per pause. Needs the body class and `data-bind-if` on the menu to follow
+   `ModelMenuState.activeMenu`.
+2. Cut the per document cost: drop `ks-dev-reloadbutton`, minify the bundle and the CSS, defer
+   components a page never uses. Smaller gain, no behaviour change.
+3. The settings page stays its own document, its 1.2 s of control building is layout work, to be
+   measured with the markers before touching it.
 
 ## Verification
 
