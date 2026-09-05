@@ -35,11 +35,21 @@ def read_timeline(path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def read_frames(path: str) -> list[float]:
+def read_frames(path: str) -> list[tuple[float, float]]:
+    """(seconds since attach, frame ms) per presented frame."""
     if not os.path.exists(path):
         return []
     with open(path, newline="") as f:
-        return [float(row["frame_ms"]) for row in csv.DictReader(f)]
+        return [(float(row["t_s"]), float(row["frame_ms"])) for row in csv.DictReader(f)]
+
+
+def low_fps(values: list[float], fraction: float) -> float:
+    """The '1% low' style number: mean of the slowest fraction of frames, as fps."""
+    if not values:
+        return 0.0
+    s = sorted(values, reverse=True)
+    n = max(1, int(len(s) * fraction))
+    return 1000.0 / mean(s[:n])
 
 
 def read_gpu(path: str) -> dict[str, GpuSample]:
@@ -149,15 +159,24 @@ def main() -> None:
     game_logs = sorted(glob.glob(os.path.join(a.session, "log-*.txt")))
     pso, streamer, errors = read_game_log_events(game_logs[-1] if game_logs else None)
     hitches = read_hitches(os.path.join(a.session, "acevo_perf.log"))
-    frames = read_frames(os.path.join(a.session, "acevo_perf_frames.csv"))
+    stamped = read_frames(os.path.join(a.session, "acevo_perf_frames.csv"))
+    windowed = bool(a.t_from or a.t_to)
+    if windowed and timeline:
+        # a timeline row at t_s covers the frames presented in the second before it
+        t_lo = min(float(r["t_s"]) for r in timeline) - 1.0
+        t_hi = max(float(r["t_s"]) for r in timeline)
+        stamped = [fr for fr in stamped if t_lo <= fr[0] <= t_hi]
+        hitches = [h for h in hitches if (not a.t_from or h[0] >= a.t_from) and (not a.t_to or h[0] <= a.t_to)]
+    frames = [ms for _, ms in stamped]
 
     print(f"session: {a.session}")
     print(f"timeline: {len(timeline)} s total, {len(active)} s with frames, "
           f"{timeline[0]['clock'] if timeline else '?'} to {timeline[-1]['clock'] if timeline else '?'}")
 
     if frames:
-        print("\n== frame times (all presented frames) ==")
+        print(f"\n== frame times ({'presented frames in the window' if windowed else 'all presented frames'}) ==")
         print(f"frames {len(frames)}  mean {mean(frames):.2f} ms  ->  avg fps {1000 / mean(frames):.1f}")
+        print(f"1% low {low_fps(frames, 0.01):.1f} fps   0.1% low {low_fps(frames, 0.001):.1f} fps   (mean of the slowest frames)")
         for p in (50, 90, 95, 99, 99.9):
             print(f"p{p:<5} {percentile(frames, p):7.2f} ms")
         for limit in (16.7, 20, 33, 50, 100):
