@@ -58,6 +58,27 @@ than 20 ms in that minute, marked as a D3D12 fence event or the swap chain's fra
 when it is one. The report's spread section prints the slowest 1 percent against the faster half
 as GPU fence wait, other waits, present and render thread work.
 
+## acevo_perf_samples.csv
+
+Written with `[profile] sampler=1` (`sample_us`, default 250, at least 50). A thread suspends
+the render thread at that interval, reads its instruction pointer and resumes it, about one core
+while on, so the setting is for analysis sessions only. One line per presented frame: `t_s`,
+`frame_ms`, then the sample count per bucket in the frame: `game` (the exe), `cohtml`, `v8`,
+`renoir` (the UI runtime, its script engine and its renderer), `d3d12`, `driver`, `dxgi`, then
+the system DLLs split by the nearest export at the sampled address into `wait` (`NtWaitFor*`,
+`WaitFor*`, `SleepEx`, `NtDelayExecution`), `lock` (critical sections, SRW locks,
+`NtWaitForAlertByThreadId`), `heap` (heap, malloc, free), `memcpy` (copy, move, set, compare)
+and `system` (the rest), then `dstorage`, `audio` and `other`. Multiply a count by `sample_us`
+for the time.
+
+Game code addresses are kept per frame in 64 byte buckets, slow frames (over 1.4 times the
+running typical frame time) apart from the rest. Every minute the log gets `sampler:` lines with
+the twelve relative virtual addresses that have the most samples in slow frames beyond what
+their share of the fast frames predicts, with both counts. Read those addresses in the exe
+statically (function bounds from the unwind table, strings and imports of the function and its
+callers). The report's sample mix section prints the bucket shares of the slowest 1 percent
+against the median half and the extra samples per slow frame.
+
 ## Device events in the log
 
 With `[input] device_events=1` (default) the log gets a `[device]` line for every device interface

@@ -18,7 +18,7 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `dstorage/` | `proxy`, `stats` | the four exports, `FactoryProxy`, `QueueProxy`, process wide request counters |
 | `engine/` | `flags`, `process`, `input_probe`, `device_watch` | gflags scan and write, priority class, power throttling, timer resolution, controller poll timing, device event log |
 | `render/` | `dxgi_hooks`, `frame_stats` | factory and swap chain hooks, `Present` timing and hitch logging |
-| `telemetry/` | `timeline` | the per second CSV thread and the frame CSV flush |
+| `telemetry/` | `timeline`, `sampler` | the per second CSV thread and the frame CSV flush, the render thread sampling profiler |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
 
 `include/acevo/common.h` holds the Windows, D3D12, DXGI and DirectStorage includes and the version
@@ -68,6 +68,9 @@ string. Every header includes it, every source includes its own header first.
 - `telemetry/timeline`: `TimelineThread` wakes every second, resets the counters, queries video
   memory on the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line,
   flushes the frame buffer.
+- `telemetry/sampler`: `SamplerThread` suspends the render thread at `sample_us`, classifies its
+  instruction pointer by module and by nearest system export, `SamplerOnPresent` cuts the counts
+  per frame and keeps the game code histogram of slow frames against the rest (see `telemetry`).
 - `overlay/overlay`: `BuildToc` rewrites the package table in memory, `Hook_ReadFile` serves it,
   `OverlayRedirect` points DirectStorage requests at the loose files (see `content-package`).
 

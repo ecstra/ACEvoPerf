@@ -58,6 +58,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   1 percent against the faster half.
 - Frame limiter (`[dxgi] fps_limit=N`, off by default): holds the present call to the interval
   with a sleep and a short spin, accurate to tens of microseconds, for an even pace.
+- Render thread sampler (`[profile] sampler=1`, off by default): samples where the render thread
+  is every 250 us and writes per frame counts by module into `acevo_perf_samples.csv`, with the
+  system DLLs split into waits, locks, heap and memory copies, and logs the game code addresses
+  that show up most in slow frames. Costs about one core while on, for analysis sessions only.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.
