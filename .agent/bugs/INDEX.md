@@ -18,6 +18,7 @@ bug
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), alternation fixed by the latency cap, the section spread remains
 - [BUG-011-menu-icons-load-slowly-every-time](BUG-011-menu-icons-load-slowly-every-time.md), icons appear late and reload on every page visit, not measured yet
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), back to pits loads the dynamic track preset on the render thread, 1.3 to 1.5 s frames
+- [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), 1 percent low falls after a window or input device switch, input polling is the first suspect to measure
 
 nit
 
