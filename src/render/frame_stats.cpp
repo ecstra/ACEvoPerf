@@ -66,8 +66,40 @@ static void OnPresent(UINT syncInterval)
 
 typedef HRESULT (STDMETHODCALLTYPE *PFN_Present)(IDXGISwapChain*, UINT, UINT);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_Present1)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_SetMaximumFrameLatency)(IDXGISwapChain2*, UINT);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_ResizeBuffers)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+typedef HRESULT (STDMETHODCALLTYPE *PFN_SetFullscreenState)(IDXGISwapChain*, BOOL, IDXGIOutput*);
 static PFN_Present g_origPresent = nullptr;
 static PFN_Present1 g_origPresent1 = nullptr;
+static PFN_SetMaximumFrameLatency g_origSetMaximumFrameLatency = nullptr;
+static PFN_ResizeBuffers g_origResizeBuffers = nullptr;
+static PFN_SetFullscreenState g_origSetFullscreenState = nullptr;
+
+// The game manages the waitable swap chain itself. If it re applies its own latency after a
+// focus change or a session restart, the pacing fix (DEC-006) silently goes away, so every
+// call is logged and the configured value wins.
+static HRESULT STDMETHODCALLTYPE Hook_SetMaximumFrameLatency(IDXGISwapChain2* self, UINT latency)
+{
+    UINT want = latency;
+    if (g_cfg.maxFrameLatency > 0) want = (UINT)g_cfg.maxFrameLatency;
+    HRESULT hr = g_origSetMaximumFrameLatency(self, want);
+    Log("game called SetMaximumFrameLatency(%u) at t=%.2fs -> applied %u, hr=0x%08X", latency, NowSec(), want, (unsigned)hr);
+    return hr;
+}
+
+static HRESULT STDMETHODCALLTYPE Hook_ResizeBuffers(IDXGISwapChain* self, UINT count, UINT width, UINT height, DXGI_FORMAT format, UINT flags)
+{
+    HRESULT hr = g_origResizeBuffers(self, count, width, height, format, flags);
+    Log("swap chain ResizeBuffers %ux%u buffers=%u fmt=%u flags=0x%X at t=%.2fs -> hr=0x%08X", width, height, count, (unsigned)format, flags, NowSec(), (unsigned)hr);
+    return hr;
+}
+
+static HRESULT STDMETHODCALLTYPE Hook_SetFullscreenState(IDXGISwapChain* self, BOOL fullscreen, IDXGIOutput* output)
+{
+    HRESULT hr = g_origSetFullscreenState(self, fullscreen, output);
+    Log("swap chain SetFullscreenState(%d) at t=%.2fs -> hr=0x%08X", fullscreen, NowSec(), (unsigned)hr);
+    return hr;
+}
 
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
@@ -88,6 +120,13 @@ void HookSwapChain(IUnknown* sc)
     void** vt = *(void***)sc1;
     HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
     HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
+    HookVtableSlot(vt, 10, (void*)&Hook_SetFullscreenState, (void**)&g_origSetFullscreenState, "IDXGISwapChain::SetFullscreenState");
+    HookVtableSlot(vt, 13, (void*)&Hook_ResizeBuffers, (void**)&g_origResizeBuffers, "IDXGISwapChain::ResizeBuffers");
+    IDXGISwapChain2* sc2 = nullptr;
+    if (SUCCEEDED(sc1->QueryInterface(__uuidof(IDXGISwapChain2), (void**)&sc2)) && sc2) {
+        HookVtableSlot(*(void***)sc2, 31, (void*)&Hook_SetMaximumFrameLatency, (void**)&g_origSetMaximumFrameLatency, "IDXGISwapChain2::SetMaximumFrameLatency");
+        sc2->Release();
+    }
     DXGI_SWAP_CHAIN_DESC1 d = {};
     if (SUCCEEDED(sc1->GetDesc1(&d)))
         Log("swap chain: %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X scaling=%u", d.Width, d.Height, (unsigned)d.Format, d.BufferCount, (unsigned)d.SwapEffect, d.Flags, (unsigned)d.Scaling);

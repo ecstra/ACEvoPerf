@@ -32,14 +32,22 @@ time (cuz its not)."
   milliseconds per call, and DirectInput device polls stall on some drivers. That is the first
   thing to measure, not a conclusion.
 
+- Owner, later the same evening: the drop also comes after restarting a session several times in
+  a row, and in both cases the 1 percent low "goes back to pre-fix era", the alternating pacing
+  that the latency cap (DEC-006) removed. That points at the cap itself being undone: the game
+  runs its own waitable swap chain and may re apply its own frame latency, or recreate or resize
+  the swap chain, on a focus change or a session restart. The mod set the latency once at swap
+  chain creation and never looked again.
+
 ## Fix
 
-Absent. Plan: the proxy hooks `XInputGetState`, `XInputGetCapabilities`, the DirectInput device
-`Poll` and `GetDeviceState`, and `HidD_*` reads, counts calls and time per second into the
-timeline CSV and logs any single call over 1 ms. One run with a window switch and one with a
-controller to mouse change then shows whether the input path is the extra frame time. If it is,
-the fix is a cache of the empty slots (skip re polling a slot that reported not connected for a
-few seconds), which the proxy can do in the hook.
+Candidate in the build of 2026-09-05 evening: the proxy hooks `IDXGISwapChain2::
+SetMaximumFrameLatency`, `ResizeBuffers` and `SetFullscreenState` on the game's swap chain,
+logs every call with its timestamp, and forces the configured latency whenever the game sets its
+own. If the log shows the game calling `SetMaximumFrameLatency` at the moment of a window switch
+or a session restart, that is the root cause and the hook is the fix. The input polling probe
+(`[input] probe=1`, XInput and DirectInput timed into the timeline CSV) stays as the second
+suspect for the controller to mouse case.
 
 ## Verification
 
