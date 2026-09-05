@@ -98,13 +98,25 @@ shown fps."
   autocorrelation is gone (minus 0.06), lag 2 still +0.32. So the gap is isolated slow frames at
   a steady rhythm plus a little alternation, not sections and not the menu.
 
+- 21:49 session, the per frame streaming columns in place, clean minute from the pit exit:
+  median 12.0 ms, 83 fps, p99 15.6 ms. Frames over 1.3 times the median: 34 of 3833, over 1.5
+  times: 3, over 2 times: none, and all the time above the median in those frames is 0.3 percent
+  of the window. So in clean driving there is no stall pattern left to remove, the 1 percent
+  low is the width of the distribution itself. The same ratio holds in every clean window
+  measured today (p99 over median 1.21 to 1.40 with the GPU at 97 to 100 percent and 1520 to
+  1583 MHz against a 1987 MHz peak, 87 degrees, power capped near 90 W). Of the slowest 1
+  percent, 25 to 40 percent fall on a frame where the engine enqueued texture tiles, against 2
+  percent of all frames, so streaming decisions are one of the costs inside the spread, the rest
+  is the view itself. The owner's settings: clouds Ultra, volumetrics Ultra, grass Ultra, motion
+  blur Ultra, GI update High, DLSS Ultra Quality.
+
 ## Fix
 
-Absent. The cap is off (DEC-008). Next: the frames CSV now carries the streaming requests of
-every frame, so the half second spikes get matched to tile uploads or not. If they are streaming,
-the queue proxy can spread batches. If not, the engine's time sliced work is next (`gibake_probes_per_frame`, car update budgets, reflection faces) and `no_gi` as the attribution
-experiment. The mod's frame limiter (`fps_limit`) closes the gap by design at the cost of the
-fastest frames, the owner's call.
+Absent. The cap is off (DEC-008). The gap is the GPU rendering the most expensive views at a
+throttled clock, so it closes with headroom or with less variance in specific systems. Running
+now, one restart each, one minute from the pit exit on the same stretch: `no_gi=true`
+(attribution), `disable_dynamic_track=true`, then the `gpu-relief` settings profile as the
+headroom test. `fps_limit` remains the direct pacing tool, declined by the owner for now.
 
 ## Verification
 
