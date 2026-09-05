@@ -3,6 +3,7 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 #include "acevo/dstorage/stats.h"
+#include "acevo/telemetry/sampler.h"
 
 static LARGE_INTEGER g_qpf = {};
 static LARGE_INTEGER g_qpcStart = {};
@@ -15,6 +16,56 @@ static uint64_t g_hitchSnap[5] = {};
 static uint64_t g_frameReqSnap[5] = {};
 static UINT g_lastSyncInterval = 0xFFFFFFFF;
 static double g_lastPresentCallMs = 0.0;   // how long the previous Present call blocked
+
+// The game waits on the swap chain's frame latency waitable object at the start of a frame,
+// which is where a GPU bound frame spends its waiting outside Present. Both wait calls of
+// the exe are hooked and the waits on that one handle are timed per frame.
+typedef DWORD (WINAPI *PFN_WaitForSingleObjectEx)(HANDLE, DWORD, BOOL);
+typedef DWORD (WINAPI *PFN_WaitForSingleObject)(HANDLE, DWORD);
+static PFN_WaitForSingleObjectEx g_origWaitForSingleObjectEx = nullptr;
+static PFN_WaitForSingleObject g_origWaitForSingleObject = nullptr;
+static HANDLE g_latencyObject = nullptr;
+static double g_frameLatencyWaitMs = 0.0;
+
+static DWORD WINAPI Hook_WaitForSingleObjectEx(HANDLE handle, DWORD timeout, BOOL alertable)
+{
+    if (handle != g_latencyObject) return g_origWaitForSingleObjectEx(handle, timeout, alertable);
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    DWORD r = g_origWaitForSingleObjectEx(handle, timeout, alertable);
+    QueryPerformanceCounter(&b);
+    g_frameLatencyWaitMs += (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return r;
+}
+
+static DWORD WINAPI Hook_WaitForSingleObject(HANDLE handle, DWORD timeout)
+{
+    if (handle != g_latencyObject) return g_origWaitForSingleObject(handle, timeout);
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    DWORD r = g_origWaitForSingleObject(handle, timeout);
+    QueryPerformanceCounter(&b);
+    g_frameLatencyWaitMs += (double)(b.QuadPart - a.QuadPart) * 1000.0 / (double)g_qpf.QuadPart;
+    return r;
+}
+
+static void HookLatencyWaits(IDXGISwapChain2* sc2)
+{
+    if (g_latencyObject) return;
+    g_latencyObject = sc2->GetFrameLatencyWaitableObject();
+    if (!g_latencyObject) { Log("swap chain has no frame latency waitable object"); return; }
+    HMODULE exe = GetModuleHandleW(nullptr);
+    int patched = 0;
+    for (const wchar_t* lib : { L"kernel32.dll", L"kernelbase.dll" }) {
+        HMODULE m = GetModuleHandleW(lib);
+        if (!m) continue;
+        void* ex = (void*)GetProcAddress(m, "WaitForSingleObjectEx");
+        void* single = (void*)GetProcAddress(m, "WaitForSingleObject");
+        if (ex) { if (!g_origWaitForSingleObjectEx) g_origWaitForSingleObjectEx = (PFN_WaitForSingleObjectEx)ex; patched += PatchIatByAddress(exe, ex, (void*)&Hook_WaitForSingleObjectEx); }
+        if (single) { if (!g_origWaitForSingleObject) g_origWaitForSingleObject = (PFN_WaitForSingleObject)single; patched += PatchIatByAddress(exe, single, (void*)&Hook_WaitForSingleObject); }
+    }
+    Log("frame latency waitable object %p, %d wait import slots of the exe hooked", g_latencyObject, patched);
+}
 
 // Optional frame limiter: hold the present thread until the frame interval has passed.
 // Sleeps while more than two milliseconds remain (the mod runs a 0.5 ms timer), spins
@@ -59,6 +110,7 @@ static void OnPresent(UINT syncInterval)
 
     double ms = (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart;
     if (ms > 2000.0) return;                     // alt-tab or loading screen pause, not a frame
+    SamplerOnPresent(ms);
     uint64_t us = (uint64_t)(ms * 1000.0);
     g_frames++; g_frameSumUs += us;
     uint64_t prev = g_frameMaxUs.load();
@@ -83,6 +135,8 @@ static void OnPresent(UINT syncInterval)
         sample.t = (float)NowSec();
         sample.ms = (float)ms;
         sample.present = (float)g_lastPresentCallMs;
+        sample.wait = (float)g_frameLatencyWaitMs;
+        g_frameLatencyWaitMs = 0.0;
         sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
@@ -180,6 +234,7 @@ void HookSwapChain(IUnknown* sc)
     IDXGISwapChain2* sc2 = nullptr;
     if (SUCCEEDED(sc1->QueryInterface(__uuidof(IDXGISwapChain2), (void**)&sc2)) && sc2) {
         HookVtableSlot(*(void***)sc2, 31, (void*)&Hook_SetMaximumFrameLatency, (void**)&g_origSetMaximumFrameLatency, "IDXGISwapChain2::SetMaximumFrameLatency");
+        HookLatencyWaits(sc2);
         sc2->Release();
     }
     DXGI_SWAP_CHAIN_DESC1 d = {};

@@ -51,7 +51,7 @@ static DWORD WINAPI TimelineThread(void*)
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf timeline");
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb,input_polls,input_ms,input_max_ms\r\n") : INVALID_HANDLE_VALUE;
-    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,present_ms,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
+    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,present_ms,wait_ms,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = FindRenderAdapter();
 
     SYSTEM_INFO si; GetSystemInfo(&si);
@@ -120,7 +120,7 @@ static DWORD WINAPI TimelineThread(void*)
         std::string out; out.reserve(buf.size() * 24);
         char tmp[80];
         for (auto& fr : buf) {
-            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%.2f,%u,%u,%u\r\n", fr.t, fr.ms, fr.present, fr.tiles, fr.f2m, fr.gpumem);
+            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%.2f,%.2f,%u,%u,%u\r\n", fr.t, fr.ms, fr.present, fr.wait, fr.tiles, fr.f2m, fr.gpumem);
             out.append(tmp, m);
         }
         if (!out.empty()) { DWORD w; WriteFile(framesCsv, out.data(), (DWORD)out.size(), &w, nullptr); }
