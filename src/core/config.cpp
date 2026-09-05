@@ -92,6 +92,10 @@ void LoadConfig()
     g_cfg.inputProbe = IniBool(L"input", L"probe", false);
     g_cfg.deviceEvents = IniBool(L"input", L"device_events", true);
 
+    g_cfg.sampler = IniBool(L"profile", L"sampler", false);
+    g_cfg.sampleUs = IniInt(L"profile", L"sample_us", 250);
+    if (g_cfg.sampleUs < 50) g_cfg.sampleUs = 50;
+
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);

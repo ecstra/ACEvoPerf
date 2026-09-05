@@ -36,6 +36,9 @@ struct Config {
     // [input]
     bool inputProbe = false;        // time controller polling, columns in the timeline CSV
     bool deviceEvents = true;       // log device arrivals, removals and audio endpoint changes
+    // [profile]
+    bool sampler = false;           // sample the render thread's module per frame
+    int  sampleUs = 250;            // sampling interval
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";
