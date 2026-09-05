@@ -17,6 +17,7 @@ links: [agent-index, spec-docs]
 - [directstorage-streaming](systems/directstorage-streaming.md), the three queues, the staging buffer and how the VRAM pools are sized
 - [engine-flags](systems/engine-flags.md), the 216 gflags, which matter, how the mod sets them
 - [content-package](systems/content-package.md), content.kspkg layout, hash and cipher
+- [package-override-layer](systems/package-override-layer.md), loose files under acevo_mods shadow package entries, how and what was verified
 - [settings-files](systems/settings-files.md), user data location and the VideoSettings fields worth knowing
 
 ## ops
