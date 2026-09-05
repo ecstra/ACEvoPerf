@@ -63,10 +63,24 @@ ace loading). The lag and loading needs to go. Its a UI for christs sake."
   (`GameMode Resume`) swaps back to `hud.html`, settings is a third document. Only a path change
   inside the same document (`changePage`) is cheap. Every document re parses the bundle and the
   CSS, re registers 19 data models and re binds.
-- Page timing markers through the override layer (`acevo_pagetiming.js`, 19:49 run): main menu
-  document 137 ms to `DOMContentLoaded` (bundle compiled and run), 178 ms to `load`, 548
-  elements. Settings 101 ms to DOM, 150 ms to load, 876 elements. The frame stalls measured
-  earlier (60 plus 130 ms) are this document load running on the render thread.
+- Page timing markers through the override layer (`acevo_pagetiming.js`, 19:49 session, 26 page
+  loads). Time from the first script of the new document to `DOMContentLoaded` (the bundle
+  compiled and run) and to `load`:
+
+  | document | elements | to DOM | to load |
+  | --- | --- | --- | --- |
+  | `menu.html` | 548 | 80 to 137 ms | 96 to 178 ms |
+  | `settings.html` | 747 to 1530 | 100 to 118 ms | 140 to 163 ms |
+  | `ingame.html` (pause menu) | 989 | 99 to 136 ms | 147 to 193 ms |
+  | `hud.html` | 40 | 152 to 235 ms | 157 to 240 ms |
+
+  The HUD document has 40 elements and still costs 150 to 235 ms, so the cost is the bundle, not
+  the page content. `PauseMenu Show` comes about 330 ms after `Loading page`. One pause and
+  resume is two documents, 300 to 500 ms of render thread stalls. Switching away from the game
+  and back while paused does the same on the return (the resume reloads `hud.html`), which is
+  why the owner's 1 percent low counter drops after every window switch (19:55:14 return: worst
+  frame 131 ms, 18 frames over 20 ms in the next 10 s). Clean driving before the switch measured
+  98 fps with a 1 percent low of 77 fps and p99 12.3 ms, so the pacing itself is intact.
 
 ## Fix
 
