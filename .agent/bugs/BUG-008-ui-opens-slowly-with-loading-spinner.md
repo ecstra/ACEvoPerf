@@ -40,11 +40,29 @@ ace loading). The lag and loading needs to go. Its a UI for christs sake."
   loads whole car assets and thumbnails through the streaming queues (5.6 GB of file to memory
   traffic in the four minute session that ended in the showroom).
 
+- Session of 2026-09-05 17:47 to 18:03 (three race loads, two car changes, pause menu opened
+  three times, settings opened once): every page switch is a full document reload of the UI
+  (`Loading page X` then `Gameface Engine Ready`, `Init Components`, model registration, `Init:
+  menuState updated`). Measured from the game log: pause menu 0.18 to 0.30 s from `Loading page`
+  to `PauseMenu Show`, settings 0.24 s, main to single player 0.13 s, return to pit lane 0.20 to
+  0.29 s. Every switch is logged with `transition: true`, the spinner overlay is part of that
+  transition. Leaving a race to the menu is 3.3 s because the menu scene and the car are reloaded
+  (`Track resources streaming took 1.76 s`, car graphics 1.44 s).
+
+- The mod's frame log at the same timestamps shows the render thread stalling during each
+  reload: pause menu open 61 ms plus 127 ms (twice more: 61 plus 45 plus 142 ms, and 63 plus 35
+  plus 150 ms), settings page open 36 plus 102 ms and then a 1.2 s stretch at 23 fps with a
+  322 ms frame while the page builds its controls, back to the pit lane 161 plus 51 ms. Streaming
+  is idle in those frames (`tiles 0 req` on the hitch lines), the stall is UI script and layout
+  work on the render thread.
+
 ## Fix
 
-Absent. `ui_force_resource_preloading` is ruled out. Next: time the gap between the `goTo` line
-and the matching `Init: menuState updated` line in the game log for the pages the owner names,
-and the request and response pairs in between.
+Absent. Root cause is the UI framework reloading the whole document and re running its
+initialisation on every page switch, on the render thread. `ui_force_resource_preloading` is
+ruled out. A fix from outside the game means changing the UI itself (the HTML and JS under
+`uiresources\` in the package, which would need a repack), so this is deferred behind the render
+work.
 
 ## Verification
 
