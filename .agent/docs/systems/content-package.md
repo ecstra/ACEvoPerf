@@ -22,7 +22,7 @@ links: [tools, community-tools-assume-32mb-toc, moddability]
   so DirectStorage can DMA tiles into GPU memory.
 - Roots: `content` (cars, tracks, weather, sfx, characters), `editor` (2,297 files, the editor's
   own assets), `uiresources` (the Gameface UI, 949 files), `system`, `serverconfig`, `cfg`.
-- Asset formats are protobuf messages whose schemas sit in the exe. `tools/proto_schema.txt`
+- Asset formats are protobuf messages whose schemas sit in the exe. `tools/data/proto_schema.txt`
   lists all 92 files and 1,629 messages. Textures are cooked as 64 KB tiled resources
   (`TextureMetadata.TilingInfo`) in BC1, BC3, BC4, BC5, BC6H and BC7.
 - 73 cars and 20 tracks. The largest single assets are FMOD banks (96 MB), track mask textures

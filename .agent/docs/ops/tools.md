@@ -38,7 +38,7 @@ Every write first copies the file to `<file>.bak-<timestamp>`. Close the game be
 ## protodesc.py
 
 Library used by the settings tool. `load(exe)` returns a descriptor pool and the raw
-`FileDescriptorProto` objects found in the exe. `proto_schema.txt` is the text dump.
+`FileDescriptorProto` objects found in the exe. `tools/data/proto_schema.txt` is the text dump.
 
 ## telemetry_report.py
 
@@ -47,6 +47,7 @@ session folder: frame time percentiles, per second fps, VRAM against budget, str
 batch sizes, CPU, GPU clocks and throttle reasons, slow clusters with everything joined on the
 clock second, the logged hitches and PSO activity from the game log.
 
-## gflags_full.tsv
+## data/gflags_full.tsv
 
-Every engine flag with file, name, type, default and help, recovered from the exe.
+Every engine flag with file, name, type, default and help, recovered from the exe. Data files the
+tools produce or read live under `tools/data/`.

@@ -20,7 +20,7 @@ Owner wording: "Farther items pop-in and does not folow the same level we have?"
 - Level of detail is the `graphics.levelOfDetail` block of `video.videosettings`. The custom mode
   exposes `mainLodDistanceScale`, `mirrorLodDistanceScale`, `cubemapLodDistanceScale`,
   `shadowLodDistanceScale` and the matching `...OutDistanceScale` values (schema in
-  `tools/proto_schema.txt`).
+  `tools/data/proto_schema.txt`).
 - The owner's file on 2026-09-05 16:25 has the High preset with every scale at 1.0.
 
 ## Fix

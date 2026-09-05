@@ -13,7 +13,7 @@ links: [tools, BUG-006-distant-objects-pop-in, BUG-007-blurry-road-and-textures]
   `Replay\` and `mods\` (the official car mod folder since 0.8.1, server side
   `Saved Games\ACE-Server\mods`).
 - Each settings file is a bare protobuf message, no wrapper. `video.videosettings` parses as
-  `VideoSettings` (schema in `tools/proto_schema.txt`). `tools/acevo_settings.py` reads and edits
+  `VideoSettings` (schema in `tools/data/proto_schema.txt`). `tools/acevo_settings.py` reads and edits
   them with the schema pulled from the exe at run time.
 
 ## Fields worth knowing in VideoSettings
