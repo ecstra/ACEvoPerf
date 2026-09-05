@@ -4,11 +4,11 @@ kind: todo
 description: the ordered list of single variable experiments for the second lap
 updated: 2026-09-05
 links: [BUG-001-texture-low-mip-shown-before-streaming, BUG-002-fps-drop-entering-new-track-sections, BUG-006-distant-objects-pop-in, BUG-007-blurry-road-and-textures, lap-2026-09-05-nordschleife]
-status: open
+status: done
 by: agent
 area: streaming
 born: 2026-09-05
-done:
+done: 2026-09-05
 ---
 
 ## What
@@ -45,4 +45,8 @@ Settings side, owner's trade, for lap three:
 ## Done when
 
 Each numbered item has a before and after number from `tools/telemetry_report.py` written into
-the research doc, and the winners are in the default ini or the recommended profile.
+the research doc, and the winners are in the default ini or the recommended profile. Closed
+2026-09-05: items 1 to 3 are off (no effect, regression, no effect), item 4 became the fixed
+pools default (DEC-005, commit d5197d5), the latency cap became DEC-006, car reflections Medium
+and texture quality Ultra are the owner's settings now, items 5 and 6 (gpu relief, texture pool
+setting) and 8 (LOD scale) carry on in TODO-002.

@@ -37,8 +37,17 @@ and the same for the mesh streamer. On a 6 GB card:
 |---|---|---|---|
 | 1024 MB (game) | 2343 MB | 400 MB | 400 MB |
 | 256 MB | 807 MB | 1015 MB | 1015 MB |
-| 128 MB (mod default) | 551 MB | 1115 MB | 1115 MB |
-| `force_canonical_pool_sizes` | | 1433 MB | 1433 MB |
+| 128 MB | 551 MB | 1115 MB | 1115 MB |
+| `force_canonical_pool_sizes` alone | | 1433 MB | 1433 MB |
+| 128 MB plus `force_canonical_pool_sizes` and `tile_pool_mb=1024` (mod default) | 500 MB | 1024 MB fixed | 1433 MB cap |
+
+The dynamic formula has a second problem beyond the staging buffers: it runs during the scene
+transition while the outgoing scene is still resident, so those menu numbers do not survive a
+race. Measured on the same card, dynamic path: menu 1117 MB, race load 633 MB, session restart
+526 MB, with a gigabyte of VRAM unused in the race (BUG-010). With the two flags the tile pool is
+created once at `tile_pool_mb` and never resized, and the mesh budget is a 1433 MB cap that fills
+on demand. Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
+in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
 ## Lap behaviour
 

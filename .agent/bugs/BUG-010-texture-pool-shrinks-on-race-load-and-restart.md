@@ -1,10 +1,10 @@
 ---
 name: BUG-010-texture-pool-shrinks-on-race-load-and-restart
 kind: bug
-description: the engine sizes the texture tile pool during scene transitions, so a race gets 633 MB and a restart 526 MB while a gigabyte of VRAM stays free
+description: the engine sized the texture tile pool during scene transitions (633 MB in a race, 526 MB after a restart), fixed by fixed pool sizes
 updated: 2026-09-05
-links: [BUG-007-blurry-road-and-textures, directstorage-streaming, DEC-004-canonical-pools-off-by-default, engine-flags]
-status: open
+links: [BUG-007-blurry-road-and-textures, directstorage-streaming, DEC-005-fixed-pool-sizes-by-default, engine-flags]
+status: fixed
 severity: bug
 area: streaming
 reported: 2026-09-05
@@ -35,12 +35,13 @@ percent of that remainder (`DeviceAllocator.cpp`).
 
 ## Fix
 
-Candidate applied 2026-09-05 (DEC-005): `force_canonical_pool_sizes=true` with
-`tile_pool_mb=1024`. Menu test with 900 MB: `[Tile Pool] sized to 900 MB (14400 tiles)` at
-creation, no resize afterwards, mesh budget 1433 MB, menu VRAM 3051 MB.
+Root cause: the engine's dynamic pool sizing runs during the scene transition. Fixed by the
+defaults `force_canonical_pool_sizes=true` and `tile_pool_mb=1024` in `dist/acevo_perf.ini`
+(DEC-005), commit d5197d5, 2026-09-05.
 
 ## Verification
 
-Pending a race and a session restart by the owner with the flags on: the pool line must stay at
-1024 MB across both, the road must stay sharp after the restart, and `vram_used_mb` must stay
-under the budget for the whole lap.
+Lap four of 2026-09-05 with the flags on: the game log has one `[Tile Pool] sized to 1024 MB
+(16384 tiles)` at start and no pool line at the race load or after `RestartSession`, mesh
+budget 1433 MB both times. VRAM 4556 to 4614 MB while driving, one second at 5222 MB during the
+race load. Owner: "restarting session did not drop quality".

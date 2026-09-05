@@ -10,18 +10,9 @@ links: [agent-index, spec-todos]
 
 ## Open
 
-streaming
-
-- [TODO-001-analyse-nordschleife-lap-telemetry](TODO-001-analyse-nordschleife-lap-telemetry.md), turn the lap data into causes and changes
-- [TODO-005-lap-two-experiments](TODO-005-lap-two-experiments.md), ordered single variable experiments for lap two
-
 render
 
-- [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU
-
-stability
-
-- [TODO-003-capture-crash-evidence](TODO-003-capture-crash-evidence.md), get one crash attributed
+- [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure
 
 release
 
@@ -29,8 +20,9 @@ release
 
 ## Done
 
+- streaming: 2 (TODO-001, TODO-005)
 - tooling: 1 (TODO-006)
 
 ## Dropped
 
-None.
+- stability: 1 (TODO-003, the crashes stopped with the staging cap)

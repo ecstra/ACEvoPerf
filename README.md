@@ -6,12 +6,17 @@ everything to the original runtime and fixes the engine's video memory budget on
 
 ## What it does
 
-- Caps the DirectStorage staging buffer the game asks for. On a 6 GB GPU this grows the engine's
-  texture tile pool and mesh pool from 400 MB to about 1100 MB each, and menu icons stop failing.
+- Caps the DirectStorage staging buffer the game asks for (1 GB, kept twice in VRAM). On a 6 GB
+  GPU this alone stopped the crashes on car and track changes and at startup, and the menu icons
+  that vanished.
+- Gives the engine fixed streaming pools (1024 MB texture tile pool, 1433 MB mesh cap) instead of
+  the sizes it computes mid transition, which on a 6 GB card were 633 MB in a race and 526 MB
+  after a restart. Road and tyre textures stay sharp, also after restarting a session.
 - Sets engine flags the release build otherwise ignores (pipeline state cache, intro skip, and any
   other bool, int32 or double flag you list in the ini).
-- Applies process tweaks (priority class, no Windows power throttling, 0.5 ms timer).
-- Writes telemetry: a log, a per second timeline CSV and a per frame CSV.
+- Caps swap chain latency at one frame for steadier pacing, and applies process tweaks (priority
+  class, no Windows power throttling, 0.5 ms timer).
+- Writes telemetry: a log, a per second timeline CSV and a per frame CSV, with a report script.
 
 ## Install
 

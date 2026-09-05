@@ -4,11 +4,11 @@ kind: todo
 description: read the lap telemetry and turn each complaint into a measured cause and a change
 updated: 2026-09-05
 links: [lap-2026-09-05-nordschleife, BUG-001-texture-low-mip-shown-before-streaming, BUG-002-fps-drop-entering-new-track-sections, TODO-005-lap-two-experiments]
-status: open
+status: done
 by: owner
 area: streaming
 born: 2026-09-05
-done:
+done: 2026-09-05
 ---
 
 ## What
@@ -25,5 +25,6 @@ data before any change.
 ## Done when
 
 Each complaint has a measured cause written into its bug file and a change queued in
-TODO-005. The lap analysis lives in the research doc `lap-2026-09-05-nordschleife`. Logging and
-the lap are done, the analysis doc and the changes close this item.
+TODO-005. The lap analysis lives in the research doc `lap-2026-09-05-nordschleife`. Closed on
+2026-09-05 after four laps: causes in BUG-001, BUG-002, BUG-008, BUG-009 and BUG-010, changes in
+commits d5197d5 (fixed pools) and the latency cap default (DEC-006).

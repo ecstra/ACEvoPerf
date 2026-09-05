@@ -23,8 +23,8 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 |---|---|---|---|
 | `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | on by default in the mod |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
-| `force_canonical_pool_sizes` | false | fixed 1433 MB texture and mesh pools instead of the dynamic budget | documented option, DEC-004 |
-| `tile_pool_mb` | 0 | tile pool size, only consulted with the canonical path | documented |
+| `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget (1433 MB each on its own) | on by default, DEC-005 |
+| `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | 1024 by default, DEC-005 |
 | `texture_tier0` | false | "Force Texture Tier 0" pins every texture to its lowest tier, tile streaming stops | never enable |
 | `ui_force_resource_preloading` | false | preloads 1037 UI files (181 MB) at start, no effect on UI opening lag | measured, off |
 | `gibake_probes_per_frame` | 16 | GI probes rendered per frame | TODO-002 |

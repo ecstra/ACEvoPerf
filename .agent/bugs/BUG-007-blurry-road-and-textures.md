@@ -1,10 +1,10 @@
 ---
 name: BUG-007-blurry-road-and-textures
 kind: bug
-description: road and most surfaces settle at a soft detail level
+description: road and most surfaces settled at a soft detail level, fixed by the fixed pool size plus texture quality Ultra
 updated: 2026-09-05
-links: [settings-files, TODO-005-lap-two-experiments, BUG-001-texture-low-mip-shown-before-streaming]
-status: open
+links: [settings-files, TODO-005-lap-two-experiments, BUG-001-texture-low-mip-shown-before-streaming, BUG-010-texture-pool-shrinks-on-race-load-and-restart]
+status: fixed
 severity: bug
 area: render
 reported: 2026-09-05
@@ -35,8 +35,14 @@ From the owner's `video.videosettings` of 2026-09-05 16:25:
 
 ## Fix
 
-Absent, follows BUG-010. Texture quality Ultra and `texturePoolSize` Ultra remain the settings
-side once the pool is fixed.
+The fixed 1024 MB tile pool (BUG-010, commit d5197d5) plus the in game texture quality set to
+Ultra by the owner. With a fixed pool the higher mips cannot exceed the budget.
+
+## Verification
+
+Owner after lap four of 2026-09-05: "roads look better. It was cuz I was in high. Nothing to
+fix". Tile traffic per minute rose from 700 MB at High to about 1 to 1.7 GB at Ultra with VRAM
+steady at 4.6 GB.
 
 ## Verification
 

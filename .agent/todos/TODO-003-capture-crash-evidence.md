@@ -4,11 +4,11 @@ kind: todo
 description: get a faulting module and the last log lines for one crash, and clear or blame the mod
 updated: 2026-09-05
 links: [BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup]
-status: open
+status: dropped
 by: owner
 area: stability
 born: 2026-09-05
-done:
+done: 2026-09-05
 ---
 
 ## What
@@ -18,8 +18,6 @@ random and crashes while opening."
 
 ## Done when
 
-One crash has an exception code or hang record, the last lines of `acevo_perf.log`, the last
-timeline line and the game log tail, and the same action was tried once with the original
-`dstorage.dll` restored. Steps: turn on `veh_crashdumps=true` through the mod ini for one
-session and find where `CrashGuard` writes, ask the owner whether a crash shows a dialog, freezes
-or vanishes, read the Windows Application log after the next one.
+Dropped on 2026-09-05: the crashes stopped with the staging buffer cap before any evidence was
+needed (BUG-004 and BUG-005 fixed, owner verified with repeated car and track changes). The
+`veh_crashdumps` flag stays documented in the ini for the next time.

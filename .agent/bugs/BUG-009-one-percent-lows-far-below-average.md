@@ -45,12 +45,16 @@ shown fps."
   gap unchanged in feel. Fullscreen made no difference and was reverted. Lower GI probes made
   shadows flicker and were reverted.
 
+- Lap four of 2026-09-05 (`max_frame_latency=1`, fixed 1024 MB pool, texture quality Ultra,
+  car reflections Medium): stint one mean 12.2 ms (82 fps), p99 16.4 ms (61 fps), lag 1
+  autocorrelation +0.03 and lag 2 +0.22. The alternation is gone, what remains is the slow
+  neighbourhood spread. Owner: "Pacing improved".
+
 ## Fix
 
-Absent. Remaining candidates: a frame rate cap just under the typical rate (removes the peaks
-that widen the gap), the waitable swap chain with `max_frame_latency=1` (stops the CPU running
-three frames ahead and then stalling), clouds time slicing, and the mirror `alternate_rendering`
-setting.
+Partial: `max_frame_latency=1` is the default now (DEC-006). The remaining gap is the GPU load
+spread between sections. Remaining candidates: a frame rate cap just under the typical rate, the
+`gpu-relief` settings profile, and cooling.
 
 ## Verification
 
