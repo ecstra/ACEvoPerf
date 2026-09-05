@@ -35,12 +35,36 @@ def read_timeline(path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def read_frames(path: str) -> list[tuple[float, float]]:
-    """(seconds since attach, frame ms) per presented frame."""
+def read_frames(path: str) -> list[tuple[float, float, int, int]]:
+    """(seconds since attach, frame ms, tile requests, GPU uploads) per presented frame.
+    The request columns exist since the per frame counters landed, older files read as zero."""
     if not os.path.exists(path):
         return []
     with open(path, newline="") as f:
-        return [(float(row["t_s"]), float(row["frame_ms"])) for row in csv.DictReader(f)]
+        return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0))
+                for row in csv.DictReader(f)]
+
+
+def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
+    """How wide the frame time distribution is and whether the slow frames carry streaming."""
+    ms = [fr[1] for fr in stamped]
+    median = statistics.median(ms)
+    total = sum(ms)
+    print(f"median {median:.2f} ms, p99/median {percentile(ms, 99) / median:.2f}")
+    for factor in (1.3, 1.5, 2.0):
+        slow = [fr for fr in stamped if fr[1] > factor * median]
+        above = sum(fr[1] - median for fr in slow)
+        print(f"frames over {factor}x median ({factor * median:.1f} ms): {len(slow):5d} ({100.0 * len(slow) / len(ms):.2f} %), "
+              f"time above the median {above:.0f} ms ({100.0 * above / total:.1f} % of the window)")
+    has_requests = any(fr[2] or fr[3] for fr in stamped)
+    if has_requests:
+        n1 = max(1, len(stamped) // 100)
+        slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
+        all_tiles = sum(1 for fr in stamped if fr[2] > 0)
+        slow_tiles = sum(1 for fr in slowest if fr[2] > 0)
+        slow_uploads = sum(1 for fr in slowest if fr[3] > 0)
+        print(f"slowest 1% ({n1} frames): {slow_tiles} with tile requests, {slow_uploads} with GPU uploads, "
+              f"against {100.0 * all_tiles / len(stamped):.1f} % of all frames with tile requests")
 
 
 def low_fps(values: list[float], fraction: float) -> float:
@@ -167,7 +191,7 @@ def main() -> None:
         t_hi = max(float(r["t_s"]) for r in timeline)
         stamped = [fr for fr in stamped if t_lo <= fr[0] <= t_hi]
         hitches = [h for h in hitches if (not a.t_from or h[0] >= a.t_from) and (not a.t_to or h[0] <= a.t_to)]
-    frames = [ms for _, ms in stamped]
+    frames = [fr[1] for fr in stamped]
 
     print(f"session: {a.session}")
     print(f"timeline: {len(timeline)} s total, {len(active)} s with frames, "
@@ -182,6 +206,8 @@ def main() -> None:
         for limit in (16.7, 20, 33, 50, 100):
             n = sum(1 for x in frames if x > limit)
             print(f">{limit:<5} ms: {n:6d} frames ({100.0 * n / len(frames):.2f} %)")
+        print("\n== frame time spread ==")
+        print_spread(stamped)
 
     fps_values = [float(r["fps"]) for r in active]
     print("\n== per second fps (seconds with frames) ==")
