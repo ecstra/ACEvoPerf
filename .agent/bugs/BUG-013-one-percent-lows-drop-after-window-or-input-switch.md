@@ -39,15 +39,20 @@ time (cuz its not)."
   the swap chain, on a focus change or a session restart. The mod set the latency once at swap
   chain creation and never looked again.
 
+- 21:22 session with the hooks in place: the game calls `SetMaximumFrameLatency(2)` once, right
+  after the swap chain exists. Forcing 1 there ran the game at 43 to 45 fps (DEC-008), so the
+  "pre fix era" the owner sees is not a lower latency. The input probe counted 86 to 90 polls per
+  second costing about 1 ms per second, slowest poll 0.09 ms, in the menu and the race, so
+  controller polling is not the cost either, at least before a device change.
+
 ## Fix
 
-Candidate in the build of 2026-09-05 evening: the proxy hooks `IDXGISwapChain2::
-SetMaximumFrameLatency`, `ResizeBuffers` and `SetFullscreenState` on the game's swap chain,
-logs every call with its timestamp, and forces the configured latency whenever the game sets its
-own. If the log shows the game calling `SetMaximumFrameLatency` at the moment of a window switch
-or a session restart, that is the root cause and the hook is the fix. The input polling probe
-(`[input] probe=1`, XInput and DirectInput timed into the timeline CSV) stays as the second
-suspect for the controller to mouse case.
+Absent. The proxy now logs every `SetMaximumFrameLatency`, `ResizeBuffers` and
+`SetFullscreenState` call with a timestamp and leaves the values alone (DEC-008). The next run
+does the window switch and the repeated session restarts and reads the log against the frames
+CSV: a latency or swap chain change at those moments is the root cause, no change means the
+present path itself (composed against flip presentation after focus loss) is next, readable
+through `GetFrameStatistics` or PresentMon.
 
 ## Verification
 

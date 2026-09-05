@@ -8,8 +8,9 @@ links: [agent-index, spec-decisions]
 
 # Decisions Index
 
+- [DEC-008-frame-latency-left-to-the-game](DEC-008-frame-latency-left-to-the-game.md), 2026-09-05, the game's swap chain latency stays, the proxy logs the calls
 - [DEC-007-drag-and-drop-install-with-bundled-runtime](DEC-007-drag-and-drop-install-with-bundled-runtime.md), 2026-09-05, zip bundles the Microsoft runtime, no install scripts
-- [DEC-006-frame-latency-cap-default](DEC-006-frame-latency-cap-default.md), 2026-09-05, one frame of swap chain latency by default
+- [DEC-006-frame-latency-cap-default](DEC-006-frame-latency-cap-default.md), 2026-09-05, superseded by DEC-008, the cap never took effect
 - [DEC-005-fixed-pool-sizes-by-default](DEC-005-fixed-pool-sizes-by-default.md), 2026-09-05, fixed tile pool of 1024 MB and canonical mesh cap by default
 - [DEC-004-canonical-pools-off-by-default](DEC-004-canonical-pools-off-by-default.md), 2026-09-05, superseded by DEC-005
 - [DEC-003-staging-buffer-128mb](DEC-003-staging-buffer-128mb.md), 2026-09-05, cap the staging buffer at 128 MB

@@ -86,11 +86,18 @@ shown fps."
   sits at 53. The window switch itself leaves the pacing intact, the section does the rest. So
   the owner's reading is the reload stall plus BUG-002, not a new defect.
 
+- Correction, 2026-09-05 evening: the latency cap credited above never took effect. The game
+  calls `SetMaximumFrameLatency(2)` right after creating its swap chain, after the proxy's call,
+  so every lap ran at the game's own latency of 2. The first session with 1 truly enforced ran at
+  43 to 45 fps instead of 80 or more (DEC-008). Whatever removed the alternation on lap four was
+  not the cap, the fixed pools landed in the same session and are the remaining candidate.
+
 ## Fix
 
-Partial: `max_frame_latency=1` is the default now (DEC-006). The remaining gap is the GPU load
-spread between sections, and any menu opened during a stint. Remaining candidates:
-a frame rate cap just under the typical rate, the `gpu-relief` settings profile, and cooling.
+Absent again. The cap is off (DEC-008), the proxy now logs every latency call so the pacing can
+be read against what the game really sets. The remaining gap is the GPU load spread between
+sections, and any menu opened during a stint. Remaining candidates: a frame rate cap just under
+the typical rate, the `gpu-relief` settings profile, and cooling.
 
 ## Verification
 

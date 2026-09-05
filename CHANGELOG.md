@@ -20,9 +20,6 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   created once at 1024 MB (mesh cap 1433 MB) and never shrinks. Verified: sharp textures on lap
   four, unchanged after a restart. Texture quality must be Ultra in the game settings for the
   full effect.
-- Frame pacing that alternated between two frame times. The swap chain now runs with a one frame
-  latency cap (`max_frame_latency=1`, waitable swap chain). Verified: pacing steadier on lap four,
-  average fps up.
 
 ### Added
 
@@ -42,9 +39,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   line per frame). `tools/telemetry_report.py` summarises a session folder and joins an
   `nvidia-smi` sample log on the clock second.
 - Swap chain diagnostics: every `SetMaximumFrameLatency`, `ResizeBuffers` and
-  `SetFullscreenState` call the game makes is logged with its timestamp, and the configured
-  frame latency is re applied whenever the game sets its own. This is the trace for the 1 percent
-  low drop after a window switch or a session restart (BUG-013).
+  `SetFullscreenState` call the game makes is logged with its timestamp. `max_frame_latency` in
+  the ini is 0 by default (the game's own value, 2, stays). Any other value is forced on every
+  call, and 1 halves the frame rate on a GPU bound machine, so it is a diagnostic knob. This is
+  the trace for the 1 percent low drop after a window switch or a session restart (BUG-013).
 - Input polling diagnostics (`[input] probe=1`): XInput and DirectInput polls are counted and
   timed per second into the timeline CSV, single polls over 1 ms are logged.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
@@ -65,4 +63,6 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 - The first second after a texture streams in shows a lower mip (engine feedback loop, BUG-001).
 - Grass and distant object pop in (level of detail scales, BUG-006).
 - Frame drops in a few sections of the Nordschleife and low 1 percent lows: the GPU is at 100
-  percent with thermal slowdown active for most of the lap (BUG-002, BUG-009).
+  percent with thermal slowdown active for most of the lap (BUG-002, BUG-009). The 1 percent low
+  also falls after a window switch or repeated session restarts (BUG-013), under investigation
+  with the swap chain and input polling diagnostics.

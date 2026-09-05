@@ -14,8 +14,8 @@ everything to the original runtime and fixes the engine's video memory budget on
   after a restart. Road and tyre textures stay sharp, also after restarting a session.
 - Sets engine flags the release build otherwise ignores (pipeline state cache, intro skip, and any
   other bool, int32 or double flag you list in the ini).
-- Caps swap chain latency at one frame for steadier pacing, and applies process tweaks (priority
-  class, no Windows power throttling, 0.5 ms timer).
+- Applies process tweaks (priority class, no Windows power throttling, 0.5 ms timer) and logs
+  what the game does to its swap chain.
 - Writes telemetry: a log, a per second timeline CSV and a per frame CSV, with a report script.
 
 ## Install

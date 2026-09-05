@@ -1,14 +1,17 @@
 ---
 name: DEC-006-frame-latency-cap-default
 kind: decision
-description: max_frame_latency=1 ships on by default
+description: max_frame_latency=1 shipped on by default, superseded the same day, the cap never took effect
 updated: 2026-09-05
-links: [BUG-009-one-percent-lows-far-below-average, proxy-architecture]
+links: [BUG-009-one-percent-lows-far-below-average, proxy-architecture, DEC-008-frame-latency-left-to-the-game]
 date: 2026-09-05
 area: render
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-008-frame-latency-left-to-the-game
 ---
+
+Superseded by DEC-008 on 2026-09-05: the game set its own latency of 2 right after the proxy's
+call, so this cap was never in effect, and once the proxy enforced it the frame rate halved.
 
 ## Decision
 

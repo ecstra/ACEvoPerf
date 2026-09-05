@@ -59,7 +59,9 @@ string. Every header includes it, every source includes its own header first.
   `g_bytesByDest`, read by the timeline and the hitch logger.
 - `render/frame_stats`: `OnPresent` records the time since the previous present, counts hitches,
   buffers per frame samples.
-- `render/dxgi_hooks`: the factory creation hooks, the waitable swap chain flag and the latency cap.
+- `render/dxgi_hooks`: the factory creation hooks and the optional latency override. The swap
+  chain's `SetMaximumFrameLatency`, `ResizeBuffers` and `SetFullscreenState` are hooked in
+  `render/frame_stats` and logged.
 - `telemetry/timeline`: `TimelineThread` wakes every second, resets the counters, queries video
   memory on the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line,
   flushes the frame buffer.
