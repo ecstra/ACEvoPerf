@@ -10,6 +10,10 @@ links: [agent-index, spec-todos]
 
 ## Open
 
+streaming
+
+- [TODO-007-package-override-layer](TODO-007-package-override-layer.md), loose files shadow package entries, prerequisite for UI and content changes
+
 render
 
 - [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure

@@ -61,8 +61,10 @@ ace loading). The lag and loading needs to go. Its a UI for christs sake."
 Absent. Root cause is the UI framework reloading the whole document and re running its
 initialisation on every page switch, on the render thread. `ui_force_resource_preloading` is
 ruled out. A fix from outside the game means changing the UI itself (the HTML and JS under
-`uiresources\` in the package, which would need a repack), so this is deferred behind the render
-work.
+`uiresources\` in the package). The package override layer in TODO-007 is the prerequisite: it
+lets loose files replace package entries without repacking. What to change in the UI once that
+exists is unknown, the stall is document load and script init inside Gameface, so the gain is not
+guaranteed.
 
 ## Verification
 

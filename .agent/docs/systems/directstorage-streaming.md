@@ -26,6 +26,16 @@ The engine decides which tiles to request from a GPU texture feedback pass (rend
 `main_streamer_feedback_depth`, staging buffers `feedbackStagingBuffer0` and `1` in the exe), so
 a request follows the first frame that needs the mip by at least two frames.
 
+## How files are requested
+
+Probe of 2026-09-05 (menu launch, every request logged): the package's table of contents is not
+read through DirectStorage, no request touches the last 64 MB of the file, so the engine reads it
+with ordinary file I/O at startup. Every `FileToMemory Queue` request is one whole package entry,
+offset equal to the entry offset and size equal to the entry size (11,214 requests, all resolved
+to entries, none partial). UI images (`uiresources\images\...texturemips`) arrive as 16 requests
+per file on the same queue. The largest single requests are audio banks (84 MB) and car interior
+meshes (34 MB).
+
 ## VRAM pool sizing
 
 The game never calls `DStorageSetConfiguration` and calls `SetStagingBufferSize(1024 MB)`. The
