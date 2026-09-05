@@ -50,11 +50,30 @@ shown fps."
   autocorrelation +0.03 and lag 2 +0.22. The alternation is gone, what remains is the slow
   neighbourhood spread. Owner: "Pacing improved".
 
+- Lap five of 2026-09-05 (first run after the source split, same ini apart from a dropped crash
+  dump flag). Owner: "The 1% fix came undone? its back to the old 1% now". The report, windowed to
+  the three stints (`telemetry_report.py --from --to`, which now prints the 1 percent low as the
+  mean of the slowest frames):
+
+  | stint | avg fps | 1% low | p99 | GPU clock | thermal throttle |
+  | --- | --- | --- | --- | --- | --- |
+  | lap four | 82.5 | 46.2 | 16.1 ms | 1601 MHz | 91 % of seconds |
+  | lap five, stint 1 (pause and settings opened) | 75.9 | 9.6 | 32.3 ms | 1706 MHz | 62 % |
+  | lap five, stint 2 | 75.4 | 47.1 | 17.3 ms | 1554 MHz | 100 % |
+  | lap five, stint 3 | 76.4 | 34.6 | 18.2 ms | 1573 MHz | 99 % |
+
+  Stint 2 has the same 1 percent low as lap four, the averages are 7 fps lower with the GPU
+  clock 50 MHz lower and throttling the whole time (15 minutes into the session). Stint 1 is
+  ruined by the UI: every pause menu and settings open is a 100 to 300 ms document reload
+  (BUG-008) and the settings page pushed VRAM to 5337 MB, over the 5226 MB budget. A build and
+  a 1.2 GB package extraction also ran on the machine during stint 2. So nothing in the mod
+  changed the frame distribution, the run was contaminated and needs a clean repeat.
+
 ## Fix
 
 Partial: `max_frame_latency=1` is the default now (DEC-006). The remaining gap is the GPU load
-spread between sections. Remaining candidates: a frame rate cap just under the typical rate, the
-`gpu-relief` settings profile, and cooling.
+spread between sections, and any UI page opened during a stint (BUG-008). Remaining candidates:
+a frame rate cap just under the typical rate, the `gpu-relief` settings profile, and cooling.
 
 ## Verification
 
