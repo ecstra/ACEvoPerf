@@ -35,5 +35,5 @@ no engine knob found yet, BUG-006 is the grass distance, BUG-008 needs a UI chan
 - `texture_tier0` and `minimumcores` must never be enabled, both are documented in engine-flags.
 - The engine's own pool sizing runs during transitions, so any pool measurement must be read
   from the race, not the menu.
-- The GPU sampler must be stopped by pid after each session, see the session folders outside
-  the repo.
+- The GPU sampler must be stopped by pid after each session, see the session folders under
+  `logs/`.

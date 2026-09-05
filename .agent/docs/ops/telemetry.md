@@ -9,8 +9,8 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife]
 # Telemetry
 
 All files are written next to the game executable and overwritten on every launch. Copy them to
-a session folder outside the repo before analysing. `tools/telemetry_report.py SESSION_DIR`
-summarises a folder that holds them.
+a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
+gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them.
 
 ## acevo_perf.log
 

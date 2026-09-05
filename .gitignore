@@ -4,7 +4,8 @@ dist/dstorage.dll
 dist/dstorage_orig.dll
 release/
 
-# runtime output copied from the game folder
+# runtime output copied from the game folder, one folder per session
+logs/
 *.log
 acevo_perf_*.csv
 
