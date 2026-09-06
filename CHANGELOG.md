@@ -38,31 +38,8 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   second: fps, hitches, streaming volume, VRAM against budget, CPU), `acevo_perf_frames.csv` (one
   line per frame). `tools/telemetry_report.py` summarises a session folder and joins an
   `nvidia-smi` sample log on the clock second.
-- Swap chain diagnostics: every `SetMaximumFrameLatency`, `ResizeBuffers` and
-  `SetFullscreenState` call the game makes is logged with its timestamp. `max_frame_latency` in
-  the ini is 0 by default (the game's own value, 2, stays). Any other value is forced on every
-  call, and 1 halves the frame rate on a GPU bound machine, so it is a diagnostic knob. This is
-  the trace for the 1 percent low drop after a window switch or a session restart (BUG-013).
-- Input polling diagnostics (`[input] probe=1`): XInput and DirectInput polls are counted and
-  timed per second into the timeline CSV, single polls over 1 ms are logged.
-- Device event log (`[input] device_events=1`, on by default): every device arrival, removal and
-  audio endpoint change Windows sends to the process is logged with its time, because the game
-  answers them by rebuilding its input devices and restarting its audio (a 660 ms frame).
 - Per frame streaming counters: the frames CSV carries the tile, package to memory and memory to
   GPU requests enqueued since the previous frame, so a slow frame can be matched to streaming.
-- Per frame wait split: the frames CSV carries `present_ms` (how long the Present call blocked),
-  `wait_ms` (every wait call of the render thread in the frame, in the game, in D3D12 and in the
-  driver) and `fence_ms` (the part of it spent on events D3D12 fences signal, which is waiting for
-  the GPU). The log gets a `[wait]` line per minute and handle, so a slow frame can be read as GPU
-  wait, other wait, present or render thread work. The report prints that split for the slowest
-  1 percent against the faster half.
-- Frame limiter (`[dxgi] fps_limit=N`, off by default): holds the present call to the interval
-  with a sleep and a short spin, accurate to tens of microseconds, for an even pace.
-- Render thread sampler (`[profile] sampler=1`, off by default): samples where the render thread
-  is every 250 us and writes per frame counts by module into `acevo_perf_samples.csv`, with the
-  system DLLs split into waits, locks, heap and memory copies, and logs the game code addresses
-  that show up most in slow frames, the system functions the thread waits in and the game call
-  sites under them. Costs about one core while on, for analysis sessions only.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.
@@ -80,7 +57,11 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 - The first second after a texture streams in shows a lower mip (engine feedback loop, BUG-001).
 - Grass and distant object pop in (level of detail scales, BUG-006).
-- Frame drops in a few sections of the Nordschleife and low 1 percent lows: the GPU is at 100
-  percent with thermal slowdown active for most of the lap (BUG-002, BUG-009). The 1 percent low
-  also falls after a window switch or repeated session restarts (BUG-013), under investigation
-  with the swap chain and input polling diagnostics.
+- Frame drops in a few sections of the Nordschleife (BUG-002) and a 1 percent low that sits 20
+  to 25 fps under the average (BUG-009). Nineteen measured laps narrowed the slow frames down to
+  the render thread handing its main command list to the GPU a few milliseconds late in heavy
+  views, with the swap chain, fences, waits, the GPU clock, the CPU clock, streaming and every
+  graphics setting ruled out one by one. No fix in the mod yet, the hunt is parked with its
+  evidence and its remaining leads (TODO-010). The drop after a window switch (BUG-013) is the
+  pause and HUD reload stalls passing through a rolling counter, plus the device rebuild on a
+  device change.

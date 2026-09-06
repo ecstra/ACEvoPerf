@@ -86,16 +86,6 @@ void LoadConfig()
 
     g_cfg.dxgiEnabled = IniBool(L"dxgi", L"enabled", true);
     g_cfg.frameStats = IniBool(L"dxgi", L"frame_stats", true);
-    g_cfg.maxFrameLatency = IniInt(L"dxgi", L"max_frame_latency", 0);
-    g_cfg.fpsLimit = IniInt(L"dxgi", L"fps_limit", 0);
-
-    g_cfg.inputProbe = IniBool(L"input", L"probe", false);
-    g_cfg.deviceEvents = IniBool(L"input", L"device_events", true);
-
-    g_cfg.sampler = IniBool(L"profile", L"sampler", false);
-    g_cfg.sampleUs = IniInt(L"profile", L"sample_us", 250);
-    if (g_cfg.sampleUs < 50) g_cfg.sampleUs = 50;
-    g_cfg.gpuTiming = IniBool(L"profile", L"gpu_timing", false);
 
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");

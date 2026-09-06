@@ -4,29 +4,8 @@
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/dstorage/stats.h"
-#include "acevo/engine/input_probe.h"
-#include "acevo/render/gpu_timing.h"
-#include <pdh.h>
 
 static HANDLE g_timelineThread = nullptr;
-
-// how fast the CPU actually runs against its nominal clock, the whole package, once a second
-static PDH_HQUERY g_pdhQuery = nullptr;
-static PDH_HCOUNTER g_pdhPerformance = nullptr;
-
-static void OpenCpuPerformanceCounter()
-{
-    if (PdhOpenQueryW(nullptr, 0, &g_pdhQuery) != ERROR_SUCCESS) return;
-    if (PdhAddEnglishCounterW(g_pdhQuery, L"\\Processor Information(_Total)\\% Processor Performance", 0, &g_pdhPerformance) != ERROR_SUCCESS) { g_pdhPerformance = nullptr; return; }
-    PdhCollectQueryData(g_pdhQuery);
-}
-
-static double ReadCpuPerformance()
-{
-    if (!g_pdhPerformance || PdhCollectQueryData(g_pdhQuery) != ERROR_SUCCESS) return 0.0;
-    PDH_FMT_COUNTERVALUE value = {};
-    return PdhGetFormattedCounterValue(g_pdhPerformance, PDH_FMT_DOUBLE, nullptr, &value) == ERROR_SUCCESS ? value.doubleValue : 0.0;
-}
 
 static HANDLE OpenCsv(const wchar_t* name, const char* header)
 {
@@ -70,11 +49,8 @@ static DWORD WINAPI TimelineThread(void*)
 {
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf timeline");
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
-        "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb,input_polls,input_ms,input_max_ms,cpu_perf_pct\r\n") : INVALID_HANDLE_VALUE;
-    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,present_ms,wait_ms,fence_ms,tilemap_ms,execute_ms,mapped_tiles,tile_req,f2m_req,gpumem_req,core_speed\r\n") : INVALID_HANDLE_VALUE;
-    OpenCpuPerformanceCounter();
-    HANDLE gpuCsv = g_cfg.gpuTiming ? OpenCsv(L"acevo_perf_gpu.csv", "t_s,submits,gpu_busy_ms,gpu_span_ms,gpu_lag_ms,"
-        "b0_ms,gap0_ms,lag0_ms,b1_ms,gap1_ms,lag1_ms,b2_ms,gap2_ms,lag2_ms,b3_ms,gap3_ms,lag3_ms,b4_ms,gap4_ms,lag4_ms,b5_ms,gap5_ms,lag5_ms\r\n") : INVALID_HANDLE_VALUE;
+        "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
+    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = FindRenderAdapter();
 
     SYSTEM_INFO si; GetSystemInfo(&si);
@@ -119,12 +95,10 @@ static DWORD WINAPI TimelineThread(void*)
         PROCESS_MEMORY_COUNTERS_EX pmc = {}; pmc.cb = sizeof pmc;
         GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof pmc);
 
-        uint64_t inputPolls = g_inputCalls.exchange(0), inputUs = g_inputUs.exchange(0), inputMaxUs = g_inputMaxUs.exchange(0);
-
         SYSTEMTIME st; GetLocalTime(&st);
         char line[1024];
         int n = _snprintf_s(line, sizeof line, _TRUNCATE,
-            "%02d:%02d:%02d,%.1f,%llu,%.1f,%.2f,%.1f,%llu,%llu,%llu,%.1f,%llu,%llu,%llu,%.1f,%llu,%.1f,%llu,%llu,%llu,%llu,%.1f,%.1f,%llu,%llu,%llu,%.2f,%.2f,%.1f\r\n",
+            "%02d:%02d:%02d,%.1f,%llu,%.1f,%.2f,%.1f,%llu,%llu,%llu,%.1f,%llu,%llu,%llu,%.1f,%llu,%.1f,%llu,%llu,%llu,%llu,%.1f,%.1f,%llu,%llu\r\n",
             st.wHour, st.wMinute, st.wSecond, t,
             (unsigned long long)frames, frames / dt, frames ? (sumUs / 1000.0) / frames : 0.0, maxUs / 1000.0,
             (unsigned long long)h20, (unsigned long long)hc,
@@ -133,26 +107,8 @@ static DWORD WINAPI TimelineThread(void*)
             (unsigned long long)(dReq[1] + dReq[2] + dReq[3]), (dBytes[1] + dBytes[2] + dBytes[3]) / 1048576.0,
             (unsigned long long)dSubs,
             (unsigned long long)(vm.CurrentUsage >> 20), (unsigned long long)(vm.Budget >> 20), (unsigned long long)(vm.AvailableForReservation >> 20),
-            procPct, sysPct, (unsigned long long)(pmc.WorkingSetSize >> 20), (unsigned long long)(pmc.PrivateUsage >> 20),
-            (unsigned long long)inputPolls, inputUs / 1000.0, inputMaxUs / 1000.0, ReadCpuPerformance());
+            procPct, sysPct, (unsigned long long)(pmc.WorkingSetSize >> 20), (unsigned long long)(pmc.PrivateUsage >> 20));
         if (csv != INVALID_HANDLE_VALUE && n > 0) { DWORD w; WriteFile(csv, line, (DWORD)n, &w, nullptr); }
-
-        if (gpuCsv != INVALID_HANDLE_VALUE) {
-            std::vector<GpuFrameRow> rows;
-            GpuTimingDrain(rows);
-            std::string gpuOut;
-            char gpuLine[320];
-            for (auto& r : rows) {
-                int m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, "%.3f,%u,%.3f,%.3f,%.3f", r.t, r.submits, r.busyMs, r.spanMs, r.lagMs);
-                gpuOut.append(gpuLine, m);
-                for (int b = 0; b < kBatchesPerRow; ++b) {
-                    m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, ",%.3f,%.3f,%.3f", r.batchMs[b], r.gapMs[b], r.batchLagMs[b]);
-                    gpuOut.append(gpuLine, m);
-                }
-                gpuOut.append("\r\n");
-            }
-            if (!gpuOut.empty()) { DWORD w; WriteFile(gpuCsv, gpuOut.data(), (DWORD)gpuOut.size(), &w, nullptr); }
-        }
 
         if (framesCsv == INVALID_HANDLE_VALUE) continue;
         std::vector<FrameSample> buf;
@@ -160,7 +116,7 @@ static DWORD WINAPI TimelineThread(void*)
         std::string out; out.reserve(buf.size() * 24);
         char tmp[80];
         for (auto& fr : buf) {
-            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%u,%u,%u,%u,%.1f\r\n", fr.t, fr.ms, fr.present, fr.wait, fr.fence, fr.tileMap, fr.execute, fr.mappedTiles, fr.tiles, fr.f2m, fr.gpumem, fr.coreSpeed);
+            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%u,%u,%u\r\n", fr.t, fr.ms, fr.tiles, fr.f2m, fr.gpumem);
             out.append(tmp, m);
         }
         if (!out.empty()) { DWORD w; WriteFile(framesCsv, out.data(), (DWORD)out.size(), &w, nullptr); }

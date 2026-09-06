@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """telemetry_report.py - summarise one game session recorded by ACEvoPerf.
 
-Reads from a session folder (see .agent/docs/telemetry.md):
+Reads from a session folder (see .agent/docs/ops/telemetry.md):
   acevo_perf_timeline.csv, acevo_perf_frames.csv, acevo_perf.log, gpu.csv (nvidia-smi sampler)
   and the game log (log-*.txt). All files are optional except the timeline.
 
@@ -13,7 +13,7 @@ import glob
 import os
 import re
 import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass
 from typing import Optional
 
@@ -35,17 +35,12 @@ def read_timeline(path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def read_frames(path: str) -> list[tuple[float, float, int, int, float, float, float, float, float, int]]:
-    """(seconds since attach, frame ms, tile requests, GPU uploads, previous Present call ms,
-    wait ms, fence wait ms, tile mapping ms, ExecuteCommandLists ms, tiles mapped) per presented
-    frame. The later columns read as zero in older files."""
+def read_frames(path: str) -> list[tuple[float, float, int, int]]:
+    """(seconds since attach, frame ms, tile requests, GPU uploads) per presented frame."""
     if not os.path.exists(path):
         return []
     with open(path, newline="") as f:
-        return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0),
-                 float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0), float(row.get("fence_ms") or 0.0),
-                 float(row.get("tilemap_ms") or 0.0), float(row.get("execute_ms") or 0.0), int(row.get("mapped_tiles") or 0),
-                 float(row.get("core_speed") or 0.0))
+        return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0))
                 for row in csv.DictReader(f)]
 
 
@@ -60,8 +55,7 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
         above = sum(fr[1] - median for fr in slow)
         print(f"frames over {factor}x median ({factor * median:.1f} ms): {len(slow):5d} ({100.0 * len(slow) / len(ms):.2f} %), "
               f"time above the median {above:.0f} ms ({100.0 * above / total:.1f} % of the window)")
-    has_requests = any(fr[2] or fr[3] for fr in stamped)
-    if has_requests:
+    if any(fr[2] or fr[3] for fr in stamped):
         n1 = max(1, len(stamped) // 100)
         slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
         all_tiles = sum(1 for fr in stamped if fr[2] > 0)
@@ -69,88 +63,6 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
         slow_uploads = sum(1 for fr in slowest if fr[3] > 0)
         print(f"slowest 1% ({n1} frames): {slow_tiles} with tile requests, {slow_uploads} with GPU uploads, "
               f"against {100.0 * all_tiles / len(stamped):.1f} % of all frames with tile requests")
-    if any(fr[4] > 0 for fr in stamped):
-        n1 = max(1, len(stamped) // 100)
-        slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
-        blocked = sum(1 for fr in slowest if fr[4] > 0.5 * fr[1])
-        print(f"Present call: median {statistics.median(fr[4] for fr in stamped):.2f} ms over all frames, "
-              f"{blocked} of the slowest {n1} frames spent over half their time inside Present")
-        if any(fr[5] > 0 for fr in stamped):
-            faster = sorted(stamped, key=lambda fr: fr[1])[:len(stamped) // 2]
-            def split(group):
-                return (statistics.fmean(fr[1] for fr in group), statistics.fmean(fr[6] for fr in group),
-                        statistics.fmean(fr[5] - fr[6] for fr in group), statistics.fmean(fr[4] for fr in group),
-                        statistics.fmean(fr[1] - fr[5] - fr[4] for fr in group))
-            for label, group in (("slowest 1%", slowest), ("faster half", faster)):
-                total, fence, other, present, rest = split(group)
-                print(f"{label:12} frame {total:5.1f} ms = GPU fence wait {fence:4.1f} + other waits {other:4.1f} + present {present:4.1f} + render thread work {rest:5.1f}")
-            if any(fr[9] > 0 or fr[8] > 0 for fr in stamped):
-                for label, group in (("slowest 1%", slowest), ("faster half", faster)):
-                    with_maps = sum(1 for fr in group if fr[9] > 0)
-                    print(f"{label:12} queue: tile mappings in {100.0 * with_maps / len(group):4.1f} % of frames, "
-                          f"{statistics.fmean(fr[9] for fr in group):6.1f} tiles and {statistics.fmean(fr[7] for fr in group):4.2f} ms per frame, "
-                          f"ExecuteCommandLists {statistics.fmean(fr[8] for fr in group):4.2f} ms per frame")
-            if any(fr[10] > 0 for fr in stamped):
-                print(f"render thread core speed: slowest 1% {statistics.fmean(fr[10] for fr in slowest):6.1f} loop iterations per us against "
-                      f"{statistics.fmean(fr[10] for fr in faster):6.1f} in the faster half, correlation with frame time "
-                      f"{statistics.correlation([fr[1] for fr in stamped], [fr[10] for fr in stamped]):+.2f}")
-
-
-def print_gpu_split(path: str, stamped: list[tuple]) -> None:
-    """GPU time per frame from the timestamp marks, the slowest 1% of frames against the faster half."""
-    if not os.path.exists(path) or not stamped:
-        return
-    with open(path, newline="") as f:
-        rows = {float(r["t_s"]): (int(r["submits"]), float(r["gpu_busy_ms"]), float(r["gpu_span_ms"]), float(r["gpu_lag_ms"]))
-                for r in csv.DictReader(f)}
-    if not rows:
-        return
-    n1 = max(1, len(stamped) // 100)
-    slowest = sorted(stamped, key=lambda fr: -fr[1])[:n1]
-    faster = sorted(stamped, key=lambda fr: fr[1])[:len(stamped) // 2]
-    print("\n== GPU time per frame (timestamp marks on the present queue) ==")
-    for label, group in (("slowest 1%", slowest), ("faster half", faster), ("all frames", stamped)):
-        hits = [rows[fr[0]] for fr in group if fr[0] in rows]
-        if not hits:
-            print(f"{label:12} no GPU rows")
-            continue
-        print(f"{label:12} {len(hits):5d} of {len(group)} frames with GPU rows: {statistics.fmean(h[0] for h in hits):4.1f} batches, "
-              f"GPU busy {statistics.fmean(h[1] for h in hits):5.2f} ms, span {statistics.fmean(h[2] for h in hits):5.2f} ms, "
-              f"lag behind the CPU {statistics.fmean(h[3] for h in hits):5.2f} ms (max {max(h[3] for h in hits):5.2f})")
-    matched = [(fr[1], rows[fr[0]][1]) for fr in stamped if fr[0] in rows]
-    if len(matched) > 100:
-        frame_ms = [m[0] for m in matched]
-        busy = [m[1] for m in matched]
-        print(f"correlation frame time vs GPU busy time: {statistics.correlation(frame_ms, busy):+.2f} over {len(matched)} frames")
-
-
-def print_sample_mix(path: str, t_lo: float, t_hi: float) -> None:
-    """Where the render thread was, by module, in the slowest 1% of frames against the rest."""
-    if not os.path.exists(path):
-        return
-    with open(path, newline="") as f:
-        reader = csv.DictReader(f)
-        buckets = [name for name in reader.fieldnames if name not in ("t_s", "frame_ms")]
-        rows = [r for r in reader if t_lo <= float(r["t_s"]) <= t_hi]
-    if len(rows) < 100:
-        return
-    rows.sort(key=lambda r: -float(r["frame_ms"]))
-    n1 = max(1, len(rows) // 100)
-    groups = [("slowest 1%", rows[:n1]), ("median half", rows[len(rows) // 2:])]
-    print("\n== render thread samples by module (share of samples, mean samples per frame) ==")
-    print(f"{'':12}" + "".join(f"{b:>10}" for b in buckets) + f"{'per frame':>11}")
-    for label, group in groups:
-        totals = {b: sum(int(r[b]) for r in group) for b in buckets}
-        all_samples = sum(totals.values())
-        if all_samples == 0:
-            continue
-        print(f"{label:12}" + "".join(f"{100.0 * totals[b] / all_samples:9.1f}%" for b in buckets) + f"{all_samples / len(group):11.1f}")
-    slow_totals = {b: sum(int(r[b]) for r in rows[:n1]) for b in buckets}
-    fast_totals = {b: sum(int(r[b]) for r in rows[len(rows) // 2:]) for b in buckets}
-    per_slow = {b: slow_totals[b] / n1 for b in buckets}
-    per_fast = {b: fast_totals[b] / len(rows[len(rows) // 2:]) for b in buckets}
-    extra = sorted(((per_slow[b] - per_fast[b], b) for b in buckets), reverse=True)
-    print("extra samples per slow frame against a median frame: " + ", ".join(f"{b} +{d:.1f}" for d, b in extra[:4] if d > 0))
 
 
 def low_fps(values: list[float], fraction: float) -> float:
@@ -294,9 +206,6 @@ def main() -> None:
             print(f">{limit:<5} ms: {n:6d} frames ({100.0 * n / len(frames):.2f} %)")
         print("\n== frame time spread ==")
         print_spread(stamped)
-        print_gpu_split(os.path.join(a.session, "acevo_perf_gpu.csv"), stamped)
-        print_sample_mix(os.path.join(a.session, "acevo_perf_samples.csv"),
-                         min(fr[0] for fr in stamped), max(fr[0] for fr in stamped))
 
     fps_values = [float(r["fps"]) for r in active]
     print("\n== per second fps (seconds with frames) ==")

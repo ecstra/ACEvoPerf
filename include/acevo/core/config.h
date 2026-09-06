@@ -31,15 +31,6 @@ struct Config {
     // [dxgi]
     bool dxgiEnabled = true;
     bool frameStats = true;
-    int  maxFrameLatency = 0;
-    int  fpsLimit = 0;              // hold Present until this frame rate, 0 = off
-    // [input]
-    bool inputProbe = false;        // time controller polling, columns in the timeline CSV
-    bool deviceEvents = true;       // log device arrivals, removals and audio endpoint changes
-    // [profile]
-    bool sampler = false;           // sample the render thread's module per frame
-    int  sampleUs = 250;            // sampling interval
-    bool gpuTiming = false;         // GPU timestamps around every command list batch on the present queue
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";

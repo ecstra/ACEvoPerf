@@ -3,10 +3,7 @@
 #include "acevo/core/log.h"
 #include "acevo/dstorage/stats.h"
 #include "acevo/engine/flags.h"
-#include "acevo/engine/input_probe.h"
-#include "acevo/engine/device_watch.h"
 #include "acevo/telemetry/timeline.h"
-#include "acevo/telemetry/sampler.h"
 #include "acevo/overlay/overlay.h"
 
 // ---------------------------------------------------------------------------
@@ -292,7 +289,7 @@ extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
     if (!EnsureReal() || !g_realGetFactory) return E_FAIL;
     ApplyDStorageConfiguration();
     static bool lateApplied = false;
-    if (!lateApplied) { lateApplied = true; ApplyFlags("late"); InstallInputProbe(); StartDeviceWatch(); StartTimeline(); StartSampler(); }
+    if (!lateApplied) { lateApplied = true; ApplyFlags("late"); StartTimeline(); }
     if (riid != __uuidof(IDStorageFactory)) {
         HRESULT hr = g_realGetFactory(riid, ppv);
         Log("DStorageGetFactory(non-IDStorageFactory riid) -> hr=0x%08X", (unsigned)hr);
