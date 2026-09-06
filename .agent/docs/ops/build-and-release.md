@@ -51,7 +51,11 @@ the auto sizes, the flags, the overlay and the telemetry.
 
 The icon for the mod listing is `assets/icon-512.png` (ACE over PERF, Bahnschrift Bold
 Condensed on a black tile), with a 1024 px version next to it. `assets/icon.py` renders both
-with Pillow and the Bahnschrift font that ships with Windows.
+with Pillow and the Bahnschrift font that ships with Windows, and `assets/header.py` renders
+`assets/header.png`, the banner at the top of the readme, the repo name in the pixel lettering
+the owner's other repos use, with EVO outlined, from glyphs defined in the script. Releases
+are published on GitHub (`gh release create v<version> release/<zip>` with notes in the
+readme's voice), which is also the download people get pointed at.
 
 ## Gates
 
