@@ -61,6 +61,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 - Throw log (`[log] throw_log=1`, off by default): counts the C++ exceptions the game throws
   by throw site and type and logs the busiest sites every ten seconds, because the render
   thread was seen spending about two percent of its time in exception unwinding.
+- UI engine inspector (`[ui] inspector_port`, off by default): with a port set, the game's menu
+  engine (Coherent Gameface) opens its Chrome DevTools inspector on it, so a page can be
+  inspected and scripted from a browser while the game runs. `acevo_perf.log` names the engine
+  version and every UI view the game creates.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.
@@ -92,3 +96,11 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   evidence and its remaining leads (TODO-010). The drop after a window switch (BUG-013) is the
   pause and HUD reload stalls passing through a rolling counter, plus the device rebuild on a
   device change.
+- The menus and the settings, controls and vehicle setup pages lag on open, on every switch and
+  while they are used (BUG-014). A morning of measurements put the cost in the game's own UI
+  pages: a full document reload on every page switch, list pages built in one frame, and
+  scripts that relayout a heavy page on nearly every frame of a hover or a scroll. Nothing the
+  DLL controls in the UI engine moves those numbers, so the mod changes nothing in the UI. The
+  analysis and what an overhaul would take are in the repo (TODO-011). A menu that stops
+  responding after a window switch is the game pausing its UI until real input reaches the
+  window, click into it.

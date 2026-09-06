@@ -3,7 +3,7 @@ name: BUG-014-ui-pages-lag-on-open-switch-and-interaction
 kind: bug
 description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used
 updated: 2026-09-06
-links: [BUG-013-one-percent-lows-drop-after-window-or-input-switch, cohtml-ui-engine, ui-lag-hunt-2026-09-06, DEC-010-ui-script-corrections-from-the-dll]
+links: [BUG-013-one-percent-lows-drop-after-window-or-input-switch, cohtml-ui-engine, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
 status: open
 severity: bug
 area: ui
@@ -45,13 +45,24 @@ the pages makes the game stutter and lag and interacting with anything makes it 
   second and 300 to 800 ms of script a second in anonymous frame callbacks, at 10 to 40 fps.
 - The reads come from the per row visibility loops of the lazily loaded components. The game
   starts a loop on every connect and every restore of a row's body and ends none of them, so a
-  scrolled list runs six loops per row (69,000 loop callbacks a second at 176 rows), each forcing
-  a layout read between the writes of the others.
+  scrolled list runs six to eleven loops per row (up to 121,000 loop callbacks a second), each
+  forcing a layout read between the writes of the others.
+- Two script corrections injected as a Cohtml initial script from the DLL, one loop per element
+  and one visibility sweep per 125 ms with all reads before all writes, cut the loop callbacks
+  to 10,000 and the forced reads to about 1,000 a second. Layout time, the transitions and what
+  the owner felt did not change: a relayout of the 1,200 element page costs tens of
+  milliseconds by itself and the scripts trigger one on nearly every frame of a hover or a
+  scroll (focus box moves, scrollbar thumb writes, rows restored and initialised).
+- A menu that stops responding after a window switch is the game pausing the UI view while its
+  window is not active, the view resumes on the next real input. Not a stall.
+- The full record with every number is `ui-lag-hunt-2026-09-06`, the engine's surface is
+  `cohtml-ui-engine`.
 
 ## Fix
 
-Absent while open. The first correction, one visibility loop per element through a per frame
-dedupe injected as a Cohtml initial script from the DLL, is under test (DEC-010).
+Absent. The cost sits in the game's UI pages and scripts, where no engine lever of the DLL
+reaches (DEC-010). What a felt fix takes is written up as TODO-011, an overhaul of the page
+scripts delivered as an initial script of the view, not started, the owner's decision.
 
 ## Verification
 

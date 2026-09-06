@@ -3,7 +3,7 @@ name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
 updated: 2026-09-06
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05]
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, cohtml-ui-engine]
 ---
 
 # Telemetry
@@ -21,7 +21,9 @@ picked from it, every DirectStorage factory, queue and file event, per queue sta
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
 with the streaming activity since the previous hitch, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
-the render adapter.
+the render adapter. The `[ui]` lines record the Cohtml library, system and views as the game
+creates them, with the inspector port the game asked for and the one the proxy set
+(`cohtml-ui-engine`).
 
 With `[log] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)

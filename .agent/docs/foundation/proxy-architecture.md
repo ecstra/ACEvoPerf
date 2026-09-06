@@ -3,7 +3,7 @@ name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
 updated: 2026-09-06
-links: [DEC-001-dstorage-proxy-as-loader, directstorage-streaming, engine-flags, telemetry]
+links: [DEC-001-dstorage-proxy-as-loader, directstorage-streaming, engine-flags, telemetry, cohtml-ui-engine]
 ---
 
 # Proxy architecture
@@ -20,6 +20,7 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `render/` | `dxgi_hooks`, `frame_stats`, `adapter` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check |
 | `telemetry/` | `timeline` | the per second CSV thread and the frame CSV flush |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
+| `ui/` | `cohtml` | the Cohtml library, system and view hooks, the DevTools inspector switch (see `cohtml-ui-engine`) |
 
 `include/acevo/common.h` holds the Windows, D3D12, DXGI and DirectStorage includes and the version
 string. Every header includes it, every source includes its own header first.
@@ -73,6 +74,9 @@ string. Every header includes it, every source includes its own header first.
   flushes the frame buffer.
 - `overlay/overlay`: `BuildToc` rewrites the package table in memory, `Hook_ReadFile` serves it,
   `OverlayRedirect` points DirectStorage requests at the loose files (see `content-package`).
+- `ui/cohtml`: the exe's import of `cohtml::Library::Initialize` is patched, the returned
+  library's `CreateSystem` and the system's `CreateView` are hooked once, each logged. With
+  `[ui] inspector_port` set the system settings copy carries the port and the debugger flag.
 
 ## What it never does
 

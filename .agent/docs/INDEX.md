@@ -19,6 +19,7 @@ links: [agent-index, spec-docs]
 - [content-package](systems/content-package.md), content.kspkg layout, hash and cipher
 - [package-override-layer](systems/package-override-layer.md), loose files under acevo_mods shadow package entries, how and what was verified
 - [settings-files](systems/settings-files.md), user data location and the VideoSettings fields worth knowing
+- [cohtml-ui-engine](systems/cohtml-ui-engine.md), the Coherent Gameface engine behind the menus, what the proxy reaches in it, the inspector, how the pages and scripts behave
 
 ## ops
 
@@ -31,3 +32,4 @@ links: [agent-index, spec-docs]
 - [moddability](research/moddability.md), how the game is built and what a mod can change
 - [lap-2026-09-05-nordschleife](research/lap-2026-09-05-nordschleife.md), the first telemetry lap and what it showed
 - [one-percent-low-hunt-2026-09-05](research/one-percent-low-hunt-2026-09-05.md), nineteen instrumented laps into the 1 percent low, what was measured, ruled out and left
+- [ui-lag-hunt-2026-09-06](research/ui-lag-hunt-2026-09-06.md), a morning of instrumented runs into the menu and settings page lag, every DLL lever measured, where the cost sits, what a fix takes

@@ -15,6 +15,7 @@ bug
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, everything else ruled out over nineteen laps, parked with its leads in TODO-010
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
+- [BUG-014-ui-pages-lag-on-open-switch-and-interaction](BUG-014-ui-pages-lag-on-open-switch-and-interaction.md), document reloads, one frame list builds and per frame relayouts in the game's own UI scripts, measured lever by lever, no engine fix, the overhaul is TODO-011
 
 ## Won't fix
 
