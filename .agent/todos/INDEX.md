@@ -16,7 +16,7 @@ streaming
 
 render
 
-- [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure
+- [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), engine inefficiencies the mod can correct: per frame C++ exceptions first (throw log built), then the tiled instances buffer
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
 
 ## Done

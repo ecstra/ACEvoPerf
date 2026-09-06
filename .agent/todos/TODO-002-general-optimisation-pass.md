@@ -2,8 +2,8 @@
 name: TODO-002-general-optimisation-pass
 kind: todo
 description: raise the lap frame rate on the 6 GB laptop GPU without visible quality loss
-updated: 2026-09-05
-links: [BUG-002-fps-drop-entering-new-track-sections, lap-2026-09-05-nordschleife, settings-files]
+updated: 2026-09-06
+links: [BUG-002-fps-drop-entering-new-track-sections, BUG-009-one-percent-lows-far-below-average, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, engine-flags, telemetry]
 status: open
 by: owner
 area: render
@@ -22,9 +22,26 @@ The lap of 2026-09-05 shows the GPU pinned at 100 percent and thermally throttle
 
 ## Done when
 
-A default ini plus a recommended settings profile that lifts the per minute average above the
-current 75 to 83 fps on the same lap, measured with the timeline, and a second profile for
-sharper textures. Candidates, each to be measured alone for one lap: DLSS Quality instead of
-Ultra Quality (about 22 percent fewer pixels), clouds Ultra to High, volumetrics Ultra to High,
-motion blur Ultra to Medium, grass Ultra to High, `gibake_probes_per_frame` 16 to 8, and a fan
-profile that keeps the GPU under its 87 °C slowdown point.
+Every engine inefficiency the mod can correct on this machine is either fixed in the default
+ini or written off with a measurement. Settings profiles are out (owner, 2026-09-06: the mod
+fixes what the engine gets wrong, it does not ship knobs), so the earlier candidates (DLSS
+Quality, clouds, volumetrics, motion blur and grass one step down, fewer GI probes) are the
+owner's own menu choices and not this item.
+
+## Candidates, 2026-09-06
+
+- C++ exceptions on the render thread. The sampler put about 2.4 percent of the render
+  thread's samples in the C runtime's exception unwinding, so the game throws and catches
+  every frame. `[log] throw_log=1` names the throw sites and types, one lap decides whether a
+  throw site is a lookup the mod can satisfy (a missing file or key served through the
+  overlay, the way the icons were fixed) or the engine's own control flow.
+- The tiled instances buffer (`dx12_instances_tiled`, on by default: 384 MB virtual over
+  256 MB of backing, mapped and unmapped on the graphics queue as it grows). Frames with tile
+  mappings ran 0.8 ms slower in lap 15. One lap with the flag off says whether the plain
+  buffer is cheaper on this card.
+- Thread pools are a rule, not a fault: two render, two physics and one loading worker, then
+  every logical core beyond eight adds one in the order physics, render, physics, render,
+  loading, so 16 logical cores give 6, 5 and 2 (`minimumcores=true` stops at the base).
+  Nothing to fix there without a code patch, parked.
+- The present path through the integrated GPU costs about a millisecond a frame and more in
+  slow frames (BUG-009). Hardware wiring, not the mod's.

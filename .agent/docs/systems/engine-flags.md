@@ -2,7 +2,7 @@
 name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
-updated: 2026-09-05
+updated: 2026-09-06
 links: [DEC-002-flags-by-memory-write, release-build-ignores-gflags-cli, proxy-architecture]
 ---
 
@@ -39,7 +39,10 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 
 `minimumcores=true` changed the game log's thread line from `Render: 5 - Physics: 6 - Loading: 2`
 to `2 - 2 - 1`, and `force_canonical_pool_sizes=true` produced the `canonical sizes forced` lines
-with 1433 MB pools, both on 2026-09-05. `no_intro` has no visible trace in the log yet.
+with 1433 MB pools, both on 2026-09-05. The pool sizes follow a rule read from the exe on
+2026-09-06: two render, two physics and one loading worker always, then one more worker per
+logical processor beyond eight in the order physics, render, physics, render, loading, so 16
+logical processors give 6, 5 and 2. `minimumcores` skips the extra workers. `no_intro` has no visible trace in the log yet.
 `texture_tier0=true` on a four minute drive of 2026-09-05 cut tile traffic to 1.3 GB with whole
 minutes at 1 MB (lap one moved 8.3 GB in fourteen minutes) and the owner saw the car stuck at
 low detail. `ui_force_resource_preloading=true` logged the preload but the owner felt no change.
