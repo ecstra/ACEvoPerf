@@ -5,8 +5,8 @@ struct Config {
     // [log]
     bool logEnabled = true;
     std::wstring logFile = L"acevo_perf.log";
-    bool timeline = true;       // acevo_perf_timeline.csv, one line per second
-    bool frames = true;         // acevo_perf_frames.csv, one line per presented frame
+    bool timeline = false;      // acevo_perf_timeline.csv, one line per second, off by default
+    bool frames = false;        // acevo_perf_frames.csv, one line per presented frame, off by default
     int  hitchMs = 33;          // frames slower than this are logged individually
     bool throwLog = false;      // count the game's C++ exceptions by throw site
     // [directstorage]

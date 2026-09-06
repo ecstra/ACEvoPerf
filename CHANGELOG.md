@@ -4,6 +4,21 @@ What the mod does, what it fixes and how, one entry per user visible change. New
 Verified means measured in `acevo_perf.log` or seen by the owner in the game on the reference
 machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
+## Unreleased
+
+### Changed
+
+- The two CSV files (`acevo_perf_timeline.csv`, `acevo_perf_frames.csv`) are off by default,
+  `timeline=1` and `frames=1` in the ini turn them on. The log stays on, it is the file to post
+  with a problem report.
+
+### Fixed
+
+- With both CSVs off, the hitch lines in the log stopped after the first five of a session and
+  the throw log never wrote a line, because the thread that refills the hitch budget and ticks
+  the throw log only ran for the CSVs. It runs whenever the mod loads now, the sampling work
+  only while a CSV is on.
+
 ## 0.3.0 (2026-09-06)
 
 ### Fixed

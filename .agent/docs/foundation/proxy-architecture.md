@@ -68,8 +68,9 @@ string. Every header includes it, every source includes its own header first.
 - `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
   memory, `ResolveAutoSizes` applies them once, `LogDisplayOwner` compares the monitor's
   adapter with the D3D12 device's adapter LUID.
-- `telemetry/timeline`: `TimelineThread` wakes every second, resets the counters, queries video
-  memory on the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line,
+- `telemetry/timeline`: `TimelineThread` wakes every second, refills the hitch log budget and
+  ticks the throw log, and while a CSV is on it also resets the counters, queries video memory on
+  the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line and
   flushes the frame buffer.
 - `overlay/overlay`: `BuildToc` rewrites the package table in memory, `Hook_ReadFile` serves it,
   `OverlayRedirect` points DirectStorage requests at the loose files (see `content-package`).

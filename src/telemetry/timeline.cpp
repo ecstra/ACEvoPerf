@@ -52,7 +52,8 @@ static DWORD WINAPI TimelineThread(void*)
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
-    IDXGIAdapter3* adapter = FindRenderAdapter();
+    bool anyCsv = csv != INVALID_HANDLE_VALUE || framesCsv != INVALID_HANDLE_VALUE;
+    IDXGIAdapter3* adapter = anyCsv ? FindRenderAdapter() : nullptr;
 
     SYSTEM_INFO si; GetSystemInfo(&si);
     double cores = (double)si.dwNumberOfProcessors;
@@ -64,14 +65,17 @@ static DWORD WINAPI TimelineThread(void*)
     for (int i = 0; i < 5; ++i) { lastReq[i] = g_reqByDest[i].load(); lastBytes[i] = g_bytesByDest[i].load(); }
     double lastT = NowSec();
 
+    // The per second tick runs even with both CSVs off: it refills the hitch log budget and
+    // drives the throw log, only the sampling below is skipped.
     for (;;) {
         Sleep(1000);
         ThrowLogTick();
+        g_hitchLogBudget.store(5);
+        if (!anyCsv) continue;
         double t = NowSec(); double dt = t - lastT; if (dt <= 0) dt = 1; lastT = t;
 
         uint64_t frames = g_frames.exchange(0), sumUs = g_frameSumUs.exchange(0), maxUs = g_frameMaxUs.exchange(0);
         uint64_t h20 = g_hitch20.exchange(0), hc = g_hitchCfg.exchange(0);
-        g_hitchLogBudget.store(5);
 
         uint64_t dReq[5], dBytes[5];
         for (int i = 0; i < 5; ++i) {
@@ -127,7 +131,7 @@ static DWORD WINAPI TimelineThread(void*)
 
 void StartTimeline()
 {
-    if (g_timelineThread || (!g_cfg.timeline && !g_cfg.frames)) return;
+    if (g_timelineThread) return;
     g_timelineThread = CreateThread(nullptr, 0, TimelineThread, nullptr, 0, nullptr);
     Log("timeline thread started (timeline=%d frames=%d hitch_ms=%d)", g_cfg.timeline, g_cfg.frames, g_cfg.hitchMs);
 }

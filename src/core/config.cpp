@@ -37,8 +37,8 @@ void LoadConfig()
 {
     g_cfg.logEnabled = IniBool(L"log", L"enabled", true);
     g_cfg.logFile = IniStr(L"log", L"file", L"acevo_perf.log");
-    g_cfg.timeline = IniBool(L"log", L"timeline", true);
-    g_cfg.frames = IniBool(L"log", L"frames", true);
+    g_cfg.timeline = IniBool(L"log", L"timeline", false);
+    g_cfg.frames = IniBool(L"log", L"frames", false);
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
     g_cfg.throwLog = IniBool(L"log", L"throw_log", false);
 

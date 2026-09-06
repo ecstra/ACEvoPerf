@@ -8,8 +8,9 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-
 
 # Telemetry
 
-All files are written next to the game executable and overwritten on every launch. Copy them to
-a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
+All files are written next to the game executable and overwritten on every launch. The log is
+on by default, the two CSVs are off (`timeline=1` and `frames=1` under `[log]` turn them on). Copy
+them to a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
 gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
 
@@ -31,7 +32,9 @@ eight busiest sites. Off by default, the hook costs nothing when a frame throws 
 
 ## acevo_perf_timeline.csv
 
-One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
+One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`). The thread runs whenever
+the mod loads, because its tick also refills the hitch log budget and drives the throw log, and
+it samples and writes only while a CSV is on. Columns:
 
 - `clock`, `t_s`: wall clock `HH:MM:SS` for lining up with the game log, seconds since attach
 - `frames`, `fps`, `avg_ms`, `max_ms`: presented frames in the second, rate, mean and worst frame
