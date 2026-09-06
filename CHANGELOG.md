@@ -8,11 +8,16 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Fixed
 
-- Crashes on car change, track change and at startup on 6 GB cards, and the menu and car select
-  icons that stopped loading after a while. Cause: the game asks DirectStorage for a 1 GB staging
-  buffer, which the runtime keeps twice in video memory, so 2 GB of a 6 GB card were gone before
-  the first texture. The mod caps the staging buffer at 128 MB (`staging_buffer_mb`). Verified:
-  four car swaps and a car plus track swap in a row with no crash, icons stay.
+- Crashes on car change, track change and at startup on 6 GB cards. Cause: the game asks
+  DirectStorage for a 1 GB staging buffer, which the runtime keeps twice in video memory, so
+  2 GB of a 6 GB card were gone before the first texture. The mod caps the staging buffer at
+  128 MB (`staging_buffer_mb`). Verified: four car swaps and a car plus track swap in a row
+  with no crash.
+- Missing icons in the vehicle hub and the menus. Before the fix they loaded sometimes and most
+  of the time the tiles stayed empty with no icon at all, and they dropped out again after a
+  while in a session. Same cause, the staging buffers starved the video memory the icon
+  textures needed, same fix. Verified: icons load every time and stay through car and track
+  changes.
 - Blurry road, tyre and ground textures, worse after restarting a session (text on the tarmac
   turned to mush). Cause: the engine sizes its texture and mesh pools from the memory left over
   during scene transitions, which gave 633 MB in a race and 526 MB after a restart. The mod sets
