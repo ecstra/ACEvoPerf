@@ -2,8 +2,8 @@
 name: tools
 kind: doc
 description: the Python tools in tools/ and what each command does
-updated: 2026-09-05
-links: [content-package, settings-files, telemetry]
+updated: 2026-09-06
+links: [content-package, settings-files, telemetry, cohtml-ui-engine, ui-lag-hunt-2026-09-06]
 ---
 
 # Tools
@@ -50,6 +50,24 @@ Library used by the settings tool. `load(exe)` returns a descriptor pool and the
 session folder: frame time percentiles, per second fps, VRAM against budget, streaming volume and
 batch sizes, CPU, GPU clocks and throttle reasons, slow clusters with everything joined on the
 clock second, the logged hitches and PSO activity from the game log.
+
+## ui_transitions.py
+
+`ui_transitions.py FRAMES_CSV MOD_LOG GAME_LOG [--window 2.0]` lines the mod's frames CSV up
+with the game log's page markers and prints the cost of every UI transition (worst frame, frames
+over 33 ms, total stall in the window) and the steady frame time of every page stretch. The
+measure behind BUG-014 and `ui-lag-hunt-2026-09-06`.
+
+## ui_probe.py
+
+`ui_probe.py record --port 9444 --out DIR` attaches to the menu view through the engine's
+inspector (`[ui] inspector_port=9444` in the mod's ini, see `cohtml-ui-engine`), installs a
+probe script on every page and writes one line per second with the frame count, the engine
+calls, the model updates, the forced layout reads and the time of every frame callback and
+event handler. Lines appended to `DIR/commands.txt` are evaluated in the page, which is how
+switches are flipped and pages driven (`window.ksUI.goTo(page, path)`). `ui_probe.py eval EXPR`
+runs one expression. Needs `pip install websockets`. The game only advances its UI while its
+window is active, send it a key before scripting it.
 
 ## data/gflags_full.tsv
 

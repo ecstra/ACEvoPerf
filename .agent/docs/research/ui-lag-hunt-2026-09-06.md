@@ -19,12 +19,12 @@ folders `logs/ui1-inspector` to `logs/ui16-relayout` hold the raw files.
 - A per second account of `Library::ExecuteWork` by thread and work type, wall against CPU
   time, with the exe call sites, plus a layout thread of the mod and a V8 flags switch. All in
   the history before the commit `removed: the UI lag hunt instruments and script patches`.
-- A JavaScript probe pushed through the inspector (`Runtime.evaluate`) that wrapped
-  `requestAnimationFrame`, the engine's event handlers, `engine.call`, the model updates and
-  the forced layout reads, reporting counts and milliseconds per second, and a command channel
-  to flip switches in the live page. Scratchpad scripts of the session, not in the repo.
-- `ui_transitions.py` (scratchpad): the frames CSV lined up with the game log's page markers,
-  the cost of every page switch as the worst frame and the total stall in the two seconds after.
+- `tools/ui_probe.py`: a JavaScript probe pushed through the inspector (`Runtime.evaluate`)
+  that wraps `requestAnimationFrame`, the engine's event handlers, `engine.call`, the model
+  updates and the forced layout reads, reporting counts and milliseconds per second, with a
+  command channel to flip switches and drive pages in the live view.
+- `tools/ui_transitions.py`: the frames CSV lined up with the game log's page markers, the
+  cost of every page switch as the worst frame and the total stall in the two seconds after.
 
 ## What was measured
 

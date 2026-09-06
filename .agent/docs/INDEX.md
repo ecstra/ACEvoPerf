@@ -25,7 +25,7 @@ links: [agent-index, spec-docs]
 
 - [telemetry](ops/telemetry.md), the log and CSV files and their columns, plus the GPU sampler
 - [build-and-release](ops/build-and-release.md), build, install, uninstall, gates
-- [tools](ops/tools.md), the Python tools and their commands
+- [tools](ops/tools.md), the Python tools and their commands, including the UI probe and the transition report
 
 ## research
 
