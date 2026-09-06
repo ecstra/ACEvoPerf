@@ -2,22 +2,23 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-05
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife]
+updated: 2026-09-06
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05]
 ---
 
 # Telemetry
 
 All files are written next to the game executable and overwritten on every launch. Copy them to
 a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
-gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them.
+gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
+`--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
 
 ## acevo_perf.log
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
-with the streaming activity since the previous hitch, and swap chain events.
+with the streaming activity since the previous hitch, and the swap chain's creation parameters.
 
 ## acevo_perf_timeline.csv
 
@@ -35,69 +36,17 @@ One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):
   adapter, local segment
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
 - `ws_mb`, `commit_mb`: working set and private commit of the game process
-- `input_polls`, `input_ms`, `input_max_ms`: controller polls (XInput `GetState` and
-  `GetCapabilities`, DirectInput `Poll` and `GetDeviceState`) in the second, their total time and
-  the slowest single call. Zero unless `[input] probe=1`. Polls over 1 ms also get an `[input]`
-  line in the log (first 20).
 
 ## acevo_perf_frames.csv
 
-One line per presented frame: `t_s`, `frame_ms`, `present_ms` (how long the previous Present
-call itself blocked, a frame spent inside Present waited for the display or the queue rather
-than rendering), `wait_ms` (time the render thread spent in `WaitForSingleObject(Ex)` and
-`WaitForMultipleObjects(Ex)` during the frame, from any module, the import slots of every loaded
-module are patched and patched again once the D3D12 device exists so the driver counts too),
-`fence_ms` (the part of `wait_ms` spent on events that `ID3D12Fence::SetEventOnCompletion` was
-given, plus blocking calls of that method with a null event, which is waiting for the GPU), and
-the DirectStorage requests enqueued since the previous present, `tile_req` (texture tiles),
+One line per presented frame: `t_s`, `frame_ms` (time since the previous present) and the
+DirectStorage requests enqueued since the previous present, `tile_req` (texture tiles),
 `f2m_req` (package to memory) and `gpumem_req` (memory to GPU). Frames longer than two seconds
-are dropped as pauses. About 2 MB per ten minutes at 90 fps.
+are dropped as pauses. About 1 MB per ten minutes at 90 fps.
 
-The log gets a `[wait]` line per minute for every handle the render thread waited on for more
-than 20 ms in that minute, marked as a D3D12 fence event or the swap chain's frame latency object
-when it is one. The report's spread section prints the slowest 1 percent against the faster half
-as GPU fence wait, other waits, present and render thread work.
-
-## acevo_perf_samples.csv
-
-Written with `[profile] sampler=1` (`sample_us`, default 250, at least 50). A thread suspends
-the render thread at that interval, reads its instruction pointer and resumes it, about one core
-while on, so the setting is for analysis sessions only. One line per presented frame: `t_s`,
-`frame_ms`, then the sample count per bucket in the frame: `game` (the exe), `cohtml`, `v8`,
-`renoir` (the UI runtime, its script engine and its renderer), `d3d12`, `driver`, `dxgi`, then
-the system DLLs split by the nearest export at the sampled address into `wait` (`NtWaitFor*`,
-`WaitFor*`, `SleepEx`, `NtDelayExecution`), `lock` (critical sections, SRW locks,
-`NtWaitForAlertByThreadId`), `heap` (heap, malloc, free), `memcpy` (copy, move, set, compare)
-and `system` (the rest), then `dstorage`, `audio` and `other`. Multiply a count by `sample_us`
-for the time.
-
-Every sample is kept for a minute with the frame it fell in. Once a minute the log gets
-`sampler:` lines for that minute's frames under 100 ms, the slowest 1 percent against the median
-half, the same cut the report makes, so loading stalls do not colour the picture: the game code
-addresses (64 byte buckets, relative virtual addresses) with the most samples in the slowest
-frames beyond what the median half predicts, the functions outside the game code with the most
-extra samples (the nearest export of a system DLL as `module!export`, or the module bucket), the
-functions outside the game code with the most samples in the median half (the steady cost), and
-the function plus the game call site under it, found as the first address of the exe's code
-section on the suspended thread's stack. Read those addresses in the exe statically (function
-bounds from the unwind table, calls resolved through the exe's jump thunks, strings and imports
-of the function and its callers). The report's sample mix section prints the bucket shares of
-the slowest 1 percent against the median half and the extra samples per slow frame.
-
-## Device events in the log
-
-With `[input] device_events=1` (default) the log gets a `[device]` line for every device interface
-arrival or removal Windows broadcasts to the process (HID, USB, keyboard, mouse, audio, monitor,
-display adapter, unknown classes as a GUID) and for audio endpoint changes (state, added, removed,
-default device). Each carries the seconds since attach, to line up with the frames CSV. The game
-rebuilds its DirectInput devices and restarts its audio on such events, a frame of several hundred
-milliseconds.
-
-## Frame limiter
-
-`[dxgi] fps_limit=N` holds the present call until the frame interval has passed, sleeping while
-more than two milliseconds remain and spinning the rest. Off at 0. A limit a little under the
-usual rate evens the pace, the frames CSV shows the result directly.
+The report's spread section reads it: median, p99 over median, frames over 1.3, 1.5 and 2 times
+the median with their share of the window's time, and how many of the slowest 1 percent carry
+tile requests or uploads against the share of all frames that do.
 
 ## GPU sampler
 
@@ -111,4 +60,14 @@ nvidia-smi --query-gpu=timestamp,utilization.gpu,utilization.memory,memory.used,
 
 `Saved Games\ACE\Logs\log-YYMMDD-HHMMSS.txt`. Launching with `-log_debug=rendering` raises the
 rendering logger to debug, and the flag `log_pso_on_creation=true` adds a line per pipeline state
-object. On 0.9.0 the debug rendering logger only adds PSO cache lines.
+object. On 0.9.0 the debug rendering logger only adds PSO cache lines. The log also names the
+adapter each monitor hangs off (`[Monitor] flat N (adapter ...)`), which told the 1 percent low
+hunt that both displays are outputs of the integrated GPU.
+
+## Deeper instruments, removed
+
+The 1 percent low hunt of 2026-09-05 added a render thread sampling profiler, GPU timestamps per
+command list batch, wait and queue hooks, a core speed probe, an input polling probe and a device
+event log. They were removed on 2026-09-06 with their columns and log lines, the code is in the
+history before commit `removed: the latency hunt instrumentation` and what they measured is in
+`one-percent-low-hunt-2026-09-05`.
