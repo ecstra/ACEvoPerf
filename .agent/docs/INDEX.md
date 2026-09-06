@@ -23,7 +23,7 @@ links: [agent-index, spec-docs]
 ## ops
 
 - [telemetry](ops/telemetry.md), the log and CSV files and their columns, plus the GPU sampler
-- [build-and-release](ops/build-and-release.md), build, install, uninstall, gates
+- [build-and-release](ops/build-and-release.md), build, install, uninstall, gates, and publishing on Overtake and GitHub
 - [tools](ops/tools.md), the Python tools and their commands
 
 ## research

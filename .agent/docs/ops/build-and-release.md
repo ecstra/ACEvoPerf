@@ -1,9 +1,9 @@
 ---
 name: build-and-release
 kind: doc
-description: how to build, install, uninstall and package the mod, the first release cut on 2026-09-06
+description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
 updated: 2026-09-06
-links: [TODO-004-release-packaging, proxy-architecture]
+links: [TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror]
 ---
 
 # Build and release
@@ -53,9 +53,28 @@ The icon for the mod listing is `assets/icon-512.png` (ACE over PERF, Bahnschrif
 Condensed on a black tile), with a 1024 px version next to it. `assets/icon.py` renders both
 with Pillow and the Bahnschrift font that ships with Windows, and `assets/header.py` renders
 `assets/header.png`, the banner at the top of the readme, the repo name in the pixel lettering
-the owner's other repos use, with EVO outlined, from glyphs defined in the script. Releases
-are published on GitHub (`gh release create v<version> release/<zip>` with notes in the
-readme's voice), which is also the download people get pointed at.
+the owner's other repos use, with EVO outlined, from glyphs defined in the script.
+
+## Publish
+
+Two channels, the same zip, decided in DEC-013. In this order once the tag exists:
+
+1. GitHub: `gh release create v<version> release/ACEvoPerf-<version>.0.zip --title
+   "ACEvoPerf <version>"` with `--notes-file` pointing at notes written in the readme's voice
+   (what it fixes, the important block, install, uninstall, the version's changes, credits,
+   the Overtake link at the top). `gh release edit` replaces the notes later.
+2. Overtake: "Post an update" on the listing (`overtake.gg/downloads/acevoperf.86467`) with
+   the same zip, the version number and a short update text. The listing's description
+   holds the same content as the readme in plain paragraphs, the credits line for the
+   Microsoft runtime included, and the icon is `assets/icon-512.png`. The listing's
+   information link is the repo.
+3. The repo's About link stays on the Overtake page, the readme's badge row and install step
+   name both downloads as the same file.
+
+Overtake filters uploads that contain game files, and `dstorage_orig.dll` is byte identical
+to the game's own, so a takedown without notice can happen. It did on 2026-09-06 and their
+support restored the page the same evening. The mirror is what keeps the download reachable
+in the meantime.
 
 ## Gates
 
