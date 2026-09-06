@@ -9,6 +9,7 @@
   <br>
   <a href="https://github.com/ecstra/ACEvoPerf/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ecstra/ACEvoPerf?label=release&color=brightgreen"></a>
   <a href="https://github.com/ecstra/ACEvoPerf/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ecstra/ACEvoPerf/total?color=blue"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-yellow.svg"></a>
   <a href="https://github.com/ecstra/ACEvoPerf/releases/latest"><img alt="Windows 11" src="https://img.shields.io/badge/windows-11-0078D6.svg"></a>
   <img alt="Assetto Corsa EVO 0.9.0" src="https://img.shields.io/badge/Assetto_Corsa_EVO-0.9.0-E10600.svg">
   <br><br>
@@ -81,3 +82,5 @@ Everything is in `acevo_perf.ini`, every key is explained in the file.
 ## Credits
 
 `dstorage_orig.dll` is Microsoft's DirectStorage 1.2.3 runtime from the NuGet package `Microsoft.Direct3D.DirectStorage`, byte identical to the one the game ships, redistributed under its license (`third_party/directstorage`). The rest is by **ecstra**.
+
+Licensed under MIT.
