@@ -3,7 +3,7 @@ name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
 updated: 2026-09-06
-links: [DEC-002-flags-by-memory-write, release-build-ignores-gflags-cli, proxy-architecture]
+links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, release-build-ignores-gflags-cli, proxy-architecture]
 ---
 
 # Engine flags
@@ -24,7 +24,7 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 | `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | on by default in the mod |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
 | `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget (1433 MB each on its own) | on by default, DEC-005 |
-| `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | 1024 by default, DEC-005 |
+| `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |
 | `texture_tier0` | false | "Force Texture Tier 0" pins every texture to its lowest tier, tile streaming stops | never enable |
 | `ui_force_resource_preloading` | false | preloads 1037 interface files (181 MB) at start, no measurable effect | measured, off |
 | `gibake_probes_per_frame` | 16 | GI probes rendered per frame | TODO-002 |

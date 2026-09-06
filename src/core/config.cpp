@@ -42,7 +42,9 @@ void LoadConfig()
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
     g_cfg.throwLog = IniBool(L"log", L"throw_log", false);
 
-    g_cfg.stagingMb = IniInt(L"directstorage", L"staging_buffer_mb", 256);
+    std::wstring staging = IniStr(L"directstorage", L"staging_buffer_mb", L"auto");
+    g_cfg.stagingAuto = (staging == L"auto");
+    g_cfg.stagingMb = g_cfg.stagingAuto ? 0 : _wtoi(staging.c_str());
     g_cfg.minQueueCapacity = IniInt(L"directstorage", L"min_queue_capacity", 0);
     g_cfg.submitThreads = IniInt(L"directstorage", L"submit_threads", 0);
     g_cfg.cpuDecompThreads = IniInt(L"directstorage", L"cpu_decompression_threads", 0);

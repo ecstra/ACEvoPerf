@@ -16,9 +16,12 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 ## acevo_perf.log
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
-value, every DirectStorage factory, queue and file event, per queue statistics every
+value, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
+picked from it, every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
-with the streaming activity since the previous hitch, and the swap chain's creation parameters.
+with the streaming activity since the previous hitch, the swap chain's creation parameters and
+a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
+the render adapter.
 
 With `[log] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)

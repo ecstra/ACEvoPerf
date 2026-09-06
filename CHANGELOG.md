@@ -26,8 +26,21 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   four, unchanged after a restart. Texture quality must be Ultra in the game settings for the
   full effect.
 
+### Improved
+
+- The texture tile pool and the DirectStorage staging buffer are sized from the card at start
+  (`tile_pool_mb=auto`, `staging_buffer_mb=auto`, the defaults now): the mod reads the render
+  adapter's dedicated memory the moment the game creates its DXGI factory, before the renderer
+  sizes its pools, and picks 1024, 1536, 2048 or 3072 MB of tiles and 128, 192 or 256 MB of
+  staging for cards under 7, 11 and 15 GB and above. The same zip is right on any card, a
+  number in the ini still overrides. Verified: 5994 MB card, 1024 and 128 chosen and applied.
+
 ### Added
 
+- Display owner check: at swap chain creation the log says which adapter owns the monitor the
+  window sits on. When it is not the render adapter (laptops with two GPUs), a warning explains
+  that every frame is copied to the other adapter before it is shown, about a millisecond per
+  frame and more on slow frames, and that a display wired to the render adapter avoids it.
 - Package override layer: files under `acevo_mods\<package path>` next to the exe replace or add
   entries of `content.kspkg` without touching the 64 GB package. The proxy rewrites the package
   table in memory when the game reads it and points the game's DirectStorage requests at the

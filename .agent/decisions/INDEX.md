@@ -2,12 +2,13 @@
 name: decisions-index
 kind: doc
 description: index of every decision taken, newest first
-updated: 2026-09-05
+updated: 2026-09-06
 links: [agent-index, spec-decisions]
 ---
 
 # Decisions Index
 
+- [DEC-009-pool-and-staging-sizes-by-card](DEC-009-pool-and-staging-sizes-by-card.md), 2026-09-06, tile pool and staging buffer picked from the card's memory at the game's first DXGI factory
 - [DEC-008-frame-latency-left-to-the-game](DEC-008-frame-latency-left-to-the-game.md), 2026-09-05, the game's swap chain latency stays, the proxy logs the calls
 - [DEC-007-drag-and-drop-install-with-bundled-runtime](DEC-007-drag-and-drop-install-with-bundled-runtime.md), 2026-09-05, zip bundles the Microsoft runtime, no install scripts
 - [DEC-006-frame-latency-cap-default](DEC-006-frame-latency-cap-default.md), 2026-09-05, superseded by DEC-008, the cap never took effect

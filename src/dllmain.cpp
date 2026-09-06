@@ -44,8 +44,10 @@ static void OnAttach(HMODULE h)
         LogOpen(lp);
     }
     Log("ACEvoPerf %s attached (pid %lu). ini=%ls", ACEVO_PERF_VERSION, GetCurrentProcessId(), g_iniPath.c_str());
-    Log("config: staging=%dMB minQueueCap=%d submitThreads=%d cpuDecomp=%d bypassIO=%s mappingLayer=%d fileBuffering=%d stats=%d/%ds logRequests=%d | priority=%d powerThrottleOff=%d timer=%dus | flags=%zu | dxgi=%d frameStats=%d timeline=%d frames=%d hitchMs=%d",
-        g_cfg.stagingMb, g_cfg.minQueueCapacity, g_cfg.submitThreads, g_cfg.cpuDecompThreads, g_cfg.disableBypassIo ? "disabled" : "enabled",
+    char staging[16];
+    if (g_cfg.stagingAuto) strcpy_s(staging, "auto"); else _snprintf_s(staging, sizeof staging, _TRUNCATE, "%dMB", g_cfg.stagingMb);
+    Log("config: staging=%s minQueueCap=%d submitThreads=%d cpuDecomp=%d bypassIO=%s mappingLayer=%d fileBuffering=%d stats=%d/%ds logRequests=%d | priority=%d powerThrottleOff=%d timer=%dus | flags=%zu | dxgi=%d frameStats=%d timeline=%d frames=%d hitchMs=%d",
+        staging, g_cfg.minQueueCapacity, g_cfg.submitThreads, g_cfg.cpuDecompThreads, g_cfg.disableBypassIo ? "disabled" : "enabled",
         g_cfg.forceMappingLayer, g_cfg.forceFileBuffering, g_cfg.stats, g_cfg.statsIntervalS, g_cfg.logRequests,
         g_cfg.priority, g_cfg.disablePowerThrottling, g_cfg.timerResolutionUs, g_cfg.flags.size(),
         g_cfg.dxgiEnabled, g_cfg.frameStats, g_cfg.timeline, g_cfg.frames, g_cfg.hitchMs);

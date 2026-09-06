@@ -17,7 +17,7 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `core/` | `log`, `config`, `iat` | log file, ini reading into `g_cfg`, import table and vtable patching |
 | `dstorage/` | `proxy`, `stats` | the four exports, `FactoryProxy`, `QueueProxy`, process wide request counters |
 | `engine/` | `flags`, `process` | gflags scan and write, priority class, power throttling, timer resolution |
-| `render/` | `dxgi_hooks`, `frame_stats` | factory and swap chain hooks, `Present` timing and hitch logging |
+| `render/` | `dxgi_hooks`, `frame_stats`, `adapter` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check |
 | `telemetry/` | `timeline` | the per second CSV thread and the frame CSV flush |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
 
@@ -38,9 +38,13 @@ string. Every header includes it, every source includes its own header first.
    `FactoryProxy`.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
    capacity, wraps the result in a `QueueProxy` when statistics are on.
-4. Game creates the swap chain: the factory vtable hooks (`HookFactoryVtable`) catch
-   `CreateSwapChainForHwnd` and `CreateSwapChain`, then `HookSwapChain` hooks `Present` and
-   `Present1` on the swap chain's vtable for frame timing.
+4. Game creates its DXGI factory: `HookFactoryVtable` hooks `CreateSwapChainForHwnd` and
+   `CreateSwapChain`, and `ResolveAutoSizes` reads the render adapter's memory off that factory
+   and writes every ini value set to `auto` (the tile pool flag, the staging buffer size). This
+   happens before the game's device and pools exist, which is why the values cannot wait for
+   step 2's late pass on a second launch order. When the swap chain is created, `HookSwapChain`
+   hooks `Present` and `Present1` on its vtable for frame timing and `LogDisplayOwner` names the
+   adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
    every loaded module (`PatchEverywhere`) so the package table read at startup can be rewritten.
 
@@ -61,6 +65,9 @@ string. Every header includes it, every source includes its own header first.
   and buffers per frame samples with the streaming requests since the previous frame.
 - `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
   the swap chain to `HookSwapChain`.
+- `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
+  memory, `ResolveAutoSizes` applies them once, `LogDisplayOwner` compares the monitor's
+  adapter with the D3D12 device's adapter LUID.
 - `telemetry/timeline`: `TimelineThread` wakes every second, resets the counters, queries video
   memory on the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line,
   flushes the frame buffer.

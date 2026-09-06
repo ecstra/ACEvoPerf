@@ -8,8 +8,12 @@ INSTALL
 
 SETTINGS
   Everything is in acevo_perf.ini, each key is explained in the file.
-  Defaults are tuned for a 6 GB GPU. On 8 GB set tile_pool_mb=1536, on 12 GB or
-  more tile_pool_mb=2048.
+  The texture pool and the DirectStorage staging buffer are sized from your
+  card's memory at start (tile_pool_mb=auto, staging_buffer_mb=auto), the
+  chosen values are in acevo_perf.log. Set a number in the ini to override.
+  The log also says when the game's window is on a monitor owned by another
+  GPU than the one rendering (laptops with two GPUs): every frame is then
+  copied across, and a display wired to the render GPU avoids that.
 
 MODS FOLDER (optional)
   Files placed under acevo_mods\ next to the exe replace the file of the same

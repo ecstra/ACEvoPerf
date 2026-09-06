@@ -37,7 +37,7 @@ line in the same commit.
 
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 2 open (TODO-009, TODO-010), 6 done, 1 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 3 open, 6 fixed, 3 won't fix
-- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 6 standing (DEC-001 to DEC-003, DEC-005, DEC-007, DEC-008), 2 superseded
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 7 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009), 2 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet
 
 ## Memory and handovers

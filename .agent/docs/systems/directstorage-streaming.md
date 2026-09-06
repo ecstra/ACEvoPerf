@@ -2,8 +2,8 @@
 name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage and how VRAM pools are sized
-updated: 2026-09-05
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, game-requests-1gb-staging-buffer, content-package]
+updated: 2026-09-06
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, game-requests-1gb-staging-buffer, content-package]
 ---
 
 # DirectStorage streaming
@@ -58,6 +58,11 @@ race. Measured on the same card, dynamic path: menu 1117 MB, race load 633 MB, s
 created once at `tile_pool_mb` and never resized, and the mesh budget is a 1433 MB cap that fills
 on demand. Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
+
+Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's
+dedicated memory off the first DXGI factory the game creates and picks 1024, 1536, 2048 or
+3072 MB of tiles and 128, 192 or 256 MB of staging for cards under 7, 11 and 15 GB and above,
+so the 6 GB numbers above are what a 6 GB card still gets.
 
 ## Lap behaviour
 

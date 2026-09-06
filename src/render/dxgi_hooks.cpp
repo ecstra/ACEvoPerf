@@ -3,6 +3,7 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 #include "acevo/render/frame_stats.h"
+#include "acevo/render/adapter.h"
 
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChainForHwnd)(IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChain)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**);
@@ -16,7 +17,10 @@ static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self
 {
     Log("CreateSwapChainForHwnd %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X", desc->Width, desc->Height, (unsigned)desc->Format, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
     HRESULT hr = g_origCSCFH(self, device, hwnd, desc, fs, out, pp);
-    if (SUCCEEDED(hr) && pp && *pp) HookSwapChain(*pp);
+    if (SUCCEEDED(hr) && pp && *pp) {
+        HookSwapChain(*pp);
+        LogDisplayOwner(self, device, hwnd);
+    }
     return hr;
 }
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChain(IDXGIFactory* self, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** pp)
@@ -35,6 +39,7 @@ static void HookFactoryVtable(void* factory)
     void** vt = *(void***)f2;
     HookVtableSlot(vt, 15, (void*)&Hook_CreateSwapChainForHwnd, (void**)&g_origCSCFH, "IDXGIFactory2::CreateSwapChainForHwnd");
     HookVtableSlot(vt, 10, (void*)&Hook_CreateSwapChain, (void**)&g_origCSC, "IDXGIFactory::CreateSwapChain");
+    ResolveAutoSizes(f2);      // the first factory the game creates, before its device and pools exist
     f2->Release();
 }
 static HRESULT WINAPI Hook_CreateDXGIFactory1(REFIID riid, void** ppv)

@@ -144,38 +144,66 @@ static bool Writable(const void* p)
     return mbi.State == MEM_COMMIT && (pr == PAGE_READWRITE || pr == PAGE_WRITECOPY || pr == PAGE_EXECUTE_READWRITE || pr == PAGE_EXECUTE_WRITECOPY);
 }
 
+static void SplitFlag(const std::wstring& f, std::string& name, std::string& val)
+{
+    size_t eq = f.find(L'=');
+    std::wstring wname = f.substr(0, eq);
+    std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
+    name.assign(wname.begin(), wname.end());
+    val.assign(wval.begin(), wval.end());
+}
+
+static void WriteFlag(const std::string& name, const std::string& val, const char* phase)
+{
+    FlagInfo* fi = nullptr;
+    for (auto& x : g_flags) if (x.name == name) { fi = &x; break; }
+    if (!fi) { Log("flag %s: not found in this game build (ignored)", name.c_str()); return; }
+    if (fi->type == 3) { Log("flag %s: string flags are not supported (ignored)", name.c_str()); return; }
+    if (fi->type < 0) { Log("flag %s: unknown type (ignored)", name.c_str()); return; }
+    int written = 0;
+    for (BYTE* st : fi->storages) {
+        if (!Writable(st)) continue;
+        if (fi->type == 0) {
+            std::string v = val; for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
+            bool b = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
+            bool old = *(bool*)st; *(bool*)st = b;
+            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), b ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
+        } else if (fi->type == 1) {
+            int v = atoi(val.c_str()); int old = *(int*)st; *(int*)st = v;
+            Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+        } else if (fi->type == 2) {
+            double v = atof(val.c_str()); double old = *(double*)st; *(double*)st = v;
+            Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+        }
+        ++written;
+    }
+    if (!written) Log("flag %s: no writable storage found (ignored)", name.c_str());
+}
+
 void ApplyFlags(const char* phase)
 {
     if (g_cfg.flags.empty()) return;
     ScanFlags();
     for (auto& f : g_cfg.flags) {
-        size_t eq = f.find(L'=');
-        std::wstring wname = f.substr(0, eq);
-        std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
-        std::string name(wname.begin(), wname.end());
-        std::string val(wval.begin(), wval.end());
-        FlagInfo* fi = nullptr;
-        for (auto& x : g_flags) if (x.name == name) { fi = &x; break; }
-        if (!fi) { Log("flag %s: not found in this game build (ignored)", name.c_str()); continue; }
-        if (fi->type == 3) { Log("flag %s: string flags are not supported (ignored)", name.c_str()); continue; }
-        if (fi->type < 0) { Log("flag %s: unknown type (ignored)", name.c_str()); continue; }
-        int written = 0;
-        for (BYTE* st : fi->storages) {
-            if (!Writable(st)) continue;
-            if (fi->type == 0) {
-                std::string v = val; for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
-                bool b = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
-                bool old = *(bool*)st; *(bool*)st = b;
-                Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), b ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
-            } else if (fi->type == 1) {
-                int v = atoi(val.c_str()); int old = *(int*)st; *(int*)st = v;
-                Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
-            } else if (fi->type == 2) {
-                double v = atof(val.c_str()); double old = *(double*)st; *(double*)st = v;
-                Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
-            }
-            ++written;
+        std::string name, val;
+        SplitFlag(f, name, val);
+        if (val == "auto") {
+            if (strcmp(phase, "early") == 0) Log("flag %s: auto, written once the game creates its DXGI factory and the card is known", name.c_str());
+            continue;
         }
-        if (!written) Log("flag %s: no writable storage found (ignored)", name.c_str());
+        WriteFlag(name, val, phase);
+    }
+}
+
+// The auto values the mod picks from the card, written as soon as it is known. Only the tile
+// pool has a rule, any other flag set to auto is reported and left alone.
+void ApplyAutoFlags(int tilePoolMb)
+{
+    for (auto& f : g_cfg.flags) {
+        std::string name, val;
+        SplitFlag(f, name, val);
+        if (val != "auto") continue;
+        if (name == "tile_pool_mb") WriteFlag(name, std::to_string(tilePoolMb), "auto");
+        else Log("flag %s: auto has no rule for this flag (ignored)", name.c_str());
     }
 }
