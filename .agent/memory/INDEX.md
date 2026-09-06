@@ -11,6 +11,7 @@ links: [agent-index, spec-memory]
 project
 
 - [free-roam-is-a-password-away](free-roam-is-a-password-away.md), the Free Roam mode is gated by a plain text password and a hidden panel, its content stops at the Nürburgring complex, not shipped
+- [ghost-car-records-but-never-shows](ghost-car-records-but-never-shows.md), the ghost car flag records, saves, loads and samples a lap and nothing in the exe draws it, not shipped
 - [game-requests-1gb-staging-buffer](game-requests-1gb-staging-buffer.md), the one call that starves texture pools on small cards
 - [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed
 - [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttles at 87 °C two minutes into a lap
