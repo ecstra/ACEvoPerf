@@ -5,7 +5,6 @@
 // timeline thread every second, the frame buffer is drained by it too.
 extern std::atomic<uint64_t> g_frames, g_frameSumUs, g_frameMaxUs, g_hitch20, g_hitchCfg;
 extern std::atomic<int> g_hitchLogBudget;
-extern std::atomic<DWORD> g_presentThreadId;   // the thread that calls Present, the render thread
 extern CRITICAL_SECTION g_frameCs;
 
 // One presented frame with the streaming requests enqueued since the previous one.

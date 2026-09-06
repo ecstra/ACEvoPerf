@@ -40,9 +40,6 @@ struct Config {
     bool traceFileIo = false;       // log the game's file I/O on the package
     // [ui]
     int  uiInspectorPort = 0;       // Cohtml DevTools inspector port, 0 = off
-    std::wstring uiV8Flags;         // V8 flags applied before Cohtml starts its script engine
-    bool uiLayoutThread = false;    // run Cohtml's layout work on a dedicated thread of the mod
-    bool uiPatches = true;          // the mod's script patches for the game's UI, run at every page start
 };
 
 extern Config g_cfg;

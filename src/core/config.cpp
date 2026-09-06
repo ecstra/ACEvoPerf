@@ -96,7 +96,4 @@ void LoadConfig()
     g_cfg.traceFileIo = IniBool(L"overlay", L"trace_file_io", false);
 
     g_cfg.uiInspectorPort = IniInt(L"ui", L"inspector_port", 0);
-    g_cfg.uiV8Flags = IniStr(L"ui", L"v8_flags", L"");
-    g_cfg.uiLayoutThread = IniBool(L"ui", L"layout_thread", false);
-    g_cfg.uiPatches = IniBool(L"ui", L"patches", true);
 }

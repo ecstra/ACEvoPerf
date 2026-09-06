@@ -9,7 +9,6 @@ static LARGE_INTEGER g_qpcStart = {};
 static int64_t g_lastPresentQpc = 0;
 std::atomic<uint64_t> g_frames{0}, g_frameSumUs{0}, g_frameMaxUs{0}, g_hitch20{0}, g_hitchCfg{0};
 std::atomic<int> g_hitchLogBudget{5};
-std::atomic<DWORD> g_presentThreadId{0};
 CRITICAL_SECTION g_frameCs;
 std::vector<FrameSample> g_frameBuf;
 static uint64_t g_hitchSnap[5] = {};
@@ -32,7 +31,6 @@ double NowSec()
 static void OnPresent(UINT syncInterval)
 {
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
-    g_presentThreadId.store(GetCurrentThreadId(), std::memory_order_relaxed);
     int64_t last = g_lastPresentQpc;
     g_lastPresentQpc = now.QuadPart;
     if (syncInterval != g_lastSyncInterval) {
