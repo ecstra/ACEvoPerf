@@ -44,7 +44,8 @@ def read_frames(path: str) -> list[tuple[float, float, int, int, float, float, f
     with open(path, newline="") as f:
         return [(float(row["t_s"]), float(row["frame_ms"]), int(row.get("tile_req") or 0), int(row.get("gpumem_req") or 0),
                  float(row.get("present_ms") or 0.0), float(row.get("wait_ms") or 0.0), float(row.get("fence_ms") or 0.0),
-                 float(row.get("tilemap_ms") or 0.0), float(row.get("execute_ms") or 0.0), int(row.get("mapped_tiles") or 0))
+                 float(row.get("tilemap_ms") or 0.0), float(row.get("execute_ms") or 0.0), int(row.get("mapped_tiles") or 0),
+                 float(row.get("core_speed") or 0.0))
                 for row in csv.DictReader(f)]
 
 
@@ -89,6 +90,10 @@ def print_spread(stamped: list[tuple[float, float, int, int]]) -> None:
                     print(f"{label:12} queue: tile mappings in {100.0 * with_maps / len(group):4.1f} % of frames, "
                           f"{statistics.fmean(fr[9] for fr in group):6.1f} tiles and {statistics.fmean(fr[7] for fr in group):4.2f} ms per frame, "
                           f"ExecuteCommandLists {statistics.fmean(fr[8] for fr in group):4.2f} ms per frame")
+            if any(fr[10] > 0 for fr in stamped):
+                print(f"render thread core speed: slowest 1% {statistics.fmean(fr[10] for fr in slowest):6.1f} loop iterations per us against "
+                      f"{statistics.fmean(fr[10] for fr in faster):6.1f} in the faster half, correlation with frame time "
+                      f"{statistics.correlation([fr[1] for fr in stamped], [fr[10] for fr in stamped]):+.2f}")
 
 
 def print_gpu_split(path: str, stamped: list[tuple]) -> None:

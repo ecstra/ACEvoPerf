@@ -315,6 +315,21 @@ static void LimitFrameRate()
     }
 }
 
+// Iterations of a dependent integer loop per microsecond: the speed the render thread's core
+// actually runs at in this frame, clock and hyperthread sharing included. About 20 us a frame.
+static float MeasureCoreSpeed()
+{
+    LARGE_INTEGER a, b;
+    QueryPerformanceCounter(&a);
+    uint64_t x = (uint64_t)a.QuadPart | 1;
+    for (int i = 0; i < 20000; ++i) x = x * 6364136223846793005ULL + 1442695040888963407ULL;
+    static volatile uint64_t sink;
+    sink = x;
+    QueryPerformanceCounter(&b);
+    double us = (double)(b.QuadPart - a.QuadPart) * 1e6 / (double)g_qpf.QuadPart;
+    return us > 0.0 ? (float)(20000.0 / us) : 0.0f;
+}
+
 void InitFrameStats()
 {
     InitializeCriticalSection(&g_frameCs);
@@ -371,6 +386,7 @@ static void OnPresent(UINT syncInterval)
         sample.present = (float)g_lastPresentCallMs;
         sample.wait = (float)g_frameWaitMs;
         sample.fence = (float)g_frameFenceWaitMs;
+        sample.coreSpeed = MeasureCoreSpeed();
         g_frameWaitMs = 0.0; g_frameFenceWaitMs = 0.0;
         sample.tileMap = (float)(g_frameTileMapUs.exchange(0) / 1000.0);
         sample.execute = (float)(g_frameExecuteUs.exchange(0) / 1000.0);

@@ -14,6 +14,7 @@ struct FrameSample {
     float present;      // time the previous Present call itself took (blocked waiting)
     float wait;         // time the render thread spent in wait calls during this frame
     float fence;        // the part of it spent on events D3D12 fences signal (waiting for the GPU)
+    float coreSpeed;    // iterations per microsecond of a fixed dependent loop on the render thread, the core speed it got
     float tileMap;      // time inside ID3D12CommandQueue::UpdateTileMappings in this frame
     float execute;      // time inside ID3D12CommandQueue::ExecuteCommandLists in this frame
     uint32_t mappedTiles; // tiles mapped or unmapped by UpdateTileMappings in this frame
