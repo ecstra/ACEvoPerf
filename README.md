@@ -47,6 +47,7 @@ build there, and the Python tools find the package and the exe through the same 
 - `dist/`: the files that go into the game folder (ini, readme, built DLLs)
 - `tools/`: Python tools for the package and the settings files, data files in `tools/data/`
 - `third_party/directstorage/`: Microsoft's DirectStorage headers and runtime
+- `assets/`: the icon for the mod listing and the script that renders it
 - `logs/`: telemetry sessions copied from the game folder, gitignored
 - `.agent/`: docs, bugs, todos, decisions
 

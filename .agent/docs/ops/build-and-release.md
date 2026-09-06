@@ -49,6 +49,10 @@ Cutting a release: date the `Unreleased` section of `CHANGELOG.md` as the versio
 0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
 the auto sizes, the flags, the overlay and the telemetry.
 
+The icon for the mod listing is `assets/icon-512.png` (ACE over PERF, Bahnschrift Bold
+Condensed on a black tile), with a 1024 px version next to it. `assets/icon.py` renders both
+with Pillow and the Bahnschrift font that ships with Windows.
+
 ## Gates
 
 A change under `src/` or `include/` counts as verified when `build.ps1` is clean and a game launch
