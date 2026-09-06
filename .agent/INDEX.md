@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-05
+updated: 2026-09-06
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -27,15 +27,15 @@ line in the same commit.
 
 ## The knowledge
 
-- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 11 docs in four categories
+- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 12 docs in four categories
   - foundation: [proxy-architecture](docs/foundation/proxy-architecture.md), the DLL in load order
   - systems: [directstorage-streaming](docs/systems/directstorage-streaming.md), [engine-flags](docs/systems/engine-flags.md), [content-package](docs/systems/content-package.md), [package-override-layer](docs/systems/package-override-layer.md), [settings-files](docs/systems/settings-files.md)
   - ops: [telemetry](docs/ops/telemetry.md), [build-and-release](docs/ops/build-and-release.md), [tools](docs/ops/tools.md)
-  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md)
+  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md), [one-percent-low-hunt-2026-09-05](docs/research/one-percent-low-hunt-2026-09-05.md)
 
 ## The trackers
 
-- [todos/INDEX.md](todos/INDEX.md), the work tracker: 2 open (TODO-002, TODO-009), 5 done, 1 dropped
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 3 open (TODO-002, TODO-009, TODO-010), 5 done, 1 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 6 open (5 bug, 1 nit), 6 fixed
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 6 standing (DEC-001 to DEC-003, DEC-005, DEC-007, DEC-008), 2 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet

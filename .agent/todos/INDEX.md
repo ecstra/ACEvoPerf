@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-05
+updated: 2026-09-06
 links: [agent-index, spec-todos]
 ---
 
@@ -17,6 +17,7 @@ streaming
 render
 
 - [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), lift lap fps on the 6 GB laptop GPU, gpu relief profile and LOD scale still to measure
+- [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
 
 ## Done
 

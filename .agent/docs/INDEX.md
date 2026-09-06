@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-05
+updated: 2026-09-06
 links: [agent-index, spec-docs]
 ---
 
@@ -30,3 +30,4 @@ links: [agent-index, spec-docs]
 
 - [moddability](research/moddability.md), how the game is built and what a mod can change
 - [lap-2026-09-05-nordschleife](research/lap-2026-09-05-nordschleife.md), the first telemetry lap and what it showed
+- [one-percent-low-hunt-2026-09-05](research/one-percent-low-hunt-2026-09-05.md), nineteen instrumented laps into the 1 percent low, what was measured, ruled out and left
