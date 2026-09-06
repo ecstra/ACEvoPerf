@@ -67,6 +67,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   changing colour as the car gets close happen on every card (BUG-001, BUG-006). They are the
   engine's own mip and level of detail distances, written into the content meshes, and the
   game's Custom level of detail setting moves them at a frame rate cost.
+- Not the mod's to fix either: the 1.2 second freeze at every session start and on back to
+  pits is the engine parsing its 63 MB track preset (zlib blobs of one message per value), the
+  same on every card (BUG-012). `disable_dynamic_track=true` in the ini removes it together
+  with the track evolution.
 - Frame drops in a few sections of the Nordschleife (BUG-002) and a 1 percent low that sits 20
   to 25 fps under the average (BUG-009). Nineteen measured laps narrowed the slow frames down to
   the render thread handing its main command list to the GPU a few milliseconds late in heavy
