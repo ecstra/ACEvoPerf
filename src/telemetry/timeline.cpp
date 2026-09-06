@@ -4,6 +4,7 @@
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/dstorage/stats.h"
+#include "acevo/engine/exceptions.h"
 
 static HANDLE g_timelineThread = nullptr;
 
@@ -65,6 +66,7 @@ static DWORD WINAPI TimelineThread(void*)
 
     for (;;) {
         Sleep(1000);
+        ThrowLogTick();
         double t = NowSec(); double dt = t - lastT; if (dt <= 0) dt = 1; lastT = t;
 
         uint64_t frames = g_frames.exchange(0), sumUs = g_frameSumUs.exchange(0), maxUs = g_frameMaxUs.exchange(0);

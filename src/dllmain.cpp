@@ -19,6 +19,7 @@
 #include "acevo/dstorage/proxy.h"
 #include "acevo/engine/flags.h"
 #include "acevo/engine/process.h"
+#include "acevo/engine/exceptions.h"
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
@@ -53,6 +54,7 @@ static void OnAttach(HMODULE h)
     ApplyProcessTweaks();
     ApplyFlags("early");
     InstallDxgiHooks();
+    InstallThrowLog();
     overlay::Install();
 }
 

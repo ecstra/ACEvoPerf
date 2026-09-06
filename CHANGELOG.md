@@ -45,6 +45,9 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   `nvidia-smi` sample log on the clock second.
 - Per frame streaming counters: the frames CSV carries the tile, package to memory and memory to
   GPU requests enqueued since the previous frame, so a slow frame can be matched to streaming.
+- Throw log (`[log] throw_log=1`, off by default): counts the C++ exceptions the game throws
+  by throw site and type and logs the busiest sites every ten seconds, because the render
+  thread was seen spending about two percent of its time in exception unwinding.
 - Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
   DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
   No scripts.

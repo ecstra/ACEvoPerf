@@ -40,6 +40,7 @@ void LoadConfig()
     g_cfg.timeline = IniBool(L"log", L"timeline", true);
     g_cfg.frames = IniBool(L"log", L"frames", true);
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
+    g_cfg.throwLog = IniBool(L"log", L"throw_log", false);
 
     g_cfg.stagingMb = IniInt(L"directstorage", L"staging_buffer_mb", 256);
     g_cfg.minQueueCapacity = IniInt(L"directstorage", L"min_queue_capacity", 0);

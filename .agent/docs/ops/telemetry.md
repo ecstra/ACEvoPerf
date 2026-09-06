@@ -20,6 +20,12 @@ value, every DirectStorage factory, queue and file event, per queue statistics e
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
 with the streaming activity since the previous hitch, and the swap chain's creation parameters.
 
+With `[log] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
+exception the game's own code throws is counted by throw site (the return address as an RVA)
+with its mangled type name and, for `std::exception` types, the message of the first throw.
+Every ten seconds with at least one throw the log gets a `[throw]` line with the count and the
+eight busiest sites. Off by default, the hook costs nothing when a frame throws nothing.
+
 ## acevo_perf_timeline.csv
 
 One line per second (`TimelineThread` in `src/telemetry/timeline.cpp`):

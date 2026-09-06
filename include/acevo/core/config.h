@@ -8,6 +8,7 @@ struct Config {
     bool timeline = true;       // acevo_perf_timeline.csv, one line per second
     bool frames = true;         // acevo_perf_frames.csv, one line per presented frame
     int  hitchMs = 33;          // frames slower than this are logged individually
+    bool throwLog = false;      // count the game's C++ exceptions by throw site
     // [directstorage]
     int  stagingMb = 256;
     int  minQueueCapacity = 0;
