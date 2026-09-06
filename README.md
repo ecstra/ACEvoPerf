@@ -1,90 +1,90 @@
-# ACEvoPerf
+<p align="center">
+  <img
+    width="760"
+    alt="ACEvoPerf"
+    src="assets/header.png" />
+</p>
 
-Performance mod for Assetto Corsa EVO (verified on 0.9.0+release.48). It ships as a `dstorage.dll`
-placed next to the game executable. The game loads it as its DirectStorage runtime, the mod forwards
-everything to the original runtime and fixes the engine's video memory budget on the way.
+<p align="center">
+  <br>
+  <a href="https://github.com/ecstra/ACEvoPerf/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ecstra/ACEvoPerf?label=release&color=brightgreen"></a>
+  <a href="https://github.com/ecstra/ACEvoPerf/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ecstra/ACEvoPerf/total?color=blue"></a>
+  <a href="https://github.com/ecstra/ACEvoPerf/releases/latest"><img alt="Windows 11" src="https://img.shields.io/badge/windows-11-0078D6.svg"></a>
+  <img alt="Assetto Corsa EVO 0.9.0" src="https://img.shields.io/badge/Assetto_Corsa_EVO-0.9.0-E10600.svg">
+  <br><br>
+</p>
+
+## Overview
+
+A small performance mod for Assetto Corsa EVO. It is a `dstorage.dll` that sits next to the game exe, passes everything through to Microsoft's real DirectStorage runtime and fixes the game's video memory budget on the way. Three files in the game folder, no installer, delete them and you are back to stock.
+
+It exists because a 6 GB card kept crashing the game on car and track changes, lost the icons in the vehicle hub and turned the road to mush after a restart. All of it came down to the same thing, which the mod corrects at start. Built and tested on an RTX 3060 Laptop with 6 GB, Windows 11, game version 0.9.0+release.48.
+
+> [!IMPORTANT]
+> This was built and tested on one machine. It might or might not work on yours. Cards with more memory get bigger pool sizes picked automatically, but nobody has tested that yet. If the game does not start or runs worse, uninstall (see below) and you are back to stock. If you report a problem, attach `acevo_perf.log` from the game folder, that file says what the mod did.
 
 ## What it fixes
 
-- Crashes on car change, track change and at startup.
-- Missing icons in the vehicle hub and the menus.
-- Mushy road, tyre and ground textures, worse after restarting a session.
+* **Crashes on car change, track change and at startup.**
+* **Missing icons in the vehicle hub and the menus.**
+* **Mushy road, tyre and ground textures,** worse after restarting a session.
 
-Verified on an RTX 3060 Laptop with 6 GB. Other cards get sizes picked for their memory at
-start, untested so far.
+It also skips the intro, turns on the game's shader cache and runs the game at above normal priority. All of it is in the ini if you want it off.
 
 ## How it does it
 
-The game loads `dstorage.dll` from its own folder as its DirectStorage runtime, and the mod is
-that file. It forwards every call to Microsoft's real runtime, shipped next to it as
-`dstorage_orig.dll`, and changes two numbers on the way through.
+**The crashes and the icons:** the game asks DirectStorage for a 1 GB staging buffer and the runtime keeps two of them in VRAM, so 2 GB of a 6 GB card are gone before anything loads. Swap a car or a track and the card runs out. In the menus the icon textures have nothing left to load into. The mod caps that buffer at 128 MB, which is still four of the biggest requests the game ever makes. Cards over 7 GB get 192 MB, over 11 GB 256 MB.
 
-- The crashes and the icons: the game asks DirectStorage for a 1 GB staging buffer, the memory
-  that file data lands in before it is copied into textures, and the runtime keeps two of them in
-  video memory. So 2 GB of a 6 GB card are gone before the first texture loads. A car or track
-  change holds the old scene while the new one comes in, runs the card out of memory and the
-  game crashes, and in the menus the icon textures have nothing left to load into. The mod
-  intercepts that one call and caps the buffer at 128 MB. The largest request the game ever
-  issues is 32 MB, so four still fit in flight. Cards over 7 GB get 192 MB, over 11 GB 256 MB.
-- The textures: the engine sizes its texture tile pool from the video memory free at the moment
-  of a scene transition, while the previous scene is still resident. On a 6 GB card that gave
-  633 MB in a race and 526 MB after a restart, too small for the sharp mip levels of the road and
-  the tyres. The engine has two flags for exactly this, `force_canonical_pool_sizes` and
-  `tile_pool_mb`, which the release build never reads from the command line. The mod finds their
-  storage inside the running exe and writes them at start, so the pool is created once at
-  1024 MB (1536, 2048 or 3072 on bigger cards, mesh cap 1433 MB) and never shrinks. Texture
-  quality must be Ultra in the game settings for the full effect.
+**The textures:** the engine sizes its texture pool from whatever VRAM is left mid transition, while the old scene is still resident, which on a 6 GB card was 633 MB in a race and 526 MB after a restart. The engine has two flags for exactly this, `force_canonical_pool_sizes` and `tile_pool_mb`, that the release build never reads from the command line. The mod finds their storage inside the running exe and writes them at start, so the pool is created once at 1024 MB (1536, 2048 or 3072 on bigger cards) and never shrinks. Texture quality needs to be on Ultra for this to show.
 
 ## What else it does
 
-- Sets engine flags the release build otherwise ignores (pipeline state cache, intro skip, and any
-  other bool, int32 or double flag you list in the ini).
-- Applies process tweaks (priority class, no Windows power throttling, 0.5 ms timer) and logs
-  what the game does to its swap chain.
-- Writes `acevo_perf.log` with everything it applied. Two CSVs, one line per second and one per
-  frame, are off by default (`timeline=1` and `frames=1` in the ini), with a report script.
+* **Sizes itself to your card:** the tile pool and the staging buffer are picked from the render adapter's memory the moment the game creates its DXGI factory, before the renderer sizes its pools. A number in the ini overrides the pick.
+* **Engine flags from the ini:** any bool, int32 or double gflag of the game can be set under `[flags]`. The release build ignores flags on the command line, so the mod locates the storage of each one inside the exe and writes it directly. `enable_pso_cache` and `no_intro` are on by default.
+* **Process tweaks:** above normal priority class, Windows power throttling off for the game, 0.5 ms timer resolution.
+* **A log that says what happened:** `acevo_perf.log` next to the exe lists everything applied, every DirectStorage queue and file, per queue streaming statistics and every frame slower than `hitch_ms` with the streaming activity around it. Two CSVs, one line per second and one per frame, are off by default and one line in the ini away.
+* **Two GPU laptops:** the log says which adapter owns the monitor the window sits on, and warns when it is not the one rendering, because every frame is then copied across.
+* **A mods folder:** files under `acevo_mods\` next to the exe replace files of the same path inside the 64 GB content package, or add new ones, without touching the package. Delete the folder to undo.
 
 ## Install
 
-Close the game, copy the three files from the release zip (`dstorage.dll`, `dstorage_orig.dll`,
-`acevo_perf.ini`) into the game folder next to `AssettoCorsaEVO.exe`, let Windows replace the
-existing `dstorage.dll`, start the game. `acevo_perf.log` next to the exe shows what was applied.
+1. Close the game.
+2. Download the zip from the [latest release](https://github.com/ecstra/ACEvoPerf/releases/latest).
+3. Open the game folder, the one with `AssettoCorsaEVO.exe` in it. In Steam that is right click the game, Manage, Browse local files.
+4. Copy `dstorage.dll`, `dstorage_orig.dll` and `acevo_perf.ini` from the zip into that folder. Let Windows replace the existing `dstorage.dll`.
+5. Start the game. `acevo_perf.log` appears next to the exe and lists what was applied.
 
-`dstorage_orig.dll` is Microsoft's DirectStorage 1.2.3 runtime, byte identical to the one the game
-ships and redistributable under its license, so nothing needs renaming. To uninstall, delete
-`dstorage.dll`, rename `dstorage_orig.dll` back to `dstorage.dll`, delete the ini and the logs.
-After a game update that replaces `dstorage.dll`, copy the three files in again.
+After a game update that replaces `dstorage.dll`, do the same again. If an update breaks the mod, remove it until a new version is out.
 
-## Configure
+## Uninstall
 
-`acevo_perf.ini` next to the exe. Every key is documented in the file itself.
+1. Close the game.
+2. Delete `dstorage.dll`.
+3. Rename `dstorage_orig.dll` to `dstorage.dll`.
+4. Delete `acevo_perf.ini` and `acevo_perf.log`.
+
+Or verify the game files in Steam, which puts the original `dstorage.dll` back, then delete the ini and the log.
+
+## Settings
+
+Everything is in `acevo_perf.ini`, every key is explained in the file.
+
+## What it does not fix
+
+* **Pop in:** the road sharpening late ahead of you, grass and trees fading in and changing colour as you get close. Those are the engine's own mip and level of detail distances, written into the content, the same on every card.
+* **The freeze at session start and on back to pits:** about a second, the engine parsing its 63 MB track preset. Same on every card. `disable_dynamic_track=true` in the ini removes it together with the track evolution.
+* **Frame drops in a few sections of the Nordschleife and the 1 percent lows.** Nineteen measured laps narrowed it to the render thread handing its command list to the GPU late in heavy views, with everything the mod can reach ruled out. The evidence is in the docs, the fix is not in the mod.
+* **Menu lag.** That is the game's own UI, and the mod changes nothing in it.
 
 ## Build
 
-`build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK. Output goes to
-`dist\dstorage.dll`. `release.ps1` builds and zips the drag and drop payload into `release\`.
-For development set `ACEVO_GAME_DIR` to your game folder: `build.ps1 -Install` then copies the
-build there, and the Python tools find the package and the exe through the same variable.
+`build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK, output in `dist\`. `release.ps1` builds and zips the payload into `release\`. Set `ACEVO_GAME_DIR` to your game folder and `build.ps1 -Install` copies the build there. The Python tools under `tools\` (package inspection, settings files, telemetry reports) find the game the same way.
 
-## Layout
+## Documentation
 
-- `include/acevo/` and `src/`: the DLL, headers and sources in matching folders per concern
-  (`core`, `dstorage`, `engine`, `render`, `telemetry`, `overlay`), `src/dllmain.cpp` wires them
-- `dist/`: the files that go into the game folder (ini, readme, built DLLs)
-- `tools/`: Python tools for the package and the settings files, data files in `tools/data/`
-- `third_party/directstorage/`: Microsoft's DirectStorage headers and runtime
-- `assets/`: the icon for the mod listing and the script that renders it
-- `logs/`: telemetry sessions copied from the game folder, gitignored
-- `.agent/`: docs, bugs, todos, decisions
+* [CHANGELOG.md](CHANGELOG.md): every version, what it fixed and how.
+* [CONTRIBUTING.md](CONTRIBUTING.md): how to report a problem and what to include.
 
-## Where to read more
+## Credits
 
-- `.agent/INDEX.md`: the map of every document, bug, todo and decision in this repo
-- `.agent/docs/research/moddability.md`: how the game is built and what can be changed
-- `.agent/docs/foundation/proxy-architecture.md`: how the DLL works
-- `.agent/docs/ops/telemetry.md`: what the log and CSV files contain
-- `.agent/docs/ops/tools.md`: the Python tools for the package and the settings files
-- `CLAUDE.md` and `CONTRIBUTING.md`: house rules for working in this repo
-
-The DirectStorage headers in `third_party/directstorage` come from the Microsoft NuGet package
-`Microsoft.Direct3D.DirectStorage` 1.2.3 (MIT, license included).
+`dstorage_orig.dll` is Microsoft's DirectStorage 1.2.3 runtime from the NuGet package `Microsoft.Direct3D.DirectStorage`, byte identical to the one the game ships, redistributed under its license (`third_party/directstorage`). The rest is by **ecstra**.
