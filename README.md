@@ -69,13 +69,6 @@ Or verify the game files in Steam, which puts the original `dstorage.dll` back, 
 
 Everything is in `acevo_perf.ini`, every key is explained in the file.
 
-## What it does not fix
-
-* **Pop in:** the road sharpening late ahead of you, grass and trees fading in and changing colour as you get close. Those are the engine's own mip and level of detail distances, written into the content, the same on every card.
-* **The freeze at session start and on back to pits:** about a second, the engine parsing its 63 MB track preset. Same on every card. `disable_dynamic_track=true` in the ini removes it together with the track evolution.
-* **Frame drops in a few sections of the Nordschleife and the 1 percent lows.** Nineteen measured laps narrowed it to the render thread handing its command list to the GPU late in heavy views, with everything the mod can reach ruled out. The evidence is in the docs, the fix is not in the mod.
-* **Menu lag.** That is the game's own UI, and the mod changes nothing in it.
-
 ## Build
 
 `build.ps1` at the root, needs Visual Studio 2022 with the Windows SDK, output in `dist\`. `release.ps1` builds and zips the payload into `release\`. Set `ACEVO_GAME_DIR` to your game folder and `build.ps1 -Install` copies the build there. The Python tools under `tools\` (package inspection, settings files, telemetry reports) find the game the same way.
