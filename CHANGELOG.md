@@ -60,8 +60,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Known, not fixed yet
 
-- The first second after a texture streams in shows a lower mip (engine feedback loop, BUG-001).
-- Grass and distant object pop in (level of detail scales, BUG-006).
+- Grass and trees change colour as the car gets close and the road ahead sharpens late
+  (BUG-001, BUG-006). The mesh fade distances are the engine's own, but the colour change is
+  texture residency on a 6 GB card, it does not happen on a 32 GB one. Queued behind the
+  optimisation pass.
 - Frame drops in a few sections of the Nordschleife (BUG-002) and a 1 percent low that sits 20
   to 25 fps under the average (BUG-009). Nineteen measured laps narrowed the slow frames down to
   the render thread handing its main command list to the GPU a few milliseconds late in heavy

@@ -12,7 +12,7 @@ links: [agent-index, spec-bugs]
 
 bug
 
-- [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), low mip visible for about a second, I/O is not the limit
+- [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), the streaming path answers in 9 ms bursts, the mip kept resident at a distance depends on the card, pool and eviction to debug
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, everything else ruled out over nineteen laps, parked with its leads in TODO-010
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), back to pits loads the dynamic track preset on the render thread, 1.3 to 1.5 s frames
@@ -20,7 +20,7 @@ bug
 
 nit
 
-- [BUG-006-distant-objects-pop-in](BUG-006-distant-objects-pop-in.md), grass draw distance, LOD scales at 1.0
+- [BUG-006-distant-objects-pop-in](BUG-006-distant-objects-pop-in.md), grass and trees change colour between unloaded and loaded, absent on a 32 GB card, texture residency to debug after the optimisation pass
 
 ## Fixed
 
