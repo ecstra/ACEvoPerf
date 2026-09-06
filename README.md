@@ -7,6 +7,7 @@
 
 <p align="center">
   <br>
+  <a href="https://www.overtake.gg/downloads/acevoperf.86467/"><img alt="Mod page on Overtake" src="https://img.shields.io/badge/overtake.gg-mod_page-E10600.svg"></a>
   <a href="https://github.com/ecstra/ACEvoPerf/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/ecstra/ACEvoPerf?label=release&color=brightgreen"></a>
   <a href="https://github.com/ecstra/ACEvoPerf/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/ecstra/ACEvoPerf/total?color=blue"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-yellow.svg"></a>
@@ -20,6 +21,8 @@
 A small performance mod for Assetto Corsa EVO. It is a `dstorage.dll` that sits next to the game exe, passes everything through to Microsoft's real DirectStorage runtime and fixes the game's video memory budget on the way. Three files in the game folder, no installer, delete them and you are back to stock.
 
 It exists because a 6 GB card kept crashing the game on car and track changes, lost the icons in the vehicle hub and turned the road to mush after a restart. All of it came down to the same thing, which the mod corrects at start. Built and tested on an RTX 3060 Laptop with 6 GB, Windows 11, game version 0.9.0+release.48.
+
+The mod page, with the discussion and the reviews, is [on Overtake](https://www.overtake.gg/downloads/acevoperf.86467/). This repo carries the source, the changelog and the same zip as a release.
 
 > [!IMPORTANT]
 > This was built and tested on one machine. It might or might not work on yours. Cards with more memory get bigger pool sizes picked automatically, but nobody has tested that yet. If the game does not start or runs worse, uninstall (see below) and you are back to stock. If you report a problem, attach `acevo_perf.log` from the game folder, that file says what the mod did.
@@ -50,7 +53,7 @@ It also skips the intro, turns on the game's shader cache and runs the game at a
 ## Install
 
 1. Close the game.
-2. Download the zip from the [latest release](https://github.com/ecstra/ACEvoPerf/releases/latest).
+2. Download the zip from [Overtake](https://www.overtake.gg/downloads/acevoperf.86467/) or from the [latest release](https://github.com/ecstra/ACEvoPerf/releases/latest) here, they are the same file.
 3. Open the game folder, the one with `AssettoCorsaEVO.exe` in it. In Steam that is right click the game, Manage, Browse local files.
 4. Copy `dstorage.dll`, `dstorage_orig.dll` and `acevo_perf.ini` from the zip into that folder. Let Windows replace the existing `dstorage.dll`.
 5. Start the game. `acevo_perf.log` appears next to the exe and lists what was applied.
