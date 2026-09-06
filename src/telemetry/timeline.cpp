@@ -53,7 +53,8 @@ static DWORD WINAPI TimelineThread(void*)
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb,input_polls,input_ms,input_max_ms\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,present_ms,wait_ms,fence_ms,tilemap_ms,execute_ms,mapped_tiles,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
-    HANDLE gpuCsv = g_cfg.gpuTiming ? OpenCsv(L"acevo_perf_gpu.csv", "t_s,submits,gpu_busy_ms,gpu_span_ms,gpu_lag_ms\r\n") : INVALID_HANDLE_VALUE;
+    HANDLE gpuCsv = g_cfg.gpuTiming ? OpenCsv(L"acevo_perf_gpu.csv", "t_s,submits,gpu_busy_ms,gpu_span_ms,gpu_lag_ms,"
+        "b0_ms,gap0_ms,lag0_ms,b1_ms,gap1_ms,lag1_ms,b2_ms,gap2_ms,lag2_ms,b3_ms,gap3_ms,lag3_ms,b4_ms,gap4_ms,lag4_ms,b5_ms,gap5_ms,lag5_ms\r\n") : INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = FindRenderAdapter();
 
     SYSTEM_INFO si; GetSystemInfo(&si);
@@ -120,10 +121,15 @@ static DWORD WINAPI TimelineThread(void*)
             std::vector<GpuFrameRow> rows;
             GpuTimingDrain(rows);
             std::string gpuOut;
-            char gpuLine[96];
+            char gpuLine[320];
             for (auto& r : rows) {
-                int m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, "%.3f,%u,%.3f,%.3f,%.3f\r\n", r.t, r.submits, r.busyMs, r.spanMs, r.lagMs);
+                int m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, "%.3f,%u,%.3f,%.3f,%.3f", r.t, r.submits, r.busyMs, r.spanMs, r.lagMs);
                 gpuOut.append(gpuLine, m);
+                for (int b = 0; b < kBatchesPerRow; ++b) {
+                    m = _snprintf_s(gpuLine, sizeof gpuLine, _TRUNCATE, ",%.3f,%.3f,%.3f", r.batchMs[b], r.gapMs[b], r.batchLagMs[b]);
+                    gpuOut.append(gpuLine, m);
+                }
+                gpuOut.append("\r\n");
             }
             if (!gpuOut.empty()) { DWORD w; WriteFile(gpuCsv, gpuOut.data(), (DWORD)gpuOut.size(), &w, nullptr); }
         }

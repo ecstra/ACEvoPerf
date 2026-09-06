@@ -29,6 +29,7 @@ CRITICAL_SECTION g_cs;
 struct PendingFrame { float t; uint64_t firstMark; uint64_t endMark; };
 std::vector<PendingFrame> g_pending;
 std::vector<GpuFrameRow> g_rows;
+uint64_t g_previousFrameEnd = 0;   // GPU stamp of the previous frame's last batch end
 
 bool CreateResources(ID3D12Device* device)
 {
@@ -132,17 +133,26 @@ void GpuTimingOnPresent(float frameT)
         g_pending.erase(g_pending.begin());
         uint64_t first = g_stamps[f.firstMark % kMarks];
         uint64_t last = g_stamps[(f.endMark - 1) % kMarks];
-        uint64_t busy = 0;
-        for (uint64_t m = f.firstMark; m + 1 < f.endMark; m += 2) {
-            uint64_t a = g_stamps[m % kMarks], b = g_stamps[(m + 1) % kMarks];
-            if (b > a) busy += b - a;
-        }
-        double lagQpc = GpuToCpuQpc(first) - (double)g_cpuSubmit[f.firstMark % kMarks];
-        GpuFrameRow row;
+        const double gpuMs = 1000.0 / (double)g_gpuFreq;
+        GpuFrameRow row = {};
         row.t = f.t;
         row.submits = (uint32_t)((f.endMark - f.firstMark) / 2);
-        row.busyMs = (float)(busy * 1000.0 / (double)g_gpuFreq);
-        row.spanMs = (float)((last > first ? last - first : 0) * 1000.0 / (double)g_gpuFreq);
+        uint64_t busy = 0, previousEnd = g_previousFrameEnd;
+        int batch = 0;
+        for (uint64_t m = f.firstMark; m + 1 < f.endMark; m += 2, ++batch) {
+            uint64_t a = g_stamps[m % kMarks], b = g_stamps[(m + 1) % kMarks];
+            if (b > a) busy += b - a;
+            if (batch < kBatchesPerRow) {
+                row.batchMs[batch] = (float)((b > a ? b - a : 0) * gpuMs);
+                row.gapMs[batch] = (float)((previousEnd && a > previousEnd ? a - previousEnd : 0) * gpuMs);
+                row.batchLagMs[batch] = (float)((GpuToCpuQpc(a) - (double)g_cpuSubmit[m % kMarks]) * 1000.0 / (double)g_qpf.QuadPart);
+            }
+            previousEnd = b;
+        }
+        g_previousFrameEnd = last;
+        double lagQpc = GpuToCpuQpc(first) - (double)g_cpuSubmit[f.firstMark % kMarks];
+        row.busyMs = (float)(busy * gpuMs);
+        row.spanMs = (float)((last > first ? last - first : 0) * gpuMs);
         row.lagMs = (float)(lagQpc * 1000.0 / (double)g_qpf.QuadPart);
         if (g_rows.size() < 100000) g_rows.push_back(row);
     }
