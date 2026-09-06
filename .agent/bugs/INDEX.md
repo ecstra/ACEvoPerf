@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-05
+updated: 2026-09-06
 links: [agent-index, spec-bugs]
 ---
 
@@ -14,9 +14,9 @@ bug
 
 - [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), low mip visible for about a second, I/O is not the limit
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
-- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), slow frames are the render thread waiting, in the job scheduler spin lock and in kernel waits, wait attribution build pending
+- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, everything else ruled out over nineteen laps, parked with its leads in TODO-010
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), back to pits loads the dynamic track preset on the render thread, 1.3 to 1.5 s frames
-- [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), 1 percent low falls after a window or input device switch, input polling is the first suspect to measure
+- [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
 
 nit
 

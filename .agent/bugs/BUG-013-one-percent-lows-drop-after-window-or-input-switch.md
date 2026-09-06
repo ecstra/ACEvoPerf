@@ -2,8 +2,8 @@
 name: BUG-013-one-percent-lows-drop-after-window-or-input-switch
 kind: bug
 description: the 1 percent low frame rate drops for the rest of the stint after switching window or after changing between controller and mouse
-updated: 2026-09-05
-links: [BUG-009-one-percent-lows-far-below-average, telemetry, proxy-architecture]
+updated: 2026-09-06
+links: [BUG-009-one-percent-lows-far-below-average, TODO-010-resume-the-one-percent-low-hunt, telemetry, proxy-architecture]
 status: open
 severity: bug
 area: render
@@ -67,13 +67,19 @@ time (cuz its not)."
   broadcast (or FMOD's own device list callback for the audio side). The proxy now logs every
   device interface arrival and removal and every audio endpoint change with its time.
 
+- Sessions 22:00 to 08:52 (laps 9 to 19): the device watch logged no device change during a
+  lap, and no lap reproduced the drop without a pause or a session restart in the window. The
+  input probe and the device watch were removed on 2026-09-06 with the rest of the diagnostics
+  (BUG-009), the device events are still in the logs of those sessions.
+
 ## Fix
 
 Absent. Each stall has its own owner: the pause page and HUD reloads belong to the UI (out of
-scope for now), the pit lane return is BUG-012, the device rebuild waits for the device watch
-to name the device. If the watch shows an audio endpoint flapping (a virtual device of a sound
-utility), the fix is on the machine, or a window procedure filter that swallows device change
-broadcasts that carry no game controller.
+scope for now), the pit lane return is BUG-012, the device rebuild needs the device named on the
+day it happens again. If an audio endpoint flaps (a virtual device of a sound utility), the fix
+is on the machine, or a window procedure filter that swallows device change broadcasts that
+carry no game controller. The device watch code is in the history before the removal commit,
+TODO-010 lists it.
 
 ## Verification
 

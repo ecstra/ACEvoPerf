@@ -2,8 +2,8 @@
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
 description: the 1 percent low frame rate sits about 20 fps under the displayed average
-updated: 2026-09-05
-links: [lap-2026-09-05-nordschleife, BUG-002-fps-drop-entering-new-track-sections, telemetry]
+updated: 2026-09-06
+links: [lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry]
 status: open
 severity: bug
 area: render
@@ -169,17 +169,42 @@ shown fps."
   latency object from the exe's own import table, and that column stayed at zero for all 10,940
   frames, so the game does not wait on that object through the exe's imports.
 
+- Laps 12 to 19, 2026-09-05 evening to 2026-09-06 morning, one instrument added per lap, each
+  on the same stretch from the pit exit (the full numbers are in `one-percent-low-hunt-2026-09-05`):
+
+  | lap | what changed | avg fps | 1% low | slowest 1% | what it showed |
+  | --- | --- | --- | --- | --- | --- |
+  | 12 | every wait of the render thread timed | 89.5 | 57.5 | 17.4 ms | no fence waits, other waits 0.6 ms, present 2.0 ms |
+  | 14 | sampler cut per minute, slowest 1% against the median half | 84.3 | 60.4 | 16.6 ms | game code flat, the extra is `NtWaitForSingleObject` under the driver |
+  | 15 | tile mappings and submits timed | 84.9 | 59.3 | 16.9 ms | mappings in 9.8 % of the slowest frames against 1.7 %, 0.08 ms each |
+  | 16 | GPU timestamps per batch | 82.7 | 57.0 | 17.5 ms | GPU busy 13.1 against 10.3 ms, GPU span 16.6 against 10.9 |
+  | 17 | frame latency 3 | 84.9 | 61.4 | 16.3 ms | GPU idle 4.2 ms before the main batch against 0.8, the batch starts 0.16 ms after its submit |
+  | 18 | render thread core speed, sampler off | 84.6 | 59.3 | 16.9 ms | core 5 % slower in the slowest frames, CPU at 118 to 126 % of nominal |
+  | 19 | reflections Low, shadows Low, LOD Medium, vehicle LOD Medium, mirror off, grass High | 96.3 | 53.9 | 18.5 ms | GPU work flat (9.9 against 9.1 ms), the gap before the main batch is the whole excess |
+
+- The corrected reading of the 22:26 sampler lists: the scheduler spin lock at the top of every
+  cumulative list was the loading phase. In a driving minute cut by the report's own rule the
+  game code list is flat, the top entry has 19 samples against 11 expected.
+- What the render thread's extra time is, in the slowest 1 percent of a driving minute: about
+  3 ms of game code spread over the renderer, no hot spot, plus 0.9 to 4 ms in the present path
+  through the integrated GPU (`dxgi > d3d11 > atidxx64` on the stack, both displays are outputs
+  of the AMD adapter in the game's own log), plus 0.3 to 1.2 ms of HUD script (v8) that runs on
+  the render thread only in those frames, plus 0.6 ms of driver.
+- The frame interval histogram is one smooth hump from 9 to 15 ms, no peaks at multiples of
+  3.33 or 6.06 ms, so the compositor is not pacing the game. Vsync is off in every lap.
+
 ## Fix
 
-Absent. The cap is off (DEC-008). GI, the dynamic track and the heavy settings are ruled out
-as the variance source, the swap chain queue too. The slow frames are the render thread waiting,
-in the job scheduler's spin lock and in kernel waits. Next: the frames CSV now carries `wait_ms`
-and `fence_ms`, every wait of the render thread from any module timed and the part spent on
-D3D12 fence events (the GPU) told apart, with a `[wait]` log line per handle and minute. That
-decides between the GPU (fence waits grow in slow frames, then the fix is on the GPU side or in
-the queue depth) and the worker threads (other handles grow, then thread priorities and
-affinities of the job workers are the lever). `fps_limit` remains the direct pacing tool,
-declined by the owner for now.
+Absent, and parked on 2026-09-06 after lap 19 at the owner's call. Ruled out with measurements:
+the swap chain queue and Present, D3D12 fences, DirectStorage GPU decompression (the game
+streams raw data), the refresh rate, the GPU clock and temperature, the CPU clock and the render
+thread's core, kernel wait handles, the game's own hot spots, tile mappings, GI, the dynamic
+track, the GPU heavy settings and the CPU heavy draw settings, frame latency 1 (halves the
+frame rate) and 3 (a few fps, inside run to run noise), the sampler's own load. What is left is
+a render thread that hands its main command list to the GPU 3 to 5 ms late in heavy views for
+reasons spread across the renderer, a present path through the integrated GPU, and HUD script
+on the render thread. The leads and the instruments to bring back are in TODO-010. All of the
+diagnostics were removed from the mod on 2026-09-06.
 
 ## Verification
 
