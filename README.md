@@ -4,19 +4,45 @@ Performance mod for Assetto Corsa EVO (verified on 0.9.0+release.48). It ships a
 placed next to the game executable. The game loads it as its DirectStorage runtime, the mod forwards
 everything to the original runtime and fixes the engine's video memory budget on the way.
 
-## What it does
+## What it fixes
 
-- Caps the DirectStorage staging buffer the game asks for (1 GB, kept twice in VRAM). On a 6 GB
-  GPU this alone stopped the crashes on car and track changes and at startup, and the menu icons
-  that vanished.
-- Gives the engine fixed streaming pools (1024 MB texture tile pool, 1433 MB mesh cap) instead of
-  the sizes it computes mid transition, which on a 6 GB card were 633 MB in a race and 526 MB
-  after a restart. Road and tyre textures stay sharp, also after restarting a session.
+- Crashes on car change, track change and at startup.
+- Missing icons in the vehicle hub and the menus.
+- Mushy road, tyre and ground textures, worse after restarting a session.
+
+Verified on an RTX 3060 Laptop with 6 GB. Other cards get sizes picked for their memory at
+start, untested so far.
+
+## How it does it
+
+The game loads `dstorage.dll` from its own folder as its DirectStorage runtime, and the mod is
+that file. It forwards every call to Microsoft's real runtime, shipped next to it as
+`dstorage_orig.dll`, and changes two numbers on the way through.
+
+- The crashes and the icons: the game asks DirectStorage for a 1 GB staging buffer, the memory
+  that file data lands in before it is copied into textures, and the runtime keeps two of them in
+  video memory. So 2 GB of a 6 GB card are gone before the first texture loads. A car or track
+  change holds the old scene while the new one comes in, runs the card out of memory and the
+  game crashes, and in the menus the icon textures have nothing left to load into. The mod
+  intercepts that one call and caps the buffer at 128 MB. The largest request the game ever
+  issues is 32 MB, so four still fit in flight. Cards over 7 GB get 192 MB, over 11 GB 256 MB.
+- The textures: the engine sizes its texture tile pool from the video memory free at the moment
+  of a scene transition, while the previous scene is still resident. On a 6 GB card that gave
+  633 MB in a race and 526 MB after a restart, too small for the sharp mip levels of the road and
+  the tyres. The engine has two flags for exactly this, `force_canonical_pool_sizes` and
+  `tile_pool_mb`, which the release build never reads from the command line. The mod finds their
+  storage inside the running exe and writes them at start, so the pool is created once at
+  1024 MB (1536, 2048 or 3072 on bigger cards, mesh cap 1433 MB) and never shrinks. Texture
+  quality must be Ultra in the game settings for the full effect.
+
+## What else it does
+
 - Sets engine flags the release build otherwise ignores (pipeline state cache, intro skip, and any
   other bool, int32 or double flag you list in the ini).
 - Applies process tweaks (priority class, no Windows power throttling, 0.5 ms timer) and logs
   what the game does to its swap chain.
-- Writes telemetry: a log, a per second timeline CSV and a per frame CSV, with a report script.
+- Writes `acevo_perf.log` with everything it applied. Two CSVs, one line per second and one per
+  frame, are off by default (`timeline=1` and `frames=1` in the ini), with a report script.
 
 ## Install
 
