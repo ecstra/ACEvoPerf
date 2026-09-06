@@ -68,5 +68,5 @@ void HookVtableSlot(void** vt, int idx, void* hook, void** orig, const char* wha
     *orig = vt[idx];
     vt[idx] = hook;
     VirtualProtect(&vt[idx], sizeof(void*), old, &old);
-    Log("hooked %s", what);
+    Log("DXGI: hooked %s", what);
 }
