@@ -16,11 +16,11 @@ streaming
 
 render
 
-- [TODO-002-general-optimisation-pass](TODO-002-general-optimisation-pass.md), engine inefficiencies the mod can correct: per frame C++ exceptions first (throw log built), then the tiled instances buffer
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
 
 ## Done
 
+- render: 1 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean)
 - streaming: 3 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified)
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
