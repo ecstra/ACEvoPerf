@@ -3,8 +3,8 @@ name: BUG-014-ui-pages-lag-on-open-switch-and-interaction
 kind: bug
 description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used
 updated: 2026-09-06
-links: [BUG-013-one-percent-lows-drop-after-window-or-input-switch, cohtml-ui-engine, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
-status: open
+links: [BUG-013-one-percent-lows-drop-after-window-or-input-switch, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
+status: wontfix
 severity: bug
 area: ui
 reported: 2026-09-06
@@ -55,14 +55,20 @@ the pages makes the game stutter and lag and interacting with anything makes it 
   scroll (focus box moves, scrollbar thumb writes, rows restored and initialised).
 - A menu that stops responding after a window switch is the game pausing the UI view while its
   window is not active, the view resumes on the next real input. Not a stall.
-- The full record with every number is `ui-lag-hunt-2026-09-06`, the engine's surface is
-  `cohtml-ui-engine`.
+- A first round of the overhaul (rows of the controls page built ten per frame, the focus box
+  and the scrollbar thumb moved with transforms, the visibility fixes) went into one build on
+  the owner's word. The owner drove it: the lag was the same and the controls list came up
+  empty, because the patched row build read the filter input before it existed and threw.
+- The full record with every number and the engine's surface is `ui-lag-hunt-2026-09-06`.
 
 ## Fix
 
-Absent. The cost sits in the game's UI pages and scripts, where no engine lever of the DLL
-reaches (DEC-010). What a felt fix takes is written up as TODO-011, an overhaul of the page
-scripts delivered as an initial script of the view, not started, the owner's decision.
+Won't fix, the owner's call on 2026-09-06 after two rounds: "NOT ours to fix right now and it
+appears that you cant fix right now either. Remove everything related to UI." The cost sits in
+the game's UI pages and scripts, where no engine lever of the DLL reaches, and the script
+overhaul that would change what the owner feels (TODO-011, dropped) is days of work against a
+50,000 line bundle with the risk seen twice. Every UI related piece was removed from the mod
+(DEC-010).
 
 ## Verification
 

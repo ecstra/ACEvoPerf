@@ -1,9 +1,9 @@
 ---
 name: DEC-010-no-ui-changes-ship
 kind: decision
-description: the mod ships no change to the game's UI after the lag hunt, the Cohtml hook stays as a diagnostic with the inspector switch off, an overhaul is a separate decision of the owner
+description: the mod carries nothing UI related after the lag hunt, no hook, no switch, no tool, on the owner's word, the findings stay in the research record
 updated: 2026-09-06
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-hunt-2026-09-06, cohtml-ui-engine, TODO-011-ui-overhaul-through-injected-scripts]
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-hunt-2026-09-06, TODO-011-ui-overhaul-through-injected-scripts]
 date: 2026-09-06
 area: ui
 status: standing
@@ -12,12 +12,13 @@ superseded-by:
 
 ## Decision
 
-After the UI lag hunt of 2026-09-06 the mod ships nothing that changes the game's UI. The
-Cohtml hook in `src/ui/cohtml.cpp` stays because it costs nothing and gives the log the engine
-version, the views and a working inspector switch (`[ui] inspector_port`, off by default). The
-work split log, the layout thread, the V8 flags and the injected script patches were removed in
-the same round. Whether to start the overhaul that would actually change what the owner feels
-(TODO-011) is the owner's decision, taken on its cost, not something the mod slides into.
+After the UI lag hunt of 2026-09-06 the mod carries nothing UI related: no Cohtml hook, no
+inspector switch, no `[ui]` section in the ini, no UI tools, no script injection. The owner
+first asked for the overhaul to be tried (TODO-011), drove one round of it, felt no change and
+found the controls list empty, and closed the topic: "Remove everything related to UI." The
+hunt's findings and the engine's surface stay in `ui-lag-hunt-2026-09-06` so the topic is not
+reopened from scratch, and the code of every instrument and patch is in the history between the
+commits `added: Cohtml engine hooks` and `removed: every UI related piece of the mod`.
 
 ## Alternatives
 
@@ -32,8 +33,8 @@ the same round. Whether to start the overhaul that would actually change what th
 
 ## Consequences
 
-- The mod stays a performance and streaming mod, as `fix-real-bugs-only` in the machine memory
-  and DEC-008 already framed it. BUG-014 stays open with the analysis, not fixed and not won't
-  fix, until the owner decides on TODO-011.
-- The next attempt starts from `ui-lag-hunt-2026-09-06` and `cohtml-ui-engine`, not from
-  scratch: the numbers, the engine's surface and the injection vehicle are known.
+- The mod stays a performance and streaming mod. BUG-014 is won't fix on the owner's word and
+  TODO-011 is dropped.
+- If the topic ever comes back it starts from `ui-lag-hunt-2026-09-06`: the numbers, the
+  engine's surface and the injection vehicle are known, and so are the two regressions the
+  attempts produced.

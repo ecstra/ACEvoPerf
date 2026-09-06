@@ -18,10 +18,6 @@ render
 
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
 
-ui
-
-- [TODO-011-ui-overhaul-through-injected-scripts](TODO-011-ui-overhaul-through-injected-scripts.md), the page script overhaul that would remove the felt lag, delivered as an initial script, the owner's decision
-
 ## Done
 
 - render: 1 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean)
@@ -32,3 +28,4 @@ ui
 ## Dropped
 
 - stability: 1 (TODO-003, the crashes stopped with the staging cap)
+- ui: 1 (TODO-011, the UI script overhaul, one round tried and closed on the owner's word)
