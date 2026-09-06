@@ -10,8 +10,13 @@ links: [agent-index, spec-todos]
 
 ## Open
 
+engine-flags
+
+- [TODO-012-unlock-the-free-roam-mode](TODO-012-unlock-the-free-roam-mode.md), the engine's Free Roam mode sits behind a password switch, unlock it from the mod and get the owner driving the roads around the Nordschleife
+
 streaming
 
+- [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), the 15 s Nordschleife load with the disk mostly idle: sample the loading workers, then a read set cache or the decipher off the game
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 
 render
