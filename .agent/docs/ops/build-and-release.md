@@ -1,8 +1,8 @@
 ---
 name: build-and-release
 kind: doc
-description: how to build, install, uninstall and (later) package the mod
-updated: 2026-09-05
+description: how to build, install, uninstall and package the mod, the first release cut on 2026-09-06
+updated: 2026-09-06
 links: [TODO-004-release-packaging, proxy-architecture]
 ---
 
@@ -42,6 +42,12 @@ then zips the four payload files into `release/ACEvoPerf-<FileVersion>.zip`. The
 from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/common.h`. Built binaries
 and the release folder stay out of git (`.gitignore`), the committed runtime DLL is the one
 exception because the payload needs it and its license allows it.
+
+Cutting a release: date the `Unreleased` section of `CHANGELOG.md` as the version, run
+`release.ps1` with the game closed, check the zip lists the four files, commit and tag
+`v<version>`. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
+0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
+the auto sizes, the flags, the overlay and the telemetry.
 
 ## Gates
 

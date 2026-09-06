@@ -4,7 +4,7 @@ What the mod does, what it fixes and how, one entry per user visible change. New
 Verified means measured in `acevo_perf.log` or seen by the owner in the game on the reference
 machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
-## Unreleased
+## 0.3.0 (2026-09-06)
 
 ### Fixed
 
