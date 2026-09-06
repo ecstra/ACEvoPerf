@@ -8,6 +8,7 @@ links: [agent-index, spec-decisions]
 
 # Decisions Index
 
+- [DEC-011-no-free-roam-mod](DEC-011-no-free-roam-mod.md), 2026-09-06, the Free Roam unlock does not ship and its branch is gone, the package stops at the Nürburgring complex, the recipe stays in the research record
 - [DEC-010-no-ui-changes-ship](DEC-010-no-ui-changes-ship.md), 2026-09-06, no UI change ships after the lag hunt, the Cohtml hook stays as a diagnostic, the overhaul is the owner's call
 - [DEC-009-pool-and-staging-sizes-by-card](DEC-009-pool-and-staging-sizes-by-card.md), 2026-09-06, tile pool and staging buffer picked from the card's memory at the game's first DXGI factory
 - [DEC-008-frame-latency-left-to-the-game](DEC-008-frame-latency-left-to-the-game.md), 2026-09-05, the game's swap chain latency stays, the proxy logs the calls

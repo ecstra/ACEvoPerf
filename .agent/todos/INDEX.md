@@ -10,10 +10,6 @@ links: [agent-index, spec-todos]
 
 ## Open
 
-engine-flags
-
-- [TODO-012-unlock-the-free-roam-mode](TODO-012-unlock-the-free-roam-mode.md), the engine's Free Roam mode sits behind a password switch, unlock it from the mod and get the owner driving the roads around the Nordschleife
-
 streaming
 
 - [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), the 15 s Nordschleife load with the disk mostly idle: sample the loading workers, then a read set cache or the decipher off the game
@@ -34,3 +30,4 @@ render
 
 - stability: 1 (TODO-003, the crashes stopped with the staging cap)
 - ui: 1 (TODO-011, the UI script overhaul, one round tried and closed on the owner's word)
+- engine-flags: 1 (TODO-012, the hidden Free Roam mode unlocked and driven for an afternoon, dropped because the package stops at the complex, DEC-011)

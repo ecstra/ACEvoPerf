@@ -3,12 +3,12 @@ name: TODO-012-unlock-the-free-roam-mode
 kind: todo
 description: the engine ships a Free Roam game mode behind a password switch, unlock it from the mod and get the owner driving the roads around the Nordschleife
 updated: 2026-09-06
-links: [engine-flags, package-override-layer, moddability, TODO-009-overlay-serves-copies-so-loose-files-stay-editable]
-status: open
+links: [free-roam-unlock-2026-09-06, DEC-011-no-free-roam-mod, engine-flags, package-override-layer, moddability, TODO-009-overlay-serves-copies-so-loose-files-stay-editable]
+status: dropped
 by: owner
 area: engine-flags
 born: 2026-09-06
-done:
+done: 2026-09-06
 ---
 
 ## What
@@ -44,3 +44,8 @@ Found in the exe and the package on 2026-09-06:
 The owner drives in the Free Roam mode started from the game's own menu with the mod
 installed, the switch documented in the ini and the changelog, and the record says which
 content the session uses.
+
+Dropped 2026-09-06 after the drive. It ran, seven rounds on a branch the owner then had
+deleted (DEC-011): the package stops at the Nürburgring complex, beyond it the roads are low
+detail and rough, the map is empty and the car reset does nothing, and none of it can be
+filled from the files. The recipe and the content picture are in `free-roam-unlock-2026-09-06`.

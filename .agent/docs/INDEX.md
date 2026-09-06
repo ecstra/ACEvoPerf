@@ -32,3 +32,4 @@ links: [agent-index, spec-docs]
 - [lap-2026-09-05-nordschleife](research/lap-2026-09-05-nordschleife.md), the first telemetry lap and what it showed
 - [one-percent-low-hunt-2026-09-05](research/one-percent-low-hunt-2026-09-05.md), nineteen instrumented laps into the 1 percent low, what was measured, ruled out and left
 - [ui-lag-hunt-2026-09-06](research/ui-lag-hunt-2026-09-06.md), a morning of instrumented runs into the menu and settings page lag, every DLL lever measured, where the cost sits, the engine's surface, why the mod left the UI alone
+- [free-roam-unlock-2026-09-06](research/free-roam-unlock-2026-09-06.md), the hidden Free Roam mode found behind a password, switched on for an afternoon and dropped: the gate, what the package carries and lacks, the recipe
