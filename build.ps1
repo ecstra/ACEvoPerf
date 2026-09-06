@@ -27,7 +27,7 @@ try {
         /I"$root\include" /I"$root\third_party\directstorage" /Fo"$root\build\\" $sources `
         /link /DLL /MACHINE:X64 /DEF:"$root\src\exports.def" /OUT:"$root\dist\dstorage.dll" `
         /IMPLIB:"$root\build\dstorage_proxy.lib" /PDB:"$root\build\dstorage_proxy.pdb" /DEBUG:FULL /OPT:REF /OPT:ICF `
-        "$root\build\version.res" kernel32.lib user32.lib
+        "$root\build\version.res" kernel32.lib user32.lib advapi32.lib
     if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
 } finally { Pop-Location }
 # the zip payload also needs the original Microsoft runtime under the name the proxy forwards to

@@ -10,6 +10,7 @@
 //   render/     DXGI factory and swap chain hooks, per frame timing
 //   telemetry/  per second CSV
 //   overlay/    loose files that shadow package entries
+//   ui/         the Cohtml library, system and view hooks, the DevTools inspector switch
 //
 // Everything is configured by acevo_perf.ini next to this DLL and logged to
 // acevo_perf.log. No game files other than the replaced dstorage.dll are touched.
@@ -23,6 +24,7 @@
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
+#include "acevo/ui/cohtml.h"
 
 static void OnAttach(HMODULE h)
 {
@@ -57,6 +59,7 @@ static void OnAttach(HMODULE h)
     ApplyFlags("early");
     InstallDxgiHooks();
     InstallThrowLog();
+    InstallCohtmlHooks();
     overlay::Install();
 }
 
