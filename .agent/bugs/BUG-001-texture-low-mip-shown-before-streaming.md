@@ -4,7 +4,7 @@ kind: bug
 description: surfaces appear with a low mip for about a second before the sharp tiles arrive
 updated: 2026-09-06
 links: [directstorage-streaming, lap-2026-09-05-nordschleife, BUG-006-distant-objects-pop-in, TODO-005-lap-two-experiments]
-status: open
+status: wontfix
 severity: bug
 area: streaming
 reported: 2026-09-05
@@ -45,11 +45,15 @@ one (for a second)".
   (BUG-006). So the mip the streamer keeps resident at a distance depends on the card, which
   means the pool and the eviction, not the feedback pass alone.
 
+- Owner, an hour later: the same shows on every card in other videos, video compression had
+  hidden it. Not a residency fault of this machine.
+
 ## Fix
 
-Absent. The request path is not the delay (bursts of 9 ms). Parked with BUG-006 to debug after
-the optimisation pass: the tile pool at 1024 MB against what the scene wants resident, and
-whether tiles still in view get evicted. Candidates that were tried are in TODO-005.
+Won't fix, owner's call on 2026-09-06, with BUG-006: the mip a surface gets at a distance is
+the engine's choice on every card, the streaming path the mod owns answers in 9 ms bursts and
+the mip bias that moves the band is a quality and memory trade the game's Custom filtering
+setting already offers. Candidates that were tried are in TODO-005.
 
 ## Verification
 

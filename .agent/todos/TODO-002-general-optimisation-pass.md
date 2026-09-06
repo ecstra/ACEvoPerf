@@ -30,11 +30,12 @@ owner's own menu choices and not this item.
 
 ## Candidates, 2026-09-06
 
-- C++ exceptions on the render thread. The sampler put about 2.4 percent of the render
-  thread's samples in the C runtime's exception unwinding, so the game throws and catches
-  every frame. `[log] throw_log=1` names the throw sites and types, one lap decides whether a
-  throw site is a lookup the mod can satisfy (a missing file or key served through the
-  overlay, the way the icons were fixed) or the engine's own control flow.
+- C++ exceptions on the render thread: cleared on 2026-09-06, lap 21. The throw log hooked
+  the exe's `_CxxThrowException` import for a whole session, menu and lap, and counted zero
+  throws. The unwinding samples of the sampler came from loading minutes (54 against 3 in a
+  loading minute, 8 against 1 in a driving minute) and the vcruntime range under
+  `__NLG_Return2` also covers the funclet caller the unwinder uses for exceptions thrown by
+  the UI DLLs, so nothing the game's own code does per frame.
 - The tiled instances buffer (`dx12_instances_tiled`, on by default: 384 MB virtual over
   256 MB of backing, mapped and unmapped on the graphics queue as it grows). Frames with tile
   mappings ran 0.8 ms slower in lap 15. One lap with the flag off says whether the plain

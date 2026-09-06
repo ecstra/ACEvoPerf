@@ -4,7 +4,7 @@ kind: bug
 description: distant objects switch detail level visibly as the car approaches
 updated: 2026-09-06
 links: [settings-files, content-package, BUG-001-texture-low-mip-shown-before-streaming, TODO-005-lap-two-experiments]
-status: open
+status: wontfix
 severity: nit
 area: render
 reported: 2026-09-05
@@ -60,12 +60,16 @@ Owner wording: "Farther items pop-in and does not folow the same level we have?"
   pool size and eviction are the first suspects (the pool is 1024 MB on this card,
   `texturePoolSize` reads Low in the game log).
 
+- Owner, an hour later: "I watched another video and it is clear that it happens on all
+  cards, not just our mod. Seems like YT compression hides it well thats all."
+
 ## Fix
 
-Absent. The LOD scale test is closed (a quality trade, not the cause). Parked as a nit to
-debug after the optimisation pass, starting from the colour change: which texture of the
-ground material is at a low mip at distance, how big the pool would have to be to keep it,
-and whether the streamer evicts tiles that are still in view.
+Won't fix, owner's call on 2026-09-06: the fade, the switch distances and the colour change
+happen on every card, so they are the engine's design and not a fault of this machine or of
+the mod. The LOD scale test (lap 20) moved the distances at a frame rate cost and is a quality
+trade the game's own Custom level of detail setting already offers. The mesh numbers above
+stay as reference.
 
 ## Verification
 
