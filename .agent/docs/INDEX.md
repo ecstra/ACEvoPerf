@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-06
+updated: 2026-09-11
 links: [agent-index, spec-docs]
 ---
 
@@ -18,7 +18,7 @@ links: [agent-index, spec-docs]
 - [engine-flags](systems/engine-flags.md), the 216 gflags, which matter, how the mod sets them
 - [content-package](systems/content-package.md), content.kspkg layout, hash and cipher
 - [package-override-layer](systems/package-override-layer.md), loose files under acevo_mods shadow package entries, how and what was verified
-- [settings-files](systems/settings-files.md), user data location and the VideoSettings fields worth knowing
+- [settings-files](systems/settings-files.md), user data location, which files are the account, the controls and the graphics, and the VideoSettings fields worth knowing
 
 ## ops
 
