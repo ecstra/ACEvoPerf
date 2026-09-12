@@ -1,7 +1,7 @@
 ---
 name: directstorage-1-3-2026-09-12
 kind: doc
-description: the DirectStorage runtime taken from 1.2.3 to 1.3.0, what the forwarder and core split really is, why the first attempt shipped and silently did nothing, what the changelog actually offers this game, the measurements showing it changed nothing, and why merging the game's texture requests is impossible
+description: the DirectStorage runtime taken from 1.2.3 to 1.3.0, the forwarder and core split, the attempt that shipped and silently did nothing, what the changelog really offers this game, why merging the texture requests is impossible, and BypassIO measured to be live and to not matter
 updated: 2026-09-12
 links: [DEC-015-bundled-directstorage-core-loaded-first, dstorage-dll-is-only-a-forwarder, directstorage-streaming, proxy-architecture, TODO-014-proxy-implements-enqueuerequests-if-the-game-asks]
 ---
@@ -167,6 +167,41 @@ never the obstacle. Its memory layout is, and a proxy cannot change that.
 
 The survey came out again after answering the question. It is in the history at commit `317baaa` if
 the game's allocation behaviour ever changes.
+
+## Is BypassIO actually engaging
+
+This sat on the optimisation list as "no API exists, would need capturing the runtime's debug
+output". Both halves of that are true and the second is worse than it sounds. The 1.3.0 runtime
+contains no BypassIO diagnostic strings at all, in either encoding, and the only thing it carries
+is the ETW provider name `Microsoft.Windows.Graphics.DirectStorage`. The debug layer flags
+(`DSTORAGE_DEBUG_SHOW_ERRORS` and friends) print to a debugger, and nothing in the header asks the
+runtime whether BypassIO took. So learning the flag means a private in process ETW session plus TDH
+decoding, a few hundred lines, to be told a boolean.
+
+The better question needs no code, because `disable_bypass_io` already exists: is BypassIO worth
+anything here? Two Nürburgring loads, same build, same track, one line of ini between them:
+
+| | peak tile queue | peak file to memory | Nürburgring load |
+|---|---|---|---|
+| BypassIO on, 15:37 | **600.8 MB/s** | 897.7 MB/s | 16.51 s |
+| BypassIO off, 15:44 | **391.2 MB/s** | 850.0 MB/s | 15.68 s |
+
+Two things follow, and they point in opposite directions, which is why this is worth writing down.
+
+**It is engaging.** Turning it off costs 35 percent of the tile queue's peak, and the shape of the
+traffic changes with it: on, the top seconds run 601, 477, 148, 65, a sharp burst that empties
+quickly, off they run 391, 378, 287, 202, flatter and longer. A switch that does nothing does not
+move numbers like that, so the path is live on this machine and no verification work is owed.
+
+**And it does not matter to a load.** The load with BypassIO off came out 0.8 s faster, which is
+inside the spread already measured for that same track on that same day (15.68, 16.10, 16.51,
+16.66 s). That is not a claim that switching it off helps, it is a measurement that the difference
+is invisible against the noise, and it agrees with everything else here: a session load is not
+drive bound, the drive is about a second of a sixteen second load, and the time goes to the job
+queue and to streaming the engine has not asked for yet (TODO-013, BUG-018).
+
+So BypassIO is closed, on evidence, without writing the ETW consumer. It works, and the thing it
+makes faster is not the thing that is slow.
 
 ## Reading
 
