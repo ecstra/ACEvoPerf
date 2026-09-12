@@ -2,8 +2,8 @@
 name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
-updated: 2026-09-06
-links: [TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror]
+updated: 2026-09-12
+links: [TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
 ---
 
 # Build and release
@@ -22,29 +22,36 @@ For development, `build.ps1 -Install` copies the fresh `dstorage.dll` into the f
 `ACEVO_GAME_DIR` environment variable (refuses while the game runs, keeps an existing ini). Users
 never run it, they install by drag and drop.
 
-The DirectStorage headers come from `third_party/directstorage` (Microsoft NuGet package
-`Microsoft.Direct3D.DirectStorage` 1.2.3, MIT, license included). A clean build has zero errors
-and one known warning (`C4244` inside the STL, from a `wchar_t` to `char` copy).
+The DirectStorage headers and binaries come from `third_party/directstorage` (Microsoft NuGet
+package `Microsoft.Direct3D.DirectStorage` 1.3.0, MIT, license included). A clean build has zero
+errors and one known warning (`C4244` inside the STL, from a `wchar_t` to `char` copy).
 
 ## Install
 
 Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `dstorage_orig.dll`
-(Microsoft's DirectStorage 1.2.3 runtime from `third_party/directstorage/bin/x64/`, byte identical
-to the game's own file), `acevo_perf.ini` and `README.txt`. The user copies them into the game
-folder and lets Windows replace `dstorage.dll`. Uninstall is the reverse, described in
-`dist/README.txt`. If a game update ships a different DirectStorage version the proxy still loads
-our 1.2.3 loader, which loads the game's `dstoragecore.dll`, the loader logs the versions.
+and `acevo_perf\dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
+`third_party/directstorage/bin/x64/`), `acevo_perf.ini` and `README.txt`. The user copies them into
+the game folder and lets Windows replace `dstorage.dll`. Uninstall is the reverse, described in
+`dist/README.txt`.
+
+`dstorage_orig.dll` is only a forwarder, the runtime is the core beside it, and the mod loads its
+own core by full path before the forwarder looks for one (DEC-015). No game file is replaced, so a
+game update shipping its own DirectStorage changes nothing. The two halves have no version check
+between each other, which is why the proxy reads `DStorageSDKVersion` off the core that actually
+loaded and writes it to the log as `[runtime] DirectStorage 1.x.y in use`. That line is the gate
+for any change here: a mismatched pair works and says nothing.
 
 ## Release
 
-`release.ps1` runs `build.ps1` (which also copies the runtime into `dist/` as `dstorage_orig.dll`),
-then zips the four payload files into `release/ACEvoPerf-<FileVersion>.zip`. The version comes
+`release.ps1` runs `build.ps1` (which also copies Microsoft's two files into `dist/` as
+`dstorage_orig.dll` and `acevo_perf\dstoragecore.dll`), then zips the payload, four files and the
+`acevo_perf` folder, into `release/ACEvoPerf-<FileVersion>.zip`. The version comes
 from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/common.h`. Built binaries
-and the release folder stay out of git (`.gitignore`), the committed runtime DLL is the one
-exception because the payload needs it and its license allows it.
+and the release folder stay out of git (`.gitignore`), the two committed runtime DLLs are the
+exception because the payload needs them and their license allows it.
 
 Cutting a release: date the `Unreleased` section of `CHANGELOG.md` as the version, run
-`release.ps1` with the game closed, check the zip lists the four files, commit and tag
+`release.ps1` with the game closed, check the zip lists the four files and the folder, commit and tag
 `v<version>`. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
 0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
 the auto sizes, the flags, the overlay and the telemetry.

@@ -28,11 +28,30 @@ void InitDStorageProxy()
     InitializeCriticalSection(&g_realCs);
 }
 
+// dstorage_orig.dll is only a forwarder. The runtime itself is dstoragecore.dll, which the
+// forwarder loads by bare name from the game executable's folder, where the game keeps its own
+// older copy. Windows hands a bare name LoadLibrary any module already loaded under that name,
+// so loading ours by full path first is enough to make the forwarder pick it up. The game's file
+// is never touched, which keeps uninstall a delete and keeps a game update from undoing this.
+static void PreloadBundledRuntime()
+{
+    if (!g_cfg.bundledRuntime) {
+        Log("[runtime] bundled_runtime=0, the game's own DirectStorage runtime is left in place");
+        return;
+    }
+    std::wstring path = g_dir + L"acevo_perf\\dstoragecore.dll";
+    if (!LoadLibraryW(path.c_str()))
+        Log("[runtime] cannot load %ls (error %lu), falling back to the game's own runtime. Copy the "
+            "acevo_perf folder from the mod zip next to the exe to get the newer one.",
+            path.c_str(), GetLastError());
+}
+
 static bool EnsureReal()
 {
     EnterCriticalSection(&g_realCs);
     if (!g_realTried) {
         g_realTried = true;
+        PreloadBundledRuntime();
         std::wstring path = g_dir + L"dstorage_orig.dll";
         g_real = LoadLibraryW(path.c_str());
         if (!g_real) {
@@ -73,6 +92,8 @@ struct QueueProxy : IDStorageQueue2 {
     std::atomic<LONG> ref{1};
     std::string name;
     QueueStats st;
+    std::atomic<bool> toldAboutQueue3{false};
+    std::atomic<bool> toldAboutUnwrapped{false};
 
     QueueProxy(IDStorageQueue* q, const char* n) : real(q), name(n ? n : "(unnamed)")
     {
@@ -113,6 +134,20 @@ struct QueueProxy : IDStorageQueue2 {
             (real1 && riid == __uuidof(IDStorageQueue1)) || (real2 && riid == __uuidof(IDStorageQueue2))) {
             *ppv = static_cast<IDStorageQueue2*>(this); AddRef(); return S_OK;
         }
+        // 1.3 added IDStorageQueue3, and the proxy does not implement it. Handing the real queue
+        // over would put the game directly on the runtime, past the overlay's file redirection and
+        // past the statistics, so it is declined the way a pre 1.3 runtime declines it. The game is
+        // built against 1.2 and never asks. This is here so that a later build cannot quietly slip
+        // past the proxy the moment the runtime underneath it gets newer.
+        if (riid == __uuidof(IDStorageQueue3)) {
+            if (!toldAboutQueue3.exchange(true))
+                Log("queue '%s': the game asked for IDStorageQueue3 and was declined, it keeps using the 1.2 "
+                    "interface. Nothing is broken, but the mod should grow an EnqueueRequests of its own.", name.c_str());
+            *ppv = nullptr;
+            return E_NOINTERFACE;
+        }
+        if (!toldAboutUnwrapped.exchange(true))
+            Log("queue '%s': handing the real queue over for an interface the proxy does not wrap", name.c_str());
         return real->QueryInterface(riid, ppv);
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)++ref; }
@@ -262,6 +297,25 @@ IDStorageFactory* RealDStorageFactory()
     return g_factory ? g_factory->real : nullptr;
 }
 
+// Which runtime actually came up. Worth reading back rather than assuming: a newer forwarder
+// paired with an older core still works and reports no error at all, it just quietly runs the
+// old code, so the only honest answer comes from the module that really got loaded.
+static void ReportRuntimeInUse()
+{
+    HMODULE core = GetModuleHandleW(L"dstoragecore.dll");
+    if (!core) { Log("[runtime] no dstoragecore.dll is loaded, the DirectStorage runtime did not come up"); return; }
+
+    wchar_t path[MAX_PATH] = {};
+    GetModuleFileNameW(core, path, MAX_PATH);
+    const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
+    UINT32 v = sdk ? *sdk : 0;
+
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path);
+    if (v < DSTORAGE_SDK_VERSION)
+        Log("[runtime] that is older than the 1.%u.%u this mod ships, so the game's own runtime is being used. "
+            "It works, it is just the old one.", (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);
+}
+
 static void ApplyDStorageConfiguration()
 {
     if (g_configApplied) return;
@@ -280,6 +334,7 @@ static void ApplyDStorageConfiguration()
     else if (g_realSetConfiguration) hr = g_realSetConfiguration((DSTORAGE_CONFIGURATION*)&c);
     Log("DStorageSetConfiguration1: submitThreads=%u cpuDecompThreads=%d forceMappingLayer=%d disableBypassIO=%d disableTelemetry=%d disableGpuDecomp=%d forceFileBuffering=%d -> hr=0x%08X",
         c.NumSubmitThreads, c.NumBuiltInCpuDecompressionThreads, c.ForceMappingLayer, c.DisableBypassIO, c.DisableTelemetry, c.DisableGpuDecompression, c.ForceFileBuffering, (unsigned)hr);
+    ReportRuntimeInUse();   // the first call into the forwarder is what loads the core
 }
 
 // ---------------------------------------------------------------------------

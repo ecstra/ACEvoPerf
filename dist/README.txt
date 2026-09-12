@@ -1,10 +1,12 @@
 ACEvoPerf - performance mod for Assetto Corsa EVO
 
 INSTALL
-  Close the game. Copy all three files (dstorage.dll, dstorage_orig.dll, acevo_perf.ini)
-  into the game folder, next to AssettoCorsaEVO.exe, and let Windows replace the
-  existing dstorage.dll. Start the game. That is all.
-  acevo_perf.log next to the exe shows what the mod applied.
+  Close the game. Copy everything from this zip (dstorage.dll, dstorage_orig.dll,
+  acevo_perf.ini and the acevo_perf folder) into the game folder, next to
+  AssettoCorsaEVO.exe, and let Windows replace the existing dstorage.dll. Start the
+  game. That is all. acevo_perf.log next to the exe shows what the mod applied.
+  Nothing of the game is replaced or edited, only dstorage.dll is taken over, and
+  the file it used to be is the dstorage_orig.dll you just copied in.
 
 SETTINGS
   Everything is in acevo_perf.ini, each key is explained in the file.
@@ -22,14 +24,23 @@ MODS FOLDER (optional)
   itself is never modified, delete the folder to undo everything. Files are
   picked up at game start and listed in acevo_perf.log.
 
+DIRECTSTORAGE RUNTIME
+  The game ships Microsoft's DirectStorage 1.2.3. This mod carries 1.3.0 in the
+  acevo_perf folder and loads that one instead, mostly for a 1.2.4 fix for a race
+  that could stop DirectStorage processing requests while the CPU is busy, which
+  is what loading a session looks like. Your game's own copy is left alone, the
+  newer one is just loaded first. acevo_perf.log says which one is really running.
+  Set bundled_runtime=0 in the ini to go back to the game's, which is the first
+  thing to try if streaming ever misbehaves.
+
 UNINSTALL
   Delete dstorage.dll, then rename dstorage_orig.dll to dstorage.dll. Delete
-  acevo_perf.ini, the acevo_mods folder if you made one, and any acevo_perf*.log /
-  acevo_perf_*.csv files. Or verify the game files in Steam, which restores the
-  original dstorage.dll.
+  acevo_perf.ini, the acevo_perf folder, the acevo_mods folder if you made one, and
+  any acevo_perf*.log / acevo_perf_*.csv files. Or verify the game files in Steam,
+  which restores the original dstorage.dll.
 
 AFTER A GAME UPDATE
-  If an update replaces dstorage.dll, copy the three files in again.
+  If an update replaces dstorage.dll, copy everything in again.
 
-dstorage_orig.dll is Microsoft's DirectStorage 1.2.3 runtime, redistributed as
-allowed by its license, byte identical to the one the game ships.
+dstorage_orig.dll and acevo_perf\dstoragecore.dll are Microsoft's DirectStorage
+1.3.0 runtime, redistributed as allowed by its license.

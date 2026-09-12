@@ -8,6 +8,18 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Added
 
+- The mod brings its own DirectStorage runtime, Microsoft 1.3.0, and uses it instead of the 1.2.3
+  the game ships. The reason is 1.2.4, which fixed a race that could stop DirectStorage processing
+  requests while the CPU is under heavy load, and a session load in this game is exactly that. On
+  top of that comes a year of runtime work between the two versions. Nothing of the game is
+  replaced: `dstorage.dll` is only a forwarder, the runtime itself is `dstoragecore.dll`, and the
+  mod loads its own copy from `acevo_perf\` before the forwarder can reach the game's file, so a
+  game update cannot undo it and uninstalling is still a delete. Verified by reading the version
+  back off the runtime that really loaded rather than trusting what was shipped, which the log now
+  reports at start: `DirectStorage 1.3.0 in use`. Worth knowing, because the two halves have no
+  version check between them, a new forwarder on an old runtime reports no error and quietly runs
+  the old code. `bundled_runtime=0` in the ini goes back to the game's own runtime, and so does a
+  missing `acevo_perf` folder, both saying so in the log.
 - NVIDIA Reflex, in a game that ships none. It is not a frame rate limiter and never caps
   anything: it stops the CPU queueing frames further ahead of the GPU than it can use, so the
   input behind a frame is newer. NVIDIA only, silently idle on anything else. Verified by

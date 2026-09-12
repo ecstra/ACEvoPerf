@@ -18,7 +18,7 @@
 
 ## Overview
 
-A small performance mod for Assetto Corsa EVO. It is a `dstorage.dll` that sits next to the game exe, passes everything through to Microsoft's real DirectStorage runtime and fixes the game's video memory budget on the way. Three files in the game folder, no installer, delete them and you are back to stock.
+A small performance mod for Assetto Corsa EVO. It is a `dstorage.dll` that sits next to the game exe, passes everything through to Microsoft's real DirectStorage runtime and fixes the game's video memory budget on the way. A few files in the game folder, no installer, delete them and you are back to stock. Nothing belonging to the game is replaced or edited.
 
 It exists because a 6 GB card kept crashing the game on car and track changes, lost the icons in the vehicle hub and turned the road to mush after a restart. All of it came down to the same thing, which the mod corrects at start. Built on an RTX 3060 Laptop with 6 GB on Windows 11, and since reported working by people on RTX 2060, 3060 Ti, 3070 Ti, 4050 and 4060 cards, from 6 GB up. Developed against game versions 0.9.0 and 0.9.1.
 
@@ -43,6 +43,7 @@ It also adds NVIDIA Reflex to a game that ships none, skips the intro, and runs 
 
 ## What else it does
 
+* **Brings a newer DirectStorage:** the game ships Microsoft's 1.2.3, the mod carries 1.3.0 and uses that instead. The one that matters is a fix from 1.2.4 for a race that could stop DirectStorage processing requests while the CPU is under heavy load, which is what a session load looks like here. Your game files are not touched, the newer runtime is simply loaded first. The log says which one is actually running, and `bundled_runtime=0` in the ini goes back to the game's.
 * **Sizes itself to your card:** the tile pool and the staging buffer are picked from the render adapter's memory the moment the game creates its DXGI factory, before the renderer sizes its pools. A number in the ini overrides the pick.
 * **Engine flags from the ini:** any bool, int32 or double gflag of the game can be set under `[flags]`. The release build ignores flags on the command line, so the mod locates the storage of each one inside the exe and writes it directly. `no_intro` is the only one on by default that is not part of a fix.
 * **NVIDIA Reflex,** which the game does not have. It is not a frame rate limiter and caps nothing: it stops the CPU queueing frames further ahead of the GPU than it can use, so the input behind a frame is newer. NVIDIA only, and on an AMD or Intel adapter it never even loads the NVIDIA library, it checks the vendor of the adapter you actually render on and stays out of the way. Being honest about it: on the 6 GB laptop this was built on there was no frame rate change across four measured runs, because that machine is 97 percent GPU bound and sits pinned at its thermal limit, which leaves Reflex nothing to do. Latency, which is the point of it, was not measured.
@@ -56,7 +57,7 @@ It also adds NVIDIA Reflex to a game that ships none, skips the intro, and runs 
 1. Close the game.
 2. Download the zip from [Overtake](https://www.overtake.gg/downloads/acevoperf.86467/) or from the [latest release](https://github.com/ecstra/ACEvoPerf/releases/latest) here, they are the same file.
 3. Open the game folder, the one with `AssettoCorsaEVO.exe` in it. In Steam that is right click the game, Manage, Browse local files.
-4. Copy `dstorage.dll`, `dstorage_orig.dll` and `acevo_perf.ini` from the zip into that folder. Let Windows replace the existing `dstorage.dll`.
+4. Copy everything from the zip into that folder, the three files and the `acevo_perf` folder. Let Windows replace the existing `dstorage.dll`.
 5. Start the game. `acevo_perf.log` appears next to the exe and lists what was applied.
 
 After a game update that replaces `dstorage.dll`, do the same again. If an update breaks the mod, remove it until a new version is out.
@@ -66,7 +67,7 @@ After a game update that replaces `dstorage.dll`, do the same again. If an updat
 1. Close the game.
 2. Delete `dstorage.dll`.
 3. Rename `dstorage_orig.dll` to `dstorage.dll`.
-4. Delete `acevo_perf.ini` and `acevo_perf.log`.
+4. Delete `acevo_perf.ini`, `acevo_perf.log` and the `acevo_perf` folder.
 
 Or verify the game files in Steam, which puts the original `dstorage.dll` back, then delete the ini and the log.
 
@@ -85,6 +86,6 @@ Everything is in `acevo_perf.ini`, every key is explained in the file.
 
 ## Credits
 
-`dstorage_orig.dll` is Microsoft's DirectStorage 1.2.3 runtime from the NuGet package `Microsoft.Direct3D.DirectStorage`, byte identical to the one the game ships, redistributed under its license (`third_party/directstorage`). The rest is by **ecstra**.
+`dstorage_orig.dll` and `acevo_perf\dstoragecore.dll` are Microsoft's DirectStorage 1.3.0 runtime from the NuGet package `Microsoft.Direct3D.DirectStorage`, redistributed under its license as that package allows (`third_party/directstorage`). The rest is by **ecstra**.
 
 Licensed under MIT.

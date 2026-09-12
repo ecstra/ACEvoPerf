@@ -10,6 +10,7 @@ struct Config {
     int  hitchMs = 33;          // frames slower than this are logged individually
     bool throwLog = false;      // count the game's C++ exceptions by throw site
     // [directstorage]
+    bool bundledRuntime = true;     // load acevo_perf\dstoragecore.dll instead of the game's older one
     int  stagingMb = 0;             // 0 = the game's own value, or the auto pick once the card is known
     bool stagingAuto = true;        // staging_buffer_mb=auto, sized from the render adapter's memory
     int  minQueueCapacity = 0;

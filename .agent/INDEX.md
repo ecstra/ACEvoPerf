@@ -35,13 +35,13 @@ line in the same commit.
 
 ## The trackers
 
-- [todos/INDEX.md](todos/INDEX.md), the work tracker: 3 open (TODO-009, TODO-010, TODO-013), 6 done, 3 dropped
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 4 open (TODO-009, TODO-010, TODO-013, TODO-014), 6 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 5 open, 6 fixed, 4 won't fix
-- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 12 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-014), 2 superseded
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 13 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-015), 2 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet
 
 ## Memory and handovers
 
-- [memory/INDEX.md](memory/INDEX.md), project facts: 7 (5 project, 1 reference, 1 feedback)
+- [memory/INDEX.md](memory/INDEX.md), project facts: 8 (6 project, 1 reference, 1 feedback)
 - [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed

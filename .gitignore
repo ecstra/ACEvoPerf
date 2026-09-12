@@ -2,6 +2,7 @@
 build/
 dist/dstorage.dll
 dist/dstorage_orig.dll
+dist/acevo_perf/
 release/
 
 # runtime output copied from the game folder, one folder per session

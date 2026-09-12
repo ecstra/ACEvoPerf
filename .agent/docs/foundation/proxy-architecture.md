@@ -2,8 +2,8 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-06
-links: [DEC-001-dstorage-proxy-as-loader, directstorage-streaming, engine-flags, telemetry]
+updated: 2026-09-12
+links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry]
 ---
 
 # Proxy architecture
@@ -31,8 +31,12 @@ string. Every header includes it, every source includes its own header first.
    opt out, timer resolution), scan the exe for gflags and write the `[flags]` values
    (`ApplyFlags("early")`), hook the exe's imports of `CreateDXGIFactory1` and
    `CreateDXGIFactory2` (`InstallDxgiHooks`).
-2. First `DStorageGetFactory` call from the game: load `dstorage_orig.dll` (`EnsureReal`), call
+2. First `DStorageGetFactory` call from the game: load our own DirectStorage core from
+   `acevo_perf\dstoragecore.dll` so the forwarder finds it already loaded under that name rather
+   than the game's older one (`PreloadBundledRuntime`, DEC-015), load `dstorage_orig.dll`
+   (`EnsureReal`), call
    `DStorageSetConfiguration1` with the `[directstorage]` values (`ApplyDStorageConfiguration`),
+   read back and log the version of the core that really loaded (`ReportRuntimeInUse`),
    write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one), start the
    timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
    `FactoryProxy`.
