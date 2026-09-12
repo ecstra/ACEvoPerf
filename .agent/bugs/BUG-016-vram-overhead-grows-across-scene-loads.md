@@ -52,6 +52,21 @@ Peak usage in the session was 4665 MB of the 5226 MB budget, on the Nurburgring,
 561 MB. The same Nurburgring load costs 4463 to 4665 MB depending on when in the session it
 happens, and the difference is the overhead line, not the resources.
 
+Loading gets slower over the same session, on content that does not change. The menu scene is
+26 meshes, 30 textures and 47 instance sets every single time:
+
+| menu load | total | track resources streaming | commit meshes |
+|---|---|---|---|
+| 19:21 | 5.35 s | 1.86 s | 1.14 s |
+| 19:48 | 6.92 s | 2.34 s | 1.36 s |
+| 20:25 | 7.26 s | 2.70 s | 1.55 s |
+
+36 percent slower by the third load. The Nurburgring does the same over its three loads,
+16.92 s then 17.00 s then 17.68 s, with track resources streaming going 12.61 s, 12.64 s,
+13.14 s for an identical 1528 meshes and 1237 textures. Whatever accumulates costs time as
+well as memory, which makes an allocator that is doing more work to place each request a
+better fit than a simple leak.
+
 ## Reading
 
 Same scene, same resources, more overhead each time, and nothing in the pools is being rebuilt.

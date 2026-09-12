@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-06
+updated: 2026-09-12
 links: [agent-index, spec-todos]
 ---
 
@@ -12,7 +12,7 @@ links: [agent-index, spec-todos]
 
 streaming
 
-- [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), the 15 s Nordschleife load with the disk mostly idle: sample the loading workers, then a read set cache or the decipher off the game
+- [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase issuing 36000 requests averaging 30 KB, so the fix is readahead in the proxy
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 
 render
