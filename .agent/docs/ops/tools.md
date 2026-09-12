@@ -2,7 +2,7 @@
 name: tools
 kind: doc
 description: the Python tools in tools/ and what each command does
-updated: 2026-09-06
+updated: 2026-09-12
 links: [content-package, settings-files, telemetry]
 ---
 
@@ -27,6 +27,25 @@ Reads `content.kspkg` (format in content-package).
 - `stats`: size by extension and cipher flag
 
 The package is `ACEVO_GAME_DIR\content.kspkg`, pass `-p` for another file.
+
+## texture_mips.py
+
+Reads a cooked `.texture` header (`TextureMetadata`, schema in `tools/data/proto_schema.txt`) and
+can cut its mip chain.
+
+- `show NAME`: size, mip levels, format and the whole `tilingInfo`, tile sizes and the per
+  subresource tile offsets and counts
+- `strip NAME --keep N --out DIR`: writes a `.texture` and `.texturemips` pair holding only the
+  first `N` mip levels, for the override folder
+
+`NAME` is a package path without the extension. The payload it writes is a byte for byte prefix
+of the shipped one, so nothing is invented and nothing in the package is touched.
+
+Its reason to exist is BUG-017: the trackside big screens use a flipbook of 64 frames in an 8 by 8
+grid, so the engine's mip choice is driven by the whole sheet rather than the frame on show and
+every coarse mip costs eight times the detail. Keeping only mip 0 leaves nothing coarse to fall
+back to. The tool is committed, the asset it produces is not, because that is the game's own
+content and each machine makes it from its own package.
 
 ## acevo_settings.py
 
