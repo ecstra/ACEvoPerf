@@ -206,6 +206,15 @@ reasons spread across the renderer, a present path through the integrated GPU, a
 on the render thread. The leads and the instruments to bring back are in TODO-010. All of the
 diagnostics were removed from the mod on 2026-09-06.
 
+One lead added on 2026-09-12. The deep dive of that day turned up exactly one finding aimed at
+this bug, a hook on the exe's `_Mtx_lock`, `_Cnd_wait` and `_Cnd_broadcast` imports to name the
+lock the render thread waits on. It was killed by its reviewer and the kill did not survive
+re-verification, so it is back to unresolved. Read in the second sampler summary of lap 14,
+which covers pure driving with no loading in it, `ZwWaitForAlertByThreadId` is the second
+largest excess in slow frames at 762 against 369 scaled, behind cohtml. The question of which
+lock that is remains open. See
+[optimisation-deepdive-2026-09-12](../docs/research/optimisation-deepdive-2026-09-12.md).
+
 ## Verification
 
 Absent.

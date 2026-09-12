@@ -3,7 +3,7 @@ name: TODO-013-faster-session-loads
 kind: todo
 description: cut the session load, 17 s on the Nurburgring with three quarters of it in one streaming phase that issues tens of thousands of 30 KB requests at a fifth of the drive's speed, by reading ahead in the proxy and serving those requests from memory
 updated: 2026-09-12
-links: [directstorage-streaming, telemetry, one-percent-low-hunt-2026-09-05, content-package]
+links: [directstorage-streaming, telemetry, one-percent-low-hunt-2026-09-05, content-package, BUG-019-car-physics-rebuilds-every-tyre-model-five-times]
 status: open
 by: owner
 area: streaming
@@ -46,6 +46,20 @@ and the numbers are a little worse than the 0.9.0 figures above:
 Everything else is small and fixed: the online handshake 0.72 s, the physics scene 1.6 s, the
 world initialisation 1.9 s, committing meshes 1.6 s. Three quarters of a session load is one
 phase, `Track resources streaming`, and that phase is the whole target.
+
+**That last sentence is wrong, corrected 2026-09-12.** Streaming is three quarters of the elapsed
+time and it is not the tail. In `logs/loadsampler-20260912-1055` the Nürburgring streaming phase
+runs 10:56:15.132 to 10:56:27.541, while the load does not finish until 10:56:29.595. The last
+2.05 s is a serial chain nothing else is waiting on: the dynamic track preset parse, then car
+physics, then car graphics, each gated on the one before it. Car graphics starts 0.16 s after car
+physics ends and 0.27 s before streaming ends, so it waits on physics and not on streaming.
+
+The same shape holds in all seven loads of that session: the scene total equals the car start plus
+the car total, to the millisecond. So there are two targets, not one, and the smaller one is the
+cheaper: about 2.05 s sits in a chain that no streaming work would have to get faster to release.
+See [BUG-019](../bugs/BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md) and the
+dynamic track preset in
+[optimisation-deepdive-2026-09-12](../docs/research/optimisation-deepdive-2026-09-12.md).
 
 The mod's own queue statistics during that phase name the limit. Over the ten seconds of the
 19:48 load:
@@ -191,6 +205,12 @@ Recommendation: drop this todo the way BUG-012 and BUG-014 were closed, as the e
 cost on every card, with the cause named precisely enough to be worth telling Kunos. The
 finding stands on its own: a session load is not disk bound, it is bound by the fiber job
 queue's lock.
+
+**Hold that recommendation, 2026-09-12.** Everything above is about the streaming phase and
+stays true. It is not the whole load. The 2.05 s serial tail described at the top of this file
+is a second target that owes nothing to the job queue lock, needs no game code patching, and
+has two named contributors between them worth more than the tail is long. This todo stays open
+until that tail is either taken or measured to be unreachable.
 
 ## Steps
 

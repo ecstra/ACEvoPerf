@@ -72,6 +72,14 @@ weather is the likeliest consumer of a terrain altitude grid. See
 This stays closed until the owner decides to spend a session on it, but it is closed as **not
 attempted**, not as impossible.
 
+One more correction, same day. The deep dive first accepted that the preset costs nothing at
+session start, because the parse finishes inside the streaming window. The parse does, but the
+chain hanging off it does not: the preset parse feeds car physics which feeds car graphics, and
+that chain ends 2.05 s after streaming in `logs/loadsampler-20260912-1055`. So the same fix is
+worth up to its own 1.1 s at every session start as well, not only at a pit return, capped by
+where streaming ends. See
+[BUG-019](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), which shares the chain.
+
 ## Verification
 
 Absent.
