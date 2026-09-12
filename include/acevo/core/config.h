@@ -28,6 +28,8 @@ struct Config {
     int  priority = 1;          // 0 normal, 1 above normal, 2 high
     bool disablePowerThrottling = true;
     int  timerResolutionUs = 500;
+    int  gpuPriority = 4;            // D3DKMT scheduling class, -1 = leave alone, 4 = high
+    int  workingSetFloorMb = 0;      // 0 = leave alone
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

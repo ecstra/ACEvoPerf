@@ -66,6 +66,11 @@ void LoadConfig()
     g_cfg.priority = (pr == L"high") ? 2 : (pr == L"normal") ? 0 : 1;
     g_cfg.disablePowerThrottling = IniBool(L"process", L"disable_power_throttling", true);
     g_cfg.timerResolutionUs = IniInt(L"process", L"timer_resolution_us", 500);
+    std::wstring gp = IniStr(L"process", L"gpu_priority", L"high");
+    for (auto& ch : gp) ch = (wchar_t)towlower(ch);
+    g_cfg.gpuPriority = (gp == L"unchanged") ? -1 : (gp == L"normal") ? 2 : (gp == L"above_normal") ? 3
+                      : (gp == L"realtime") ? 5 : 4;
+    g_cfg.workingSetFloorMb = IniInt(L"process", L"working_set_floor_mb", 0);
 
     {
         std::vector<wchar_t> buf(32768);

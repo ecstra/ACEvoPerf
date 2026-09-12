@@ -6,6 +6,21 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ## Unreleased
 
+### Added
+
+- The game now runs at high GPU scheduling priority. Windows gives every process a priority
+  class for its GPU work, separate from the CPU one, and nothing was setting it for this game.
+  It decides whose work the GPU scheduler takes first when something else is also drawing: a
+  browser, an overlay, or on a laptop the integrated chip compositing the desktop. Verified:
+  the log reads the value back after setting it and reports `normal -> high`. Honest caveat,
+  this is a correct thing to do rather than something measured to be faster, and on a machine
+  with nothing else on the GPU it will do nothing at all. `gpu_priority` in the ini,
+  `unchanged` to leave it alone.
+- An optional working set floor (`working_set_floor_mb`, off by default) keeps a minimum
+  amount of the game resident so Windows cannot page it out under memory pressure and fault
+  it back in mid corner. Off by default on purpose: a floor too big for the machine is
+  refused, and one met by squeezing everything else is worse than the trimming it prevents.
+
 ### Fixed
 
 - At night the car's own headlights stopped lighting the trees, and at Oulton Park the track
