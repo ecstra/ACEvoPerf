@@ -40,6 +40,7 @@ struct Config {
     bool reflex = true;
     bool reflexBoost = false;
     // [profile]
+    bool mergeSurvey = false;       // count how many texture requests could have travelled together
     bool loadSampler = false;   // diagnostics, suspends game threads to read them
     int  loadSampleUs = 1000;
     // [overlay]
