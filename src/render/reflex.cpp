@@ -7,6 +7,7 @@
 #include "acevo/render/reflex.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include "acevo/render/dxgi_hooks.h"   // PFN_CreateDXGIFactory1
 
 namespace reflex {
 
@@ -62,6 +63,40 @@ static std::atomic<uint64_t> g_sleepFailures{0};
 
 static void ReportStatus(const char* when);
 
+// Is the adapter the game renders on actually an NVIDIA one? Having nvapi64.dll on the
+// machine does not mean it is: a laptop can carry NVIDIA's driver while the game renders on
+// an AMD or Intel adapter, and a machine can have an idle NVIDIA card in it. Handing an
+// adapter that is not NVIDIA's to NVAPI is not something to find out the hard way in someone
+// else's game, so the vendor is checked first and nvapi is not even loaded otherwise.
+static bool RenderAdapterIsNvidia(ID3D12Device* device)
+{
+    const UINT kNvidiaVendorId = 0x10DE;
+    LUID want = device->GetAdapterLuid();
+
+    HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
+    auto createFactory = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
+    if (!createFactory) { Log("[reflex] cannot reach dxgi to identify the render adapter, layer idle"); return false; }
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) return false;
+
+    bool nvidia = false;
+    for (UINT i = 0;; ++i) {
+        IDXGIAdapter1* adapter = nullptr;
+        if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
+        DXGI_ADAPTER_DESC1 d = {};
+        adapter->GetDesc1(&d);
+        adapter->Release();
+        if (d.AdapterLuid.LowPart == want.LowPart && d.AdapterLuid.HighPart == want.HighPart) {
+            nvidia = (d.VendorId == kNvidiaVendorId);
+            Log("[reflex] the game renders on '%ls' (vendor 0x%04X), %s", d.Description, d.VendorId,
+                nvidia ? "NVIDIA, Reflex is available" : "not NVIDIA, Reflex stays off and nvapi is never loaded");
+            break;
+        }
+    }
+    factory->Release();
+    return nvidia;
+}
+
 static bool Resolve()
 {
     HMODULE nvapi = LoadLibraryW(L"nvapi64.dll");
@@ -91,7 +126,6 @@ void OnSwapChain(IUnknown* swapChain)
 {
     if (!g_cfg.reflex || g_tried || !swapChain) return;
     g_tried = true;
-    if (!Resolve()) return;
 
     // Reflex wants the D3D12 device, which the swap chain can hand over.
     IDXGISwapChain* sc = nullptr;
@@ -100,6 +134,10 @@ void OnSwapChain(IUnknown* swapChain)
     HRESULT hr = sc->GetDevice(__uuidof(ID3D12Device), (void**)&device);
     sc->Release();
     if (FAILED(hr) || !device) { Log("[reflex] the swap chain has no D3D12 device (hr=0x%08X), layer idle", (unsigned)hr); return; }
+
+    // The vendor check comes before nvapi is touched at all.
+    if (!RenderAdapterIsNvidia(device)) { device->Release(); return; }
+    if (!Resolve()) { device->Release(); return; }
     g_device = device;
 
     NV_SET_SLEEP_MODE_PARAMS p = {};

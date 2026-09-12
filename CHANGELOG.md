@@ -17,7 +17,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   four two lap runs, because that laptop is 97 percent GPU bound and pinned at 86 degrees for
   the whole run, so nothing on the CPU side can add frames there. Latency, which is the point
   of Reflex, was not measured. `reflex` in the ini, `reflex_boost` for low latency boost which
-  ships off because a thermally capped card has no clocks for it to hold up.
+  ships off because a thermally capped card has no clocks for it to hold up. On AMD and Intel
+  the mod checks the vendor of the adapter the game renders on and never loads NVIDIA's
+  library at all, so there is nothing to go wrong: having an NVIDIA driver on the machine is
+  not enough, it has to be the card doing the rendering.
 - The game now runs at high GPU scheduling priority. Windows gives every process a priority
   class for its GPU work, separate from the CPU one, and nothing was setting it for this game.
   It decides whose work the GPU scheduler takes first when something else is also drawing: a
