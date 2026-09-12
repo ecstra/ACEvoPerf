@@ -142,6 +142,72 @@ The instrument that would fix that, and settle BUG-009 and the PSO question at t
 D3D12 device wrapper that timestamps command list batches and counts `CreateGraphicsPipelineState`
 during driving. It ships nothing by itself.
 
+## Hand verification of the kills, 2026-09-12
+
+The owner did not believe the kill verdicts, so three were re-checked by hand. Two held and one
+did not.
+
+**Held: the three "duplicate of deleted work" kills.** `git show 30c99dc` removes
+`src/render/gpu_timing.cpp`, 169 lines, and reading it back confirms the mechanism the reviewers
+claimed: an `ExecuteCommandLists` hook, a timestamp query heap, `GetClockCalibration`, `EndQuery`
+and `ResolveQueryData`, reaching the device through `ID3D12CommandQueue::GetDevice`. So the D3D12
+timing instrument really was built, used across laps 12 to 17, and deleted on the owner's word.
+
+**Held: the residency priority kill, after two counting mistakes of my own.** The claim was that
+the engine already calls `ID3D12Device1::SetResidencyPriority` at vtable offset `0x170`.
+Disassembly confirms it exactly. The mapper at `0x141e3e6d0` reads an engine enum and produces
+`0x28000000`, `0x50000000`, `0x78000000` and `0xa0010000`, which are `D3D12_RESIDENCY_PRIORITY`
+MINIMUM, LOW, NORMAL and HIGH, then `movzx eax, word ptr [r8+4]` and `or eax, r10d` folds in a 16
+bit sub priority, and the call at `0x141e3e740` is `call qword ptr [rax + 0x170]` with `edx = 1`,
+`r8` pointing at a one entry object array and `r9` at a one entry priority array, which is the
+`SetResidencyPriority(NumObjects, ppObjects, pPriorities)` signature exactly.
+
+Counting the vtable naively gives the wrong answer twice, which is worth recording: `d3d12.h`
+declares `GetAdapterLuid`, `GetResourceAllocationInfo` and `GetCustomHeapProperties` twice each,
+once under `#if !defined(_WIN32)` and once under `#else`, because they return structs by value.
+Honouring the preprocessor gives 47 real slots, and slot 46 at offset `0x170` is
+`SetResidencyPriority`. So the engine runs a finer grained residency system than the proposal, and
+the kill is right.
+
+**Did not hold: the std::mutex and condition variable kill.** This is the only finding in the whole
+exercise aimed at BUG-009, and it was killed on the premise that "lap 13's sampler cut was
+cumulative from sampler start at 23:00:06, and the session's loading did not finish until 23:00:39,
+so its `ZwWaitForAlertByThreadId` figures include loading". Both halves of that are wrong, and the
+deleted sampler's own source says so:
+
+- It is not cumulative. `g_spanRead = write;` consumes the frame ring at every report, and the log
+  line it prints reads `sampler: last minute`.
+- Loading cannot contaminate it in any case. The frame filter is
+  `if (s.ms < 100.0f && s.end != s.begin)`, so any frame over 100 ms is discarded before sampling,
+  and loading frames are hundreds to thousands of milliseconds.
+
+The second summary, at 23:02:06, therefore covers 23:01:06 to 23:02:06, which is entirely after the
+Nürburgring load completed at 23:00:39.618. It is pure driving, and in it the outside game code
+excesses in slow frames are:
+
+| function | slow | fast, scaled | excess |
+|---|---|---|---|
+| cohtml | 833 | 90.3 | +743 |
+| **ZwWaitForAlertByThreadId** | **762** | **369.3** | **+393** |
+| v8 | 196 | 6.3 | +190 |
+| NtFreeVirtualMemory | 62 | 0.4 | +62 |
+| renoir | 58 | 13.8 | +44 |
+
+So the generic blocking primitive is the second largest excess in slow driving frames, not the
+"roughly 1 percent" and "a tenth of a millisecond inside a 6 ms excess" the reviewer corrected it
+to. That number is not reproducible from this log.
+
+What the kill got right and keeps: `ZwWaitForAlertByThreadId` is the primitive every SRW lock,
+critical section and condition variable blocks in, so it is not evidence that the C++ `std::mutex`
+imports are the thing to hook. The finding should go back to unresolved rather than killed, and the
+question it asks, which lock is the render thread waiting on during driving, is still open.
+
+Worth noting separately, because it is the largest number in that table: **cohtml is the biggest
+single contributor to slow driving frames**, at more than eight times its fast frame share. That is
+the UI, closed permanently by the owner in DEC-010 and BUG-014, so it is recorded and not pursued.
+
+Thirty of the thirty three kills were not re-checked by hand.
+
 ## Still unchecked
 
 - Whether the DLSS runtime honours preset 10 and 13 or silently refuses them. This decides whether
