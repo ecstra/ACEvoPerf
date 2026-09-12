@@ -2,7 +2,7 @@
 name: BUG-012-pit-lane-return-freezes-over-a-second
 kind: bug
 description: returning to the pit lane from the pause menu freezes the game for 1.3 to 1.5 seconds
-updated: 2026-09-06
+updated: 2026-09-12
 links: [telemetry, engine-flags, content-package, BUG-002-fps-drop-entering-new-track-sections]
 status: wontfix
 severity: bug
@@ -49,6 +49,28 @@ session start and restart, the same on every card and only shorter on a faster C
 cannot change the parse and a smaller preset would change the track's rubber state. The one
 lever, `disable_dynamic_track=true`, removes the load together with the track evolution and
 stays an owner's choice in the ini's optional flags.
+
+## That reasoning was wrong, 2026-09-12
+
+The half of this that said "a smaller preset would change the track's rubber state" does not
+hold, and the deep dive of 2026-09-12 measured why. The Nürburgring preset is 63,171,718 bytes
+and **56,060,963 of it, 85.7 percent, is field 4**, a terrain altitude grid held as 8,007,680
+separate seven byte protobuf submessages with no compression. The rubber state is field 3, the
+same 8.0 million values packed into a 16 MB zlib blob that inflates in 45 ms. So the expensive
+part is not the rubber and shrinking it would not touch track evolution.
+
+Cross read against `logs/lap7-switch-restart-20260905-2126`: four pit returns at 1530.9, 1548.6,
+1560.9 and 1575.8 ms, each opening within 40 ms of the preset log line and closing within 80 ms
+of the next physics line, with nothing streaming behind them.
+
+Estimated 1.0 to 1.4 s of the 1.53 s freeze is reachable by serving a preset with field 4 emptied
+through the override layer, generated from the player's own package. Not attempted: nobody has
+traced whether the engine bounds checks that vector, a crash is the expected failure mode, and wet
+weather is the likeliest consumer of a terrain altitude grid. See
+[optimisation-deepdive-2026-09-12](../docs/research/optimisation-deepdive-2026-09-12.md).
+
+This stays closed until the owner decides to spend a session on it, but it is closed as **not
+attempted**, not as impossible.
 
 ## Verification
 
