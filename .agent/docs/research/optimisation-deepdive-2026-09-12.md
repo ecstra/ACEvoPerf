@@ -355,7 +355,7 @@ call it 0.1 percent. Three of the five kills below are re-grounded on it and sur
 | 6 | Thread placement from a flat processor count | The kill refutes the framing, correctly: there is no bad pinning because there is no pinning. It does not touch the proposal, which is to add some. Unmeasured and one lap to test. |
 | 7 | OpenMP and the Concurrency chore pool | Killed as inert, while this doc's own "free knowledge" section lists `OMP_WAIT_POLICY=passive` in `DllMain` as one line worth trying. The fork site never appears in a load sampler top sixteen, so it is probably nothing, but probably is not certainly. |
 | 8 | Tier 2 VRS with a screen space image | The engine's own image really is gated behind the VR foveated setting, verified. The second route, building an image of our own, is not refuted anywhere, only called unlikely. |
-| 9 | Opting into the Agility SDK | Killed as unshippable. Route one does need Windows Developer Mode, true. Route two was dismissed as something "a mod cannot change without rewriting the exe's export directory in memory", which is precisely the class of thing this mod does, and the exe has a normal 49 entry export directory to rewrite. Magnitude is still unmeasured and probably nil, so this is the weakest of the nine. |
+| 9 | ~~Opting into the Agility SDK~~ | Killed as unshippable. Route one does need Windows Developer Mode, true. Route two was dismissed as something "a mod cannot change without rewriting the exe's export directory in memory", which is precisely the class of thing this mod does. **Built, measured six ways and removed the same day**: the exports go in, `D3D12Core.dll` 619 loads, and nothing moves, because the game's own code stops at `ID3D12Device12` and a current Windows already provides that. The kill's reasoning was wrong and its conclusion was right. See [DEC-016](../../decisions/DEC-016-agility-sdk-tried-and-removed.md). |
 
 ### The twenty four that hold, and what was actually checked
 
@@ -459,9 +459,12 @@ but it belongs in the same note to Kunos as the `Vec4` operator.
 - What the per build cost of a tyre compound actually is. BUG-019 brackets it from log line gaps
   because the lines mark starts and not ends.
 - Whether the engine bounds checks the terrain height vector, and whether wet weather consumes it.
-- Whether server side content validation reacts to overlay served files. There is no client side
-  integrity check in this build, but that does not settle the server side, so everything the overlay
-  serves stays offline only until a clean online join is confirmed.
+- ~~Whether server side content validation reacts to overlay served files.~~ **Answered
+  2026-09-12.** The owner drove a Touristenfahrten lap on a public multiplayer server with the
+  overlay active and the big screen fix serving a rewritten texture header. The join was clean and
+  the game log carries no integrity, checksum or mismatch complaint anywhere. One server, one
+  session, so it is not a guarantee for every server, but the blanket offline only caution the
+  overlay carried since it shipped no longer has anything behind it.
 - What happens in the unattributed 1.34 s startup gap in `logs/loadsampler-20260912-1128`.
 - The load sampler has been pointed at the game thirty eight times and never once at the mod's own
   file I/O hooks, which every read in a 64 GB package passes through.

@@ -124,6 +124,41 @@ Either way, the blurry texture report needs the owner to say which scene and aft
 loads, and a screenshot of a surface that looks wrong next to the same surface on a fresh
 load.
 
+## Ruled out: a newer D3D12 runtime, 2026-09-12
+
+The overhead is runtime side allocation, so the Agility SDK was a fair suspect and got its own
+session. The SDK itself was built for this and then removed from the mod once it measured to
+nothing everywhere, see
+[DEC-016](../decisions/DEC-016-agility-sdk-tried-and-removed.md), but the session stands:
+28 minutes with D3D12Core 1.619.5 loaded and confirmed in the log,
+`enable_pso_cache=false`, six scene loads, the owner's usual route of a Nürburgring lap, ten Red
+Bull Ring hotlaps and a Touristenfahrten online lap.
+
+| load | overhead MB |
+|---|---|
+| 1 menu | 24, 103 |
+| 2 Nürburgring | 135, 120 |
+| 3 menu | **328, 265** |
+| 4 Red Bull Ring | 158, 86 |
+| 5 menu | 104, 104, 121 |
+| 6 Touristenfahrten online | 115, 111 |
+
+Set against the two sessions already on file, all three at the same starting point of 24 then
+103 on the first menu load:
+
+| | second menu load | later menu loads | peak VRAM used |
+|---|---|---|---|
+| cache on | 168 | climbs to 360 and stays | 4665 MB |
+| cache off | 360 | 104, then 200 | 4590 MB |
+| cache off plus Agility 619 | 328 | 104, then 115 | 4568 MB |
+
+Agility reproduces the cache off control in shape and within noise in magnitude. **A newer
+runtime does not touch this bug**, which also makes the D3D12 runtime's own allocator a weaker
+candidate than it was, because changing the whole runtime changed nothing.
+
+What still holds from the cache off reading: the ratchet is gone and the spike is not. Whatever
+produces a single 328 to 360 MB reading on one menu load and then releases it is still unnamed.
+
 ## Done when
 
 The overhead figure is flat across a dozen loads, or its growth is named and the mod either
