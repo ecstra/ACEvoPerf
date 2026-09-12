@@ -70,6 +70,20 @@ source type, so the mod cannot feed file source requests from memory (TODO-013).
 VRAM is not the constraint either: 4541 MB of a 5226 MB budget at the curtain, 685 MB spare, and it
 barely moves while the burst runs.
 
+## It is intermittent
+
+Owner, 2026-09-12, after the measurement: "the bug 018 only happens sometimes, not all times."
+
+That fits the burst rather than complicating it. The 600 MB is what the scene needs minus what is
+already resident, and the tile pool is not emptied between scenes, so a track entered when the pool
+still holds much of its content has a far smaller burst and nothing visible to see. It also means
+the size of the burst, not just its existence, is the thing to compare if this is ever revisited:
+one load from a cold start against the same track re-entered from the menu.
+
+So "sometimes" is expected behaviour for a residency driven ramp, and it is another reason not to
+trade the staging cap for it, since the worst case is a first load and the common case is already
+invisible.
+
 ## Where it stands
 
 The one lever left that the mod owns is the staging buffer, capped at 128 MB by
