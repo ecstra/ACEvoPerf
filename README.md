@@ -33,7 +33,7 @@ The mod page, with the discussion and the reviews, is [on Overtake](https://www.
 * **Missing icons in the vehicle hub and the menus.**
 * **Mushy road, tyre and ground textures,** worse after restarting a session.
 
-It also skips the intro, turns on the game's shader cache and runs the game at above normal priority. All of it is in the ini if you want it off.
+It also skips the intro and runs the game at above normal priority. Both are in the ini if you want them off.
 
 ## How it does it
 
@@ -44,7 +44,7 @@ It also skips the intro, turns on the game's shader cache and runs the game at a
 ## What else it does
 
 * **Sizes itself to your card:** the tile pool and the staging buffer are picked from the render adapter's memory the moment the game creates its DXGI factory, before the renderer sizes its pools. A number in the ini overrides the pick.
-* **Engine flags from the ini:** any bool, int32 or double gflag of the game can be set under `[flags]`. The release build ignores flags on the command line, so the mod locates the storage of each one inside the exe and writes it directly. `enable_pso_cache` and `no_intro` are on by default.
+* **Engine flags from the ini:** any bool, int32 or double gflag of the game can be set under `[flags]`. The release build ignores flags on the command line, so the mod locates the storage of each one inside the exe and writes it directly. `no_intro` is the only one on by default that is not part of a fix.
 * **Process tweaks:** above normal priority class, Windows power throttling off for the game, 0.5 ms timer resolution.
 * **A log that says what happened:** `acevo_perf.log` next to the exe lists everything applied, every DirectStorage queue and file, per queue streaming statistics and every frame slower than `hitch_ms` with the streaming activity around it. Two CSVs, one line per second and one per frame, are off by default and one line in the ini away.
 * **Two GPU laptops:** the log says which adapter owns the monitor the window sits on, and warns when it is not the one rendering, because every frame is then copied across.

@@ -21,7 +21,7 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 
 | flag | default | effect | status |
 |---|---|---|---|
-| `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | on by default in the mod, suspected of BUG-015 |
+| `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | shipped on until 0.3.1, off since, BUG-015 |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
 | `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget (1433 MB each on its own) | on by default, DEC-005 |
 | `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |

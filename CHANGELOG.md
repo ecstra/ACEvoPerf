@@ -4,6 +4,26 @@ What the mod does, what it fixes and how, one entry per user visible change. New
 Verified means measured in `acevo_perf.log` or seen by the owner in the game on the reference
 machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
+## Unreleased
+
+### Fixed
+
+- At night the car's own headlights stopped lighting the trees, and at Oulton Park the track
+  as well, while other cars' headlights in multiplayer looked right. Cause: the mod switched
+  on the engine's pipeline state cache (`enable_pso_cache`), which the game itself ships off,
+  and the cache does not always hand back the pipeline it was asked for. The flag is off by
+  default now. It only ever saved shader compilation stalls on repeat runs, it fixed nothing.
+  Reported twice on the mod's Overtake listing, one of the reporters found the flag. If you
+  have seen this, also delete `Saved Games\ACE\pipeline.library`, the mod cannot reach that
+  file and the game does not clear it when it updates.
+
+### Verified
+
+- The mod works on game version 0.9.1+release.6 with no change. The flag scan found 204 flags
+  against 0.9.0's 203, wrote all four at their new addresses, capped the staging buffer and
+  created the 1024 MB tile pool once. Addresses move with every game build, names do not,
+  which is what the scan is for.
+
 ## 0.3.1 (2026-09-06)
 
 ### Changed

@@ -94,7 +94,14 @@ warnings after the next game update would confirm it.
 
 ## Fix
 
-Turn `enable_pso_cache` off in `dist/acevo_perf.ini` and leave it as a commented opt in with
-the warning, cut it as 0.3.2, and say in the listing and the release notes that anyone seeing
-it should also delete `pipeline.library` because the mod cannot reach that file. Waiting for
-the owner's word.
+`enable_pso_cache=false` in `dist/acevo_perf.ini` since 2026-09-12, with the reason and the
+`pipeline.library` warning in the comment above it. The readme no longer advertises the shader
+cache, the changelog carries the entry under Unreleased. The flag stays available for anyone
+who wants the stalls back.
+
+Not verified yet: it needs one launch that logs `enable_pso_cache = false` and a night lap
+with headlights on trees. The owner asked to hold the release, so this ships with whatever
+else lands before 0.3.2.
+
+Still to say when it ships, because the mod cannot reach the file: anyone who saw this should
+delete `Saved Games\ACE\pipeline.library` once.
