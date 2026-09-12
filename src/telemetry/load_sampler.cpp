@@ -12,7 +12,6 @@
 #include "acevo/telemetry/load_sampler.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
-#include "acevo/engine/job_lock.h"
 #include <tlhelp32.h>
 #include <unordered_map>
 
@@ -53,9 +52,6 @@ struct ThreadTally { uint32_t total = 0; uint32_t bucket[kBucketCount] = {}; uin
 std::unordered_map<std::string, ThreadTally> g_byThread;
 // the game's fiber job queue spin loop, found on 2026-09-12, see TODO-013
 const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
-// Set when job_lock_fix patched the loop, because the hot address then lives in the mod's page.
-uintptr_t g_spinCaveLo = 0;
-uintptr_t g_spinCaveHi = 0;
 uint64_t g_bucketCounts[kBucketCount] = {};
 uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
 
@@ -404,10 +400,6 @@ DWORD WINAPI SamplerThread(void*)
                     g_byGameRva[key]++;
                     if (key >= kJobSpinRvaLo && key <= kJobSpinRvaHi) tally.spin++;
                 } else {
-                    // With [engine] job_lock_fix=1 the spin runs from the mod's own page instead of
-                    // the exe, so it has to be counted here too. Otherwise a spin that merely moved
-                    // would read as a spin that stopped.
-                    if (g_spinCaveLo && rip >= g_spinCaveLo && rip < g_spinCaveHi) tally.spin++;
                     g_byLabel[label]++;
                 }
             }
@@ -441,11 +433,6 @@ DWORD WINAPI SamplerThread(void*)
 void StartLoadSampler()
 {
     if (!g_cfg.loadSampler || g_thread) return;
-    const BYTE* caveLo = nullptr;
-    const BYTE* caveHi = nullptr;
-    JobLockCave(&caveLo, &caveHi);
-    g_spinCaveLo = (uintptr_t)caveLo;
-    g_spinCaveHi = (uintptr_t)caveHi;
     HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
     if (k32) g_getThreadDescription = (PFN_GetThreadDescription)GetProcAddress(k32, "GetThreadDescription");
     g_thread = CreateThread(nullptr, 0, SamplerThread, nullptr, 0, nullptr);

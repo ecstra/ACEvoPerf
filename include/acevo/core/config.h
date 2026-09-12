@@ -31,8 +31,6 @@ struct Config {
     int  timerResolutionUs = 500;
     int  gpuPriority = 4;            // D3DKMT scheduling class, -1 = leave alone, 4 = high
     int  workingSetFloorMb = 0;      // 0 = leave alone
-    // [engine]
-    bool jobLockFix = false;        // rewrite the engine's spin loop to read before it writes
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

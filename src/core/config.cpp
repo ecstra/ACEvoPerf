@@ -73,8 +73,6 @@ void LoadConfig()
                       : (gp == L"realtime") ? 5 : 4;
     g_cfg.workingSetFloorMb = IniInt(L"process", L"working_set_floor_mb", 0);
 
-    g_cfg.jobLockFix = IniBool(L"engine", L"job_lock_fix", false);
-
     {
         std::vector<wchar_t> buf(32768);
         DWORD n = GetPrivateProfileSectionW(L"flags", buf.data(), (DWORD)buf.size(), g_iniPath.c_str());
