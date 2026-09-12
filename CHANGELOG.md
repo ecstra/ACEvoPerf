@@ -8,6 +8,22 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Added
 
+- `job_lock_fix` in the ini, off by default and unproven. During a session load the engine boosts
+  its loading pool from 2 to 11 workers and they queue on one spin lock, where a busy worker was
+  measured burning about a quarter of its time. That lock's wait loop issues a locked write every
+  time round, so every waiting thread keeps taking the lock's cache line while the thread holding
+  it is trying to release it, and the code it holds it across is not trivial: a ring buffer walk
+  across several cache lines, an integer division on one path, and a virtual call on two. Turned
+  on, the mod rewrites the ten byte loop to read the lock until it looks free and only then try
+  the exchange, which is how such a loop is normally written. It changes what the lock does not at
+  all, only how loudly it waits. This is the only setting that edits the game's code in memory, so
+  it ships off: it is applied from `DllMain` while the process is still single threaded, it patches
+  nothing unless the exact ten byte loop is found, so a game update that changes those bytes means
+  the fix quietly does not apply, and the log says what it found and did. Verified correct by
+  running the replacement as a real lock under contention from 2, 4, 11 and 16 threads with work
+  inside the critical section, checking for lost updates and overlapping holders: mutual exclusion
+  held in every run. Not yet verified to be faster, which is why it is off.
+
 - The mod brings its own DirectStorage runtime, Microsoft 1.3.0, and uses it instead of the 1.2.3
   the game ships. Being honest about the size of this: going through Microsoft's changelog line by
   line, exactly one fix between the two versions lands on a path this game uses, `DSTORAGE_TILES`

@@ -18,6 +18,7 @@
 #include "acevo/core/log.h"
 #include "acevo/dstorage/proxy.h"
 #include "acevo/engine/flags.h"
+#include "acevo/engine/job_lock.h"
 #include "acevo/engine/process.h"
 #include "acevo/engine/exceptions.h"
 #include "acevo/render/frame_stats.h"
@@ -56,6 +57,9 @@ static void OnAttach(HMODULE h)
 
     ApplyProcessTweaks();
     ApplyFlags("early");
+    // Here because the process is still single threaded: nothing can be inside the bytes it
+    // replaces, which is the whole reason it is safe to replace them at all.
+    PatchJobQueueSpinLock();
     InstallDxgiHooks();
     InstallThrowLog();
     overlay::Install();
