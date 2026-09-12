@@ -96,6 +96,49 @@ memory, needs `disable_bypass_io=1` to have any effect at all, because BypassIO 
 system cache. It trades away the fast path to maybe recover part of one second. Not worth it
 without evidence that the reads matter, and the numbers above say they do not.
 
+## What the sampler found, 2026-09-12
+
+The load sampler ran for a 26 minute session on 0.9.1: a night Nurburgring single player,
+a Red Bull Ring hotlap, and an online Touristenfahrten server, seven scene loads in all. It
+samples the busiest two dozen threads round robin, a thousand times a second.
+
+The biggest single hotspot in game code during a load is a spin lock, and it belongs to the
+engine's fiber job queue. The hot address is the `pause` inside a bare test and set loop:
+
+```
+0x279fac4: pause
+0x279fac6: mov ecx, eax
+0x279fac8: xchg dword ptr [rbx], ecx
+0x279faca: test ecx, ecx
+0x279facc: jne 0x279fac4
+```
+
+The function is `0x279fa90`, called from two places, `0x279f260` and `0x27a0fc0`, which are
+the paths that log "Ran out of fibers" and "Ran out of jobs" next to the string
+"JobQueue Fiber". So it is the job scheduler's own lock.
+
+It is load specific, and not by a little. Its share of all samples, per fifteen second window:
+
+| window | what was loading | spin share |
+|---|---|---|
+| t+45 | Nurburgring, 16.7 s | 5.8% |
+| t+630 | Red Bull Ring, 7.9 s | 3.1% |
+| t+1260 | Touristenfahrten online, 17.9 s | 6.1% |
+| the other 100 windows | menus and driving | 0.1 to 0.2% |
+
+Every spike is a track load and nothing else in a hundred windows comes near. Game code in
+general goes from 5 to 10 percent of samples at rest to 15.7 and 17.8 percent during the two
+long loads.
+
+No engine flag reaches the job system. The flag table has `minimumcores` (shrinks every pool,
+measured harmful) and nothing else about jobs, fibers, workers or concurrency.
+
+Still open, and it decides whether there is a lever here at all: how much of the *resource
+workers'* own time is the spin, as opposed to the process average. The first sampler weighted
+every thread equally, so 5.8 percent of all samples is not 5.8 percent of a loading worker.
+The sampler now reports each thread's own breakdown and counts the spin loop separately, so
+one more five minute run answers it.
+
 ## Steps
 
 1. The sampler build is back on, and it is the only honest next step. Bring the sampler from

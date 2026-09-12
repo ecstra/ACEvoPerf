@@ -88,6 +88,27 @@ There is no engine flag for the allocator worth reaching for: `dx12_amd_memory_a
 at 160 MB worse), and `dx12_amd_memory_allocator_within_budget` only makes the allocator crash
 when a request exceeds the budget.
 
+## First run with the cache off, 2026-09-12
+
+A 26 minute session on the same machine with `enable_pso_cache=false`, four menu loads among
+seven loads in all. The one way climb is gone, the figure now goes up and down:
+
+| menu load | overhead MB | previous session, cache on |
+|---|---|---|
+| first | 24 then 103 | 24 then 103 |
+| second | 360 then 297 | 168 then 169 |
+| third | 104 then 104 | 152 then 149 |
+| fourth | 200 then 169 | 264 then 233, and 360 by the seventh |
+
+So it is no longer a ratchet, which is what the accumulation reading predicted, but one
+reading still reached the same 360 MB peak. Peak use in the session was 4590 MB of the
+5226 MB budget, against 4665 MB before, so the headroom has not moved much either.
+
+Not settled. The shape changed in the direction the pipeline cache theory wants and the
+magnitude did not. Two sessions of four menu loads each is too little to call it, and neither
+was driven to the same script. What would settle it: the same route twice, once with the flag
+on and once off, same tracks in the same order for the same minutes.
+
 ## Reproduce
 
 Repeat the 2026-09-11 session shape with `enable_pso_cache=false`: menu, a track, menu, the
