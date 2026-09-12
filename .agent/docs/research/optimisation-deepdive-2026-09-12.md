@@ -208,6 +208,58 @@ the UI, closed permanently by the owner in DEC-010 and BUG-014, so it is recorde
 
 Thirty of the thirty three kills were not re-checked by hand.
 
+### The two content magnitude corrections, re-derived independently
+
+Both survived the deep dive as KEPT findings but with their sizes cut hard by the reviewers, so
+the arithmetic was redone from scratch: every one of the 38,514 cooked `.texture` headers in the
+package decoded and paired with its `.texturemips` size from the table. That count matches the
+survey's 38,514 exactly.
+
+**The dashboard requantise: the reviewer was right, to within 0.6 percent.**
+
+| | files | bytes | recovery by halving |
+|---|---|---|---|
+| survey claimed | 69 | 712.0 MB | 356 MB |
+| reviewer corrected to | 30 | 519.4 MB | 259.7 MB |
+| **re-derived here** | **35** | **522.4 MB** | **261.2 MB** |
+
+The survey's error was assuming every display texture was 16 bit and halving the lot. Of the car
+textures with `display` in the path, 233 are already BC7, 28 are `B8G8R8A8UNormSrgb` and 19 are
+`R8G8B8A8UNormSrgb`. Only the `R16G16B16A16UNorm` set can be halved. The file count differs from
+the reviewer's by five, which is a path filter difference, and the byte total agrees to 0.6
+percent.
+
+**Imola: the reviewer was right about scope and too conservative about size.**
+
+The survey's raw numbers check out. Imola's texture budget is 1540.8 MB against its claimed
+1541 MB, and `compress=0` covers 689.7 MB against its claimed 673.1 MB. Its worked example
+reproduces byte for byte: `content\tracks\imola\textures\top_c_mask` is 4096x4096, 13 mips,
+`R8G8B8A8UNormSrgb`, `compress=0`, payload exactly 89,915,392 bytes. There is even a sibling,
+`top_c_mask_evo`, cooked at 2048x2048 BC7 with `compress=1`, which is good evidence the
+uncompressed one is a defect rather than a decision.
+
+What does not reproduce is the reviewer's "265.1 MB of genuinely safe candidates". Filtering
+Imola's uncompressed set to the 8 bit RGBA class that BC can take, at 1 MB or more per file, gives
+**41 files and 572.8 MB**, roughly double their figure. Their number could not be reconstructed
+from any obvious filter. The remaining 1,329 uncompressed Imola files are float formats totalling
+only 115.4 MB and are not safely block compressible, so the split is 43 large 8 bit files carrying
+almost all of it.
+
+**But the reviewer's conclusion holds and is stronger than they put it.** Counting uncompressed
+8 bit textures of 1 MB or more across every track in the package:
+
+| track | files | bytes |
+|---|---|---|
+| imola | 41 | 572.8 MB |
+| common_assets | 1 | 5.8 MB |
+| brands_hatch | 1 | 5.8 MB |
+| **everything else, including nurburgring** | **0** | **0.0 MB** |
+
+So this is one track of twenty, it is **zero on the Nürburgring**, and the owner drives the
+Nürburgring. Both reviewers also agree on the caveat that matters more than any of the totals:
+recovered VRAM is **zero**, because the texture tile pool is a fixed 1024 MB heap, so the saving
+is package size and streamed bytes on one track, not headroom.
+
 ## Still unchecked
 
 - Whether the DLSS runtime honours preset 10 and 13 or silently refuses them. This decides whether
