@@ -1,7 +1,7 @@
 ---
 name: directstorage-1-3-2026-09-12
 kind: doc
-description: the DirectStorage runtime taken from 1.2.3 to 1.3.0, what the forwarder and core split really is, why the first attempt shipped and silently did nothing, what the changelog actually offers this game and the measurements showing it changed nothing
+description: the DirectStorage runtime taken from 1.2.3 to 1.3.0, what the forwarder and core split really is, why the first attempt shipped and silently did nothing, what the changelog actually offers this game, the measurements showing it changed nothing, and why merging the game's texture requests is impossible
 updated: 2026-09-12
 links: [DEC-015-bundled-directstorage-core-loaded-first, dstorage-dll-is-only-a-forwarder, directstorage-streaming, proxy-architecture, TODO-014-proxy-implements-enqueuerequests-if-the-game-asks]
 ---
@@ -125,6 +125,48 @@ Hitches by minute, which is the shape that matters more than the total:
 Same shape as every earlier session. Hitches belong to start-up, track loads and menu transitions,
 which are BUG-012 and BUG-014 and the job queue spin loop of TODO-013, none of which a storage
 runtime can reach. Driving is clean before and after.
+
+## Could the proxy merge texture requests
+
+The one idea the new API surface suggested, and it is dead. Worth writing down with its numbers so
+nobody spends another session on it.
+
+The game sends its textures as single subresource `DSTORAGE_REQUEST_DESTINATION_TEXTURE_REGION`
+requests, 32201 of them in one Nürburgring load alongside 10137 buffer requests. DirectStorage can
+take a range of subresources in one request instead, through `MULTIPLE_SUBRESOURCES` (1.2, runs to
+the end) or `MULTIPLE_SUBRESOURCES_RANGE` (1.3, takes a count). Both documents say the same
+condition: "the source is expected to contain full data for all subresources, starting from
+FirstSubresource". So consecutive requests may only merge when they share a resource, step the
+subresource index by exactly one, carry straight on in the source, and have no submit, status entry
+or fence signal between them.
+
+A counting only survey behind `[profile] merge_survey=1` was built, tested against patterns worked
+out by hand, checked against two deliberately broken builds of itself, and run for one load on
+2026-09-12, `logs/mergesurvey-20260912-1417`. It accounted for every request, 32201 plus 10137
+against the 42338 the queue statistics report.
+
+**Zero of 32201 could merge. The longest run was one.**
+
+| why a run ended | count | share |
+|---|---|---|
+| the next request names a different resource | 20880 | 65% |
+| same resource and the next subresource, but a gap in the source | 9042 | 28% |
+| a buffer request came in between | about 2116 | 7% |
+| same resource, subresource index jumped | 163 | 0.5% |
+| a submit, status or signal | 0 | none |
+
+Two structural facts, either of which alone kills the idea. The game interleaves textures from many
+different resources rather than finishing one before starting the next, which accounts for two
+thirds of the breaks on its own. And where it does send consecutive mips of one texture, 9042
+times, their source buffers are separate allocations rather than one block, so the bytes are not
+back to back. Making them contiguous would mean copying, and copying 6.8 GB to save request count
+costs far more than the requests do.
+
+Note what the zero in the last row means: barriers never broke a single run. The game's ordering was
+never the obstacle. Its memory layout is, and a proxy cannot change that.
+
+The survey came out again after answering the question. It is in the history at commit `317baaa` if
+the game's allocation behaviour ever changes.
 
 ## Reading
 

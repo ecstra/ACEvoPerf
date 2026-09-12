@@ -99,7 +99,6 @@ void LoadConfig()
     g_cfg.reflex = IniBool(L"latency", L"reflex", true);
     g_cfg.reflexBoost = IniBool(L"latency", L"reflex_boost", false);
 
-    g_cfg.mergeSurvey = IniBool(L"profile", L"merge_survey", false);
     g_cfg.loadSampler = IniBool(L"profile", L"load_sampler", false);
     g_cfg.loadSampleUs = IniInt(L"profile", L"sample_us", 1000);
 

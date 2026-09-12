@@ -15,7 +15,6 @@ streaming
 - [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase, the drive ruled out and readahead built and thrown away, next is the sampler on the resource workers
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 - [TODO-014-proxy-implements-enqueuerequests-if-the-game-asks](TODO-014-proxy-implements-enqueuerequests-if-the-game-asks.md), the proxy declines IDStorageQueue3 to keep the overlay and the statistics in the path, implement it if a game build ever asks
-- [TODO-015-merge-consecutive-texture-requests](TODO-015-merge-consecutive-texture-requests.md), 55575 single subresource texture requests a session, survey built to find out how many sit in runs that could travel as one
 
 render
 
@@ -24,7 +23,7 @@ render
 ## Done
 
 - render: 1 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean)
-- streaming: 3 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified)
+- streaming: 4 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed)
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
 

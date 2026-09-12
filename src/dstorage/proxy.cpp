@@ -2,7 +2,6 @@
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
 #include "acevo/dstorage/stats.h"
-#include "acevo/dstorage/merge_survey.h"
 #include "acevo/engine/flags.h"
 #include "acevo/telemetry/timeline.h"
 #include "acevo/telemetry/load_sampler.h"
@@ -133,7 +132,6 @@ struct QueueProxy : IDStorageQueue2 {
     QueueStats st;
     std::atomic<bool> toldAboutQueue3{false};
     std::atomic<bool> toldAboutUnwrapped{false};
-    MergeSurvey merge;   // only touched when [profile] merge_survey=1
 
     QueueProxy(IDStorageQueue* q, const char* n) : real(q), name(n ? n : "(unnamed)")
     {
@@ -164,7 +162,6 @@ struct QueueProxy : IDStorageQueue2 {
             (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
             (unsigned long long)st.submits.load());
         st.lastReportTick = now; st.lastRequests = r; st.lastBytes = b;
-        if (final && g_cfg.mergeSurvey) merge.Report(name.c_str());
     }
 
     // IUnknown
@@ -218,26 +215,15 @@ struct QueueProxy : IDStorageQueue2 {
                 else
                     Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(dt), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
             }
-            if (g_cfg.mergeSurvey) merge.OnRequest(request);
-
             DSTORAGE_REQUEST redirected;
             if (OverlayRedirect(request, &redirected)) { real->EnqueueRequest(&redirected); return; }
         }
         real->EnqueueRequest(request);
     }
-    void STDMETHODCALLTYPE EnqueueStatus(IDStorageStatusArray* statusArray, UINT32 index) override
-    {
-        if (g_cfg.mergeSurvey) merge.OnBarrier();
-        real->EnqueueStatus(statusArray, index);
-    }
-    void STDMETHODCALLTYPE EnqueueSignal(ID3D12Fence* fence, UINT64 value) override
-    {
-        if (g_cfg.mergeSurvey) merge.OnBarrier();
-        real->EnqueueSignal(fence, value);
-    }
+    void STDMETHODCALLTYPE EnqueueStatus(IDStorageStatusArray* statusArray, UINT32 index) override { real->EnqueueStatus(statusArray, index); }
+    void STDMETHODCALLTYPE EnqueueSignal(ID3D12Fence* fence, UINT64 value) override { real->EnqueueSignal(fence, value); }
     void STDMETHODCALLTYPE Submit() override
     {
-        if (g_cfg.mergeSurvey) merge.OnBarrier();
         st.submits++; g_submitsTotal++;
         uint64_t batch = st.sinceSubmit.exchange(0);
         bool isTileQueue = st.byDest[DSTORAGE_REQUEST_DESTINATION_TILES].load() > 0;
@@ -307,7 +293,7 @@ struct FactoryProxy : IDStorageFactory {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
         }
-        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.mergeSurvey) &&
+        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests) &&
             (riid == __uuidof(IDStorageQueue) || riid == __uuidof(IDStorageQueue1) || riid == __uuidof(IDStorageQueue2))) {
             IDStorageQueue* q = nullptr;
             if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(IDStorageQueue), (void**)&q))) {

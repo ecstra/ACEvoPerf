@@ -4,12 +4,25 @@ kind: todo
 description: find out whether the game's single subresource texture requests arrive in runs that could travel as one multi subresource request, and merge them in the proxy if they do
 updated: 2026-09-12
 links: [DEC-015-bundled-directstorage-core-loaded-first, directstorage-1-3-2026-09-12, directstorage-streaming, TODO-013-faster-session-loads]
-status: open
+status: done
 by: owner
 area: streaming
 born: 2026-09-12
-done:
+done: 2026-09-12
 ---
+
+## Answer
+
+Measured on 2026-09-12, one Nürburgring load, `logs/mergesurvey-20260912-1417`. **Zero of 32201
+texture requests could have merged, longest run one.** Two thirds of the time the next request
+names a different resource, and where consecutive mips of one texture do arrive together, 9042
+times, their source buffers are separate allocations so the bytes are not back to back. Barriers
+never broke a run, so the game's ordering was never the obstacle, its memory layout is. Making the
+sources contiguous would mean copying 6.8 GB to save request count, which costs more than the
+requests do.
+
+Closed. The survey code came out again, it is in the history at commit `317baaa`. Numbers and the
+full break down are in [directstorage-1-3-2026-09-12](../docs/research/directstorage-1-3-2026-09-12.md).
 
 ## What
 
