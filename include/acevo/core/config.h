@@ -33,6 +33,9 @@ struct Config {
     // [dxgi]
     bool dxgiEnabled = true;
     bool frameStats = true;
+    // [profile]
+    bool loadSampler = false;   // diagnostics, suspends game threads to read them
+    int  loadSampleUs = 1000;
     // [overlay]
     bool overlayEnabled = true;
     std::wstring overlayFolder = L"acevo_mods";

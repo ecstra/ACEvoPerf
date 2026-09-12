@@ -23,6 +23,7 @@
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
+#include "acevo/telemetry/load_sampler.h"
 
 static void OnAttach(HMODULE h)
 {
@@ -66,6 +67,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
         DisableThreadLibraryCalls(hinst);
         OnAttach((HMODULE)hinst);
     } else if (reason == DLL_PROCESS_DETACH) {
+        StopLoadSampler();
         LogClose();
     }
     return TRUE;

@@ -90,6 +90,9 @@ void LoadConfig()
     g_cfg.dxgiEnabled = IniBool(L"dxgi", L"enabled", true);
     g_cfg.frameStats = IniBool(L"dxgi", L"frame_stats", true);
 
+    g_cfg.loadSampler = IniBool(L"profile", L"load_sampler", false);
+    g_cfg.loadSampleUs = IniInt(L"profile", L"sample_us", 1000);
+
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);
