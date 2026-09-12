@@ -99,9 +99,16 @@ warnings after the next game update would confirm it.
 cache, the changelog carries the entry under Unreleased. The flag stays available for anyone
 who wants the stalls back.
 
-Not verified yet: it needs one launch that logs `enable_pso_cache = false` and a night lap
-with headlights on trees. The owner asked to hold the release, so this ships with whatever
-else lands before 0.3.2.
+Verified once, on 2026-09-12. The owner drove a night Nurburgring single player session of six
+to eight minutes with the flag off and saw nothing wrong, in his words "flashlight is working?
+idk what the issue was". That session's log carries
+`flag enable_pso_cache = false (bool, was false)` at both the early and the late pass, and the
+game logged one `PSO Cache: N pipeline requests never completed` line for the whole 26 minutes
+against six in the 28 minute session of 2026-09-11 with the flag on.
+
+One machine, one negative result. It confirms the flag is off and the symptom did not come
+back, not that the cache was the only way to produce it. Enough to ship. The two reporters on
+Overtake are the ones who can actually close this.
 
 Still to say when it ships, because the mod cannot reach the file: anyone who saw this should
 delete `Saved Games\ACE\pipeline.library` once.
