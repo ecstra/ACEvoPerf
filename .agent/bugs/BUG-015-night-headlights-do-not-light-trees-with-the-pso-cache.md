@@ -112,3 +112,29 @@ Overtake are the ones who can actually close this.
 
 Still to say when it ships, because the mod cannot reach the file: anyone who saw this should
 delete `Saved Games\ACE\pipeline.library` once.
+
+## The warnings do not stop with the flag off, 2026-09-12
+
+Three short parked runs the same evening, every one with
+`flag enable_pso_cache = false (bool, was false)` at both passes, and every one still logging the
+warning at each scene load:
+
+| run | warnings | counts |
+|---|---|---|
+| A | 4 | 5, 30, 5, 52 |
+| B | 3 | 17, 30, 1 |
+| C | 3 | 17, 28, 2 |
+
+So `PSO Cache: N pipeline requests never completed, re-enabling them` fires three to four times in
+a three minute session with the cache switched off. The one line in 26 minutes quoted above was
+read as the flag taking that path out of play. It does not. The rate tracks scene loads rather
+than the flag, and a long driving session simply has fewer loads in it than three launches do.
+
+What this changes: the flag is still off and the owner still did not see the symptom return, so
+the shipped fix stands. What it removes is the explanation. Whatever `enable_pso_cache` does, it
+does not stop pipeline requests from going uncompleted, so the mechanism behind the unlit trees is
+not yet understood and this bug is not really diagnosed, only avoided. See
+[engine-flags-in-game-2026-09-12](../docs/research/engine-flags-in-game-2026-09-12.md).
+
+Also noted there: `log_pso_on_creation` emits nothing at all in the release build, so the obvious
+instrument for this bug does not exist.

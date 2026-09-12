@@ -56,3 +56,24 @@ session with a full grid, so they wait until the owner says he races one.
 
 Each of the four has a number or a recorded reason it cannot have one, written into
 `.agent/docs/research/`, and `no_gi` has either opened the GI angle or closed it.
+
+## Where it stands, 2026-09-12
+
+Three parked runs, all written up in
+[engine-flags-in-game-2026-09-12](../docs/research/engine-flags-in-game-2026-09-12.md).
+
+**Two of the four are closed.**
+
+- `no_gi`: global illumination costs **3.2 percent of frame time and 416 MB of video memory**,
+  measured over 119 aligned parked seconds, slower in only 3 of them. Then
+  `gibake_probes_per_frame=2` against its default of 16 recovered **none** of it and moved video
+  memory by one megabyte, so the cost is the shading lookup and the probe storage rather than the
+  per frame baking. Those are the only two GI flags in the engine, one cannot ship and the other
+  does nothing, so the angle is closed.
+- `log_pso_on_creation`: written correctly at both passes and emits nothing in the release build.
+  A dead diagnostic. The question it was meant to answer still has no instrument.
+
+**Two wait for a grid.** `ai_run_dynamic_track` and `car_update_complete_max_interval` are inert
+in a solo hotlap.
+
+This todo stays open only for those two.

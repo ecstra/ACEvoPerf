@@ -27,12 +27,13 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 | `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |
 | `texture_tier0` | false | "Force Texture Tier 0" pins every texture to its lowest tier, tile streaming stops | never enable |
 | `ui_force_resource_preloading` | false | preloads 1037 interface files (181 MB) at start, no measurable effect | measured, off |
-| `gibake_probes_per_frame` | 16 | GI probes rendered per frame | TODO-002 |
+| `no_gi` | false | disable global illumination | **measured 2026-09-12: 3.2% of frame time and 416 MB of VRAM, and not shippable** |
+| `gibake_probes_per_frame` | 16 | GI probes rendered per frame | **measured 2026-09-12 at 2: zero, a dead knob** |
 | `car_update_animations_budget`, `car_update_complete_budget` | 3, 2 | non focused cars updated per frame | documented |
 | `disable_dynamic_track` | false | skip rubber and marbles simulation | documented |
 | `disable_vrs` | false | variable rate shading off | documented |
 | `minimumcores` | false | shrinks thread pools 5/6/2 to 2/2/1, measured | never enable |
-| `log_pso_on_creation` | false | one debug line per pipeline state object | diagnostics |
+| `log_pso_on_creation` | false | one debug line per pipeline state object | **dead: written correctly, emits nothing in the release build** |
 | `veh_crashdumps`, `dumplevel` | false, 2 | the game's own crash dumps | TODO-003 |
 
 ## Verified effects
@@ -46,6 +47,14 @@ logical processors give 6, 5 and 2. `minimumcores` skips the extra workers. `no_
 `texture_tier0=true` on a four minute drive of 2026-09-05 cut tile traffic to 1.3 GB with whole
 minutes at 1 MB (lap one moved 8.3 GB in fourteen minutes) and the owner saw the car stuck at
 low detail. `ui_force_resource_preloading=true` logged the preload but the owner felt no change.
+
+`no_gi`, `gibake_probes_per_frame` and `log_pso_on_creation` were measured on 2026-09-12 from a
+fixed parked view, three runs aligned by seconds since the load ended. Global illumination costs
+3.2 percent of frame time and 416 MB of video memory, the probe count recovers none of either, and
+the pipeline log line does not exist in the release build. Full numbers and the protocol in
+[engine-flags-in-game-2026-09-12](../research/engine-flags-in-game-2026-09-12.md). The protocol is
+the reusable part: this laptop loses 8.3 percent of its frame rate in 105 seconds of standing
+still, so any pair not aligned on thermal state measures the cooler.
 
 ## The scan survives a game update
 
