@@ -2,12 +2,13 @@
 name: decisions-index
 kind: doc
 description: index of every decision taken, newest first
-updated: 2026-09-06
+updated: 2026-09-12
 links: [agent-index, spec-decisions]
 ---
 
 # Decisions Index
 
+- [DEC-014-reflex-ships-on-boost-ships-off](DEC-014-reflex-ships-on-boost-ships-off.md), 2026-09-12, Reflex ships on because the game has none and it costs nothing measurable, boost ships off because a thermally capped card has no clocks for it to hold up
 - [DEC-013-overtake-front-door-github-mirror](DEC-013-overtake-front-door-github-mirror.md), 2026-09-06, the Overtake listing is the front door and the GitHub release the mirror, the same zip in both
 - [DEC-012-no-ghost-car-mod](DEC-012-no-ghost-car-mod.md), 2026-09-06, the ghost car flag does not ship and its branch is gone, the game records and loads a ghost but nothing shows it
 - [DEC-011-no-free-roam-mod](DEC-011-no-free-roam-mod.md), 2026-09-06, the Free Roam unlock does not ship and its branch is gone, the package stops at the Nürburgring complex, the recipe stays in the research record

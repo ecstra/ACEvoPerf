@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-06
+updated: 2026-09-12
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -27,17 +27,17 @@ line in the same commit.
 
 ## The knowledge
 
-- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 15 docs in four categories
+- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 16 docs in four categories
   - foundation: [proxy-architecture](docs/foundation/proxy-architecture.md), the DLL in load order
   - systems: [directstorage-streaming](docs/systems/directstorage-streaming.md), [engine-flags](docs/systems/engine-flags.md), [content-package](docs/systems/content-package.md), [package-override-layer](docs/systems/package-override-layer.md), [settings-files](docs/systems/settings-files.md)
   - ops: [telemetry](docs/ops/telemetry.md), [build-and-release](docs/ops/build-and-release.md), [tools](docs/ops/tools.md)
-  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md), [one-percent-low-hunt-2026-09-05](docs/research/one-percent-low-hunt-2026-09-05.md), [ui-lag-hunt-2026-09-06](docs/research/ui-lag-hunt-2026-09-06.md), [free-roam-unlock-2026-09-06](docs/research/free-roam-unlock-2026-09-06.md), [ghost-car-2026-09-06](docs/research/ghost-car-2026-09-06.md)
+  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md), [one-percent-low-hunt-2026-09-05](docs/research/one-percent-low-hunt-2026-09-05.md), [ui-lag-hunt-2026-09-06](docs/research/ui-lag-hunt-2026-09-06.md), [free-roam-unlock-2026-09-06](docs/research/free-roam-unlock-2026-09-06.md), [ghost-car-2026-09-06](docs/research/ghost-car-2026-09-06.md), [reflex-2026-09-12](docs/research/reflex-2026-09-12.md)
 
 ## The trackers
 
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 3 open (TODO-009, TODO-010, TODO-013), 6 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 5 open, 6 fixed, 4 won't fix
-- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 11 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-013), 2 superseded
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 12 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-014), 2 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet
 
 ## Memory and handovers

@@ -3,6 +3,7 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 #include "acevo/dstorage/stats.h"
+#include "acevo/render/reflex.h"
 
 static LARGE_INTEGER g_qpf = {};
 static LARGE_INTEGER g_qpcStart = {};
@@ -79,17 +80,23 @@ typedef HRESULT (STDMETHODCALLTYPE *PFN_Present1)(IDXGISwapChain1*, UINT, UINT, 
 static PFN_Present g_origPresent = nullptr;
 static PFN_Present1 g_origPresent1 = nullptr;
 
+// Reflex sleeps once Present has returned, because that is the boundary between one frame
+// and the next and the only frame start a proxy can see.
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent(self, sync, flags);
     OnPresent(sync);
-    return g_origPresent(self, sync, flags);
+    HRESULT hr = g_origPresent(self, sync, flags);
+    reflex::OnFrameBegin();
+    return hr;
 }
 static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent1(self, sync, flags, pp);
     OnPresent(sync);
-    return g_origPresent1(self, sync, flags, pp);
+    HRESULT hr = g_origPresent1(self, sync, flags, pp);
+    reflex::OnFrameBegin();
+    return hr;
 }
 
 void HookSwapChain(IUnknown* sc)
@@ -103,5 +110,6 @@ void HookSwapChain(IUnknown* sc)
     DXGI_SWAP_CHAIN_DESC1 d = {};
     if (SUCCEEDED(sc1->GetDesc1(&d)))
         Log("swap chain: %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X scaling=%u", d.Width, d.Height, (unsigned)d.Format, d.BufferCount, (unsigned)d.SwapEffect, d.Flags, (unsigned)d.Scaling);
+    reflex::OnSwapChain(sc1);
     sc1->Release();
 }

@@ -8,6 +8,16 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Added
 
+- NVIDIA Reflex, in a game that ships none. It is not a frame rate limiter and never caps
+  anything: it stops the CPU queueing frames further ahead of the GPU than it can use, so the
+  input behind a frame is newer. NVIDIA only, silently idle on anything else. Verified by
+  asking the driver itself rather than trusting the mod: the log reports
+  `low latency mode ON` from `NvAPI_D3D_GetSleepStatus` after a thousand frames, with zero
+  refused calls. Honest result on the reference machine: no frame rate change, measured over
+  four two lap runs, because that laptop is 97 percent GPU bound and pinned at 86 degrees for
+  the whole run, so nothing on the CPU side can add frames there. Latency, which is the point
+  of Reflex, was not measured. `reflex` in the ini, `reflex_boost` for low latency boost which
+  ships off because a thermally capped card has no clocks for it to hold up.
 - The game now runs at high GPU scheduling priority. Windows gives every process a priority
   class for its GPU work, separate from the CPU one, and nothing was setting it for this game.
   It decides whose work the GPU scheduler takes first when something else is also drawing: a

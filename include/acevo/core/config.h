@@ -35,6 +35,9 @@ struct Config {
     // [dxgi]
     bool dxgiEnabled = true;
     bool frameStats = true;
+    // [latency]
+    bool reflex = true;
+    bool reflexBoost = false;
     // [profile]
     bool loadSampler = false;   // diagnostics, suspends game threads to read them
     int  loadSampleUs = 1000;
