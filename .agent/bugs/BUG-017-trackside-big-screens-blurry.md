@@ -5,7 +5,7 @@ description: the trackside big screens are visibly blurry because their flipbook
 updated: 2026-09-12
 links: [content-package, package-override-layer, BUG-001-texture-low-mip-shown-before-streaming]
 area: streaming
-status: open
+status: fixed
 severity: medium
 reported: 2026-09-12
 parent:
@@ -80,4 +80,21 @@ source art, which is not in the package. That half is Kunos's to fix and is wort
 
 ## Verification
 
-Pending, one session with the override in place.
+Verified on the owner's machine on 2026-09-12, in four steps that each cut the fix down:
+
+1. A fully rewritten header, mipLevels 1 with the tiling arrays trimmed, plus a 2 MB truncated
+   `.texturemips`, served from `acevo_mods`. Sharp.
+2. The same header alone, 219 bytes, no payload copy. Sharp. So the engine never reads past the
+   tiles `tileCountForSubresource` claims, and the payload copy was never needed.
+3. The original 243 byte header with a single byte changed, mipLevels 3 to 1, tiling arrays left
+   exactly as they were. Sharp. So the engine reads only as many tiling entries as mipLevels says.
+4. Built into the mod with no `acevo_mods` folder at all. The log reads
+   `overlay: big screens, the flipbook ships 3 mip levels and is served as 1`, the generated
+   `acevo_bigscreen.texture` is the original 243 bytes with byte 7 changed from 0x03 to 0x01, and
+   the table rebuild reports `1 replaced`. Sharp.
+
+Each step was worth taking: it ended with one byte rather than a header rewrite and a 2 MB copy,
+which is a lot less code running inside the game.
+
+What is still not recovered is the 2x cook shrink, so the screens land at 256 by 256 per frame
+rather than the 512 the source art would give. That half needs Kunos.

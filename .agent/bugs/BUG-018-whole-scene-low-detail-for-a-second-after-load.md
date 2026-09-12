@@ -40,12 +40,47 @@ What is not yet known is whether anything the mod owns changes that. Candidates 
 `tile_queue_priority` raised to realtime showed no measurable difference on lap two of 2026-09-05
 (TODO-005), and `texture_tier0` was a regression.
 
+## Measured, 2026-09-12
+
+One session with `timeline=1`, `logs/bigscreen-builtin-1541`. The game reports
+`Loading complete ... nurburgring.scene total 16.51 s` and `Curtain loading Off` at 15:37:43.839.
+Per second across that moment:
+
+| clock | tile req | tile MB | file to memory req | VRAM used / budget |
+|---|---|---|---|---|
+| 15:37:42 | 78 | 46.3 | 431 | 4574 / 5226 |
+| 15:37:43 | 77 | 17.2 | 866 | 4657 / 5226 |
+| **15:37:44 curtain lifts** | **522** | **600.8** | **14** | 4541 / 5226 |
+| 15:37:45 | 102 | 65.4 | 0 | 4541 / 5226 |
+| 15:37:46 | 69 | 53.8 | 6 | 4548 / 5226 |
+| 15:37:47 | 40 | 44.2 | 0 | 4548 / 5226 |
+| 15:37:48 | 12 | 10.4 | 0 | 4548 / 5226 |
+
+So the shape is exact. The engine finishes the load, shows the scene, and only then pulls **600 MB
+of texture tiles in the first visible second**, tapering to nothing over about four. The file to
+memory queue, which carries the meshes and the rest of the load, falls to zero at the same instant,
+so what the owner is looking at during those seconds is texture streaming and nothing else.
+
+It is request driven and the requests cannot exist earlier. The engine chooses mips from a GPU
+texture feedback pass (BUG-001 evidence), which needs the scene rendered before it can say what it
+needs, so the burst cannot start until the curtain is off. Reading ahead in the proxy was built and
+thrown away for an unrelated but final reason: a DirectStorage queue only accepts its declared
+source type, so the mod cannot feed file source requests from memory (TODO-013).
+
+VRAM is not the constraint either: 4541 MB of a 5226 MB budget at the curtain, 685 MB spare, and it
+barely moves while the burst runs.
+
 ## Where it stands
 
-Measurement armed and not yet taken: `[log] timeline=1` gives one line per second with tile,
-file to memory and memory to GPU request counts alongside VRAM used against budget. One session,
-start the game, enter a track, quit, then read how long tile traffic takes to settle after each
-curtain lift and whether the pool is full or still filling while it is coarse.
+The one lever left that the mod owns is the staging buffer, capped at 128 MB by
+`staging_buffer_mb`. 600 MB through a 128 MB staging buffer in one second is four fills, and a
+larger buffer might shorten the burst. That is exactly the knob whose smallness fixes the crashes
+and the missing icons on a 6 GB card (0.3.0), and the runtime keeps two of them, so raising it to
+256 MB costs 512 MB of the 685 MB spare. Not worth trading the crash fix for a second of sharpening
+without the owner saying so.
+
+Worth noting against any expectation of a big win: 600 MB in one second is already close to the
+761 MB/s best ever measured on this machine, so the path is not loafing.
 
 ## Done when
 
