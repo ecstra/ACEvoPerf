@@ -1,7 +1,7 @@
 ---
 name: optimisation-deepdive-2026-09-12
 kind: doc
-description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved, the engine is well built and the live leads are a duplicated tyre build on the load's serial chain, an unreachable DLSS render preset and 86 percent of the dynamic track preset being uncompressed terrain height
+description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved of which the DLSS one then closed, the engine is well built and the live leads both sit on one serial chain at the end of a session load, the dynamic track preset and a duplicated tyre build
 updated: 2026-09-12
 links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads]
 ---
@@ -54,7 +54,14 @@ These cost the most effort and are worth writing down so nobody spends the effor
 **Nothing found touches BUG-009**, the render thread handing its main batch to the GPU 3 to 5 ms
 late, which remains the open question behind the one percent lows.
 
-## Lead one: the DLSS render preset is hardcoded where no player can reach it
+## Lead one, closed: the DLSS render preset is hardcoded where no player can reach it
+
+**Closed on the owner's word, 2026-09-12.** The NVIDIA app overrides the DLSS version and the
+render preset for this title, so whatever the exe asks for is replaced before it reaches the
+runtime. Neither the hardcoded 10 nor anything the mod could force survives that override, which
+makes the whole lead unreachable rather than merely unverified. No further DLSS work.
+
+The rest of this section is kept as the record of what was found, not as an open item.
 
 Found by the completeness critic after all eight angles walked past the upscaler.
 
@@ -342,7 +349,7 @@ call it 0.1 percent. Three of the five kills below are re-grounded on it and sur
 |---|---|---|
 | 1 | The Ferrari 296 GT3 builds each tyre model five times | Killed as "worth zero seconds to a user on this machine today". The profiler timeline says the car chain is the tail of the load and runs 2.05 s past streaming. Now [BUG-019](../../bugs/BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md). |
 | 2 | The render thread's waits are `std::mutex` and condition variables | Killed on a sampler window that was claimed to include loading. It does not. Already recorded above. The only finding in the exercise aimed at BUG-009. |
-| 3 | The DLSS render preset is hardcoded where no player can reach it | Killed on a policy collision, not on evidence, and its plumbing was never verified. One launch with the NGX log settles it. |
+| 3 | ~~The DLSS render preset is hardcoded where no player can reach it~~ | Came back as unresolved, then **closed the same day**: the NVIDIA app overrides the DLSS version and preset for this title, so nothing the exe or the mod asks for survives. Eight remain. |
 | 4 | 131 of 132 car light blend masks ship 1 or 2 mips of 12 | The reviewer's own words are "unmeasured and unmeasurable with what the mod records today" and "nobody knows". That is the definition of unresolved. |
 | 5 | 39 percent of a session's mesh bytes is one value repeated | The VRAM half is genuinely dead, because COLOR and TEXCOORD0 to 3 are in the vertex layout whatever the file holds. The load time half, 246 MB less to read, decipher and parse, was never measured and is testable with the same override layer BUG-017 already uses. |
 | 6 | Thread placement from a flat processor count | The kill refutes the framing, correctly: there is no bad pinning because there is no pinning. It does not touch the proposal, which is to add some. Unmeasured and one lap to test. |
@@ -449,10 +456,6 @@ but it belongs in the same note to Kunos as the `Vec4` operator.
 
 ## Still unchecked
 
-- Whether the DLSS runtime honours preset 10 and 13 or silently refuses them. The shipped DLL names
-  only `Preset_A` to `Preset_E`, so refusal is now the likely answer, but it takes one launch with
-  the NGX log on to read the line and be sure. This decides whether lead one is the best item in the
-  project or worth nothing.
 - What the per build cost of a tyre compound actually is. BUG-019 brackets it from log line gaps
   because the lines mark starts and not ends.
 - Whether the engine bounds checks the terrain height vector, and whether wet weather consumes it.
