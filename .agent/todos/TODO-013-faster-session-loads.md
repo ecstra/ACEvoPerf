@@ -133,11 +133,64 @@ long loads.
 No engine flag reaches the job system. The flag table has `minimumcores` (shrinks every pool,
 measured harmful) and nothing else about jobs, fibers, workers or concurrency.
 
-Still open, and it decides whether there is a lever here at all: how much of the *resource
-workers'* own time is the spin, as opposed to the process average. The first sampler weighted
-every thread equally, so 5.8 percent of all samples is not 5.8 percent of a loading worker.
-The sampler now reports each thread's own breakdown and counts the spin loop separately, so
-one more five minute run answers it.
+## The per thread answer, 2026-09-12
+
+A second run, one Nurburgring load (16.66 s total, 12.87 s streaming), with the sampler
+reporting each thread against its own samples. What a resource worker does during the
+streaming phase:
+
+| thread | game code | job queue spin | blocked in a lock |
+|---|---|---|---|
+| Resource Manager Worker 3 | 42.3% | 26.9% | 45.1% |
+| Resource Manager Worker 6 | 52.3% | 19.1% | 33.2% |
+| Resource Manager Worker 7 | 51.4% | 18.8% | 35.1% |
+| Resource Manager Worker 1 | 15.5% | 11.5% | 79.2% |
+| Resource Manager Worker 0 | 15.9% | 9.9% | 77.4% |
+
+The same threads thirty seconds later, sitting in the pits:
+
+| thread | game code | job queue spin | blocked in a lock |
+|---|---|---|---|
+| Resource Manager Worker 0 | 1.7% | 0.8% | 97.8% |
+| Resource Manager Worker 1 | 1.9% | 0.6% | 97.3% |
+
+So at rest a worker is parked and spins 0.8 percent of the time, and during a load it spins
+between 10 and 27 percent of the time. That is the answer: **about a quarter of a busy resource
+worker's time during a session load is burned in a spin loop that makes no progress**, and most
+of the rest of it is blocked. Real work in the engine's own code is 42 to 52 percent on the
+busy workers and 16 percent on the ones that are mostly waiting their turn.
+
+The lock is badly built, which is why eleven workers on it hurt so much. The loop re-issues
+`xchg` on every iteration rather than reading until the lock looks free, so every spinner takes
+the cache line exclusively and slows down the very thread holding the lock:
+
+```
+0x279fac4: pause
+0x279fac6: mov ecx, eax
+0x279fac8: xchg dword ptr [rbx], ecx   <- a locked write, every iteration
+0x279faca: test ecx, ecx
+0x279facc: jne 0x279fac4
+```
+
+## Why the mod stops here
+
+There is nothing proportionate left to do.
+
+- No flag reaches the job system, the fiber count, or the worker count.
+- Fixing the spin loop means patching game code. The loop is ten bytes and a read first
+  version does not fit in ten bytes, so it needs an inline detour and a trampoline, which is
+  machinery this mod does not have and has never needed. It would sit on an address that moves
+  with every game build, in the scheduler every thread in the process goes through, and a
+  mistake there is a deadlock for everyone who installs it. Against maybe two seconds of a
+  seventeen second load.
+- The engine's own `Loading thread boost` already takes the loading pool from 2 to 11 workers,
+  which is what puts eleven threads on one bad spin lock in the first place. Reducing that is
+  not reachable either.
+
+Recommendation: drop this todo the way BUG-012 and BUG-014 were closed, as the engine's own
+cost on every card, with the cause named precisely enough to be worth telling Kunos. The
+finding stands on its own: a session load is not disk bound, it is bound by the fiber job
+queue's lock.
 
 ## Steps
 
