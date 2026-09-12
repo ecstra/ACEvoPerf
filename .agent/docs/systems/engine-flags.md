@@ -2,7 +2,7 @@
 name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
-updated: 2026-09-06
+updated: 2026-09-12
 links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, release-build-ignores-gflags-cli, proxy-architecture]
 ---
 
@@ -21,7 +21,7 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 
 | flag | default | effect | status |
 |---|---|---|---|
-| `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | on by default in the mod |
+| `enable_pso_cache` | false | pipeline state cache on disk, fewer shader stalls | on by default in the mod, suspected of BUG-015 |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
 | `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget (1433 MB each on its own) | on by default, DEC-005 |
 | `tile_pool_mb` | 0 | tile pool size in MB, honoured only with the canonical path, created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |
@@ -46,3 +46,16 @@ logical processors give 6, 5 and 2. `minimumcores` skips the extra workers. `no_
 `texture_tier0=true` on a four minute drive of 2026-09-05 cut tile traffic to 1.3 GB with whole
 minutes at 1 MB (lap one moved 8.3 GB in fourteen minutes) and the owner saw the car stuck at
 low detail. `ui_force_resource_preloading=true` logged the preload but the owner felt no change.
+
+## The scan survives a game update
+
+The game went to 0.9.1+release.6 (exe of 2026-09-07, installed by Steam on 2026-09-11) and the
+mod's scan needed no change: `scanned exe in 78 ms: 4 ctor candidates, 204 flags (204 typed)`,
+one flag more than 0.9.0's 203, the same four constructor candidates, and all four shipped
+flags written at their new addresses with the staging cap and the 1024 MB pool applied. The
+addresses moved, the names did not, which is what the scan is for. The one flag 0.9.1 adds has
+not been identified, `tools/data/gflags_full.tsv` is still the 0.9.0 dump.
+
+That update also moved the owner's install from a folder outside Steam to
+`steamapps\common\Assetto Corsa EVO`, and it did not replace `dstorage.dll`, so the mod kept
+running across it.

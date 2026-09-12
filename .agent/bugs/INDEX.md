@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-06
+updated: 2026-09-12
 links: [agent-index, spec-bugs]
 ---
 
@@ -12,6 +12,7 @@ links: [agent-index, spec-bugs]
 
 bug
 
+- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), two Overtake reviewers report unlit trees at night and name `enable_pso_cache`, a default the mod turns on, the owner's own log shows the cache failing to deliver pipelines after a game update
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, everything else ruled out over nineteen laps, parked with its leads in TODO-010
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
