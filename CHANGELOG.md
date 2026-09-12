@@ -54,6 +54,20 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Fixed
 
+- The trackside big screens were a blurry mess while the display in the menu next to them looked
+  fine. They are one texture holding 64 frames in an 8 by 8 grid, stepped through as an animation,
+  which means the engine picks its mip from the whole sheet rather than the frame on show, so every
+  coarse mip step costs eight times the detail instead of two. The asset makes that worse twice
+  over: it ships cooked at half size from a 4096 source, where the flipbook sitting beside it in
+  the same folder ships at full size, and it carries three mip levels where its other neighbour,
+  identical in size, carries twelve. The coarsest level that ships works out at 64 by 64 pixels per
+  frame on a full size screen. The mod now serves that header with its mip count read as one, so
+  there is nothing coarse to fall back to. It is a single byte, generated at start from your own
+  `content.kspkg` into `acevo_bigscreen.texture` next to the exe, and the package is never touched.
+  Costs about 2 MB of video memory. `fix_big_screens=0` in the ini leaves the game as it is. What
+  this cannot recover is the half size cook, the 4096 source art is not in the package, so the
+  screens end at 256 by 256 per frame rather than 512.
+
 - At night the car's own headlights stopped lighting the trees, and at Oulton Park the track
   as well, while other cars' headlights in multiplayer looked right. Cause: the mod switched
   on the engine's pipeline state cache (`enable_pso_cache`), which the game itself ships off,

@@ -32,12 +32,15 @@ The mod page, with the discussion and the reviews, is [on Overtake](https://www.
 * **Crashes on car change, track change and at startup.**
 * **Missing icons in the vehicle hub and the menus.**
 * **Mushy road, tyre and ground textures,** worse after restarting a session.
+* **Blurry trackside big screens,** while the display in the menu looks fine.
 
 It also adds NVIDIA Reflex to a game that ships none, skips the intro, and runs the game at above normal CPU and GPU priority. All of it is in the ini if you want it off.
 
 ## How it does it
 
 **The crashes and the icons:** the game asks DirectStorage for a 1 GB staging buffer and the runtime keeps two of them in VRAM, so 2 GB of a 6 GB card are gone before anything loads. Swap a car or a track and the card runs out. In the menus the icon textures have nothing left to load into. The mod caps that buffer at 128 MB, which is still four of the biggest requests the game ever makes. Cards over 7 GB get 192 MB, over 11 GB 256 MB.
+
+**The big screens:** they are one texture holding 64 frames in an 8 by 8 grid, stepped through as an animation. That grid is the problem, because the engine chooses its mip from the whole sheet rather than from the frame on show, so every coarse mip step costs eight times the detail instead of two. The asset then makes it worse twice: it ships cooked at half size, and it carries three mip levels where the flipbook next to it in the same folder carries twelve. The coarsest one that ships is 64 by 64 pixels per frame on a full size screen. The mod serves the same header with its mip count read as one, so there is nothing coarse to fall back to. One byte, generated at start from your own copy of the game, and the content package is never modified.
 
 **The textures:** the engine sizes its texture pool from whatever VRAM is left mid transition, while the old scene is still resident, which on a 6 GB card was 633 MB in a race and 526 MB after a restart. The engine has two flags for exactly this, `force_canonical_pool_sizes` and `tile_pool_mb`, that the release build never reads from the command line. The mod finds their storage inside the running exe and writes them at start, so the pool is created once at 1024 MB (1536, 2048 or 3072 on bigger cards) and never shrinks. Texture quality needs to be on Ultra for this to show.
 
@@ -67,7 +70,7 @@ After a game update that replaces `dstorage.dll`, do the same again. If an updat
 1. Close the game.
 2. Delete `dstorage.dll`.
 3. Rename `dstorage_orig.dll` to `dstorage.dll`.
-4. Delete `acevo_dstoragecore.dll`, `acevo_perf.ini` and `acevo_perf.log`.
+4. Delete every other file starting with `acevo_`, which is the ini, `acevo_dstoragecore.dll`, the generated `acevo_bigscreen.texture` and any logs.
 
 Or verify the game files in Steam, which puts the original `dstorage.dll` back, then delete the ini and the log.
 

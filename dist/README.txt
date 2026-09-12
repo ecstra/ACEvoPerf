@@ -36,10 +36,10 @@ DIRECTSTORAGE RUNTIME
   to try if streaming ever misbehaves.
 
 UNINSTALL
-  Delete dstorage.dll, then rename dstorage_orig.dll to dstorage.dll. Delete
-  acevo_dstoragecore.dll, acevo_perf.ini, the acevo_mods folder if you made one, and
-  any acevo_perf*.log / acevo_perf_*.csv files. Or verify the game files in Steam,
-  which restores the original dstorage.dll.
+  Delete dstorage.dll, then rename dstorage_orig.dll to dstorage.dll. Delete every
+  other file starting with acevo_ (the ini, acevo_dstoragecore.dll, the generated
+  acevo_bigscreen.texture, any logs and CSVs) and the acevo_mods folder if you made
+  one. Or verify the game files in Steam, which restores the original dstorage.dll.
 
 AFTER A GAME UPDATE
   If an update replaces dstorage.dll, copy the four files in again.

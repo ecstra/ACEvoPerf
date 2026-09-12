@@ -47,6 +47,7 @@ struct Config {
     std::wstring overlayFolder = L"acevo_mods";
     bool overlayClearXor = true;    // serve override entries as plain data (XOR flag cleared)
     bool traceFileIo = false;       // log the game's file I/O on the package
+    bool fixBigScreens = true;      // serve the trackside flipbook with one mip level, BUG-017
 };
 
 extern Config g_cfg;

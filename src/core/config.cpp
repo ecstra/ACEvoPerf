@@ -106,4 +106,5 @@ void LoadConfig()
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);
     g_cfg.traceFileIo = IniBool(L"overlay", L"trace_file_io", false);
+    g_cfg.fixBigScreens = IniBool(L"overlay", L"fix_big_screens", true);
 }

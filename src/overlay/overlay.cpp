@@ -134,6 +134,138 @@ static void CollectFiles(const std::wstring& dir, const std::string& rel)
     FindClose(f);
 }
 
+// ---------------------------------------------------------------------------
+// The mod's own asset corrections, generated from the player's package
+// ---------------------------------------------------------------------------
+// The trackside big screens are one texture holding 64 frames in an 8 by 8 grid, stepped through
+// by the material's flipbook. So the engine picks its mip from the whole sheet rather than the
+// frame on show, and every coarse mip step costs eight times the detail instead of two. The asset
+// ships three mip levels and the coarsest, a 512 sheet, is 64 by 64 pixels per frame on a full
+// size screen. Telling the engine it has one level leaves nothing coarse to fall back to.
+//
+// That is a single byte, the mipLevels varint. The tiling arrays are left exactly as they are
+// because the engine reads only as many of their entries as mipLevels says, measured on the
+// owner's machine against both a fully rewritten header and this one. See BUG-017.
+static const char* const kBigScreenTexture =
+    "content\\tracks\\common_assets\\textures\\flipbooks\\led_evo_4096_64f.texture";
+static const wchar_t* const kBigScreenLooseFile = L"acevo_bigscreen.texture";
+
+// Byte index of a top level varint field's value, or -1. Walked rather than assumed at a fixed
+// offset, so a header that changed shape in a game update is noticed instead of corrupted.
+static int FindVarintField(const std::vector<BYTE>& data, int wanted)
+{
+    size_t i = 0;
+    while (i < data.size()) {
+        uint64_t key = 0;
+        int shift = 0;
+        bool ok = false;
+        while (i < data.size()) { BYTE b = data[i++]; key |= (uint64_t)(b & 0x7F) << shift; shift += 7; if (!(b & 0x80)) { ok = true; break; } }
+        if (!ok) return -1;
+
+        const int field = (int)(key >> 3), wire = (int)(key & 7);
+        if (wire == 0) {
+            const size_t valueAt = i;
+            while (i < data.size() && (data[i] & 0x80)) ++i;
+            if (i >= data.size()) return -1;
+            ++i;
+            if (field == wanted) return (int)valueAt;
+        } else if (wire == 2) {
+            uint64_t len = 0;
+            shift = 0;
+            ok = false;
+            while (i < data.size()) { BYTE b = data[i++]; len |= (uint64_t)(b & 0x7F) << shift; shift += 7; if (!(b & 0x80)) { ok = true; break; } }
+            if (!ok || len > data.size() - i) return -1;
+            i += (size_t)len;
+        } else if (wire == 5) {
+            i += 4;
+        } else if (wire == 1) {
+            i += 8;
+        } else {
+            return -1;
+        }
+    }
+    return -1;
+}
+
+static bool ReadPackageRange(uint64_t offset, uint64_t size, std::vector<BYTE>& out)
+{
+    std::wstring pkg = g_dir + L"content.kspkg";
+    HANDLE h = g_origCreateFileW(pkg.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    out.resize((size_t)size);
+    LARGE_INTEGER pos;
+    pos.QuadPart = (LONGLONG)offset;
+    DWORD got = 0;
+    const bool ok = g_origSetFilePointerEx(h, pos, nullptr, FILE_BEGIN)
+                 && g_origReadFile(h, out.data(), (DWORD)size, &got, nullptr) && got == size;
+    g_origCloseHandle(h);
+    return ok;
+}
+
+// Every step checks what it found, because this reads the player's own package and a game update
+// is free to change any of it. Anything unexpected leaves the asset alone and says so.
+static void AddBigScreenFix(size_t used)
+{
+    if (!g_cfg.fixBigScreens) return;
+
+    const std::string pkgPath = kBigScreenTexture;
+    const uint64_t hash = Fnv1a64Utf16(pkgPath);
+    auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
+    size_t lo = 0, hi = used;
+    while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
+    if (lo >= used || hashAt(lo) != hash) {
+        Log("overlay: the big screen flipbook is not in this package, that fix is skipped");
+        return;
+    }
+
+    const BYTE* entry = g_toc.data() + lo * SLOT;
+    uint16_t flags = 0;
+    uint64_t size = 0, offset = 0;
+    memcpy(&flags, entry + 0xE4, 2);
+    memcpy(&size, entry + 0xF0, 8);
+    memcpy(&offset, entry + 0xF8, 8);
+    if (size < 8 || size > 4096 || offset + size > g_pkgSize) {
+        Log("overlay: the big screen flipbook header is %llu bytes at %llu, not what this expects, skipped",
+            (unsigned long long)size, (unsigned long long)offset);
+        return;
+    }
+
+    std::vector<BYTE> header;
+    if (!ReadPackageRange(offset, size, header)) { Log("overlay: cannot read the big screen flipbook header, skipped"); return; }
+    if (flags & 0x100) XorRange(header.data(), 0, header.size());
+
+    const int at = FindVarintField(header, 3);   // TextureMetadata.mipLevels
+    if (at < 0 || (header[at] & 0x80)) {
+        Log("overlay: the big screen flipbook header has no single byte mipLevels, skipped");
+        return;
+    }
+    const BYTE levels = header[at];
+    if (levels <= 1) {
+        Log("overlay: the big screen flipbook already ships %u mip level(s), nothing to fix", levels);
+        return;
+    }
+    header[at] = 1;
+
+    // The file has to carry the encoding the rebuilt table will claim for it.
+    if (!g_cfg.overlayClearXor) XorRange(header.data(), 0, header.size());
+
+    const std::wstring loose = g_dir + kBigScreenLooseFile;
+    HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the big screen fix is skipped", loose.c_str(), GetLastError()); return; }
+    DWORD wrote = 0;
+    const bool ok = WriteFile(w, header.data(), (DWORD)header.size(), &wrote, nullptr) && wrote == header.size();
+    g_origCloseHandle(w);
+    if (!ok) { Log("overlay: short write to %ls, the big screen fix is skipped", loose.c_str()); return; }
+
+    Override o;
+    o.loosePath = loose;
+    o.pkgPath = pkgPath;
+    o.size = header.size();
+    g_files.push_back(o);
+    Log("overlay: big screens, the flipbook ships %u mip levels and is served as 1 so its 8 by 8 grid "
+        "cannot fall back to a coarse mip (BUG-017)", levels);
+}
+
 // Read the real table, apply the overrides, re-encode. Called on the first table read.
 static void BuildToc()
 {
@@ -174,6 +306,10 @@ static void BuildToc()
         return;
     }
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
+
+    // The mod's own corrections join the list before it is applied, so they get a virtual offset
+    // and a table slot exactly like a loose file the player put there.
+    AddBigScreenFix(used);
 
     g_virtBase = (g_pkgSize + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
     uint64_t next = g_virtBase;
@@ -328,11 +464,14 @@ void Install()
     std::wstring folder = g_dir + g_cfg.overlayFolder;
     if (g_cfg.overlayEnabled && GetFileAttributesW(folder.c_str()) != INVALID_FILE_ATTRIBUTES) {
         CollectFiles(folder, "");
-        g_active = !g_files.empty();
         Log("overlay: %zu loose file(s) under %ls", g_files.size(), folder.c_str());
     } else if (g_cfg.overlayEnabled) {
-        Log("overlay: folder %ls not present, layer idle", folder.c_str());
+        Log("overlay: folder %ls not present%s", folder.c_str(),
+            g_cfg.fixBigScreens ? ", the mod's own asset fixes still apply" : ", layer idle");
     }
+    // The mod's own corrections are reason enough to hook the file calls. They are generated from
+    // the player's package once the table is read, so there need not be a mods folder at all.
+    g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens);
     if (!g_active && !g_cfg.traceFileIo) return;
     int a = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
     int b = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);
