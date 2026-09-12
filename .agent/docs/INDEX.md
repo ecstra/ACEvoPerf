@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-11
+updated: 2026-09-12
 links: [agent-index, spec-docs]
 ---
 
@@ -35,3 +35,4 @@ links: [agent-index, spec-docs]
 - [free-roam-unlock-2026-09-06](research/free-roam-unlock-2026-09-06.md), the hidden Free Roam mode found behind a password, switched on for an afternoon and dropped: the gate, what the package carries and lacks, the recipe
 - [ghost-car-2026-09-06](research/ghost-car-2026-09-06.md), the ghost car flag records, saves, loads and samples a lap every frame and nothing draws it, two sessions and the disassembly, dropped
 - [reflex-2026-09-12](research/reflex-2026-09-12.md), Reflex added to a game that ships none, confirmed by the driver, and four two lap runs showing why a card pinned at its thermal limit cannot show a difference
+- [directstorage-1-3-2026-09-12](research/directstorage-1-3-2026-09-12.md), the runtime taken to 1.3.0, what the forwarder and core split really is, the attempt that shipped and silently did nothing, and the measurements showing the upgrade changed nothing

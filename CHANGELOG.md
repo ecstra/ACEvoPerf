@@ -65,6 +65,15 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Verified
 
+- DirectStorage 1.3.0 measured over a lap, a track change to the full Nordschleife and a second
+  lap: the log confirms it is the runtime in use, with no errors, no fallbacks and no failed
+  calls, 13639 tile requests and 11 GB through the texture tile queue. Streaming throughput sits
+  inside the spread of the 1.2.3 sessions on the same machine (260.7 MB/s peak on the file to
+  memory queue against 258 to 291 before, 86.0 MB/s on the tile queue against 72 to 91), and
+  hitches keep the same shape they always had, clustered at start-up, the track load and the menu,
+  with one across nine minutes of driving. So nothing regressed and nothing improved, which is
+  what the changelog said to expect.
+
 - The mod works on game version 0.9.1+release.6 with no change. The flag scan found 204 flags
   against 0.9.0's 203, wrote all four at their new addresses, capped the staging buffer and
   created the 1024 MB tile pool once. Addresses move with every game build, names do not,
