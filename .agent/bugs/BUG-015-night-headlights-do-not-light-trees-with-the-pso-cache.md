@@ -39,32 +39,46 @@ The owner's own game log of 2026-09-11 (`log-260911-184948.txt`), mod 0.3.1 inst
 ```
 
 Six warnings, clustered at the menu load and at the Red Bull Ring scene load, the 47 landing
-40 ms before `Track resources streaming took 4.25 s`. The next launch of the same build, the
-same evening, logged none. That session was the first run after Steam updated the game to
-0.9.1 that morning, so the cache on disk had been written by 0.9.0.
+40 ms before `Track resources streaming took 4.25 s`.
 
-The cache is `Saved Games\ACE\pipeline.library`, 32 MB. It is not inside the game folder, so
-it survives a game update, a mod update and a mod uninstall, and no line in the game log says
-it is versioned or invalidated against the build.
+Two sessions ran that evening and only the first one warned:
+
+| session | ran | PSO warnings | cache on disk at exit |
+|---|---|---|---|
+| `log-260911-184948` | 18:49 to 19:17 | 6 | none written |
+| `log-260911-191750` | 19:17 to 20:37 | 0 | 31.3 MB written at 20:37 |
+
+`Saved Games\ACE\pipeline.library` carries a creation time of 20:37 on 2026-09-11, the second
+second of the second session's exit, so no cache file existed while the second session ran.
+The save folder was wiped the same day for a fresh account, and Steam had put 0.9.1 in place
+that morning.
+
+The cache lives outside the game folder, so it survives a game update, a mod update and a mod
+uninstall. Nothing in the game log says it is versioned against the build.
 
 ## Reading
 
-The engine asks the cache for a batch of pipeline state objects, the cache does not answer for
-some of them, and the engine re-enables those requests and compiles them itself. That is a
-recovery path, so the warning alone does not prove a wrong picture. What it does prove is that
-this cache is unreliable in a shipping build, which is consistent with Kunos leaving it off.
-The night lighting reports are the symptom of a permutation that does not come back: a car's
-own headlight pass over vegetation is exactly the kind of rarely used permutation that would
-be missing while the common ones are present, and it matches the detail that other players'
-headlights are fine.
+The engine asks the cache for a batch of pipeline state objects, some never answer, and the
+engine re-enables those requests and compiles them itself. It is a recovery path, so the
+warning on its own does not prove a wrong picture on screen.
 
-Not yet proven on this machine. The flag is the mod's only default that fixes nothing, it just
-saves shader compile stalls on repeat runs, so the exchange is a cosmetic convenience against
-a broken night scene.
+The session that warned and the session that did not differ in whether a cache file was
+present, and the shape fits: with no file the engine has nothing to ask and compiles
+everything, with a file written by a different build it asks and gets nothing back for the
+entries that moved. That would make the reports an update artefact rather than a fault of the
+cache in steady state, and it would explain why most users see nothing. It rests on the wipe
+having happened between the two sessions, which is not in the logs, so treat it as the leading
+candidate and not as established.
+
+What is established: this cache is not clean in a shipping build, Kunos ships it off, and it
+is the mod's only default that fixes nothing. It buys shader compile stalls back on repeat
+runs. That is a cosmetic convenience standing against a broken night scene for an unknown
+share of users.
 
 ## Reproduce
 
-1. Install 0.3.1 with the shipped ini, `enable_pso_cache=true`.
+1. Install 0.3.1 with the shipped ini, `enable_pso_cache=true`, and keep the
+   `pipeline.library` the game has already built.
 2. Drive a night session at the Nurburgring in a car with headlights, look at the trees beside
    the road. Oulton Park at night is the stronger case, the reporter saw the track itself
    unlit there.
@@ -72,6 +86,11 @@ a broken night scene.
 
 The cache has to be deleted between the two runs, otherwise the run with the flag off still
 reads a file the previous run wrote.
+
+The update reading above is settled by one cheaper run: keep the flag on, keep the cache the
+game has now, and check the game log for `PSO Cache: N pipeline requests never completed` on a
+launch where the exe has not changed since the cache was written. No warnings there and
+warnings after the next game update would confirm it.
 
 ## Fix
 
