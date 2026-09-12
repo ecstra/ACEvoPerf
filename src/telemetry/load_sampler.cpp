@@ -45,7 +45,13 @@ int g_targetCount = 0;
 // tallies
 std::unordered_map<uint32_t, uint32_t> g_byLabel;    // label offset -> samples
 std::unordered_map<uint32_t, uint32_t> g_byGameRva;  // 64 byte bucket of the exe rva -> samples
-std::unordered_map<std::string, uint32_t> g_byThread;
+// Per thread, the buckets it was sampled in. Threads are sampled round robin, so
+// within one thread the shares are an unbiased read of how it spent its time, which
+// is the only way to tell a worker that is grinding from one that is parked.
+struct ThreadTally { uint32_t total = 0; uint32_t bucket[kBucketCount] = {}; uint32_t spin = 0; };
+std::unordered_map<std::string, ThreadTally> g_byThread;
+// the game's fiber job queue spin loop, found on 2026-09-12, see TODO-013
+const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
 uint64_t g_bucketCounts[kBucketCount] = {};
 uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
 
@@ -69,11 +75,16 @@ uint32_t AddLabel(const char* text)
 
 int BucketForName(const char* name)
 {
-    if (strstr(name, "NtWaitFor") || strstr(name, "NtDelayExecution") || strstr(name, "NtRemoveIoCompletion") || strstr(name, "RtlWaitOnAddress")
-        || strstr(name, "WaitFor") || strstr(name, "SleepConditionVariable") || strstr(name, "SleepEx") || strstr(name, "NtSignalAndWait")
-        || strstr(name, "NtYieldExecution")) return kWait;
+    // The lock primitives go first. NtWaitForAlertByThreadId is what an SRWLock, a
+    // critical section and a condition variable all block in, and it matches the
+    // generic "WaitFor" test below, so checking that first would file every lock in
+    // the process under waiting and make the split useless.
     if (strstr(name, "CriticalSection") || strstr(name, "SRWLock") || strstr(name, "NtWaitForAlertByThreadId") || strstr(name, "RtlpWaitOn")
-        || strstr(name, "AcquireSRW") || strstr(name, "ReleaseSRW")) return kLock;
+        || strstr(name, "AcquireSRW") || strstr(name, "ReleaseSRW") || strstr(name, "RtlWaitOnAddress")
+        || strstr(name, "NtAlertThreadByThreadId")) return kLock;
+    if (strstr(name, "NtWaitFor") || strstr(name, "NtDelayExecution") || strstr(name, "NtRemoveIoCompletion")
+        || strstr(name, "WaitFor") || strstr(name, "SleepConditionVariable") || strstr(name, "SleepEx") || strstr(name, "NtSignalAndWait")
+        || strstr(name, "ZwWaitForWorkViaWorkerFactory") || strstr(name, "NtYieldExecution")) return kWait;
     if (strstr(name, "Heap") || strstr(name, "malloc") || strstr(name, "free") || strstr(name, "calloc") || strstr(name, "realloc")
         || strstr(name, "operator new") || strstr(name, "operator delete")) return kHeap;
     if (strstr(name, "memcpy") || strstr(name, "memmove") || strstr(name, "memset") || strstr(name, "memcmp") || strstr(name, "RtlCopyMemory")
@@ -292,11 +303,22 @@ void LogSummary(const char* when)
     Log("[loadsampler] game code, 64 byte buckets of the exe rva, most samples first");
     for (auto& r : Top(g_byGameRva, 16))
         Log("[loadsampler]   rva 0x%08X  %7u  %5.1f%%", (unsigned)((uint64_t)r.first << 6), r.second, 100.0 * r.second / g_total);
-    Log("[loadsampler] by thread");
-    std::vector<std::pair<std::string, uint32_t>> threads(g_byThread.begin(), g_byThread.end());
-    std::sort(threads.begin(), threads.end(), [](const std::pair<std::string, uint32_t>& a, const std::pair<std::string, uint32_t>& b) { return a.second > b.second; });
-    for (size_t i = 0; i < threads.size() && i < 14; ++i)
-        Log("[loadsampler]   %-28s %7u  %5.1f%%", threads[i].first.c_str(), threads[i].second, 100.0 * threads[i].second / g_total);
+    // Per thread the shares are of that thread's own samples, so they say how it spent
+    // its time. "jobspin" is the share inside the engine's fiber job queue spin loop.
+    Log("[loadsampler] per thread, shares of that thread's own samples: game / jobspin / lock / wait / other");
+    std::vector<std::pair<std::string, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
+    std::sort(threads.begin(), threads.end(), [](const std::pair<std::string, ThreadTally>& a, const std::pair<std::string, ThreadTally>& b) {
+        return (a.second.total - a.second.bucket[kWait]) > (b.second.total - b.second.bucket[kWait]);
+    });
+    for (size_t i = 0; i < threads.size() && i < 16; ++i) {
+        const ThreadTally& v = threads[i].second;
+        if (!v.total) continue;
+        double n = v.total;
+        uint32_t rest = v.total - v.bucket[kGame] - v.bucket[kLock] - v.bucket[kWait];
+        Log("[loadsampler]   %-28s %5u samples  game %5.1f%%  jobspin %5.1f%%  lock %5.1f%%  wait %5.1f%%  other %5.1f%%",
+            threads[i].first.c_str(), v.total, 100.0 * v.bucket[kGame] / n, 100.0 * v.spin / n,
+            100.0 * v.bucket[kLock] / n, 100.0 * v.bucket[kWait] / n, 100.0 * rest / n);
+    }
 
     g_byLabel.clear();
     g_byGameRva.clear();
@@ -370,9 +392,16 @@ DWORD WINAPI SamplerThread(void*)
                 if (bucket < 0) bucket = kOther;
                 g_total++;
                 g_bucketCounts[bucket]++;
-                g_byThread[t.name]++;
-                if (rip >= g_gameTextBegin && rip < g_gameTextEnd) g_byGameRva[(uint32_t)((rip - g_gameBase) >> 6)]++;
-                else g_byLabel[label]++;
+                ThreadTally& tally = g_byThread[t.name];
+                tally.total++;
+                tally.bucket[bucket]++;
+                if (rip >= g_gameTextBegin && rip < g_gameTextEnd) {
+                    uint32_t key = (uint32_t)((rip - g_gameBase) >> 6);
+                    g_byGameRva[key]++;
+                    if (key >= kJobSpinRvaLo && key <= kJobSpinRvaHi) tally.spin++;
+                } else {
+                    g_byLabel[label]++;
+                }
             }
         }
 
