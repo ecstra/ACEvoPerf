@@ -12,7 +12,7 @@ links: [agent-index, spec-todos]
 
 streaming
 
-- [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase issuing 36000 requests averaging 30 KB, so the fix is readahead in the proxy
+- [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase, the drive ruled out and readahead built and thrown away, next is the sampler on the resource workers
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 
 render

@@ -64,22 +64,50 @@ and the load still takes 13 seconds.
 This supersedes step 1 below. The sampler build is no longer needed to find where the time
 goes, the queue statistics already say it.
 
+## Readahead was built on 2026-09-12 and thrown away
+
+The plan was to read the package in big blocks on a worker thread and answer the game's small
+requests from that memory. It was written, it compiled clean, and it was deleted the same hour
+for two independent reasons. Neither is worth rediscovering.
+
+**DirectStorage will not accept it.** A queue is created with a source type and, in the words
+of the header, it is "the source type of requests that this DirectStorage queue can accept".
+The two queues that reach the drive are both created with `DSTORAGE_REQUEST_SOURCE_FILE`:
+
+```
+CreateQueue name='FileToMemory Queue'    source=FILE
+CreateQueue name='GpuUpload File Queue'  source=FILE
+CreateQueue name='GpuUpload Memory Queue' source=MEMORY
+```
+
+So a request on either of them cannot be rewritten to a memory source. The one queue that
+takes memory sources is already fed from the game's own memory and never touches the drive.
+Serving cached bytes into the loading path is not available through this API.
+
+**The ceiling was about a second anyway.** The load moves roughly 3.3 GB. At the drive's
+3 GB/s that is 1.1 seconds of reading inside a phase that takes 12.6. Per resource the
+arithmetic is worse for the idea: 3204 resources across 11 workers is 291 each, so a worker
+spends about 43 ms on every resource it handles, where its share of the reading is under a
+millisecond. Even a cache that answered every request instantly could not have reached the
+third this todo asks for.
+
+The page cache variant, reading the package into the Windows cache so the game's own reads hit
+memory, needs `disable_bypass_io=1` to have any effect at all, because BypassIO skips the file
+system cache. It trades away the fast path to maybe recover part of one second. Not worth it
+without evidence that the reads matter, and the numbers above say they do not.
+
 ## Steps
 
-1. ~~Measurement build with the loading worker sampler.~~ Not needed, see above. The phase is
-   named and the request size distribution is the answer.
-2. Readahead in the proxy. The package is one file and a scene's reads land in a bounded set
-   of ranges inside it. Record the ranges a scene load touches, keyed by scene path, and on
-   the next load of the same scene read them in a few large sequential blocks into memory
-   while the game is still asking for the first ones, then serve its small requests out of
-   that memory. The overlay already answers DirectStorage requests from outside the package,
-   so the serving half exists.
-3. Size the cache against the machine, not the scene. The Nurburgring load moves about 3.3 GB
-   and the game already commits near 10 GB on a 16 GB machine, so holding a whole scene is out.
-   A sliding window of a few hundred megabytes ahead of the game's read position is the shape.
+1. The sampler build is back on, and it is the only honest next step. Bring the sampler from
+   commit `a119e8c` back for the Resource Manager Workers, sample one Nurburgring load, and
+   name what those 43 ms per resource are. The queue statistics ruled the drive out, they say
+   nothing about what the workers do with the bytes once they have them.
+2. Only then decide whether the mod has a lever at all. The honest prior after the numbers
+   above is that it may not, and that this closes the way BUG-012 and BUG-014 did, as the
+   engine's own cost on every card.
 
-Not the decipher. The 4 GB of XOR per load was the other suspect and it does not fit: it is
-memory bandwidth work spread over eleven workers, and the CPU never saturates.
+Not the decipher either. The 4 GB of XOR per load was the other suspect and it does not fit:
+it is memory bandwidth work spread over eleven workers, and the CPU never saturates.
 
 ## Done when
 
