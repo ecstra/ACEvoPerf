@@ -1,8 +1,8 @@
 ---
 name: BUG-006-distant-objects-pop-in
 kind: bug
-description: distant objects switch detail level visibly as the car approaches
-updated: 2026-09-06
+description: distant objects switch detail level visibly as the car approaches, reopened and traced to staticLevelOfDetail sitting unwritten at Low, which fixes all of it when turned on and halves the frame rate at every quality tier
+updated: 2026-09-12
 links: [settings-files, content-package, BUG-001-texture-low-mip-shown-before-streaming, TODO-005-lap-two-experiments]
 status: wontfix
 severity: nit
@@ -71,6 +71,61 @@ the mod. The LOD scale test (lap 20) moved the distances at a frame rate cost an
 trade the game's own Custom level of detail setting already offers. The mesh numbers above
 stay as reference.
 
+## Reopened 2026-09-12, and the cause is named
+
+The owner reopened this with three symptoms that turned out to be one:
+
+1. Textures sharpen late, the spraypaint on the road arriving as the car reaches it.
+2. Grass appears at a radius, "smooth popin like minecraft render distance".
+3. Effects pop, shadows and sunlight on distant objects, and worst at night, where things the
+   headlights are shining on jump from dark to lit as they come into range.
+
+The settings file explains it. `video.videosettings` writes `levelOfDetail: High` and
+`vehicleLevelOfDetail: High`, and never writes `staticLevelOfDetail` or
+`experimentalStaticLevelOfDetail` at all. An unset protobuf field is zero, and zero for
+`StaticLevelOfDetailQuality` is **Low**. So the level of detail for static world geometry, which is
+the trees, the grass and the buildings, sat at the lowest value while the two settings beside it
+were explicitly High. That is the same field for every player, not something about this machine.
+
+Turning the subsystem on at High **fixed all three symptoms at once**, which is the useful part:
+they were never three bugs, they were one. The owner's words: "I see that it works but it tanked my
+fps by half."
+
+## Why it cannot ship, measured
+
+The cost is not the quality tier, it is the subsystem. A second lap with the subsystem on and the
+quality at **Low** tanked exactly the same way, "FPS did not improve at all. Dropped to 39 at
+times", and the game's own settings screen labels this option very heavy.
+
+The cost is GPU, not anything the mod could reach. From the Low lap,
+`logs/staticlod-low-1604`, 167 driving seconds:
+
+| | slow seconds, under 45 fps | fast seconds, over 70 fps |
+|---|---|---|
+| seconds | 37 | 52 |
+| process CPU, median | 24% | 25% |
+| system CPU, median | 33% | 30% |
+| tile streaming, median | 6.3 MB/s | 17.6 MB/s |
+
+The CPU is the same whether the frame rate is 37 or 86, so the slow seconds are not CPU bound and
+not streaming bound. It is geometry on a card already measured at 97 percent load and pinned at 86
+degrees (the Reflex work). Rendering more distant geometry costs GPU time, the mod cannot
+manufacture GPU headroom, and no engine flag reaches any of it: all 204 were read, and the only LOD
+adjacent ones are destructive (`force_lowest_lod`, `no_gi`, `no_instances`,
+`disable_shadow_depth_rendering`).
+
+## Worth telling Kunos
+
+Two things, independent of what the mod does:
+
+- The settings screen never writes `staticLevelOfDetail`, so it sits at Low for everyone while the
+  sliders next to it read High. Whether that is intended is their call, but it is invisible to the
+  player.
+- The option that fixes it is labelled experimental and costs half the frame rate on a 6 GB laptop
+  card, so the honest reading is that the cheap path and the correct path are currently the same
+  switch, with nothing in between.
+
 ## Verification
 
-Absent.
+Absent for a fix, because there is no fix. The cause is verified twice, at High and at Low, with
+the frame rate cost measured and the CPU ruled out.
