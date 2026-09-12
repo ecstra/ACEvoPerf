@@ -10,12 +10,17 @@ links: [agent-index, spec-todos]
 
 ## Open
 
+release
+
+- [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post
+
 streaming
 
 - [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase, the drive ruled out and readahead built and thrown away, next is the sampler on the resource workers
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 - [TODO-014-proxy-implements-enqueuerequests-if-the-game-asks](TODO-014-proxy-implements-enqueuerequests-if-the-game-asks.md), the proxy declines IDStorageQueue3 to keep the overlay and the statistics in the path, implement it if a game build ever asks
 - [TODO-018-look-properly-at-the-streaming-layer](TODO-018-look-properly-at-the-streaming-layer.md), a 22 MB/s re-read loop sat in the streaming layer for the life of the project and only surfaced by accident, because every instrument pointed at it has been an aggregate
+- [TODO-019-tile-upload-dedupe-done-properly](TODO-019-tile-upload-dedupe-done-properly.md), it works and removes 1.4 GB of disk and upload traffic per lap, dropped only because its free list runs dry, so the round starts with the engine's eviction signal
 
 render
 

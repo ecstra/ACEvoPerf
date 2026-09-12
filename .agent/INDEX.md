@@ -35,7 +35,7 @@ line in the same commit.
 
 ## The trackers
 
-- [todos/INDEX.md](todos/INDEX.md), the work tracker: 7 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-018), 7 done, 3 dropped
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 9 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016 to TODO-020), 7 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 8 open, 6 fixed, 4 won't fix
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 14 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-016), 2 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: none yet

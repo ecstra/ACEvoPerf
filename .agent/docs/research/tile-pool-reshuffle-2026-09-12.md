@@ -117,16 +117,23 @@ The session ended at **16,096 tiles held and 286 free of 16,384, 98 percent cons
 exhaustion the code falls back to the engine's slot, which can already hold one of ours. One lap
 did not reach it. A longer session or a track change very likely would.
 
-Dropped on the owner's call: real, works, removes 1.4 GB of I/O per lap, makes the game no
-faster, and carries a failure mode that puts wrong pixels on screen. The branch was deleted and
-this section is the record.
+**Deferred, not abandoned.** The owner's call on the day: not shipped now, and it comes back as
+its own round because the saving is real disk, memory and GPU work even though it does not show
+as frame rate here. The branch was deleted and
+[TODO-019](../../todos/TODO-019-tile-upload-dedupe-done-properly.md) carries everything needed to
+rebuild it without re-deriving any of it, including the two corruption bugs above. The round
+starts with the eviction signal, because until the free list can be kept honest the rest is
+premature.
 
 ## Why it is not worth chasing further from here
 
-The prize is under one percent of frame time while driving, and every route to it runs through
-owning pool placement in a renderer the mod can only observe. That is the wrong trade at this
-size. It stays a Kunos report: a texture streamer that re-requests tiles it already has, and a
-pool allocator that relocates them on every request.
+Under one percent of frame time while driving, on a card that is thermally pinned so saved GPU
+work returns as clocks rather than frames. What it does remove is real: 1.4 GB per lap of disk
+reads, staging traffic and upload bandwidth. That is why it is deferred rather than closed, and
+why the frame rate is the wrong measure to judge it by on this machine.
+
+It also stays a Kunos report on its own: a texture streamer that re-requests tiles it already
+holds, and a pool allocator that relocates them on every request.
 
 The one thing left open on our side is whether the reshuffle relates to
 [BUG-016](../../bugs/BUG-016-vram-overhead-grows-across-scene-loads.md), where overhead climbs
