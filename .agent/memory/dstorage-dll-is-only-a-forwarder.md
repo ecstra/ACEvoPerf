@@ -31,11 +31,21 @@ Two things about this are easy to get wrong:
   only reliable answer is to read `DStorageSDKVersion` back off the loaded core module, which the
   mod now logs at start. The version numbering is minor and patch only, so 203 is 1.2.3, 204 is
   1.2.4, 300 is 1.3.0 and 400 is 1.4.0.
-- **A module already loaded under that base name wins.** Loading our own
-  `acevo_perf\dstoragecore.dll` by full path before the forwarder runs makes step 2 and step 3
-  both return our handle. Measured against a copy next to the exe and against
-  `LOAD_LIBRARY_SEARCH_SYSTEM32`, which is the one that matters if Windows ever ships an inbox
-  runtime.
+- **A module's base name is its identity, and the game claims it first.** Whoever loads a
+  `dstoragecore.dll` first owns that name, and every later `LoadLibrary` of any path gets the same
+  module back, silently and with no error. `AssettoCorsaEVO.exe` holds a UTF-16
+  `dstoragecore.dll` string and loads its own copy during start-up, before it calls any export of
+  ours, so no amount of preloading by the proxy can win the name. Trying it cost a build, an
+  install and a launch, and only the version read back off the loaded module showed it had failed.
+
+The way around it is not to want the name. The mod ships its runtime as
+`acevo_dstoragecore.dll` and calls `DStorageGetFactoryCore`, `DStorageSetConfigurationCore` and
+`DStorageCreateCompressionCodecCore` on it directly. That is exactly what the forwarder does: each
+of its exports resolves the matching `...Core` symbol and tail jumps to it with the arguments
+untouched, and only plain `DStorageSetConfiguration` does any work, copying the seven older fields
+into the eight field struct and zeroing `ForceFileBuffering`. The core imports WINMM, dxgi, ntdll,
+kernel32, d3d12 and oleaut32, and nothing from the forwarder, so it stands alone. Two runtimes
+resident in one process is fine, a loaded module does nothing until an entry point is called.
 
 The game's own `dstoragecore.dll` is byte identical to the 1.2.3 NuGet package, same as its
 `dstorage.dll`.

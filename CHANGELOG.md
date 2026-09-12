@@ -9,17 +9,23 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 ### Added
 
 - The mod brings its own DirectStorage runtime, Microsoft 1.3.0, and uses it instead of the 1.2.3
-  the game ships. The reason is 1.2.4, which fixed a race that could stop DirectStorage processing
-  requests while the CPU is under heavy load, and a session load in this game is exactly that. On
-  top of that comes a year of runtime work between the two versions. Nothing of the game is
-  replaced: `dstorage.dll` is only a forwarder, the runtime itself is `dstoragecore.dll`, and the
-  mod loads its own copy from `acevo_perf\` before the forwarder can reach the game's file, so a
+  the game ships. Being honest about the size of this: going through Microsoft's changelog line by
+  line, exactly one fix between the two versions lands on a path this game uses, `DSTORAGE_TILES`
+  destinations for resources whose width and height differ. That is the texture tile queue, which
+  a short menu session already put 2263 requests and 1.6 GB through. Everything else in 1.2.4 and
+  1.3.0 is either a compression fix, and this game streams uncompressed (`compressed=0 gdeflate=0`
+  in every queue), or a new API for the game to call, which a game built against 1.2 never will.
+  So this is being on the current runtime with one relevant fix, not a speed increase, and no
+  measured frame rate or load time change is claimed.
+  Nothing of the game is replaced or renamed. `dstorage.dll` is only a forwarder and the runtime
+  is `dstoragecore.dll` beside it, which the game loads itself during start-up, so the mod ships
+  its copy as `acevo_dstoragecore.dll`, a name nothing else asks for, and calls it directly. A
   game update cannot undo it and uninstalling is still a delete. Verified by reading the version
-  back off the runtime that really loaded rather than trusting what was shipped, which the log now
-  reports at start: `DirectStorage 1.3.0 in use`. Worth knowing, because the two halves have no
-  version check between them, a new forwarder on an old runtime reports no error and quietly runs
-  the old code. `bundled_runtime=0` in the ini goes back to the game's own runtime, and so does a
-  missing `acevo_perf` folder, both saying so in the log.
+  back off the runtime that really loaded rather than trusting what was shipped, which the log
+  reports at start: `DirectStorage 1.3.0 in use`. That check earned itself immediately, the first
+  attempt at this shipped correctly and still ran 1.2.3, and nothing but that line said so.
+  `bundled_runtime=0` in the ini goes back to the game's own runtime, and so does a missing file,
+  both saying so in the log.
 - NVIDIA Reflex, in a game that ships none. It is not a frame rate limiter and never caps
   anything: it stops the CPU queueing frames further ahead of the GPU than it can use, so the
   input behind a frame is newer. NVIDIA only, silently idle on anything else. Verified by

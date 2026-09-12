@@ -32,11 +32,12 @@ string. Every header includes it, every source includes its own header first.
    (`ApplyFlags("early")`), hook the exe's imports of `CreateDXGIFactory1` and
    `CreateDXGIFactory2` (`InstallDxgiHooks`).
 2. First `DStorageGetFactory` call from the game: load our own DirectStorage core from
-   `acevo_perf\dstoragecore.dll` so the forwarder finds it already loaded under that name rather
-   than the game's older one (`PreloadBundledRuntime`, DEC-015), load `dstorage_orig.dll`
+   `acevo_dstoragecore.dll` and resolve its `DStorageGetFactoryCore`,
+   `DStorageSetConfigurationCore` and `DStorageCreateCompressionCodecCore`
+   (`LoadBundledCore`, DEC-015), falling back to `dstorage_orig.dll` when any of that fails
    (`EnsureReal`), call
    `DStorageSetConfiguration1` with the `[directstorage]` values (`ApplyDStorageConfiguration`),
-   read back and log the version of the core that really loaded (`ReportRuntimeInUse`),
+   log the version of the runtime that really loaded, read off the module itself,
    write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one), start the
    timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
    `FactoryProxy`.

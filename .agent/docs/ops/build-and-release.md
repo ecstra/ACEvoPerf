@@ -29,29 +29,31 @@ errors and one known warning (`C4244` inside the STL, from a `wchar_t` to `char`
 ## Install
 
 Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `dstorage_orig.dll`
-and `acevo_perf\dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
-`third_party/directstorage/bin/x64/`), `acevo_perf.ini` and `README.txt`. The user copies them into
-the game folder and lets Windows replace `dstorage.dll`. Uninstall is the reverse, described in
-`dist/README.txt`.
+and `acevo_dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
+`third_party/directstorage/bin/x64/`, the core renamed on the way into `dist/`), `acevo_perf.ini`
+and `README.txt`. The user copies them into the game folder and lets Windows replace
+`dstorage.dll`. Uninstall is the reverse, described in `dist/README.txt`.
 
-`dstorage_orig.dll` is only a forwarder, the runtime is the core beside it, and the mod loads its
-own core by full path before the forwarder looks for one (DEC-015). No game file is replaced, so a
-game update shipping its own DirectStorage changes nothing. The two halves have no version check
-between each other, which is why the proxy reads `DStorageSDKVersion` off the core that actually
-loaded and writes it to the log as `[runtime] DirectStorage 1.x.y in use`. That line is the gate
-for any change here: a mismatched pair works and says nothing.
+`dstorage_orig.dll` is only a forwarder, the runtime is the core beside it, and the game claims the
+name `dstoragecore.dll` at start-up, so the mod carries its core under a name nothing else asks for
+and calls its entry points directly (DEC-015). No game file is replaced, so a game update shipping
+its own DirectStorage changes nothing. A forwarder and a core have no version check between each
+other, which is why the proxy reads `DStorageSDKVersion` off the module it actually loaded and
+writes it to the log as `[runtime] DirectStorage 1.x.y in use`. That line is the gate for any
+change here: a mismatched pair works and says nothing, and the first attempt at this change shipped
+looking correct while still running 1.2.3.
 
 ## Release
 
 `release.ps1` runs `build.ps1` (which also copies Microsoft's two files into `dist/` as
-`dstorage_orig.dll` and `acevo_perf\dstoragecore.dll`), then zips the payload, four files and the
-`acevo_perf` folder, into `release/ACEvoPerf-<FileVersion>.zip`. The version comes
+`dstorage_orig.dll` and `acevo_dstoragecore.dll`), then zips the five payload files into
+`release/ACEvoPerf-<FileVersion>.zip`. The version comes
 from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/common.h`. Built binaries
 and the release folder stay out of git (`.gitignore`), the two committed runtime DLLs are the
 exception because the payload needs them and their license allows it.
 
 Cutting a release: date the `Unreleased` section of `CHANGELOG.md` as the version, run
-`release.ps1` with the game closed, check the zip lists the four files and the folder, commit and tag
+`release.ps1` with the game closed, check the zip lists the five files, commit and tag
 `v<version>`. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
 0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
 the auto sizes, the flags, the overlay and the telemetry.

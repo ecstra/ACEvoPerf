@@ -30,12 +30,12 @@ try {
         "$root\build\version.res" kernel32.lib user32.lib
     if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
 } finally { Pop-Location }
-# the zip payload also needs Microsoft's runtime: the forwarder under the name the proxy loads,
-# and the core it forwards to in our own folder, so the game's older copy is never touched
+# the zip payload also needs Microsoft's runtime: the forwarder under the name the proxy falls back
+# to, and the core itself under a name nothing else in the process asks for, because the game owns
+# the name dstoragecore.dll and loads its own copy before the proxy gets a say (DEC-015)
 Copy-Item "$root\third_party\directstorage\bin\x64\dstorage.dll" "$root\dist\dstorage_orig.dll" -Force
-New-Item -ItemType Directory -Force "$root\dist\acevo_perf" | Out-Null
-Copy-Item "$root\third_party\directstorage\bin\x64\dstoragecore.dll" "$root\dist\acevo_perf\dstoragecore.dll" -Force
-Write-Host "Built: $root\dist\dstorage.dll (+ dstorage_orig.dll, acevo_perf\dstoragecore.dll)"
+Copy-Item "$root\third_party\directstorage\bin\x64\dstoragecore.dll" "$root\dist\acevo_dstoragecore.dll" -Force
+Write-Host "Built: $root\dist\dstorage.dll (+ dstorage_orig.dll, acevo_dstoragecore.dll)"
 
 if ($Install) {
     $game = $env:ACEVO_GAME_DIR
@@ -44,10 +44,9 @@ if ($Install) {
     if (Get-Process AssettoCorsaEVO -ErrorAction SilentlyContinue) { throw "close the game before installing" }
     Copy-Item "$root\dist\dstorage.dll" "$game\dstorage.dll" -Force
     # both Microsoft files are copied every time: they move with the bundled runtime version, and a
-    # stale forwarder next to a fresh core is exactly the mismatch the log had to be taught to catch
+    # stale one next to a fresh proxy is exactly the mismatch the log had to be taught to catch
     Copy-Item "$root\dist\dstorage_orig.dll" "$game\dstorage_orig.dll" -Force
-    New-Item -ItemType Directory -Force "$game\acevo_perf" | Out-Null
-    Copy-Item "$root\dist\acevo_perf\dstoragecore.dll" "$game\acevo_perf\dstoragecore.dll" -Force
+    Copy-Item "$root\dist\acevo_dstoragecore.dll" "$game\acevo_dstoragecore.dll" -Force
     if (-not (Test-Path "$game\acevo_perf.ini")) { Copy-Item "$root\dist\acevo_perf.ini" "$game\acevo_perf.ini" }
     Write-Host "Installed into $game (existing ini kept)"
 }

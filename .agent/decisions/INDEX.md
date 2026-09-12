@@ -8,7 +8,7 @@ links: [agent-index, spec-decisions]
 
 # Decisions Index
 
-- [DEC-015-bundled-directstorage-core-loaded-first](DEC-015-bundled-directstorage-core-loaded-first.md), 2026-09-12, the mod ships DirectStorage 1.3.0 and loads its core before the forwarder can find the game's 1.2.3 one, no game file is replaced
+- [DEC-015-bundled-directstorage-core-loaded-first](DEC-015-bundled-directstorage-core-loaded-first.md), 2026-09-12, the mod ships DirectStorage 1.3.0 as acevo_dstoragecore.dll and calls the core directly, because the game owns the name dstoragecore.dll and loads its own first
 - [DEC-014-reflex-ships-on-boost-ships-off](DEC-014-reflex-ships-on-boost-ships-off.md), 2026-09-12, Reflex ships on because the game has none and it costs nothing measurable, boost ships off because a thermally capped card has no clocks for it to hold up
 - [DEC-013-overtake-front-door-github-mirror](DEC-013-overtake-front-door-github-mirror.md), 2026-09-06, the Overtake listing is the front door and the GitHub release the mirror, the same zip in both
 - [DEC-012-no-ghost-car-mod](DEC-012-no-ghost-car-mod.md), 2026-09-06, the ghost car flag does not ship and its branch is gone, the game records and loads a ghost but nothing shows it

@@ -22,28 +22,66 @@ static PFN_DStorageSetConfiguration1 g_realSetConfiguration1 = nullptr;
 static PFN_DStorageCreateCompressionCodec g_realCreateCodec = nullptr;
 static CRITICAL_SECTION g_realCs;
 static bool g_realTried = false;
+static bool g_usingBundledCore = false;
 
 void InitDStorageProxy()
 {
     InitializeCriticalSection(&g_realCs);
 }
 
-// dstorage_orig.dll is only a forwarder. The runtime itself is dstoragecore.dll, which the
-// forwarder loads by bare name from the game executable's folder, where the game keeps its own
-// older copy. Windows hands a bare name LoadLibrary any module already loaded under that name,
-// so loading ours by full path first is enough to make the forwarder pick it up. The game's file
-// is never touched, which keeps uninstall a delete and keeps a game update from undoing this.
-static void PreloadBundledRuntime()
+// dstorage_orig.dll is only a forwarder, roughly two hundred kilobytes that find dstoragecore.dll
+// and jump into it. The core is the runtime, and the forwarder looks for it by bare name in the
+// game executable's folder, where the game keeps its own 1.2.3 copy. Two things follow from that.
+// Windows treats a module's base name as its identity, so whoever loads a dstoragecore.dll first
+// owns the name and every later load of any path gets that same module back, and this game loads
+// its own during start-up, before it ever calls one of our exports. So there is no ordering the
+// proxy can win.
+//
+// The way out is to stop competing for the name. Our copy ships as acevo_dstoragecore.dll, which
+// nothing else asks for, and the proxy calls its entry points itself. That is all the forwarder
+// was doing: DStorageGetFactory resolves DStorageGetFactoryCore and tail jumps to it with the same
+// arguments, SetConfiguration1 and CreateCompressionCodec likewise, and the plain SetConfiguration
+// widens the older struct by one field first. Nothing is lost by going straight to the core, and
+// the game's own runtime can sit loaded next to ours without either one noticing.
+static bool LoadBundledCore()
 {
     if (!g_cfg.bundledRuntime) {
-        Log("[runtime] bundled_runtime=0, the game's own DirectStorage runtime is left in place");
-        return;
+        Log("[runtime] bundled_runtime=0, using the game's own DirectStorage runtime");
+        return false;
     }
-    std::wstring path = g_dir + L"acevo_perf\\dstoragecore.dll";
-    if (!LoadLibraryW(path.c_str()))
-        Log("[runtime] cannot load %ls (error %lu), falling back to the game's own runtime. Copy the "
-            "acevo_perf folder from the mod zip next to the exe to get the newer one.",
+
+    std::wstring path = g_dir + L"acevo_dstoragecore.dll";
+    HMODULE core = LoadLibraryW(path.c_str());
+    if (!core) {
+        Log("[runtime] cannot load %ls (error %lu), falling back to the game's own runtime. Copy "
+            "acevo_dstoragecore.dll from the mod zip next to the exe to get the newer one.",
             path.c_str(), GetLastError());
+        return false;
+    }
+
+    auto getFactory = (PFN_DStorageGetFactory)GetProcAddress(core, "DStorageGetFactoryCore");
+    auto setConfig = (PFN_DStorageSetConfiguration1)GetProcAddress(core, "DStorageSetConfigurationCore");
+    auto createCodec = (PFN_DStorageCreateCompressionCodec)GetProcAddress(core, "DStorageCreateCompressionCodecCore");
+    if (!getFactory || !setConfig || !createCodec) {
+        Log("[runtime] %ls does not offer the core entry points, falling back to the game's own runtime", path.c_str());
+        FreeLibrary(core);
+        return false;
+    }
+
+    g_real = core;
+    g_usingBundledCore = true;
+    g_realGetFactory = getFactory;
+    g_realSetConfiguration1 = setConfig;
+    g_realCreateCodec = createCodec;
+    g_realSetConfiguration = nullptr;   // the core takes the wider struct only, see the export below
+
+    const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
+    UINT32 v = sdk ? *sdk : 0;
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path.c_str());
+    if (v < DSTORAGE_SDK_VERSION)
+        Log("[runtime] that is older than the 1.%u.%u this mod ships with, so that file is stale",
+            (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);
+    return true;
 }
 
 static bool EnsureReal()
@@ -51,7 +89,7 @@ static bool EnsureReal()
     EnterCriticalSection(&g_realCs);
     if (!g_realTried) {
         g_realTried = true;
-        PreloadBundledRuntime();
+        if (LoadBundledCore()) { LeaveCriticalSection(&g_realCs); return true; }
         std::wstring path = g_dir + L"dstorage_orig.dll";
         g_real = LoadLibraryW(path.c_str());
         if (!g_real) {
@@ -297,11 +335,14 @@ IDStorageFactory* RealDStorageFactory()
     return g_factory ? g_factory->real : nullptr;
 }
 
-// Which runtime actually came up. Worth reading back rather than assuming: a newer forwarder
-// paired with an older core still works and reports no error at all, it just quietly runs the
-// old code, so the only honest answer comes from the module that really got loaded.
+// Which runtime actually came up, for the path that still goes through the Microsoft forwarder.
+// Worth reading back rather than assuming: a newer forwarder paired with an older core works and
+// reports no error at all, it just quietly runs the old code, so the only honest answer comes from
+// the module that really got loaded. The bundled core path names its own file when it loads it.
 static void ReportRuntimeInUse()
 {
+    if (g_usingBundledCore) return;
+
     HMODULE core = GetModuleHandleW(L"dstoragecore.dll");
     if (!core) { Log("[runtime] no dstoragecore.dll is loaded, the DirectStorage runtime did not come up"); return; }
 
@@ -371,7 +412,26 @@ extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
 
 extern "C" HRESULT WINAPI DStorageSetConfiguration(DSTORAGE_CONFIGURATION const* configuration)
 {
-    if (!EnsureReal() || !g_realSetConfiguration) return E_FAIL;
+    if (!EnsureReal()) return E_FAIL;
+
+    // The core offers one entry point and it takes the wider struct, so when the proxy is talking
+    // to the core directly the older one is widened here, the same way the Microsoft forwarder
+    // does it: copy the seven fields across and leave ForceFileBuffering off.
+    if (!g_realSetConfiguration) {
+        if (!g_realSetConfiguration1 || !configuration) return E_FAIL;
+        DSTORAGE_CONFIGURATION1 c = {};
+        c.NumSubmitThreads = configuration->NumSubmitThreads;
+        c.NumBuiltInCpuDecompressionThreads = configuration->NumBuiltInCpuDecompressionThreads;
+        c.ForceMappingLayer = configuration->ForceMappingLayer;
+        c.DisableBypassIO = configuration->DisableBypassIO;
+        c.DisableTelemetry = configuration->DisableTelemetry;
+        c.DisableGpuDecompressionMetacommand = configuration->DisableGpuDecompressionMetacommand;
+        c.DisableGpuDecompression = configuration->DisableGpuDecompression;
+        c.ForceFileBuffering = FALSE;
+        Log("game called DStorageSetConfiguration (widened to the 1.1 struct for the core)");
+        return g_realSetConfiguration1(&c);
+    }
+
     Log("game called DStorageSetConfiguration (forwarded unchanged)");
     return g_realSetConfiguration(configuration);
 }
