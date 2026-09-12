@@ -104,7 +104,11 @@ static bool WriteCode(BYTE* at, const BYTE* bytes, size_t len)
 
 void PatchJobQueueSpinLock()
 {
-    if (!g_cfg.jobLockFix) return;
+    // Said either way, so a log always answers which lock the session ran with.
+    if (!g_cfg.jobLockFix) {
+        Log("[joblock] job_lock_fix=0, the engine's own spin loop is left alone");
+        return;
+    }
 
     BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
     auto dos = (IMAGE_DOS_HEADER*)base;

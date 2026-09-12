@@ -205,6 +205,46 @@ queue's lock.
 Not the decipher either. The 4 GB of XOR per load was the other suspect and it does not fit:
 it is memory bandwidth work spread over eleven workers, and the CPU never saturates.
 
+## The spin loop was patched and it made things worse, 2026-09-12
+
+The lever above was built and measured rather than left as an opinion. The mod can rewrite those
+ten bytes: an ini switch, a byte pattern scan, a detour into a page of our own holding the normal
+shape of the loop, read the lock until it looks free and only then try the exchange. It applies
+from `DllMain` while the process is single threaded, and mutual exclusion was verified by running
+the replacement as a real lock under contention from 2, 4, 11 and 16 threads. All three matching
+sites patched cleanly in the game, no errors, the session ran normally.
+
+Two Nürburgring loads back to back on the same build, the only difference being the switch:
+
+| | fix off | fix on |
+|---|---|---|
+| jobspin, mean of the workers in the load window | 24.9% | **29.6%** |
+| load, the game's own profiler | 15.69 s | 16.10 s |
+| blocked in a real lock | 40.3% | 34.9% |
+| workers sampled | 11 | 10 |
+
+The patch worked exactly as designed, and the design was wrong. `rva 0x0279FAC0` was the single
+hottest bucket in the run with the fix off, 8.3% of every sample taken, and with the fix on it
+leaves the exe entirely. Time in the wait loop then went **up** by 4.7 points, which on roughly
+4800 samples is about five sigma, so it is a real difference and not run to run noise. The load
+time moved 0.4 s the wrong way, which is inside the spread already seen today (15.69, 16.10 and
+16.66 s for the same track).
+
+Why reading first loses here. With the bare exchange a waiter grabs the lock the instant it is
+free, one round trip. Reading first costs two, a read to notice the release and then the exchange,
+and with eleven threads reading they all notice at once, all eleven exchange, ten fail and go back
+to reading. The textbook win only appears when the holder is slowed down by the waiters' traffic
+more than the handoff is slowed by the extra round trip, and here the lock is handed off
+constantly, so the handoff dominates. The engine's ugly loop is the right strategy for its own
+contention pattern.
+
+So the conclusion changes from "no proportionate lever" to something stronger and measured: **the
+wait loop is a symptom, not the cause.** Eleven workers serialise on one job queue whose critical
+section makes virtual calls, and how they wait only moves that time between "spinning" and
+"blocked", it does not reduce it. A twenty one byte patch cannot fix a queue design.
+
+Evidence in `logs/joblock-A-off-1446` and `logs/joblock-B-on-1450`.
+
 ## Done when
 
 The Nürburgring session load, measured by the game's own loading profiler line, drops by a
