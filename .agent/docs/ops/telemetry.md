@@ -9,7 +9,9 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-
 # Telemetry
 
 All files are written next to the game executable and overwritten on every launch. The log is
-on by default, the two CSVs are off (`timeline=1` and `frames=1` under `[log]` turn them on). Copy
+on by default. Every diagnostic is in the ini's `[developer]` section and off by default, the two
+CSVs (`timeline=1`, `frames=1`), the streaming trace, request logging, the throw log, the package
+file trace and the load sampler. Copy
 them to a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
 gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
@@ -24,7 +26,7 @@ with the streaming activity since the previous hitch, the swap chain's creation 
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
 the render adapter.
 
-With `[log] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
+With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)
 with its mangled type name and, for `std::exception` types, the message of the first throw.
 Every ten seconds with at least one throw the log gets a `[throw]` line with the count and the
@@ -62,7 +64,7 @@ tile requests or uploads against the share of all frames that do.
 
 ## acevo_perf_streaming.csv
 
-Written only with `[log] streaming_trace=1`, from hooks on the engine's texture streamer
+Written only with `[developer] streaming_trace=1`, from hooks on the engine's texture streamer
 (`src/engine/streamer.cpp`) and from the DirectStorage queue proxy. Rows are buffered and written
 once a second by the timeline thread. The header is `t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m`, `t_s`
 is seconds since attach on the same clock as the frames CSV, and the kind says what the letters

@@ -2,7 +2,7 @@
 #include "acevo/common.h"
 
 // Runtime writes into streamed textures, a diagnostic for [engine] streamer_reload_fix, active
-// only with [log] streaming_trace=1. See the source for what counts as a write and why that is
+// only with [developer] streaming_trace=1. See the source for what counts as a write and why that is
 // complete.
 
 // Called for every texture tile request, records the resource and its creation flags once.

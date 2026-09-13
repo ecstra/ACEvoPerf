@@ -72,9 +72,18 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   and that race, so a reload only ever put the same package bytes back. It edits the game's code in
   memory and patches nothing unless every byte it relies on matches the build it was written for,
   so a game update means it quietly does not apply.
-- `streaming_trace` under `[log]` writes `acevo_perf_streaming.csv`, one row for each pass of the
-  texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
-  and each file read that repeats an earlier one exactly. Diagnostics, off by default.
+- `streaming_trace` under `[developer]` writes `acevo_perf_streaming.csv`, one row for each pass of
+  the texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
+  each file read that repeats an earlier one exactly, and any runtime write into a streamed texture.
+  Diagnostics, off by default.
+
+### Changed
+
+- Every diagnostic moved into one `[developer]` section of the ini, off by default: the timeline
+  and frames CSVs, the streaming trace, request logging, the throw log, the package file trace and
+  the load sampler. They are for testing the mod and cost files and a little performance, so normal
+  play never needs them and a problem report only needs `acevo_perf.log`. An older ini that still
+  has them in `[log]`, `[directstorage]`, `[profile]` or `[overlay]` simply leaves them off.
 
 ### Fixed
 

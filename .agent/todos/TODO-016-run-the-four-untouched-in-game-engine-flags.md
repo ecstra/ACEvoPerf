@@ -2,7 +2,7 @@
 name: TODO-016-run-the-four-untouched-in-game-engine-flags
 kind: todo
 description: four of the 178 never run engine flags bear on frame rate and the 1 percent lows, and all four are reachable from the ini today with no build, so measure them from a fixed stationary view before spending effort on anything expensive
-updated: 2026-09-12
+updated: 2026-09-13
 links: [engine-flags, optimisation-deepdive-2026-09-12, BUG-009-one-percent-lows-far-below-average, BUG-002-fps-drop-entering-new-track-sections]
 status: open
 by: owner
@@ -44,7 +44,7 @@ So every pair runs **from a fixed stationary view, back to back, at the same the
 Park at the same spot, same car, same time of day, same weather, cockpit view, hands off, sixty
 seconds. Two runs that differ only in the flag.
 
-`[log] frames=1` and `timeline=1` for the runs, back to 0 afterwards.
+`[developer] frames=1` and `timeline=1` for the runs, back to 0 afterwards.
 
 ## The two that need a grid
 

@@ -52,6 +52,6 @@ it", once a write detector showed nothing in the game writes into streamed textu
 - Parked, the churn is gone, measured in boot 2. While driving the fix reaches a fifth to a quarter
   of the reload traffic by replay, because coverage keeps changing. Widening that is follow up work,
   not a reason to loosen the release rules blind.
-- The streaming trace, `[log] streaming_trace`, is the instrument for any further change, and the
+- The streaming trace, `[developer] streaming_trace`, is the instrument for any further change, and the
   replay script approach (run the rule over a recorded session before a boot) is how a change gets
   checked before it costs the owner a session.

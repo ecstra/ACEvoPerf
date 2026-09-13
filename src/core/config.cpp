@@ -37,11 +37,7 @@ void LoadConfig()
 {
     g_cfg.logEnabled = IniBool(L"log", L"enabled", true);
     g_cfg.logFile = IniStr(L"log", L"file", L"acevo_perf.log");
-    g_cfg.timeline = IniBool(L"log", L"timeline", false);
-    g_cfg.frames = IniBool(L"log", L"frames", false);
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
-    g_cfg.throwLog = IniBool(L"log", L"throw_log", false);
-    g_cfg.streamingTrace = IniBool(L"log", L"streaming_trace", false);
 
     g_cfg.bundledRuntime = IniBool(L"directstorage", L"bundled_runtime", true);
     std::wstring staging = IniStr(L"directstorage", L"staging_buffer_mb", L"auto");
@@ -57,7 +53,6 @@ void LoadConfig()
     g_cfg.disableTelemetry = IniBool(L"directstorage", L"disable_telemetry", true);
     g_cfg.stats = IniBool(L"directstorage", L"stats", true);
     g_cfg.statsIntervalS = IniInt(L"directstorage", L"stats_interval_s", 10);
-    g_cfg.logRequests = IniBool(L"directstorage", L"log_requests", false);
     std::wstring tilePr = IniStr(L"directstorage", L"tile_queue_priority", L"unchanged");
     for (auto& ch : tilePr) ch = (wchar_t)towlower(ch);
     g_cfg.tileQueuePriority = (tilePr == L"low") ? DSTORAGE_PRIORITY_LOW : (tilePr == L"normal") ? DSTORAGE_PRIORITY_NORMAL
@@ -102,12 +97,18 @@ void LoadConfig()
     g_cfg.reflex = IniBool(L"latency", L"reflex", true);
     g_cfg.reflexBoost = IniBool(L"latency", L"reflex_boost", false);
 
-    g_cfg.loadSampler = IniBool(L"profile", L"load_sampler", false);
-    g_cfg.loadSampleUs = IniInt(L"profile", L"sample_us", 1000);
-
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);
-    g_cfg.traceFileIo = IniBool(L"overlay", L"trace_file_io", false);
     g_cfg.fixBigScreens = IniBool(L"overlay", L"fix_big_screens", true);
+
+    // Diagnostics live in one section so it is clear they are for testing, all off by default.
+    g_cfg.timeline = IniBool(L"developer", L"timeline", false);
+    g_cfg.frames = IniBool(L"developer", L"frames", false);
+    g_cfg.streamingTrace = IniBool(L"developer", L"streaming_trace", false);
+    g_cfg.logRequests = IniBool(L"developer", L"log_requests", false);
+    g_cfg.throwLog = IniBool(L"developer", L"throw_log", false);
+    g_cfg.traceFileIo = IniBool(L"developer", L"trace_file_io", false);
+    g_cfg.loadSampler = IniBool(L"developer", L"load_sampler", false);
+    g_cfg.loadSampleUs = IniInt(L"developer", L"sample_us", 1000);
 }

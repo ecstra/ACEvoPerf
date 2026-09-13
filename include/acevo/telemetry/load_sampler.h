@@ -11,7 +11,7 @@
 // instruction pointer a few thousand times a second, and tallies what they were
 // doing by module and by function.
 //
-// Diagnostics, off unless [profile] load_sampler=1, and it suspends game threads
+// Diagnostics, off unless [developer] load_sampler=1, and it suspends game threads
 // to read them, so it never ships enabled.
 void StartLoadSampler();
 void StopLoadSampler();
