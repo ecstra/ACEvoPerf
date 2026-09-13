@@ -227,9 +227,12 @@ not log. Its only breakdown is the VRAM bucket list it prints after a GPU crash.
 
 ## What the growth is made of, 2026-09-13
 
-The `[developer] memory_census` of `src/telemetry/memory_census.cpp` reads the process once memory
-has settled in the menu, see [telemetry](../docs/ops/telemetry.md). Session
-`logs/memcreep-20260913/S-census-settled`, mod on, the route of run Q, every figure in MB.
+A developer memory census read the process once memory had settled in the menu. It remembered who
+committed memory through the `VirtualAlloc` imports of every module, read every heap with
+`HeapSummary`, walked the address space, and then compacted the heaps with `HeapCompact` and read
+again. It was built for this round and taken out again with the deep dive deferred, commit `0770d67`
+holds the last version and `8450d2e` removed it. Session `logs/memcreep-20260913/S-census-settled`,
+mod on, the route of run Q, every figure in MB.
 
 | menu reading | commit charge | heap committed | heap in use | VirtualAlloc imports | other private | mapped |
 |---|---|---|---|---|---|---|
@@ -259,6 +262,8 @@ on.
 The first census version read every ten seconds and froze the game on each read, 200 ms in the menu
 and 1.4 s on track (`logs/memcreep-20260913/R-census-mod-on`), because `HeapSummary` walks a heap of
 4 to 7 GB under its lock.
+
+Deferred on the owner's word, 2026-09-13, to its own deep dive with a targeted fix if one exists.
 
 ## Done when
 
