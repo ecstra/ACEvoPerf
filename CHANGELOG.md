@@ -76,10 +76,6 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   the texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
   each file read that repeats an earlier one exactly, and any runtime write into a streamed texture.
   Diagnostics, off by default.
-- `memory_census` under `[developer]` writes `acevo_perf_memory.csv` at start and in the menu after
-  each track, what the game's committed memory is made of, how much each heap holds and which code
-  committed the blocks still in use, to track down the memory the game keeps growing across scene
-  loads. Each reading pauses the game for a moment. Diagnostics, off by default.
 
 ### Changed
 
