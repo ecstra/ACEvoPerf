@@ -6,9 +6,9 @@
 // folder per concern. DllMain only wires them:
 //   core/       log, ini config, import table and vtable patching
 //   dstorage/   the forwarded exports, factory and queue proxies, counters
-//   engine/     gflags written into the exe, process priority and timers
+//   engine/     gflags written into the exe, process priority and timers, texture streamer hooks
 //   render/     DXGI factory and swap chain hooks, per frame timing
-//   telemetry/  per second CSV
+//   telemetry/  per second CSV, streaming trace
 //   overlay/    loose files that shadow package entries
 //
 // Everything is configured by acevo_perf.ini next to this DLL and logged to
@@ -20,6 +20,7 @@
 #include "acevo/engine/flags.h"
 #include "acevo/engine/process.h"
 #include "acevo/engine/exceptions.h"
+#include "acevo/engine/streamer.h"
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
@@ -56,6 +57,7 @@ static void OnAttach(HMODULE h)
 
     ApplyProcessTweaks();
     ApplyFlags("early");
+    InstallStreamerHooks();
     InstallDxgiHooks();
     InstallThrowLog();
     overlay::Install();
@@ -68,6 +70,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
         OnAttach((HMODULE)hinst);
     } else if (reason == DLL_PROCESS_DETACH) {
         StopLoadSampler();
+        StreamerDetach();
         LogClose();
     }
     return TRUE;

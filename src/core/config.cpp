@@ -41,6 +41,7 @@ void LoadConfig()
     g_cfg.frames = IniBool(L"log", L"frames", false);
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
     g_cfg.throwLog = IniBool(L"log", L"throw_log", false);
+    g_cfg.streamingTrace = IniBool(L"log", L"streaming_trace", false);
 
     g_cfg.bundledRuntime = IniBool(L"directstorage", L"bundled_runtime", true);
     std::wstring staging = IniStr(L"directstorage", L"staging_buffer_mb", L"auto");
@@ -72,6 +73,8 @@ void LoadConfig()
     g_cfg.gpuPriority = (gp == L"unchanged") ? -1 : (gp == L"normal") ? 2 : (gp == L"above_normal") ? 3
                       : (gp == L"realtime") ? 5 : 4;
     g_cfg.workingSetFloorMb = IniInt(L"process", L"working_set_floor_mb", 0);
+
+    g_cfg.streamerReloadFix = IniBool(L"engine", L"streamer_reload_fix", false);
 
     {
         std::vector<wchar_t> buf(32768);

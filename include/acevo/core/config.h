@@ -9,6 +9,7 @@ struct Config {
     bool frames = false;        // acevo_perf_frames.csv, one line per presented frame, off by default
     int  hitchMs = 33;          // frames slower than this are logged individually
     bool throwLog = false;      // count the game's C++ exceptions by throw site
+    bool streamingTrace = false; // acevo_perf_streaming.csv, texture streamer and tile request events
     // [directstorage]
     bool bundledRuntime = true;     // load acevo_perf\dstoragecore.dll instead of the game's older one
     int  stagingMb = 0;             // 0 = the game's own value, or the auto pick once the card is known
@@ -31,6 +32,8 @@ struct Config {
     int  timerResolutionUs = 500;
     int  gpuPriority = 4;            // D3DKMT scheduling class, -1 = leave alone, 4 = high
     int  workingSetFloorMb = 0;      // 0 = leave alone
+    // [engine]
+    bool streamerReloadFix = false;  // refuse the texture streamer's drop of a mip it keeps reloading
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

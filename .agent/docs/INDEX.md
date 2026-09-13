@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-12
+updated: 2026-09-13
 links: [agent-index, spec-docs]
 ---
 
@@ -22,7 +22,7 @@ links: [agent-index, spec-docs]
 
 ## ops
 
-- [telemetry](ops/telemetry.md), the log and CSV files and their columns, plus the GPU sampler
+- [telemetry](ops/telemetry.md), the log and CSV files and their columns, the streaming trace, plus the GPU sampler
 - [build-and-release](ops/build-and-release.md), build, install, uninstall, gates, and publishing on Overtake and GitHub
 - [tools](ops/tools.md), the Python tools and their commands
 

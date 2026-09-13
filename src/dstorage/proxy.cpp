@@ -5,7 +5,9 @@
 #include "acevo/engine/flags.h"
 #include "acevo/telemetry/timeline.h"
 #include "acevo/telemetry/load_sampler.h"
+#include "acevo/telemetry/streaming_trace.h"
 #include "acevo/overlay/overlay.h"
+#include <unordered_map>
 
 // ---------------------------------------------------------------------------
 // Real DirectStorage runtime
@@ -113,6 +115,53 @@ static bool EnsureReal()
 }
 
 // ---------------------------------------------------------------------------
+// Streaming trace rows for requests that read a file
+// ---------------------------------------------------------------------------
+
+// Every tile upload with where it comes from and where it lands, and every read into memory that
+// repeats an earlier read exactly. A Nurburgring load reads about 1.08 GB of whole package entries
+// a second time, the same with the mod passive (TODO-018), and these rows name which ones.
+struct ReadKey {
+    IDStorageFile* file;
+    UINT64 offset;
+    UINT32 size;
+    bool operator==(const ReadKey& other) const { return file == other.file && offset == other.offset && size == other.size; }
+};
+
+struct ReadKeyHash {
+    size_t operator()(const ReadKey& k) const
+    {
+        return std::hash<UINT64>()(k.offset ^ ((UINT64)(uintptr_t)k.file << 1) ^ ((UINT64)k.size << 40));
+    }
+};
+
+static SRWLOCK g_readsLock = SRWLOCK_INIT;
+static std::unordered_map<ReadKey, uint32_t, ReadKeyHash> g_reads;
+static std::atomic<uint64_t> g_repeatedReads{0}, g_repeatedBytes{0};
+
+static void TraceFileRequest(const DSTORAGE_REQUEST* request)
+{
+    const DSTORAGE_SOURCE_FILE& source = request->Source.File;
+
+    if (request->Options.DestinationType == DSTORAGE_REQUEST_DESTINATION_TILES) {
+        const DSTORAGE_DESTINATION_TILES& tiles = request->Destination.Tiles;
+        TraceRow("req", "%p,%u,%u,%llu,%u", (void*)tiles.Resource, tiles.TiledRegionStartCoordinate.Subresource,
+            tiles.TileRegionSize.NumTiles, (unsigned long long)source.Offset, source.Size);
+        return;
+    }
+    if (request->Options.DestinationType != DSTORAGE_REQUEST_DESTINATION_MEMORY) return;
+
+    AcquireSRWLockExclusive(&g_readsLock);
+    uint32_t seen = ++g_reads[ReadKey{ source.Source, source.Offset, source.Size }];
+    ReleaseSRWLockExclusive(&g_readsLock);
+    if (seen < 2) return;
+
+    g_repeatedReads++;
+    g_repeatedBytes += source.Size;
+    TraceRow("reread", "%p,%llu,%u,%u", (void*)source.Source, (unsigned long long)source.Offset, source.Size, seen);
+}
+
+// ---------------------------------------------------------------------------
 // IDStorageQueue proxy (statistics + error reporting)
 // ---------------------------------------------------------------------------
 struct QueueStats {
@@ -161,6 +210,9 @@ struct QueueProxy : IDStorageQueue2 {
             (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
             (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
             (unsigned long long)st.submits.load());
+        if (g_cfg.streamingTrace && st.byDest[DSTORAGE_REQUEST_DESTINATION_MEMORY].load())
+            Log("[stats] queue '%s': %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
+                name.c_str(), (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
         st.lastReportTick = now; st.lastRequests = r; st.lastBytes = b;
     }
 
@@ -215,6 +267,7 @@ struct QueueProxy : IDStorageQueue2 {
                 else
                     Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(dt), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
             }
+            if (g_cfg.streamingTrace && request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_FILE) TraceFileRequest(request);
             DSTORAGE_REQUEST redirected;
             if (OverlayRedirect(request, &redirected)) { real->EnqueueRequest(&redirected); return; }
         }
@@ -293,7 +346,7 @@ struct FactoryProxy : IDStorageFactory {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
         }
-        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests) &&
+        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace) &&
             (riid == __uuidof(IDStorageQueue) || riid == __uuidof(IDStorageQueue1) || riid == __uuidof(IDStorageQueue2))) {
             IDStorageQueue* q = nullptr;
             if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(IDStorageQueue), (void**)&q))) {
@@ -306,7 +359,7 @@ struct FactoryProxy : IDStorageFactory {
     HRESULT STDMETHODCALLTYPE OpenFile(const WCHAR* path, REFIID riid, void** ppv) override
     {
         HRESULT hr = real->OpenFile(path, riid, ppv);
-        Log("OpenFile '%ls' -> hr=0x%08X", path ? path : L"", (unsigned)hr);
+        Log("OpenFile '%ls' -> hr=0x%08X file=%p", path ? path : L"", (unsigned)hr, (ppv && SUCCEEDED(hr)) ? *ppv : nullptr);
         return hr;
     }
     HRESULT STDMETHODCALLTYPE CreateStatusArray(UINT32 capacity, PCSTR name, REFIID riid, void** ppv) override

@@ -2,8 +2,8 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-06
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05]
+updated: 2026-09-13
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12]
 ---
 
 # Telemetry
@@ -59,6 +59,38 @@ are dropped as pauses. About 1 MB per ten minutes at 90 fps.
 The report's spread section reads it: median, p99 over median, frames over 1.3, 1.5 and 2 times
 the median with their share of the window's time, and how many of the slowest 1 percent carry
 tile requests or uploads against the share of all frames that do.
+
+## acevo_perf_streaming.csv
+
+Written only with `[log] streaming_trace=1`, from hooks on the engine's texture streamer
+(`src/engine/streamer.cpp`) and from the DirectStorage queue proxy. Rows are buffered and written
+once a second by the timeline thread. The header is `t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m`, `t_s`
+is seconds since attach on the same clock as the frames CSV, and the kind says what the letters
+hold. Levels count from 0, the coarsest, and a tile is 64 KB.
+
+- `kick`, one pass of the streamer, written at its first event. a kick number, b pool capacity in
+  tiles, c admission budget, d records built, e records admitted, f tiles admitted, g records
+  rejected, h load gate space at that moment, i load gate byte, then for the previous kick j
+  textures that wanted a finer level, k loads turned away for space, l drops, m drops refused
+- `tex`, a texture seen for the first time. a Texture pointer, b its `ID3D12Resource` (the `res`
+  of `req` rows), c level count, d package path
+- `want`, an admitted texture below its admitted level, so a load is attempted. a kick, b texture,
+  c current level, d admitted level, e level count, f tiles to load, g feedback mip, h feedback
+  count, i feedback age in frames (mip -1 means no reading younger than the engine's limit), j 1
+  when this reloads a level dropped within six kicks, k load gate space
+- `drop` and `drop0`, a drop to a lower admitted level, and a drop to level 0 of a texture not
+  admitted at all. a kick, b texture, c current level, d level kept, e level count, f tiles
+  dropped, g to i feedback as above, j 1 when the fix refused the drop, k the verdict, l load gate
+  space. Verdicts: 0 not a flipping texture, 1 refuse (or would refuse with the fix off), 2 view
+  moved past the flip, 3 texture above its pinned level, 4 not admitted for eight kicks, 5 not
+  enough gate space, 6 a load was turned away for space this kick or the last, 7 pool margin gone
+- `req`, a texture tile request. a resource, b subresource, c tiles, d package offset, e bytes
+- `reread`, a read into memory that repeats an earlier read exactly. a file (the `file=` of the
+  `OpenFile` log line), b offset, c bytes, d how many times it has now been read
+
+The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
+own tile pool figures (used, capacity, pending), and the file to memory queue's `[stats]` line is
+followed by the total of repeated reads.
 
 ## GPU sampler
 
