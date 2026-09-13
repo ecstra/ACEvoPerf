@@ -56,6 +56,7 @@
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
 #include "acevo/telemetry/streaming_trace.h"
+#include <string_view>
 #include <unordered_map>
 
 // ---------------------------------------------------------------------------
@@ -188,6 +189,16 @@ static T At(const BYTE* p, ptrdiff_t offset)
     return value;
 }
 
+static uint64_t Fnv1a64(const BYTE* p, size_t n)
+{
+    uint64_t h = 0xCBF29CE484222325ull;
+    for (size_t i = 0; i < n; ++i) {
+        h ^= p[i];
+        h *= 0x100000001B3ull;
+    }
+    return h;
+}
+
 // ---------------------------------------------------------------------------
 // State, touched only from inside kicks unless it is atomic
 // ---------------------------------------------------------------------------
@@ -219,6 +230,8 @@ enum class Verdict : int {
 struct TextureState {
     uint64_t lastSeenKick = 0;
     uint64_t dropKick = 0;
+    uint64_t pathHash = 0;
+    const void* resource = nullptr;
     int levels = -1;
     int dropFrom = -1;
     int dropTo = -1;
@@ -250,6 +263,22 @@ static KickTally s_tally;
 static int LevelCount(const BYTE* tex)
 {
     return (int)((At<BYTE*>(tex, texture::kLevelsEnd) - At<BYTE*>(tex, texture::kLevelsBegin)) / texture::kLevelEntrySize);
+}
+
+// An MSVC std::wstring, empty when its size and capacity do not look like one.
+static std::wstring_view PathOf(const BYTE* tex)
+{
+    size_t size = At<size_t>(tex, texture::kPath + 0x10);
+    size_t reserved = At<size_t>(tex, texture::kPath + 0x18);
+    if (size >= 512 || reserved < size) return {};
+    const wchar_t* chars = reserved > 7 ? At<wchar_t*>(tex, texture::kPath) : (const wchar_t*)(tex + texture::kPath);
+    return { chars, size };
+}
+
+static const void* ResourceOf(const BYTE* tex)
+{
+    const BYTE* wrapper = At<BYTE*>(tex, texture::kResourceWrapper);
+    return wrapper ? At<void*>(wrapper, 0x10) : nullptr;
 }
 
 // Tiles of levels above `from` up to and including `to`, the same sum the selected update makes
@@ -323,17 +352,14 @@ static void Broken(const char* where)
 static void DescribeTexture(const BYTE* tex, int levels)
 {
     char path[520] = "";
-    void* resource = nullptr;
+    const void* resource = nullptr;
     __try {
-        size_t size = At<size_t>(tex, texture::kPath + 0x10);
-        size_t reserved = At<size_t>(tex, texture::kPath + 0x18);
-        if (size < 512 && reserved >= size) {
-            const wchar_t* chars = reserved > 7 ? At<wchar_t*>(tex, texture::kPath) : (const wchar_t*)(tex + texture::kPath);
-            int n = WideCharToMultiByte(CP_UTF8, 0, chars, (int)size, path, sizeof path - 1, nullptr, nullptr);
+        std::wstring_view chars = PathOf(tex);
+        if (!chars.empty()) {
+            int n = WideCharToMultiByte(CP_UTF8, 0, chars.data(), (int)chars.size(), path, sizeof path - 1, nullptr, nullptr);
             path[n > 0 ? n : 0] = 0;
         }
-        const BYTE* wrapper = At<BYTE*>(tex, texture::kResourceWrapper);
-        if (wrapper) resource = At<void*>(wrapper, 0x10);
+        resource = ResourceOf(tex);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         path[0] = 0;
     }
@@ -375,10 +401,16 @@ static TextureState& Touch(const BYTE* tex, uint64_t now)
 {
     TextureState& state = s_textures[tex];
     int levels = LevelCount(tex);
-    if (state.levels != levels) {
-        // A different texture at an address a freed one used, nothing carries over.
+    std::wstring_view path = PathOf(tex);
+    uint64_t pathHash = Fnv1a64((const BYTE*)path.data(), path.size() * sizeof(wchar_t));
+    const void* resource = ResourceOf(tex);
+    if (state.levels != levels || state.pathHash != pathHash || state.resource != resource) {
+        // A different texture at an address a freed one used, which can have the same level
+        // count, so nothing carries over unless its path and its D3D12 resource match too.
         state = TextureState{};
         state.levels = levels;
+        state.pathHash = pathHash;
+        state.resource = resource;
     }
     state.lastSeenKick = now;
     if (!state.described && TraceOn()) {
@@ -539,16 +571,6 @@ static void HookStreamerDropUnadmitted(BYTE* tex, int keep, BYTE* str, BYTE* fra
 // ---------------------------------------------------------------------------
 // Installing
 // ---------------------------------------------------------------------------
-
-static uint64_t Fnv1a64(const BYTE* p, size_t n)
-{
-    uint64_t h = 0xCBF29CE484222325ull;
-    for (size_t i = 0; i < n; ++i) {
-        h ^= p[i];
-        h *= 0x100000001B3ull;
-    }
-    return h;
-}
 
 // A 32 bit displacement reaches 2 GB either way, so the stubs have to live near the exe.
 static BYTE* AllocNear(BYTE* anchor, size_t size)
