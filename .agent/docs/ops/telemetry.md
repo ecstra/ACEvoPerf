@@ -11,7 +11,9 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-
 All files are written next to the game executable and overwritten on every launch. The log is
 on by default. Every diagnostic is in the ini's `[developer]` section and off by default, the two
 CSVs (`timeline=1`, `frames=1`), the streaming trace, request logging, the throw log, the package
-file trace and the load sampler. Copy
+file trace and the load sampler. The same section holds one measuring lever that is not a
+diagnostic, `mesh_budget_mb`, which replaces the canonical 1433 MB mesh streamer budget and logs a
+`[mesh]` line when it does (TODO-022). Copy
 them to a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
 gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
