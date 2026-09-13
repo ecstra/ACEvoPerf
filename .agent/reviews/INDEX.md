@@ -14,6 +14,8 @@ below.
 
 ## Active
 
-- [2026-09-fix-streamer-feedback-churn](2026-09-fix-streamer-feedback-churn/ledger.md), the texture streamer reload fix, two findings about state keyed by a reused address, both open
+None.
 
 ## Closed
+
+- [2026-09-fix-streamer-feedback-churn](2026-09-fix-streamer-feedback-churn/ledger.md), the texture streamer reload fix, two findings about state keyed by a reused address, both fixed

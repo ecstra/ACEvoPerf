@@ -5,7 +5,7 @@ description: the review of the texture streamer reload fix branch, two findings,
 updated: 2026-09-13
 links: [spec-reviews, house-rules-agent, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13]
 branch: fix/streamer-feedback-churn
-status: open
+status: closed
 ---
 
 # Review of fix/streamer-feedback-churn
@@ -15,7 +15,9 @@ status: open
 The branch finds why the texture streamer drops and reloads the same mip forever and ships a fix
 that refuses that drop, on by default behind `streamer_reload_fix`. It also adds the streaming trace
 and the runtime write detector used to prove the fix safe, and moves every diagnostic under a
-`[developer]` section. Reviewed at high over `main...HEAD` on 2026-09-13, two findings.
+`[developer]` section. Reviewed at high over `main...HEAD` on 2026-09-13, two findings, both fixed.
+A launch with the trace on then showed 1,235 drops refused, 443 flips pinned, no hook fault and 0
+streamed textures created writable.
 
 ## Batches
 
