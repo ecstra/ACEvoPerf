@@ -100,23 +100,38 @@ followed by the total of repeated reads.
 Written only with `[developer] memory_census=1` (`src/telemetry/memory_census.cpp`), for BUG-016.
 The import slots of `VirtualAlloc` and `VirtualAlloc2` are patched in every module, again at each
 census for modules loaded later, and every commit is remembered with the three return addresses
-above the call. Every `stats_interval_s` the census checks each remembered range against the address
-space, so released and decommitted memory drops out, and writes rows under the header
-`t_s,kind,a,b,c,d,e,f,g`, sizes in MB.
+above the call.
 
-- `total`. a the process commit charge (`PrivateUsage`), b private committed memory found by walking
-  the address space, c heaps committed (`HeapSummary` over every process heap), d remembered
-  commits still committed, e mapped views committed, f images committed, g regions walked. b is c
-  plus d plus whatever neither covers
-- `heap`, every heap of 32 MB or more. a heap handle, b committed, c reserved
+A census runs when the commit charge has stayed within 150 MB for 15 s, once at start and then each
+time it has also fallen at least 700 MB from its highest reading since the last census, which is the
+menu after a track unloads. It checks each remembered range against the address space, so released
+and decommitted memory drops out, walks the address space, reads every heap with `HeapSummary`, then
+compacts every heap with `HeapCompact` and reads again. Each census writes a `[memory]` line in the
+log and rows under the header `t_s,kind,when,a,b,c,d,e,f,g,h`, `when` being `at start` or
+`after an unload`, sizes in MB.
+
+- `settled`. a the process commit charge (`PrivateUsage`), b private committed memory found by
+  walking the address space, c heaps committed, d heaps in use, e remembered commits still committed,
+  f mapped views committed, g images committed, h regions walked
+- `heap`, every heap of 32 MB or more. a heap handle, b committed, c in use, d reserved
 - `site`, every call site still holding 4 MB or more, largest first. a MB, b ranges, c to e the
   three return addresses as `module+0xRVA`, an address outside any module when the code was
   generated at runtime
+- `compacted`. a seconds the compaction took, b commit charge after, c heaps committed after, d heaps
+  in use after, e MB of commit charge returned, f seconds the reading before it took
 
-A harness run outside the game confirmed the partition, three 64 MB commits as three sites, 64 MB
-committed in four pieces into one reservation as one site of four ranges with a recommit inside it
-not counted twice, a release and an 8 MB decommit dropping out exactly, 40 MB of heap under c and
-nothing left behind by four threads churning allocations.
+It ran every ten seconds at first, and `HeapSummary` walks a heap under its lock. The game's main heap
+holds 4 to 7 GB, so every census froze the game, 200 ms in the menu and 1.4 s on track
+(`logs/memcreep-20260913/R-census-mod-on`), hence the settled trigger.
+
+`HeapSummary`'s committed figure is not the commit charge. In a harness where 800 MB of small blocks
+were freed, the heap had already released the memory, the commit charge fell to 68 MB, and
+`HeapSummary` still reported 72 MB committed until `HeapCompact` brought it to 3 MB with the charge
+unchanged. So a compaction only returns memory when `e` of `compacted` says so, and the heap columns
+are the heap's own accounting. The same harness confirmed the partition otherwise, three 64 MB commits
+as three sites, 64 MB committed in four pieces into one reservation as one site of four ranges with a
+recommit inside it not counted twice, a release and an 8 MB decommit dropping out exactly, and nothing
+left behind by four threads churning allocations.
 
 ## GPU sampler
 
