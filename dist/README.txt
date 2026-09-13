@@ -9,7 +9,7 @@ INSTALL
   and the file it used to be is the dstorage_orig.dll you just copied in.
 
 SETTINGS
-  Everything is in acevo_perf.ini, each key is explained in the file.
+  Everything is in acevo_perf.ini, one line per setting with a short note.
   The texture pool and the DirectStorage staging buffer are sized from your
   card's memory at start (tile_pool_mb=auto, staging_buffer_mb=auto), the
   chosen values are in acevo_perf.log. Set a number in the ini to override.

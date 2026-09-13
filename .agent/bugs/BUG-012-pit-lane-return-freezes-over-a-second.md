@@ -2,7 +2,7 @@
 name: BUG-012-pit-lane-return-freezes-over-a-second
 kind: bug
 description: returning to the pit lane from the pause menu freezes the game for 1.3 to 1.5 seconds
-updated: 2026-09-12
+updated: 2026-09-13
 links: [telemetry, engine-flags, content-package, BUG-002-fps-drop-entering-new-track-sections]
 status: wontfix
 severity: bug
@@ -48,7 +48,8 @@ Won't fix, 2026-09-06: the freeze is the engine parsing its own preset format at
 session start and restart, the same on every card and only shorter on a faster CPU. The mod
 cannot change the parse and a smaller preset would change the track's rubber state. The one
 lever, `disable_dynamic_track=true`, removes the load together with the track evolution and
-stays an owner's choice in the ini's optional flags.
+stays an owner's choice, set by hand in the ini's `[flags]` since the shipped ini dropped its
+optional flag lines on 2026-09-13.
 
 ## That reasoning was wrong, 2026-09-12
 

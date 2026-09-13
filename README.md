@@ -76,7 +76,7 @@ Or verify the game files in Steam, which puts the original `dstorage.dll` back, 
 
 ## Settings
 
-Everything is in `acevo_perf.ini`, every key is explained in the file.
+Everything is in `acevo_perf.ini`, one line per setting with a short note beside it.
 
 ## Build
 

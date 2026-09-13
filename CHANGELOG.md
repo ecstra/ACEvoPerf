@@ -84,6 +84,9 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   the load sampler. They are for testing the mod and cost files and a little performance, so normal
   play never needs them and a problem report only needs `acevo_perf.log`. An older ini that still
   has them in `[log]`, `[directstorage]`, `[profile]` or `[overlay]` simply leaves them off.
+- `acevo_perf.ini` is one line per setting with a short note beside it, in place of the long
+  explanations above each key, and the commented out optional flags are gone. Any engine flag still
+  works in `[flags]`.
 
 ### Fixed
 
