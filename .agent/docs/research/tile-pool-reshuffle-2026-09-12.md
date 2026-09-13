@@ -1,15 +1,23 @@
 ---
 name: tile-pool-reshuffle-2026-09-12
 kind: doc
-description: parked and motionless the engine re-reads the same tile regions every 2.2 seconds, and the cause is its own tile pool relocating resident tiles rather than any redundancy the mod could remove, measured at about 4 percent of frame time and 22 MB/s
-updated: 2026-09-12
-links: [directstorage-streaming, content-package, BUG-001-texture-low-mip-shown-before-streaming, BUG-007-blurry-road-and-textures, BUG-010-texture-pool-shrinks-on-race-load-and-restart, BUG-016-vram-overhead-grows-across-scene-loads, TODO-017-tier-2-variable-rate-shading]
+description: the first measurement of the parked tile churn, 22 MB/s and about 4 percent of frame time, with the probe and the dedupe built that day, several of whose conclusions the 2026-09-13 round overturned, the cause being the texture streamer's feedback flip and not the pool
+updated: 2026-09-13
+links: [texture-streamer-flip-2026-09-13, directstorage-streaming, content-package, BUG-001-texture-low-mip-shown-before-streaming, BUG-007-blurry-road-and-textures, BUG-010-texture-pool-shrinks-on-race-load-and-restart, BUG-016-vram-overhead-grows-across-scene-loads, TODO-017-tier-2-variable-rate-shading]
 ---
 
-# The tile pool reshuffles its resident set every two seconds
+# The parked tile churn, as first measured
 
 Found by accident while measuring Tier 2 variable rate shading, which appeared to gain 3 percent
 and turned out to be gaining it somewhere else entirely.
+
+**Corrected 2026-09-13.** The measurements below stand, several readings of them do not. The churn
+is the texture streamer dropping and reloading mips because it reads feedback measured against the
+loaded mip as if against the full texture, confirmed live and fixed from the mod, see
+[texture-streamer-flip-2026-09-13](texture-streamer-flip-2026-09-13.md). The pool relocating tiles
+is a consequence of the drop, the 21 unmaps belong to another heap, the "92 to 98 percent full"
+figure and the dedupe's free list cliff were artefacts of the dedupe's own bookkeeping, and the
+period is two streamer kicks, 2.035 s. Each wrong passage is marked where it stands.
 
 ## What happens
 
@@ -66,7 +74,9 @@ Over a 100 second settled window, 887 mapping calls across 32 distinct targets:
 | always to the **same** pool offset | **0** |
 | to a **different** offset | **25** |
 
-And across the whole session: 68,051 tiles mapped, **21 unmapped**.
+And across the whole session: 68,051 tiles mapped, **21 unmapped**. (Corrected 2026-09-13, all 21
+are one call on the tiled instances buffer, a different heap. Texture tiles are released on every
+drop without any unmap.)
 
 So the engine is not unmapping and refetching, and it is not failing to notice a tile is resident.
 It is **relocating** the tile: the same logical tile is mapped 40 times in 100 seconds, to a
@@ -77,7 +87,9 @@ res=...DC15F26F0 sub=0 ntiles=64  mapped 40 x, offsets [960, 970, 1548, 2201, 26
 ```
 
 Each new offset is memory that held something else, so the re-upload is **genuinely required**.
-The re-read is a consequence of the reshuffle, not a redundancy sitting beside it.
+The re-read is a consequence of the reshuffle, not a redundancy sitting beside it. (Corrected
+2026-09-13, the streamer drops the mip first and its pool is first in first out, so the reload
+lands on new slots. Refusing the drop removes the relocation and the upload together.)
 
 ## The dedupe was built, and it works, and it is not shipping
 
@@ -115,7 +127,11 @@ rather than a crash, and both worth carrying into anything similar:
 list only refills when the engine signals an eviction, which it does less often than it consumes.
 The session ended at **16,096 tiles held and 286 free of 16,384, 98 percent consumed**. On
 exhaustion the code falls back to the engine's slot, which can already hold one of ours. One lap
-did not reach it. A longer session or a track change very likely would.
+did not reach it. A longer session or a track change very likely would. (Corrected 2026-09-13,
+the cliff could not happen, held plus free always equalled the high water mark and a replay reached
+the fallback zero times. "Held" counted slots of dead textures. Its real defects were keying tiles
+by resource pointer, which the engine reuses for different textures, and sharing one slot map
+between two heaps.)
 
 **Deferred, not abandoned.** The owner's call on the day: not shipped now, and it comes back as
 its own round because the saving is real disk, memory and GPU work even though it does not show
@@ -138,7 +154,9 @@ holds, and a pool allocator that relocates them on every request.
 The one thing left open on our side is whether the reshuffle relates to
 [BUG-016](../../bugs/BUG-016-vram-overhead-grows-across-scene-loads.md), where overhead climbs
 across scene loads. An allocator that reshuffles constantly is the right shape for fragmentation,
-and the pool running 92 to 98 percent full is a number that bug never had.
+and the pool running 92 to 98 percent full is a number that bug never had. (Corrected 2026-09-13,
+fixable from the mod after all, `streamer_reload_fix`. And unrelated to BUG-016, whose overhead
+figure is free space inside allocator blocks, where the fixed tile pool counts as resource.)
 
 ## Why variable rate shading appeared to help
 

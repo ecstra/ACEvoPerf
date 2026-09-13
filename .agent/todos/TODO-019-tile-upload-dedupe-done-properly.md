@@ -1,9 +1,9 @@
 ---
 name: TODO-019-tile-upload-dedupe-done-properly
 kind: todo
-description: the tile upload dedupe works and removes 1.4 GB of disk reads and GPU uploads per lap, and was dropped only because its free list runs dry and the fallback can collide, so it comes back as its own round with the eviction signal solved first
-updated: 2026-09-12
-links: [tile-pool-reshuffle-2026-09-12, TODO-018-look-properly-at-the-streaming-layer, directstorage-streaming, BUG-016-vram-overhead-grows-across-scene-loads]
+description: the round for the redundant tile traffic that is left, since the parked churn is now fixed at its source, which is driving, 97 percent of 20 GB in ten minutes at the Red Bull Ring asking again for mips already requested, with the 2026-09-12 dedupe's cliff shown impossible and its real wrong texture defects named
+updated: 2026-09-13
+links: [texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, TODO-018-look-properly-at-the-streaming-layer, directstorage-streaming, BUG-016-vram-overhead-grows-across-scene-loads]
 status: open
 by: owner
 area: streaming
@@ -31,23 +31,34 @@ That is disk reads, staging buffer traffic and GPU upload bandwidth, all removed
 on every lap. It did not show up as frame rate on this thermally pinned card, which is why it was
 not shipped in a hurry, but it is real work that does not need doing.
 
-## Why it was dropped, which is the thing to fix first
+## What 2026-09-13 changed
 
-With the dedupe live the mod owns tile placement in the pool. Its free list only refills when the
-engine signals an eviction, and the engine signals fewer evictions than it consumes slots. The
-session ended at **16,096 tiles held and 286 free of 16,384, 98 percent consumed.** On exhaustion
-the code falls back to the engine's chosen slot, which may already hold one of ours, and a
-collision puts the wrong texture on screen.
+TODO-018's round, [texture-streamer-flip-2026-09-13](../docs/research/texture-streamer-flip-2026-09-13.md),
+rewrote most of what this round was going to start from.
 
-One lap did not reach it. A longer session or a track change very likely would.
+- **The cliff it was dropped for cannot happen.** In that code held plus free always equalled the
+  high water mark, and a replay of the dedupe over a recorded session reached the fallback zero
+  times. "16,096 held, 98 percent consumed" counted slots of textures that were already dead.
+- **It had two real wrong texture defects instead.** It keyed tiles by resource pointer, and the
+  engine reuses pointers for different textures, 114 uploads it would have dropped carried
+  different bytes. And it shared one slot map between the texture pool and the tiled instances
+  heap, which a replay showed colliding. "No visible corruption" over one lap was luck.
+- **The eviction signal is answered.** The engine never unmaps a texture tile. A drop puts the
+  indices on the pool's first in first out free queue two frames later, and the pool's used and
+  pending counters can be read live, `src/engine/streamer.cpp` already does.
+- **The parked churn is fixed at its source.** `streamer_reload_fix` refuses the drop behind it,
+  measured at zero parked tile requests in boot 2 ([DEC-017](../decisions/DEC-017-streamer-reload-fix-refuses-the-drop.md)).
+  A dedupe would only have hidden those uploads while the streamer kept dropping and remapping.
 
-**So the round starts with the eviction signal, not the dedupe.** The dedupe is already written
-and proven. The open question is how the engine expresses "this tile is no longer wanted", given
-it maps 68,051 tiles and unmaps 21 in a whole session. Until that is answered the free list
-cannot be kept honest, and everything else is premature.
+What is left is driving. Ten minutes at the Red Bull Ring put 20,061 MB through the tile queue,
+33.6 MB/s, and 19,447 MB of it asked again for a resource and mip already requested in the stint.
+The reload fix reaches about a fifth of that by replay, because a big ground texture's screen
+coverage changes every kick while moving and its pin lets go.
 
-Minimum acceptable behaviour whatever the answer: when the free list runs dry, the dedupe turns
-itself off for the rest of the session and says so in the log. A graceful stop instead of a cliff.
+**So the round starts from boot 1's trace, `logs/streamer-boot1-1124`, not from the dedupe.** Split
+those 19.4 GB into feedback flips the fix released, flips with no fresh feedback, and genuine
+changes of view, then decide between widening the fix and a dedupe rebuilt on source identity.
+Either way, replay it through that trace before it costs the owner a session.
 
 ## What was built, so none of it is re-derived
 
@@ -77,6 +88,8 @@ Both would have shown as wrong textures rather than a crash. Anything rebuilt he
 
 ## Done when
 
-The free list stays honest across a long session and a track change, the dedupe stops itself
-gracefully rather than colliding if it ever cannot, and a multi lap session with it on shows no
-visual defect. Then it ships behind an ini key, off by default until it has run clean for a while.
+The driving re-request traffic is split by cause from a recorded trace, and whichever fix is
+chosen, a widened reload fix or a dedupe keyed on source bytes and per heap, removes a measured
+share of it while a multi lap session shows no visual defect. Then it ships behind an ini key, off
+by default until it has run clean for a while. Or the record says why the rest cannot be removed
+safely.

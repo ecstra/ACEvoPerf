@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-12
+updated: 2026-09-13
 links: [agent-index, spec-bugs]
 ---
 
@@ -13,7 +13,7 @@ links: [agent-index, spec-bugs]
 bug
 
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), two Overtake reviewers report unlit trees at night and name `enable_pso_cache`, a default the mod turns on, the owner's own log shows the cache failing to deliver pipelines after a game update
-- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), the overhead part of the VRAM report climbs 24 MB to 360 MB over thirteen loads while resource memory per scene stays identical, the leading explanation for textures going blurry after several reloads
+- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), the overhead part of the VRAM report climbs 24 MB to 360 MB over thirteen loads while resource memory per scene stays identical, the spike follows the Nürburgring's content whatever order it loads in, and the tile pool is ruled out
 - [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships at a 2x cook shrink with 3 of 12 mip levels, and its 8 by 8 grid makes any coarse mip cost eight times the detail, 64 by 64 per frame on a full size screen
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3 spends 3.52 s building twenty tyre models for four distinct results, on the serial chain that ends the session load 2.05 s after streaming finishes

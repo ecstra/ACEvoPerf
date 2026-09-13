@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-12
+updated: 2026-09-13
 links: [agent-index, spec-todos]
 ---
 
@@ -19,13 +19,13 @@ streaming
 - [TODO-013-faster-session-loads](TODO-013-faster-session-loads.md), 17 s on the Nurburgring, three quarters of it one streaming phase, the drive ruled out and readahead built and thrown away, next is the sampler on the resource workers
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 - [TODO-014-proxy-implements-enqueuerequests-if-the-game-asks](TODO-014-proxy-implements-enqueuerequests-if-the-game-asks.md), the proxy declines IDStorageQueue3 to keep the overlay and the statistics in the path, implement it if a game build ever asks
-- [TODO-018-look-properly-at-the-streaming-layer](TODO-018-look-properly-at-the-streaming-layer.md), a 22 MB/s re-read loop sat in the streaming layer for the life of the project and only surfaced by accident, because every instrument pointed at it has been an aggregate
-- [TODO-019-tile-upload-dedupe-done-properly](TODO-019-tile-upload-dedupe-done-properly.md), it works and removes 1.4 GB of disk and upload traffic per lap, dropped only because its free list runs dry, so the round starts with the engine's eviction signal
+- [TODO-019-tile-upload-dedupe-done-properly](TODO-019-tile-upload-dedupe-done-properly.md), the redundant tile traffic left now the parked churn is fixed at its source, driving, 97 percent of 20 GB in ten minutes at the Red Bull Ring, starting from the recorded trace rather than the old dedupe
+- [TODO-021-the-engine-reads-the-same-data-twice](TODO-021-the-engine-reads-the-same-data-twice.md), 3.5 GB of package data read a second time in one session, 633 MB of it inside one Nürburgring load, operation rather than load time in the owner's words
 
 render
 
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
-- [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the tile pool churn it suppressed
+- [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 
 engine-flags
 
@@ -34,7 +34,7 @@ engine-flags
 ## Done
 
 - render: 1 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean)
-- streaming: 4 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed)
+- streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed; TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
 

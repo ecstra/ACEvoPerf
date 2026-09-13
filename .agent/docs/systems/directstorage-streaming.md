@@ -1,9 +1,9 @@
 ---
 name: directstorage-streaming
 kind: doc
-description: how the game streams through DirectStorage and how VRAM pools are sized
-updated: 2026-09-06
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, game-requests-1gb-staging-buffer, content-package]
+description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
+updated: 2026-09-13
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, game-requests-1gb-staging-buffer, content-package]
 ---
 
 # DirectStorage streaming
@@ -25,6 +25,24 @@ Textures are 64 KB tiled resources (`TilingInfo` in `TextureMetadata`, see conte
 The engine decides which tiles to request from a GPU texture feedback pass (render target
 `main_streamer_feedback_depth`, staging buffers `feedbackStagingBuffer0` and `1` in the exe), so
 a request follows the first frame that needs the mip by at least two frames.
+
+## The texture streamer
+
+About once a second the streamer runs a kick. It takes one frame of demand, gives every (texture,
+level) a priority from material distance tables or GPU feedback, admits in priority order until the
+pool budget runs out, loads what was admitted if the load gate has space, and drops the rest at
+once. The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
+frees its tiles to a first in first out pool two frames later with no unmap. The pool runs full in
+normal play, 14,800 to 15,300 of 16,384 tiles used at 1024 MB on a 6 GB card, with about 120 loads
+turned away for space on every parked kick.
+
+The feedback is measured against the mip that is loaded and read as if against the full texture,
+so textures on the budget edge drop and reload the same mip every two kicks. The mod hooks the kick
+in `src/engine/streamer.cpp`, which writes the streaming trace and carries the off by default
+`[engine] streamer_reload_fix`
+([DEC-017](../../decisions/DEC-017-streamer-reload-fix-refuses-the-drop.md)). The evidence and the
+numbers are in
+[texture-streamer-flip-2026-09-13](../research/texture-streamer-flip-2026-09-13.md).
 
 ## How files are requested
 

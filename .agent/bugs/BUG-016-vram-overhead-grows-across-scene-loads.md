@@ -2,8 +2,8 @@
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
 description: the overhead part of the game's VRAM report climbs from 24 MB to 360 MB over an 80 minute session of repeated scene loads while resource memory stays identical per scene, which eats the headroom a 6 GB card needs and is the leading explanation for textures going slightly blurry after several reloads
-updated: 2026-09-12
-links: [directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart]
+updated: 2026-09-13
+links: [directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
 status: open
 severity: medium
@@ -158,6 +158,32 @@ candidate than it was, because changing the whole runtime changed nothing.
 
 What still holds from the cache off reading: the ratchet is gone and the spike is not. Whatever
 produces a single 328 to 360 MB reading on one menu load and then releases it is still unnamed.
+
+## The spike follows the Nürburgring, 2026-09-13
+
+**What the figure measures.** With `dx12_amd_memory_allocator` on, the engine's report reads the
+D3D12MA budget (`0x1e37f20`). Resource is allocation bytes, overhead is block bytes minus allocation
+bytes, the free space inside the allocator's blocks, and other objects is the rest of the process's
+usage. So the tile pool cannot be the cause. It is one fixed allocation counted under resource,
+created once per session, and overhead reads the same with a 405 MB pool as with 1024 MB. The same
+definition counts against the pipeline cache theory, pipeline objects are not allocator blocks.
+
+**The order test.** Every earlier session loaded the Nürburgring first, so the spike could have been
+the first track unload of the process. Boot 1 of TODO-018's live round (`logs/streamer-boot1-1124`,
+game log `log-260913-110718.txt`) reversed the order.
+
+| menu load | after | stint | overhead MB |
+|---|---|---|---|
+| first | start | none | 24 then 103 |
+| second | Red Bull Ring, first track | 10 minutes | 104 then 104, 121 |
+| third | Nürburgring, second track | 3 minutes | **360 then 297** |
+
+The spike follows the Nürburgring's content, whatever order it loads in and however long it ran.
+The next step is naming what the Nürburgring leaves in the allocator's blocks when it unloads.
+Full context in [texture-streamer-flip-2026-09-13](../docs/research/texture-streamer-flip-2026-09-13.md).
+
+Game logs start with one or two NUL bytes, so plain `grep` reports "Binary file matches" and drops
+every later line. Readings taken from these logs need `grep -a`.
 
 ## Done when
 

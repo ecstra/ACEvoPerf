@@ -2,8 +2,8 @@
 name: TODO-017-tier-2-variable-rate-shading
 kind: todo
 description: the engine already asks for MAX combining against a screen space shading rate image and only ever arms it for VR, so binding an image of our own is two vtable hooks, measured as a constant image first to price the ceiling before building an edge aware one
-updated: 2026-09-12
-links: [optimisation-deepdive-2026-09-12, engine-flags, BUG-002-fps-drop-entering-new-track-sections]
+updated: 2026-09-13
+links: [optimisation-deepdive-2026-09-12, engine-flags, BUG-002-fps-drop-entering-new-track-sections, texture-streamer-flip-2026-09-13]
 status: open
 by: owner
 area: render
@@ -115,7 +115,11 @@ machine, not only this one.
 The 3 to 4 percent my frame time numbers showed was not shading at all. It was the texture tile
 churn being suppressed, because VRS starves the sampler feedback the streamer runs on. Full
 story in
-[tile-pool-reshuffle-2026-09-12](../docs/research/tile-pool-reshuffle-2026-09-12.md).
+[tile-pool-reshuffle-2026-09-12](../docs/research/tile-pool-reshuffle-2026-09-12.md). Refined on
+2026-09-13, the feedback shaders only count pixels whose screen position is a multiple of 16 on
+both axes, which coarse shading can miss entirely, and the churn itself is the streamer reading
+feedback against the wrong mip, see
+[texture-streamer-flip-2026-09-13](../docs/research/texture-streamer-flip-2026-09-13.md).
 
 **Stage two is not justified.** An edge aware image coarsens less of the screen than a constant
 4x4 does, so it cannot beat a result that is already zero, and it would carry the same feedback
