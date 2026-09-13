@@ -116,10 +116,11 @@ meshes as in M. There is no flag for the mesh budget alone, the canonical path f
 
 ## P3, the mod's textures with a 366 MB mesh budget
 
-Session `logs/frametime-20260913/P3-meshes-366`. No flag reaches this, so `[developer]
-mesh_budget_mb` was added, a stub that returns the configured size where the engine's budget function
-returns the canonical one (`src/engine/mesh_budget.cpp`). M with `mesh_budget_mb=366`, the log
-confirms the patch.
+Session `logs/frametime-20260913/P3-meshes-366`. No flag reaches this, so a developer build added
+`[developer] mesh_budget_mb`, a stub that returns the configured size where the engine's budget
+function at rva `0x1C80CC0` returns the canonical one. M with `mesh_budget_mb=366`, the log confirms
+the patch. The owner had the lever taken out again until the mesh deep dive, commit `a1840a0` holds
+it and `b9ad772` removed it.
 
 | | N, passive | P3, textures 1024 MB, meshes 366 MB | M, mod on |
 |---|---|---|---|

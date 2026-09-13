@@ -42,7 +42,7 @@ line in the same commit.
 
 ## Memory and handovers
 
-- [memory/INDEX.md](memory/INDEX.md), project facts: 8 (6 project, 1 reference, 1 feedback)
+- [memory/INDEX.md](memory/INDEX.md), project facts: 9 (6 project, 1 reference, 2 feedback)
 - [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed
 - [handover/2026-09-13-frame-time-mesh-budget.md](handover/2026-09-13-frame-time-mesh-budget.md), the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1

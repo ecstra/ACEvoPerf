@@ -40,7 +40,7 @@ Run P2, textures back to 366 MB with the 1433 MB mesh budget held, landed next t
 takes 2.10 of the budgets' 2.72 fps parked and 4.65 fps on the lap, the texture pool 0.62 fps
 parked, and the owner saw P2 only a tenth of the way to the mod's picture.
 
-Run P3, the mod with a 366 MB mesh budget through the new `[developer] mesh_budget_mb`, matched N in
+Run P3, the mod with a 366 MB mesh budget through a developer build since removed, matched N in
 the protocol with sharp textures, and the owner saw no difference anywhere. But 366 MB starves the
 mesh streamer, nothing streams on the GP and the Red Bull Ring churns 1.6 to 2.2 GB of uploads per
 lap, and a 29 AI race ran CPU bound at 56 fps against 67 earlier, not a pair. So the gap is mesh
@@ -50,6 +50,13 @@ the mesh streamer loads detail the screen cannot show.
 Run R, release 0.3.1 on the same protocol, had the gap too, 4.33 fps parked and 8.52 on the lap
 behind N, and 0.68 fps behind M parked with the parked churn the reload fix removed. So the gap has
 been there since the fixed pools shipped, not something added after the release.
+
+## Parked as the last deep dive
+
+Owner wording, 2026-09-13: "We will deep-dive later on for this (keep this as the last deep-dive, we
+have 2-3 more to fix". What is left is the deep dive into how the mesh streamer picks its levels,
+after BUG-009, BUG-016 and BUG-020 have had theirs. The lever that set the mesh budget came out with
+it, commit `a1840a0` has it.
 
 ## Done when
 
