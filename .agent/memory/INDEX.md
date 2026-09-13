@@ -15,7 +15,7 @@ project
 - [dstorage-dll-is-only-a-forwarder](dstorage-dll-is-only-a-forwarder.md), the runtime is dstoragecore.dll, the game claims that base name at start-up, nothing checks the two versions match, and the core's own entry points can be called directly
 - [game-requests-1gb-staging-buffer](game-requests-1gb-staging-buffer.md), the one call that starves texture pools on small cards
 - [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed
-- [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttled at 87 °C two minutes into a lap until the owner's undervolt, since then the clock holds flat
+- [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttles at 87 °C two minutes into a lap, the undervolt that held it flat hung the GPU and came off again
 
 reference
 

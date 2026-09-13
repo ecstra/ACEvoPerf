@@ -1,7 +1,7 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the overhead part of the game's VRAM report climbs from 24 MB to 360 MB over an 80 minute session of repeated scene loads while resource memory stays identical per scene, which eats the headroom a 6 GB card needs and is the leading explanation for textures going slightly blurry after several reloads
+description: the game's memory creeps across scene loads, committed RAM by about a gigabyte with the first track and 90 to 470 MB with every track after it, and the VRAM overhead spikes after each Nürburgring unload, the same with the mod passive, so it is the game's own and still unnamed
 updated: 2026-09-13
 links: [directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
@@ -184,6 +184,46 @@ Full context in [texture-streamer-flip-2026-09-13](../docs/research/texture-stre
 
 Game logs start with one or two NUL bytes, so plain `grep` reports "Binary file matches" and drops
 every later line. Readings taken from these logs need `grep -a`.
+
+## The creep is in RAM too, and it is the game's, 2026-09-13
+
+Owner wording, 2026-09-13: "Frametime, Memory Creep (leak), 1% all still remain and they're bigger."
+
+**RAM grows more than VRAM.** The game logs its own committed memory at every scene change,
+`Used Memory (MB): commit size N (peak P) - working set W`. The last reading before leaving the
+menu, which is the same content every time, from every multi track session on disk.
+
+| session | first menu | after each track, in order |
+|---|---|---|
+| `agility-long-on-2042`, mod on | 8340 | Nürburgring 9377, Red Bull Ring 9621 |
+| `streamer-boot1-1124`, mod on | 8141 | Red Bull Ring 8735, Nürburgring 9502 |
+| `frametime-20260913/P3-meshes-366`, mod on | 8342 | Nürburgring GP 9317, Nordschleife 9454, Red Bull Ring multiplayer 9542, Nordschleife 29 AI race 10006 |
+| `memcreep-20260913/Q-passive`, mod passive | 11106 | Nürburgring 12147, Red Bull Ring 12410, Nürburgring again 12876 |
+
+The first track adds about a gigabyte that the menu keeps, every later track adds 90 to 470 MB,
+and the second visit to the same track still adds 466 MB, so it is not only a cache that fills
+once. The 29 AI Nordschleife race peaked at 19,887 MB committed with 10,680 MB resident.
+
+**The mod passive shows the same growth.** Run Q used the settings of the passive run N on the
+route menu, Nürburgring GP, menu, Red Bull Ring, menu, Nürburgring GP, menu, Red Bull Ring, one
+lap each. Its steps, +1041 and +263 MB for the Nürburgring then the Red Bull Ring, match the
+mod on session of 2026-09-12 on the same two tracks, +1037 and +244 MB. The VRAM side matches as
+well: other objects rise about 110 MB with the first track and a few MB per load after that, and
+the overhead spike still follows each Nürburgring unload, 265 and 233 MB. So the creep is the
+game's own.
+
+**The mod already takes 2.9 GB off.** The first menu commits 11,052 MB in the passive run N and
+8,198 MB in run M, the difference being the game's 1024 MB staging buffers that the mod cuts to
+128 MB.
+
+Run Q ended in a GPU hang on its last Red Bull Ring lap, `Device removed, reason:
+DXGI_ERROR_DEVICE_HUNG`, with the NVIDIA driver's own timeout in the Windows event log at the
+second the frames stopped and no driver error in the fourteen days before. The owner had
+undervolted the card that day and took the undervolt off again. Committed memory was 13,652 MB of
+32 GB and VRAM 4,924 of 5,226 MB when it hung, so memory was not the trigger.
+
+Next is naming what the committed memory is made of and which code keeps it, which the game does
+not log. Its only breakdown is the VRAM bucket list it prints after a GPU crash.
 
 ## Done when
 
