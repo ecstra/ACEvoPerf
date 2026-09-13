@@ -21,8 +21,8 @@ and the runtime write detector used to prove the fix safe, and moves every diagn
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the fix's per texture state survives an address reuse | pending | |
-| 2 | the write detector's first seen check misses reused addresses | pending | |
+| 1 | the fix's per texture state survives an address reuse | done | 2026-09-13, fix it fast, no hunter or verifier |
+| 2 | the write detector's first seen check misses reused addresses | done | 2026-09-13, fix it fast, no hunter or verifier |
 
 ## Findings
 
@@ -30,8 +30,8 @@ and the runtime write detector used to prove the fix safe, and moves every diagn
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: fa2f239, 2026-09-13, the state also resets when the package path or the D3D12 resource differs
 
 `Touch` in `src/engine/streamer.cpp:374` keys state by the texture's address and resets it only when
 the level count differs. A new texture allocated where a pinned one was freed, with the same number
@@ -43,8 +43,8 @@ carries over, so the trace never writes a tex row for the new texture and joins 
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 07a5321, 2026-09-13, the flags are read at every tile request and a changed entry is counted again
 
 `NoteStreamedResource` in `src/render/texture_writes.cpp:189` reads a resource's creation flags only
 the first time its address is seen. A later tiled texture created at the same address with
