@@ -1,9 +1,9 @@
 ---
 name: texture-streamer-overload-2026-09-13
 kind: doc
-description: a census of every kick in a thirty car race shows the texture streamer ranking each texture by its least important request and loading only whole steps, both fixed from the mod and seen fixed in game, with what is left being a 1 GB pool that holds the player's car and driver at the top rank and ranks AI cars like trackside props
+description: a census of every kick in a thirty car race shows the texture streamer ranking each texture by its least important request and loading only whole steps, both fixed from the mod and seen fixed in game, with what is left being a 1 GB pool that holds the player's car and driver at the top rank and ranks AI cars like trackside props, left that way on the owner's call
 updated: 2026-09-13
-links: [BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, texture-streamer-flip-2026-09-13, directstorage-streaming, telemetry, DEC-017-streamer-reload-fix-refuses-the-drop, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
+links: [BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, DEC-018-a-full-texture-pool-keeps-the-players-car-first, texture-streamer-flip-2026-09-13, directstorage-streaming, telemetry, DEC-017-streamer-reload-fix-refuses-the-drop, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
 ---
 
 # The texture streamer with a full pool
@@ -14,10 +14,12 @@ and the same plan each time. Sessions `logs/census-ai30-20260913`, the census wi
 
 ## The census
 
-`[developer] streamer_census` copies what each kick ranked into `acevo_perf_census.bin`, every
+`[developer] streamer_census` copied what each kick ranked into `acevo_perf_census.bin`, every
 demand entry, every record the engine built with its priority and whether it was admitted, and
-every eighth kick what each tracked texture holds. The format is in
-[telemetry](../ops/telemetry.md). The first race wrote 1,181 kicks, 235 MB.
+every eighth kick what each tracked texture held. The first race wrote 1,181 kicks, 235 MB. It came
+in with commit `a2bfc5e`, where the source and the file format are, and went out again with commit
+`removed: the streamer census, BUG-020 fixed`. The readers used here lived in the session's scratch
+space and are not kept.
 
 ## How a kick ranks demand
 
@@ -141,8 +143,9 @@ tiles of them turned away each kick. Ranked again offline over those 97 kicks:
 
 Lowering the player's car frees room the track takes, not the AI cars, and ranking AI cars as cars
 takes it from the track. A 1 GB pool cannot hold this car, a field of several car models and this
-track at full detail, and every change here decides what loses. That is the owner's call and is
-open in BUG-020.
+track at full detail, and every change here decides what loses. The owner left the sharing as the
+engine has it,
+[DEC-018](../../decisions/DEC-018-a-full-texture-pool-keeps-the-players-car-first.md).
 
 ## Smaller findings
 

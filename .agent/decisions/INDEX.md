@@ -8,6 +8,7 @@ links: [agent-index, spec-decisions]
 
 # Decisions Index
 
+- [DEC-018-a-full-texture-pool-keeps-the-players-car-first](DEC-018-a-full-texture-pool-keeps-the-players-car-first.md), 2026-09-13, a full texture pool stays shared the way the engine ranks it, the player's car and driver first and AI cars like props, because ranking the car's finest levels lower or AI cars as cars only moves the blur
 - [DEC-017-streamer-reload-fix-refuses-the-drop](DEC-017-streamer-reload-fix-refuses-the-drop.md), 2026-09-13, the texture streamer's feedback flip is fixed by refusing the drop of a texture whose own readings show the flip, guarded by the engine's 1024 tile margin alone, rather than by correcting the conversion, refusing the reload, deduplicating or standing down whenever the pool is contended
 - [DEC-015-bundled-directstorage-core-loaded-first](DEC-015-bundled-directstorage-core-loaded-first.md), 2026-09-12, the mod ships DirectStorage 1.3.0 as acevo_dstoragecore.dll and calls the core directly, because the game owns the name dstoragecore.dll and loads its own first
 - [DEC-016-agility-sdk-tried-and-removed](DEC-016-agility-sdk-tried-and-removed.md), 2026-09-12, the Agility SDK was built by adding D3D12SDKVersion and D3D12SDKPath to the running exe's export table, measured six ways, found to change nothing because the game's code stops at ID3D12Device12, and removed rather than shipped as a knob, with the recipe and the VirtualProtect page lesson kept

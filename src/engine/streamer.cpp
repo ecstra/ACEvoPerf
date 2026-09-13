@@ -82,10 +82,8 @@
 #include "acevo/engine/streamer.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
-#include "acevo/render/frame_stats.h"
 #include "acevo/telemetry/streaming_trace.h"
 #include <algorithm>
-#include <string>
 #include <string_view>
 #include <unordered_map>
 
@@ -126,17 +124,6 @@ static const Region kRegions[] = {
     { 0x278BFD0, 0x016, 0x7DAA70DF7484B254ull, "the pool used getter" },
     { 0x1F2E0DA, 0x0CA, 0x15B32D00FC948EEDull, "the record dedupe (R)" },
     { 0x1F17490, 0x010, 0x1F4BF375CADBE480ull, "the engine's record sort" },
-};
-
-// The layouts the census reads, checked only when it is on. A mismatch turns the census off and
-// leaves the hooks alone.
-static const Region kCensusRegions[] = {
-    { 0x1F2D86B, 0x14B, 0x68F1E8D2DB315760ull, "the demand vector, deduped and hashed" },
-    { 0x1F2DF49, 0x043, 0xA9F2F0580EC72C5Aull, "the record push" },
-    { 0x1F2E1B7, 0x14C, 0xA9590430BD6494C9ull, "the node walk that sums pending and resident tiles" },
-    { 0x1C842C0, 0x018, 0x6A8762D55253BFCAull, "the pending tiles getter" },
-    { 0x1C84730, 0x018, 0x20A3B5BA80C06B5Aull, "the resident tiles getter" },
-    { 0x1F2A840, 0x047, 0x3E869317CB8F2CC9ull, "the texture category getter" },
 };
 
 struct Site {
@@ -229,9 +216,6 @@ constexpr ptrdiff_t kFeedbackSlot = 0x88;
 constexpr ptrdiff_t kLevelsBegin = 0x160;       // vector of 48 byte level entries, 0 is coarsest
 constexpr ptrdiff_t kLevelsEnd = 0x168;
 constexpr ptrdiff_t kCurrentLevel = 0x17C;
-constexpr ptrdiff_t kPendingTiles = 0x180;
-constexpr ptrdiff_t kResidentTiles = 0x184;
-constexpr ptrdiff_t kCategory = 0x270;          // the material kind the streamer turns into request flags
 constexpr ptrdiff_t kLevelEntrySize = 48;
 constexpr ptrdiff_t kLevelTiles = 0x8;
 }
@@ -249,14 +233,6 @@ constexpr ptrdiff_t kUsed = 0x10;
 
 namespace streamer {
 constexpr ptrdiff_t kAllocator = 0x0;
-constexpr ptrdiff_t kNodes = 0x40;              // std::map head of the tracked textures, keyed by path hash
-constexpr ptrdiff_t kNodeCount = 0x48;
-constexpr ptrdiff_t kRecordBuffer = 0x50;       // 16 byte records, cut to the admitted ones after admission
-constexpr ptrdiff_t kRecordBufferCapacity = 0x60;
-constexpr ptrdiff_t kAdmittedLevels = 0x68;     // {hash, level} sorted by hash
-constexpr ptrdiff_t kAdmittedLevelsEnd = 0x70;
-constexpr ptrdiff_t kDemand = 0xB0;             // 24 byte {texture, distance, flags}, one per texture
-constexpr ptrdiff_t kDemandEnd = 0xB8;
 constexpr ptrdiff_t kFeedback = 0xD0;
 constexpr ptrdiff_t kCap = 0x148;
 constexpr ptrdiff_t kAvail = 0x150;
@@ -264,15 +240,6 @@ constexpr ptrdiff_t kRecords = 0x154;
 constexpr ptrdiff_t kAdmitted = 0x158;
 constexpr ptrdiff_t kAdmittedTiles = 0x15C;
 constexpr ptrdiff_t kRejected = 0x160;
-}
-
-namespace node {    // an MSVC std::map node
-constexpr ptrdiff_t kLeft = 0x0;
-constexpr ptrdiff_t kParent = 0x8;
-constexpr ptrdiff_t kRight = 0x10;
-constexpr ptrdiff_t kIsNil = 0x19;
-constexpr ptrdiff_t kHash = 0x20;
-constexpr ptrdiff_t kTexture = 0x28;
 }
 
 namespace feedback {
@@ -473,230 +440,6 @@ static bool PoolKeepsMargin(const BYTE* str)
 }
 
 // ---------------------------------------------------------------------------
-// The census, [developer] streamer_census=1, a development instrument for BUG-020
-// ---------------------------------------------------------------------------
-
-// Each kick's demand, the records the engine ranked from it and the tiles its tracked textures
-// hold, so a session can be ranked again offline. acevo_perf_census.bin, little endian blocks:
-//
-//   TEXD  texture, path hash, category, levels, tiles of levels 0 to 7, path length, UTF-8 path
-//   KICK  kick, seconds, cap, avail, records, admitted, demand, tracked entries, pool used, pool
-//         pending, resident and pending tiles of every tracked texture, resident tiles of those
-//         not admitted at all, tiles above the admitted level, gate space, then each demand entry
-//         {texture, distance, flags}, each record as the engine keeps it {hash, priority, 1, tiles,
-//         level}, and on every 8th kick each tracked texture {texture, resident, pending, current
-//         level, admitted level or -1}
-static bool g_censusOn = false;
-static SRWLOCK g_censusLock = SRWLOCK_INIT;
-static std::string g_censusPending;
-static HANDLE g_censusFile = INVALID_HANDLE_VALUE;
-static uint64_t g_censusBytes = 0;
-static std::atomic<uint64_t> g_censusDropped{0};
-static std::unordered_map<const BYTE*, uint64_t> s_described;    // texture to path hash, kicks only
-static const size_t kCensusMaxPendingBytes = 256u * 1024u * 1024u;
-static const size_t kDemandEntrySize = 24;
-static const size_t kRecordSize = 16;
-
-template <typename T>
-static void Put(std::string& out, T value)
-{
-    out.append((const char*)&value, sizeof value);
-}
-
-static void CensusDescribe(std::string& out, const BYTE* tex, uint64_t pathHash, std::wstring_view path)
-{
-    char utf8[520];
-    int n = path.empty() ? 0 : WideCharToMultiByte(CP_UTF8, 0, path.data(), (int)path.size(), utf8, sizeof utf8, nullptr, nullptr);
-    int levels = std::clamp(LevelCount(tex), 0, 255);
-    const BYTE* entries = At<BYTE*>(tex, texture::kLevelsBegin);
-
-    out.append("TEXD", 4);
-    Put(out, (uint64_t)(uintptr_t)tex);
-    Put(out, pathHash);
-    Put(out, At<int32_t>(tex, texture::kCategory));
-    Put(out, (uint8_t)levels);
-    for (int level = 0; level < 8; ++level) {
-        int tiles = level < levels ? At<int32_t>(entries + level * texture::kLevelEntrySize, texture::kLevelTiles) : 0;
-        Put(out, (uint16_t)std::clamp(tiles, 0, 0xFFFF));
-    }
-    Put(out, (uint16_t)std::max(n, 0));
-    out.append(utf8, std::max(n, 0));
-}
-
-static int AdmittedLevelOf(const BYTE* admitted, size_t count, uint64_t hash)
-{
-    size_t lo = 0;
-    size_t hi = count;
-    while (lo < hi) {
-        size_t mid = (lo + hi) / 2;
-        if (At<uint64_t>(admitted + mid * kRecordSize, 0) < hash) lo = mid + 1;
-        else hi = mid;
-    }
-    if (lo == count || At<uint64_t>(admitted + lo * kRecordSize, 0) != hash) return -1;
-    return At<int32_t>(admitted + lo * kRecordSize, 8);
-}
-
-static void CensusKickBody(const BYTE* str, const BYTE* frame, uint64_t now)
-{
-    std::string block;
-    block.reserve(256 * 1024);
-
-    const BYTE* demand = At<BYTE*>(str, streamer::kDemand);
-    const BYTE* demandEnd = At<BYTE*>(str, streamer::kDemandEnd);
-    size_t demandCount = demandEnd > demand ? (size_t)(demandEnd - demand) / kDemandEntrySize : 0;
-    if (demandCount > 1000000) return;
-
-    for (size_t i = 0; i < demandCount; ++i) {
-        const BYTE* tex = At<BYTE*>(demand + i * kDemandEntrySize, 0);
-        if (!tex) continue;
-        std::wstring_view path = PathOf(tex);
-        uint64_t pathHash = Fnv1a64((const BYTE*)path.data(), path.size() * sizeof(wchar_t));
-        auto [known, inserted] = s_described.try_emplace(tex, pathHash);
-        if (!inserted && known->second == pathHash) continue;
-        known->second = pathHash;
-        CensusDescribe(block, tex, pathHash, path);
-    }
-
-    const BYTE* records = At<BYTE*>(str, streamer::kRecordBuffer);
-    const BYTE* recordsCapacity = At<BYTE*>(str, streamer::kRecordBufferCapacity);
-    size_t recordCount = At<uint32_t>(str, streamer::kRecords);
-    size_t recordRoom = recordsCapacity > records ? (size_t)(recordsCapacity - records) / kRecordSize : 0;
-    recordCount = std::min(recordCount, recordRoom);
-
-    const BYTE* admitted = At<BYTE*>(str, streamer::kAdmittedLevels);
-    const BYTE* admittedEnd = At<BYTE*>(str, streamer::kAdmittedLevelsEnd);
-    size_t admittedCount = admittedEnd > admitted ? (size_t)(admittedEnd - admitted) / kRecordSize : 0;
-
-    // The same walk the kick makes to credit tracked tiles to its budget, in hash order.
-    bool listTracked = (now & 7) == 0;
-    std::string tracked;
-    uint32_t trackedEntries = 0;
-    int64_t resident = 0, pending = 0, notAdmitted = 0, aboveAdmitted = 0;
-    const BYTE* head = At<BYTE*>(str, streamer::kNodes);
-    size_t nodeCount = At<size_t>(str, streamer::kNodeCount);
-    const BYTE* at = At<BYTE*>(head, node::kLeft);
-    for (size_t visited = 0; at != head && visited < nodeCount; ++visited) {
-        const BYTE* tex = At<BYTE*>(at, node::kTexture);
-        if (tex) {
-            int32_t texResident = At<int32_t>(tex, texture::kResidentTiles);
-            int32_t texPending = At<int32_t>(tex, texture::kPendingTiles);
-            int current = At<int32_t>(tex, texture::kCurrentLevel);
-            int level = AdmittedLevelOf(admitted, admittedCount, At<uint64_t>(at, node::kHash));
-            resident += texResident;
-            pending += texPending;
-            if (level < 0) notAdmitted += texResident;
-            else if (current > level) aboveAdmitted += TilesBetween(tex, level, current);
-
-            if (listTracked) {
-                Put(tracked, (uint64_t)(uintptr_t)tex);
-                Put(tracked, texResident);
-                Put(tracked, (int16_t)std::clamp(texPending, -32768, 32767));
-                Put(tracked, (int8_t)std::clamp(current, -128, 127));
-                Put(tracked, (int8_t)std::clamp(level, -128, 127));
-                ++trackedEntries;
-            }
-        }
-
-        const BYTE* right = At<BYTE*>(at, node::kRight);
-        if (!At<uint8_t>(right, node::kIsNil)) {
-            at = right;
-            while (!At<uint8_t>(At<BYTE*>(at, node::kLeft), node::kIsNil)) at = At<BYTE*>(at, node::kLeft);
-            continue;
-        }
-        const BYTE* parent = At<BYTE*>(at, node::kParent);
-        while (!At<uint8_t>(parent, node::kIsNil) && at == At<BYTE*>(parent, node::kRight)) {
-            at = parent;
-            parent = At<BYTE*>(at, node::kParent);
-        }
-        at = parent;
-    }
-
-    const BYTE* alloc = At<BYTE*>(str, streamer::kAllocator);
-    const BYTE* tilePool = At<BYTE*>(alloc, allocator::kPool);
-
-    block.append("KICK", 4);
-    Put(block, now);
-    Put(block, NowSec());
-    Put(block, At<int32_t>(str, streamer::kCap));
-    Put(block, At<int32_t>(str, streamer::kAvail));
-    Put(block, (uint32_t)recordCount);
-    Put(block, At<uint32_t>(str, streamer::kAdmitted));
-    Put(block, (uint32_t)demandCount);
-    Put(block, trackedEntries);
-    Put(block, (int64_t)At<uint64_t>(tilePool, pool::kUsed));
-    Put(block, (int64_t)At<int32_t>(alloc, allocator::kPending));
-    Put(block, resident);
-    Put(block, pending);
-    Put(block, notAdmitted);
-    Put(block, aboveAdmitted);
-    Put(block, GateSpace(frame));
-    for (size_t i = 0; i < demandCount; ++i) {
-        const BYTE* entry = demand + i * kDemandEntrySize;
-        Put(block, (uint64_t)(uintptr_t)At<BYTE*>(entry, 0));
-        Put(block, At<float>(entry, 0x10));
-        Put(block, At<uint16_t>(entry, 0x14));
-        Put(block, (uint16_t)0);
-    }
-    block.append((const char*)records, recordCount * kRecordSize);
-    block.append(tracked);
-
-    AcquireSRWLockExclusive(&g_censusLock);
-    if (g_censusPending.size() + block.size() <= kCensusMaxPendingBytes) g_censusPending.append(block);
-    else g_censusDropped++;
-    ReleaseSRWLockExclusive(&g_censusLock);
-}
-
-// A fault while reading turns the census off, the hooks carry on.
-static void CensusKick(const BYTE* str, const BYTE* frame, uint64_t now)
-{
-    if (!g_censusOn) return;
-    __try {
-        CensusKickBody(str, frame, now);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        g_censusOn = false;
-        Log("[streamer] the census faulted reading kick %llu and is off for the rest of the session", (unsigned long long)now);
-    }
-}
-
-static void CensusWrite(const std::string& blocks)
-{
-    if (blocks.empty()) return;
-    if (g_censusFile == INVALID_HANDLE_VALUE) {
-        std::wstring path = g_dir + L"acevo_perf_census.bin";
-        g_censusFile = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (g_censusFile == INVALID_HANDLE_VALUE) return;
-    }
-    DWORD written = 0;
-    WriteFile(g_censusFile, blocks.data(), (DWORD)blocks.size(), &written, nullptr);
-    g_censusBytes += written;
-}
-
-static void CensusFlush()
-{
-    std::string blocks;
-    AcquireSRWLockExclusive(&g_censusLock);
-    blocks.swap(g_censusPending);
-    ReleaseSRWLockExclusive(&g_censusLock);
-    CensusWrite(blocks);
-}
-
-// The same rule as the trace at exit, a thread that died holding the lock leaves the rest unwritten.
-static void CensusFinalFlush()
-{
-    std::string blocks;
-    if (!TryAcquireSRWLockExclusive(&g_censusLock)) return;
-    blocks.swap(g_censusPending);
-    ReleaseSRWLockExclusive(&g_censusLock);
-    CensusWrite(blocks);
-    if (g_censusFile == INVALID_HANDLE_VALUE) return;
-
-    CloseHandle(g_censusFile);
-    g_censusFile = INVALID_HANDLE_VALUE;
-    Log("[streamer] census wrote %.1f MB, %llu kicks dropped because the writer fell behind",
-        g_censusBytes / 1048576.0, (unsigned long long)g_censusDropped.load());
-}
-
-// ---------------------------------------------------------------------------
 // The decisions
 // ---------------------------------------------------------------------------
 
@@ -756,7 +499,6 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
         At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
         s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
         (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
-    CensusKick(str, frame, now);
 
     s_tally = KickTally{};
     s_kick = now;
@@ -1049,7 +791,7 @@ static void PatchStub(BYTE* stub, StubPatch patch, const BYTE* target)
 void InstallStreamerHooks()
 {
     bool anyFix = g_cfg.streamerReloadFix || g_cfg.streamerRankFix || g_cfg.streamerPartialLoads;
-    if (!g_cfg.streamingTrace && !anyFix && !g_cfg.streamerCensus) return;
+    if (!g_cfg.streamingTrace && !anyFix) return;
 
     BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
     auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
@@ -1066,13 +808,6 @@ void InstallStreamerHooks()
                 "The game streams exactly as it would without the mod's fix.", region.what, (unsigned)region.rva);
             return;
         }
-    }
-
-    g_censusOn = g_cfg.streamerCensus;
-    for (const Region& region : kCensusRegions) {
-        if (!g_censusOn || Fnv1a64(base + region.rva, region.length) == region.fnv1a64) continue;
-        Log("[streamer] %s at rva 0x%07X is not the code the census was written against, census off", region.what, (unsigned)region.rva);
-        g_censusOn = false;
     }
 
     const Site* sites[] = { &kSiteDenied, &kSiteLevel, &kSiteDrop, &kSiteDrop0, &kSiteKick, &kSiteSort };
@@ -1175,7 +910,6 @@ void InstallStreamerHooks()
         g_cfg.streamerRankFix ? "on, a texture level keeps its most important request" : "off",
         g_cfg.streamerPartialLoads ? "on, a texture loads the levels that fit when its whole step does not" : "off",
         g_cfg.streamingTrace ? "on" : "off");
-    if (g_censusOn) Log("[streamer] census on, every kick's demand and ranked records go to acevo_perf_census.bin");
 }
 
 // ---------------------------------------------------------------------------
@@ -1219,7 +953,6 @@ void StreamerTick()
 {
     TraceFlush();
     if (!g_installed) return;
-    CensusFlush();
 
     static uint64_t lastReport = GetTickCount64();
     uint64_t now = GetTickCount64();
@@ -1232,5 +965,4 @@ void StreamerDetach()
 {
     if (g_installed) Report(" at exit:");
     TraceFinalFlush();
-    CensusFinalFlush();
 }

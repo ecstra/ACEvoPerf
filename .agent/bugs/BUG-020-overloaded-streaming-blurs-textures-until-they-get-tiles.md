@@ -1,10 +1,10 @@
 ---
 name: BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles
 kind: bug
-description: in a race with a field of cars the texture pool is full and textures stayed blurry until they got their tiles, because the streamer ranked every texture by its least important request and loaded a texture's detail only in one piece, both fixed on fix/streamer-overload-blur and seen fixed in game, while AI cars and some props stay blurry because the player's car and driver hold half the pool at the top rank
+description: in a race with a field of cars the texture pool is full and textures stayed blurry until they got their tiles, because the streamer ranked every texture by its least important request and loaded a texture's detail only in one piece, both fixed and seen fixed in game, with AI cars and some props still blurry in a full field accepted by the owner
 updated: 2026-09-13
-links: [texture-streamer-overload-2026-09-13, texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, directstorage-streaming]
-status: branched
+links: [texture-streamer-overload-2026-09-13, texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, DEC-018-a-full-texture-pool-keeps-the-players-car-first, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, directstorage-streaming]
+status: fixed
 severity: bug
 area: streaming
 reported: 2026-09-13
@@ -44,6 +44,9 @@ The first reading of this bug, that cars near the camera outrank the track throu
 priority table, was wrong. No material in these races carries the vehicle category, the player's
 car ranks on a table of its own at 60000 and AI cars rank on the default table like props.
 
+The 40 minute multiplayer crash stays unattributed. No logs arrived from that report, and a crash
+after a long session on that 8 GB card could equally be BUG-016's overhead or VRAM over the budget.
+
 ## Fix
 
 Branch `fix/streamer-overload-blur`, commit `9f7e83e`, 2026-09-13, both in
@@ -53,6 +56,9 @@ Branch `fix/streamer-overload-blur`, commit `9f7e83e`, 2026-09-13, both in
   texture level's most important request first, so the dedupe keeps that one.
 - `streamer_partial_loads` turns a load that does not fit into a load of the levels that do.
 
+The census that found both, `[developer] streamer_census`, came in with commit `a2bfc5e` and went
+out again with commit `removed: the streamer census, BUG-020 fixed`.
+
 ## Verification
 
 The second race of 29 AI on 2026-09-13. The owner saw the player's car sharp in 1 to 2 s on the
@@ -61,14 +67,8 @@ every pause. The log has every record keeping its highest request, 923 loads cut
 carrying 429 MB, drops down from 11,091 to 2,600, tile traffic over four laps down from 13.0 to 3.1
 MB/s, and frame rate inside race to race noise.
 
-## Open
-
-- AI cars and some building sides stay blurry in a full field. The player's car and driver hold
-  487 MB of the pool at the top rank and AI cars rank like props, so while the field passed on lap
-  5 no level of the AI BMWs was admitted. Ranked again offline, lowering the player's car gives the
-  room to the track and not the AI cars, and ranking AI cars as cars takes it from the track. Which
-  of these, if any, is the owner's call, with the numbers in the research doc.
-- The 40 minute multiplayer crash. No logs arrived from that report. An 8 GB card gets a 1536 MB
-  pool and 192 MB staging from `auto`, and a crash after a long session could equally be BUG-016's
-  overhead or VRAM over the budget.
-- `[developer] streamer_census` comes out when this bug closes.
+AI cars of other models and some building sides still look blurry in a full field, because the
+player's car and driver hold 487 MB of the pool at the top rank and AI cars rank like props. The
+owner accepted that on 2026-09-13, "Leave it as is I guess. It was acceptable.", and why the other
+ways of sharing the pool lost is
+[DEC-018](../decisions/DEC-018-a-full-texture-pool-keeps-the-players-car-first.md).

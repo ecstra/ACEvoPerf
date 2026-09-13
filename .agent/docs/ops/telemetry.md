@@ -96,25 +96,6 @@ The log gets a `[streamer]` line every `stats_interval_s` with the same counts a
 own tile pool figures (used, capacity, pending), and the file to memory queue's `[stats]` line is
 followed by the total of repeated reads.
 
-## acevo_perf_census.bin
-
-Written only with `[developer] streamer_census=1`, a development instrument for BUG-020 that
-comes out again when that bug closes. At each kick's first event it copies what the kick ranked,
-so a session can be ranked again offline. Little endian blocks, each led by four ASCII letters.
-
-- `TEXD`, a texture the demand names for the first time. Texture pointer, path hash as the
-  engine computes it, material category (`Texture+0x270`), level count, tiles of levels 0 to 7 as
-  16 bit counts, path length and the UTF-8 path
-- `KICK`, kick number, seconds since attach, pool capacity, admission budget, records built,
-  records admitted, demand entries, tracked entries, pool used and pending tiles, the resident and
-  pending tiles of every tracked texture, the resident tiles of tracked textures not admitted at
-  all, tiles above the admitted level, load gate space. Then each demand entry {texture, distance,
-  flags, 0}, each record exactly as the engine keeps it {path hash, priority, 1, tiles, level}
-  with the admitted ones first, and on every 8th kick each tracked texture {texture, resident
-  tiles, pending tiles, current level, admitted level or -1}
-
-About 60 KB a kick in a thirty car race.
-
 ## GPU sampler
 
 Run beside the game, the report script joins it on the clock second:
