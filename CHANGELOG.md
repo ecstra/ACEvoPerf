@@ -62,7 +62,7 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   engine's own 1024 tile margin is free, so the texture stays on the sharper of the two mips it was
   flipping between. It lets go when the reading says the view moved away or the texture's screen
   coverage changes. Replayed through a recorded session it removes all of the parked churn and a
-  fifth to a quarter of the reload traffic while driving. Verified on the reference machine: parked
+  fifth to a quarter of the reload traffic while driving. Verified on the reference machine, parked
   at the Nurburgring pit exit the tile queue carried nothing at all with it on, against 12 to 15
   MB/s without, while the log showed it refusing the same 19 drops on every pass, and the owner saw
   nothing wrong over a lap. No frame rate change is claimed, the two sessions ran at different
