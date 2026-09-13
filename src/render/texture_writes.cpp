@@ -1,6 +1,5 @@
 #include "acevo/render/texture_writes.h"
 #include "acevo/core/config.h"
-#include "acevo/core/iat.h"
 #include "acevo/core/log.h"
 #include "acevo/render/frame_stats.h"
 #include "acevo/telemetry/streaming_trace.h"
@@ -56,7 +55,7 @@ std::unordered_map<ID3D12Resource*, Streamed> g_streamed;
 std::atomic<bool> g_hooked{false};
 
 std::atomic<uint64_t> g_streamedUav{0}, g_streamedRtv{0}, g_streamedTiled{0};
-std::atomic<uint64_t> g_byDirectStorage{0}, g_byGame{0}, g_byOther{0}, g_intoOther{0};
+std::atomic<uint64_t> g_byDirectStorage{0}, g_byGame{0}, g_byOther{0}, g_intoOther{0}, g_reusedAddress{0};
 std::atomic<uint64_t> g_regionHits{0}, g_resourceHits{0}, g_tilesHits{0}, g_resolveHits{0};
 
 struct ModuleRange {
@@ -114,6 +113,15 @@ void NoteWrite(ID3D12Resource* target, const char* how, std::atomic<uint64_t>& h
         g_intoOther++;
         return;
     }
+
+    // A streamed texture is reserved and tiled. An untiled destination at a recorded address is a
+    // new resource that took the address after the texture was freed, the first run on 2026-09-13
+    // caught 57 such copies into 64 by 64 BGRA textures.
+    D3D12_RESOURCE_DESC desc = target->GetDesc();
+    if (desc.Layout != D3D12_TEXTURE_LAYOUT_64KB_STANDARD_SWIZZLE && desc.Layout != D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE) {
+        g_reusedAddress++;
+        return;
+    }
     if (FromDirectStorage(caller)) {
         g_byDirectStorage++;
         return;
@@ -122,10 +130,25 @@ void NoteWrite(ID3D12Resource* target, const char* how, std::atomic<uint64_t>& h
     bool fromGame = caller >= g_exe.base && caller < g_exe.end;
     (fromGame ? g_byGame : g_byOther)++;
     hits++;
-    D3D12_RESOURCE_DESC desc = target->GetDesc();
     TraceRow("write", "%s,%p,%.3f,%s,0x%llX,%llu,%u,%u,%d,0x%X", how, (void*)target, since, fromGame ? "exe" : "other",
         (unsigned long long)(fromGame ? caller - g_exe.base : caller), (unsigned long long)desc.Width, desc.Height,
         (unsigned)desc.Format, (int)desc.Layout, (unsigned)desc.Flags);
+}
+
+// Several vtables share the same functions, so one saved original serves them all. A slot that
+// already holds the hook is left alone, and one holding anything but the saved original is not
+// touched, since a layer in between would otherwise be skipped.
+int PatchSlot(void** vt, int slot, void* hook, void** orig)
+{
+    if (vt[slot] == hook) return 1;
+    if (*orig && vt[slot] != *orig) return 0;
+
+    DWORD old = 0;
+    if (!VirtualProtect(&vt[slot], sizeof(void*), PAGE_READWRITE, &old)) return 0;
+    if (!*orig) *orig = vt[slot];
+    vt[slot] = hook;
+    VirtualProtect(&vt[slot], sizeof(void*), old, &old);
+    return 1;
 }
 
 void STDMETHODCALLTYPE Hook_CopyTextureRegion(ID3D12GraphicsCommandList* self, const D3D12_TEXTURE_COPY_LOCATION* dst,
@@ -197,23 +220,30 @@ void TextureWritesOnSwapChain(IUnknown* deviceOrQueue)
 
     g_exe = RangeOf(GetModuleHandleW(nullptr));
 
-    // any direct command list will do, the vtable belongs to the type and not the instance
-    ID3D12CommandAllocator* allocator = nullptr;
-    ID3D12GraphicsCommandList* list = nullptr;
-    if (SUCCEEDED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator)))
-        && SUCCEEDED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, nullptr, IID_PPV_ARGS(&list)))) {
-        void** vt = *(void***)list;
-        HookVtableSlot(vt, kSlotCopyTextureRegion, (void*)&Hook_CopyTextureRegion, (void**)&g_origCopyTextureRegion, "ID3D12GraphicsCommandList::CopyTextureRegion");
-        HookVtableSlot(vt, kSlotCopyResource, (void*)&Hook_CopyResource, (void**)&g_origCopyResource, "ID3D12GraphicsCommandList::CopyResource");
-        HookVtableSlot(vt, kSlotCopyTiles, (void*)&Hook_CopyTiles, (void**)&g_origCopyTiles, "ID3D12GraphicsCommandList::CopyTiles");
-        HookVtableSlot(vt, kSlotResolveSubresource, (void*)&Hook_ResolveSubresource, (void**)&g_origResolveSubresource, "ID3D12GraphicsCommandList::ResolveSubresource");
-        list->Close();
-    } else {
-        Log("[writes] could not create a command list to find its vtable, runtime writes are not watched");
+    // Direct, compute and copy command lists each have their own vtable in this runtime, pointing
+    // at the same functions, measured on 2026-09-13. DirectStorage uploads on copy lists, so all
+    // three are hooked.
+    const D3D12_COMMAND_LIST_TYPE types[] = { D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_TYPE_COMPUTE, D3D12_COMMAND_LIST_TYPE_COPY };
+    const char* names[] = { "direct", "compute", "copy" };
+    for (int i = 0; i < 3; ++i) {
+        ID3D12CommandAllocator* allocator = nullptr;
+        ID3D12GraphicsCommandList* list = nullptr;
+        if (SUCCEEDED(device->CreateCommandAllocator(types[i], IID_PPV_ARGS(&allocator)))
+            && SUCCEEDED(device->CreateCommandList(0, types[i], allocator, nullptr, IID_PPV_ARGS(&list)))) {
+            void** vt = *(void***)list;
+            int patched = PatchSlot(vt, kSlotCopyTextureRegion, (void*)&Hook_CopyTextureRegion, (void**)&g_origCopyTextureRegion)
+                        + PatchSlot(vt, kSlotCopyResource, (void*)&Hook_CopyResource, (void**)&g_origCopyResource)
+                        + PatchSlot(vt, kSlotCopyTiles, (void*)&Hook_CopyTiles, (void**)&g_origCopyTiles)
+                        + PatchSlot(vt, kSlotResolveSubresource, (void*)&Hook_ResolveSubresource, (void**)&g_origResolveSubresource);
+            Log("[writes] %s command list vtable %p, %d of 4 copy calls hooked", names[i], (void*)vt, patched);
+            list->Close();
+        } else {
+            Log("[writes] could not create a %s command list to find its vtable, those copies are not watched", names[i]);
+        }
+        if (list) list->Release();
+        if (allocator) allocator->Release();
     }
 
-    if (list) list->Release();
-    if (allocator) allocator->Release();
     device->Release();
     queue->Release();
 }
@@ -233,9 +263,10 @@ void TextureWritesTick()
 
     Log("[writes] streamed textures %zu (tiled %llu, created writable by shaders %llu unordered access, %llu render target) | "
         "copies into them by DirectStorage %llu, by the game %llu, by anything else %llu (region %llu, resource %llu, tiles %llu, resolve %llu) | "
-        "copies into other resources %llu",
+        "copies into other resources %llu, into a new resource at a streamed texture's old address %llu",
         streamed, (unsigned long long)g_streamedTiled.load(), (unsigned long long)g_streamedUav.load(), (unsigned long long)g_streamedRtv.load(),
         (unsigned long long)g_byDirectStorage.load(), (unsigned long long)g_byGame.load(), (unsigned long long)g_byOther.load(),
         (unsigned long long)g_regionHits.load(), (unsigned long long)g_resourceHits.load(),
-        (unsigned long long)g_tilesHits.load(), (unsigned long long)g_resolveHits.load(), (unsigned long long)g_intoOther.load());
+        (unsigned long long)g_tilesHits.load(), (unsigned long long)g_resolveHits.load(), (unsigned long long)g_intoOther.load(),
+        (unsigned long long)g_reusedAddress.load());
 }
