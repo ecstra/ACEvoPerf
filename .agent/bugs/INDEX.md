@@ -19,7 +19,7 @@ bug
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3 spends 3.52 s building twenty tyre models for four distinct results, on the serial chain that ends the session load 2.05 s after streaming finishes
 - [BUG-020-track-textures-blur-when-many-cars-are-close](BUG-020-track-textures-blur-when-many-cars-are-close.md), ten cars near the camera push hundreds of track textures to their coarsest level for a second or more in a pool already at its ceiling, possibly the pressure behind a 40 minute multiplayer crash report
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
-- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, everything else ruled out over nineteen laps, parked with its leads in TODO-010
+- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, and on a flat GPU clock the frames alternate long and short without the mod while the mod evens them, leaving a p99 of 1.25 times the median and the untested present path through the integrated GPU
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
 
 nit

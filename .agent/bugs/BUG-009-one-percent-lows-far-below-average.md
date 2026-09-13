@@ -2,7 +2,7 @@
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
 description: the 1 percent low frame rate sits about 20 fps under the displayed average
-updated: 2026-09-06
+updated: 2026-09-13
 links: [lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry]
 status: open
 severity: bug
