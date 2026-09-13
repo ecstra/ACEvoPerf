@@ -47,6 +47,10 @@ lap, and a 29 AI race ran CPU bound at 56 fps against 67 earlier, not a pair. So
 detail the engine loads as designed, no budget size fixes it, and what is left to look at is whether
 the mesh streamer loads detail the screen cannot show.
 
+Run R, release 0.3.1 on the same protocol, had the gap too, 4.33 fps parked and 8.52 on the lap
+behind N, and 0.68 fps behind M parked with the parked churn the reload fix removed. So the gap has
+been there since the fixed pools shipped, not something added after the release.
+
 ## Done when
 
 The mod fully passive and the shipped defaults have been run as a controlled pair on the undervolted

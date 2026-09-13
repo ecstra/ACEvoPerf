@@ -165,6 +165,24 @@ repeat with the lap is the texture flip's pattern at a budget edge.
   uploads, against 67 fps in the two 29 AI races at 1433 MB earlier in the day. Those ran at 15:00
   and this one at 8:00, so it is not a pair, and whether 366 MB costs anything in a race is open.
 
+## R, release 0.3.1
+
+Session `logs/frametime-20260913/R-release-0.3.1`, the owner asking whether the gap came in after the
+release. The zip's own DLL and ini with only its two CSVs on, which is M without the reload fix and
+without the big screens fix, same budgets, runtime, Reflex and priorities.
+
+| | N, passive | R, release 0.3.1 | M, mod on |
+|---|---|---|---|
+| parked fps, median, p99 | 96.56, 10.34 ms, 13.51 ms | 92.23, 10.80 ms, 13.55 ms | 92.92, 10.66 ms, 13.41 ms |
+| lap fps, median, p99 | 97.18, 10.36 ms, 13.68 ms | 88.66, 11.32 ms, 14.12 ms | 89.42, 11.22 ms, 14.27 ms |
+| tile traffic parked, lap | 0, 0 MB/s | 14.70, 17.93 MB/s | 0.07, 16.34 MB/s |
+
+- **0.3.1 had the gap.** 4.33 fps slower than N parked, 4.19 to 4.46, and 8.52 on the lap, 7.03 to
+  10.05. The game log shows the same canonical 1433 MB mesh budget.
+- **It is 0.68 fps slower than M parked**, 0.51 to 0.85, with the parked churn back at 14.70 MB/s,
+  about what the reload fix measured on its own. On the lap the 0.76 fps is not told apart from
+  nothing.
+
 ## Where it stands
 
 Nothing in the gap is wasted work. It is the mesh detail the engine loads when given its canonical
