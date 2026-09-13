@@ -57,10 +57,14 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   as if it had been measured against the full texture. Near the edge of the tile budget a texture
   therefore drops its finer mip and loads it again on the next pass, forever, even parked with the
   camera still, which at the Nurburgring pit exit is 14 to 22 MB/s of disk reads and GPU uploads.
-  Turned on, the mod spots a texture reloading the mip it just dropped and refuses that drop while
-  the tile pool has room, so the texture stays on the sharper of the two mips it was flipping
-  between. It edits the game's code in memory and patches nothing unless every byte it relies on
-  matches the build it was written for, so a game update means it quietly does not apply.
+  Turned on, the mod recognises the flip from the feedback readings themselves, a texture reloading
+  the mip it just dropped with nothing about the view changed, and refuses its next drop while the
+  engine's own 1024 tile margin is free, so the texture stays on the sharper of the two mips it was
+  flipping between. It lets go when the reading says the view moved away or the texture's screen
+  coverage changes. Replayed through a recorded session it removes all of the parked churn and a
+  fifth to a quarter of the reload traffic while driving. It edits the game's code in memory and
+  patches nothing unless every byte it relies on matches the build it was written for, so a game
+  update means it quietly does not apply.
 - `streaming_trace` under `[log]` writes `acevo_perf_streaming.csv`, one row for each pass of the
   texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
   and each file read that repeats an earlier one exactly. Diagnostics, off by default.

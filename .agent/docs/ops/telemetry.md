@@ -77,13 +77,14 @@ hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 - `want`, an admitted texture below its admitted level, so a load is attempted. a kick, b texture,
   c current level, d admitted level, e level count, f tiles to load, g feedback mip, h feedback
   count, i feedback age in frames (mip -1 means no reading younger than the engine's limit), j 1
-  when this reloads a level dropped within six kicks, k load gate space
+  when this reloads a level dropped within six kicks and 2 when that reload is the flip and pins
+  the texture, k load gate space
 - `drop` and `drop0`, a drop to a lower admitted level, and a drop to level 0 of a texture not
   admitted at all. a kick, b texture, c current level, d level kept, e level count, f tiles
   dropped, g to i feedback as above, j 1 when the fix refused the drop, k the verdict, l load gate
-  space. Verdicts: 0 not a flipping texture, 1 refuse (or would refuse with the fix off), 2 view
-  moved past the flip, 3 texture above its pinned level, 4 not admitted for eight kicks, 5 not
-  enough gate space, 6 a load was turned away for space this kick or the last, 7 pool margin gone
+  space. Verdicts: 0 not a pinned texture, 1 refuse (or would refuse with the fix off), 2 the drop
+  left the flip, 3 stale feedback, 4 the reading says the view moved away, 5 screen coverage
+  changed, 6 the engine's 1024 tile margin is not free, 7 not admitted at all
 - `req`, a texture tile request. a resource, b subresource, c tiles, d package offset, e bytes
 - `reread`, a read into memory that repeats an earlier read exactly. a file (the `file=` of the
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read

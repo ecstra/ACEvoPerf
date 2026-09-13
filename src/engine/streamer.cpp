@@ -13,9 +13,17 @@
 // Why the conversion is not simply corrected. The shader clamps the reading at zero, so a coarse
 // mip cannot report "finer than this", and the engine has to probe upward to find out. A
 // corrected conversion would stop textures sharpening. The fix keeps what the probe found
-// instead: once a texture is seen reloading the mip it just dropped, that drop is refused while
-// the texture stays inside the band it was flipping across and the pool has real room. It
-// settles at the sharper of its two states, which is what the screen already showed half the time.
+// instead. It acts only on the flip itself, recognised from the readings: a texture dropped from
+// level f to c on a fresh reading, then reloaded on a fresh reading at the coarse view that is
+// the first one shifted down by the levels it lost, which is what a reading taken against the
+// bound view does and a real change of view does not. That texture's next drop back to c is
+// refused, and it settles at the sharper of its two states, which the screen already showed half
+// the time. It lets go when its reading says the view moved away, when its screen coverage
+// changes, when it stops being admitted at all, or when the drop leaves the flip.
+//
+// Parked at the Nurburgring pit exit on 2026-09-13 the recorded session replays to all of the
+// churn removed, and a fifth to a quarter of the reload traffic while driving, where most drops
+// are real changes of view and pass through.
 //
 // The five sites, each the rewrite of one rel32 displacement:
 //
@@ -36,10 +44,12 @@
 //     next one, so the per texture state below needs no lock. A second hook arriving while one is
 //     running would mean that is wrong, and everything then passes straight to the engine.
 //   - A refused drop keeps tiles the engine would have freed, and the engine's tile allocator
-//     stalls rather than evicts when the pool runs dry. So a drop is only refused while the space
-//     the load gate itself grants after this kick's loads still covers everything kept this kick,
-//     no load was turned away for space this kick or the last, and the pool has its 1024 tile
-//     margin plus the kept tiles free. Any of those failing and the engine drops as it always did.
+//     stalls rather than evicts when the pool runs dry. The pool is a fixed heap that sits full in
+//     normal play, parked the streamer turns about 120 loads away for space on every kick, so
+//     contention cannot be the test or the fix would never act, and the flipping texture holds
+//     those tiles half the time today anyway. The streamer's own loads go through a gate that
+//     keeps a 1024 tile margin free, the margin is what loads outside that gate live on, so a drop
+//     is only refused while used plus pending tiles still leave that margin free.
 //   - A fault inside a hook turns every hook into a straight pass through for the session.
 //   - It is applied from DllMain, before the game's entry point runs.
 #include "acevo/engine/streamer.h"
@@ -162,11 +172,13 @@ constexpr ptrdiff_t kContextAvailPtr = 0x18;
 // A texture that reloads what it dropped within this many kicks is flipping. Parked the reload
 // comes on the next kick, or up to five later when kicks pass without loads.
 static const uint64_t kFlipWindowKicks = 6;
-// A pinned texture that is not admitted at all for this many kicks has left view and is let go.
-static const int kUnselectedKicks = 8;
 static const uint64_t kForgetKicks = 256;
 // The streamer's own admission keeps this many tiles back for loads outside it.
 static const int64_t kPoolMarginTiles = 1024;
+// Screen coverage is the feedback sample count. Parked it holds to the sample, so a change beyond
+// this share, or two samples for small textures, means the view changed and the pin lets go.
+static const double kCoverageSlack = 0.25;
+static const uint32_t kCoverageSlackMin = 2;
 
 template <typename T>
 static T At(const BYTE* p, ptrdiff_t offset)
@@ -196,12 +208,12 @@ static std::atomic<uint64_t> g_refused{0}, g_refusedTiles{0}, g_wouldRefuse{0}, 
 enum class Verdict : int {
     NotPinned = 0,
     Refuse = 1,
-    MovedAway = 2,
-    AbovePin = 3,
-    UnadmittedTooLong = 4,
-    NoSpace = 5,
-    SpaceDenials = 6,
-    PoolFull = 7,
+    LeftTheFlip = 2,
+    StaleReading = 3,
+    MovedAway = 4,
+    CoverageChanged = 5,
+    PoolMargin = 6,
+    NotAdmitted = 7,
 };
 
 struct TextureState {
@@ -210,9 +222,11 @@ struct TextureState {
     int levels = -1;
     int dropFrom = -1;
     int dropTo = -1;
+    int dropMip = -1;           // the feedback reading the last drop was made on, -1 when stale
     int pinFine = -1;           // the level held while pinned, -1 when not pinned
-    int pinCoarse = -1;         // the lowest admitted level still inside the flip
-    int unadmittedKicks = 0;
+    int pinCoarse = -1;         // the level the flip dropped to
+    int pinMip = -1;            // the reading at the fine view when the flip was recognised
+    uint32_t pinCount = 0;      // the screen coverage then, in feedback samples
     bool described = false;
 };
 
@@ -227,7 +241,6 @@ static std::unordered_map<const BYTE*, TextureState> s_textures;
 static uint64_t s_kick = 0;
 static uint64_t s_deniedAtKickStart = 0;
 static uint64_t s_deniedLastKick = 0;
-static int64_t s_refusedTilesThisKick = 0;
 static KickTally s_tally;
 
 // ---------------------------------------------------------------------------
@@ -283,7 +296,8 @@ static Feedback ReadFeedback(const BYTE* str, const BYTE* tex)
     return fb;
 }
 
-static bool PoolHasRoom(const BYTE* str, int64_t extraTiles)
+// A refused drop's tiles are already counted in used, so this is the margin as it stands.
+static bool PoolKeepsMargin(const BYTE* str)
 {
     const BYTE* alloc = At<BYTE*>(str, streamer::kAllocator);
     const BYTE* tilePool = alloc ? At<BYTE*>(alloc, allocator::kPool) : nullptr;
@@ -292,7 +306,7 @@ static bool PoolHasRoom(const BYTE* str, int64_t extraTiles)
     int64_t total = At<int32_t>(tilePool, pool::kTotal);
     int64_t used = (int64_t)At<uint64_t>(tilePool, pool::kUsed);
     int64_t pending = At<int32_t>(alloc, allocator::kPending);
-    return used + pending + kPoolMarginTiles + extraTiles <= total;
+    return used + pending + kPoolMarginTiles <= total;
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +356,6 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
     uint64_t denied = *g_deniedCount;
     s_deniedLastKick = denied - s_deniedAtKickStart;
     s_deniedAtKickStart = denied;
-    s_refusedTilesThisKick = 0;
     g_allocator.store((BYTE*)At<BYTE*>(str, streamer::kAllocator));
     g_kicks++;
 
@@ -395,36 +408,42 @@ static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* cont
 
     uint64_t now = BeginEvent(str, frame);
     TextureState& state = Touch(tex, now);
-    state.unadmittedKicks = 0;
     if (admitted <= current) return;
 
     s_tally.wantsFiner++;
     g_wantsFiner++;
 
+    // The flip's signature. The drop was made on a fresh reading taken against the fine view, and
+    // the reading at the coarse view is that one shifted down by the levels lost, so nothing about
+    // the view changed, only which mip the shader measured against.
+    Feedback fb = ReadFeedback(str, tex);
     bool reload = state.dropKick && now - state.dropKick <= kFlipWindowKicks && admitted <= state.dropFrom && current <= state.dropTo;
-    if (reload) {
+    bool flip = reload && state.dropMip >= 1 && fb.mip >= 0 && fb.mip <= std::max(0, state.dropMip - (state.dropFrom - current));
+    if (flip) {
         if (state.pinFine < 0) { s_tally.pins++; g_pins++; }
         state.pinFine = admitted;
         state.pinCoarse = state.dropTo;
+        state.pinMip = state.dropMip;
+        state.pinCount = fb.count;
     }
 
     if (TraceOn()) {
-        Feedback fb = ReadFeedback(str, tex);
         TraceRow("want", "%llu,%p,%d,%d,%d,%lld,%d,%u,%u,%d,%lld",
             (unsigned long long)now, tex, current, admitted, state.levels, (long long)TilesBetween(tex, current, admitted),
-            fb.mip, fb.count, fb.age, reload ? 1 : 0, (long long)GateSpace(frame));
+            fb.mip, fb.count, fb.age, flip ? 2 : reload ? 1 : 0, (long long)GateSpace(frame));
     }
 }
 
-static Verdict Judge(const TextureState& state, int keep, int current, int64_t tiles, const BYTE* str, const BYTE* frame, bool admitted)
+static Verdict Judge(const TextureState& state, int keep, int current, const Feedback& fb, const BYTE* str, bool admitted)
 {
     if (state.pinFine < 0) return Verdict::NotPinned;
-    if (current > state.pinFine) return Verdict::AbovePin;
-    if (admitted && keep < state.pinCoarse) return Verdict::MovedAway;
-    if (!admitted && state.unadmittedKicks >= kUnselectedKicks) return Verdict::UnadmittedTooLong;
-    if (GateSpace(frame) < s_refusedTilesThisKick + tiles) return Verdict::NoSpace;
-    if (*g_deniedCount != s_deniedAtKickStart || s_deniedLastKick) return Verdict::SpaceDenials;
-    if (!PoolHasRoom(str, s_refusedTilesThisKick + tiles)) return Verdict::PoolFull;
+    if (!admitted) return Verdict::NotAdmitted;
+    if (current != state.pinFine || keep < state.pinCoarse) return Verdict::LeftTheFlip;
+    if (fb.mip < 0) return Verdict::StaleReading;
+    if (fb.mip > state.pinMip) return Verdict::MovedAway;
+    uint32_t drift = fb.count > state.pinCount ? fb.count - state.pinCount : state.pinCount - fb.count;
+    if (drift > std::max(kCoverageSlackMin, (uint32_t)(state.pinCount * kCoverageSlack))) return Verdict::CoverageChanged;
+    if (!PoolKeepsMargin(str)) return Verdict::PoolMargin;
     return Verdict::Refuse;
 }
 
@@ -442,33 +461,29 @@ static bool OnDrop(const BYTE* tex, int keep, const BYTE* str, const BYTE* frame
     TextureState& state = Touch(tex, now);
     int current = At<int32_t>(tex, texture::kCurrentLevel);
     int64_t tiles = TilesBetween(tex, keep, current);
+    Feedback fb = ReadFeedback(str, tex);
 
-    Verdict verdict = Judge(state, keep, current, tiles, str, frame, admitted);
+    Verdict verdict = Judge(state, keep, current, fb, str, admitted);
     bool refuse = verdict == Verdict::Refuse && g_cfg.streamerReloadFix;
-    if (!admitted && state.pinFine >= 0) state.unadmittedKicks++;
 
     if (refuse) {
-        s_refusedTilesThisKick += tiles;
         s_tally.refused++;
         g_refused++;
         g_refusedTiles += (uint64_t)tiles;
     } else {
         if (verdict == Verdict::Refuse) g_wouldRefuse++;
-        if (verdict == Verdict::MovedAway || verdict == Verdict::AbovePin || verdict == Verdict::UnadmittedTooLong) {
-            state.pinFine = -1;
-            state.pinCoarse = -1;
-            state.unadmittedKicks = 0;
-        }
+        // The pool margin is a reason to let this one drop, not to forget the flip.
+        if (verdict != Verdict::Refuse && verdict != Verdict::PoolMargin) state.pinFine = -1;
         state.dropKick = now;
         state.dropFrom = current;
         state.dropTo = keep;
+        state.dropMip = fb.mip;
         s_tally.drops++;
         g_drops++;
         if (!admitted) g_dropsUnadmitted++;
     }
 
     if (TraceOn()) {
-        Feedback fb = ReadFeedback(str, tex);
         TraceRow(admitted ? "drop" : "drop0", "%llu,%p,%d,%d,%d,%lld,%d,%u,%u,%d,%d,%lld",
             (unsigned long long)now, tex, current, keep, state.levels, (long long)tiles,
             fb.mip, fb.count, fb.age, refuse ? 1 : 0, (int)verdict, (long long)GateSpace(frame));
@@ -681,7 +696,7 @@ void InstallStreamerHooks()
     g_installed = true;
     Log("[streamer] hooked the texture streamer: kicks, admitted levels, drops and loads turned away for space. "
         "Reload fix %s, streaming trace %s.",
-        g_cfg.streamerReloadFix ? "on, flipping textures keep their finer mip while the pool has room" : "off, it only reports what it would refuse",
+        g_cfg.streamerReloadFix ? "on, flipping textures keep their finer mip while the engine's tile margin is free" : "off, it only reports what it would refuse",
         g_cfg.streamingTrace ? "on" : "off");
 }
 
