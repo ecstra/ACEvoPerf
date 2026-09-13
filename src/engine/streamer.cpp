@@ -55,16 +55,26 @@
 #include "acevo/engine/streamer.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
-#include "acevo/engine/code_patch.h"
 #include "acevo/telemetry/streaming_trace.h"
 #include <string_view>
 #include <unordered_map>
 
 // ---------------------------------------------------------------------------
-// The code this was written against
+// The build this was written against
 // ---------------------------------------------------------------------------
 
-static const CodeRegion kRegions[] = {
+// AssettoCorsaEVO.exe 0.9.1, the Steam build of 2026-09-11.
+static const DWORD kTimeDateStamp = 0x6A9EC72A;
+static const DWORD kSizeOfImage = 0x06CDD000;
+
+struct Region {
+    uint32_t rva;
+    uint32_t length;
+    uint64_t fnv1a64;
+    const char* what;
+};
+
+static const Region kRegions[] = {
     { 0x1F211E0, 0x280, 0xCAAD89909D58A3FCull, "the selected texture update (S2, S3, D)" },
     { 0x1F2EB51, 0x0B0, 0x14DB9ABBFD8FFC9Aull, "the update loop and the context it passes" },
     { 0x1F2ED9D, 0x021, 0x36A6C1A21032774Full, "the drop of textures not admitted (S4)" },
@@ -86,11 +96,19 @@ static const CodeRegion kRegions[] = {
     { 0x278BFD0, 0x016, 0x7DAA70DF7484B254ull, "the pool used getter" },
 };
 
-static const CodeSite kSiteDenied = { "D", 0x1F2137B, 2, 6, 0x1F2141B };    // jg past the load
-static const CodeSite kSiteLevel = { "S2", 0x1F212C1, 1, 5, 0x00DC2D1 };    // call the level getter
-static const CodeSite kSiteDrop = { "S3", 0x1F21451, 1, 5, 0x0110342 };     // jmp dropLevels
-static const CodeSite kSiteDrop0 = { "S4", 0x1F2EDB9, 1, 5, 0x0110342 };    // call dropLevels
-static const CodeSite kSiteKick = { "S1", 0x1F2939B, 3, 7, 0x0186AFB };     // lea rax, kick thunk
+struct Site {
+    const char* what;
+    uint32_t rva;
+    uint8_t dispOffset;
+    uint8_t length;
+    uint32_t target;
+};
+
+static const Site kSiteDenied = { "D", 0x1F2137B, 2, 6, 0x1F2141B };    // jg past the load
+static const Site kSiteLevel = { "S2", 0x1F212C1, 1, 5, 0x00DC2D1 };    // call the level getter
+static const Site kSiteDrop = { "S3", 0x1F21451, 1, 5, 0x0110342 };     // jmp dropLevels
+static const Site kSiteDrop0 = { "S4", 0x1F2EDB9, 1, 5, 0x0110342 };    // call dropLevels
+static const Site kSiteKick = { "S1", 0x1F2939B, 3, 7, 0x0186AFB };     // lea rax, kick thunk
 
 static const uint32_t kRvaKick = 0x1F2D110;
 static const uint32_t kRvaDropLevels = 0x1C82390;
@@ -169,6 +187,16 @@ static T At(const BYTE* p, ptrdiff_t offset)
     T value;
     memcpy(&value, p + offset, sizeof value);
     return value;
+}
+
+static uint64_t Fnv1a64(const BYTE* p, size_t n)
+{
+    uint64_t h = 0xCBF29CE484222325ull;
+    for (size_t i = 0; i < n; ++i) {
+        h ^= p[i];
+        h *= 0x100000001B3ull;
+    }
+    return h;
 }
 
 // ---------------------------------------------------------------------------
@@ -544,20 +572,66 @@ static void HookStreamerDropUnadmitted(BYTE* tex, int keep, BYTE* str, BYTE* fra
 // Installing
 // ---------------------------------------------------------------------------
 
+// A 32 bit displacement reaches 2 GB either way, so the stubs have to live near the exe.
+static BYTE* AllocNear(BYTE* anchor, size_t size)
+{
+    SYSTEM_INFO si = {};
+    GetSystemInfo(&si);
+    const uintptr_t granularity = si.dwAllocationGranularity ? si.dwAllocationGranularity : 0x10000;
+    const uintptr_t reach = 0x60000000ull;   // well inside 2 GB, leaving room for the exe itself
+
+    for (uintptr_t delta = granularity; delta < reach; delta += granularity) {
+        const uintptr_t base = (uintptr_t)anchor;
+        const uintptr_t candidates[2] = { base + delta, base > delta ? base - delta : 0 };
+        for (uintptr_t addr : candidates) {
+            if (!addr) continue;
+            void* p = VirtualAlloc((void*)(addr & ~(granularity - 1)), size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            if (p) return (BYTE*)p;
+        }
+    }
+    return nullptr;
+}
+
+struct Emitter {
+    BYTE* at;
+
+    void Bytes(std::initializer_list<BYTE> bytes)
+    {
+        for (BYTE b : bytes) *at++ = b;
+    }
+
+    // inc qword ptr [rip + disp32]
+    void IncrementQword(const BYTE* counter)
+    {
+        Bytes({ 0x48, 0xFF, 0x05 });
+        int32_t disp = (int32_t)(counter - (at + 4));
+        memcpy(at, &disp, 4);
+        at += 4;
+    }
+
+    // jmp qword ptr [rip], followed by the absolute target
+    void JumpTo(void* target)
+    {
+        Bytes({ 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 });
+        memcpy(at, &target, 8);
+        at += 8;
+    }
+};
+
 void InstallStreamerHooks()
 {
     if (!g_cfg.streamingTrace && !g_cfg.streamerReloadFix) return;
 
     BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
     auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kPatchedBuildTimeDateStamp || nt->OptionalHeader.SizeOfImage != kPatchedBuildSizeOfImage) {
+    if (nt->FileHeader.TimeDateStamp != kTimeDateStamp || nt->OptionalHeader.SizeOfImage != kSizeOfImage) {
         Log("[streamer] this is not the game build the streamer hooks were written for (stamp %08X, image %08X), nothing patched. "
             "The game streams exactly as it would without the mod's fix.",
             (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
         return;
     }
 
-    for (const CodeRegion& region : kRegions) {
+    for (const Region& region : kRegions) {
         if (Fnv1a64(base + region.rva, region.length) != region.fnv1a64) {
             Log("[streamer] %s at rva 0x%07X is not the code this was written against, nothing patched. "
                 "The game streams exactly as it would without the mod's fix.", region.what, (unsigned)region.rva);
@@ -565,8 +639,8 @@ void InstallStreamerHooks()
         }
     }
 
-    const CodeSite* sites[] = { &kSiteDenied, &kSiteLevel, &kSiteDrop, &kSiteDrop0, &kSiteKick };
-    for (const CodeSite* site : sites) {
+    const Site* sites[] = { &kSiteDenied, &kSiteLevel, &kSiteDrop, &kSiteDrop0, &kSiteKick };
+    for (const Site* site : sites) {
         int32_t rel = At<int32_t>(base + site->rva, site->dispOffset);
         if ((int64_t)site->rva + site->length + rel != (int64_t)site->target) {
             Log("[streamer] site %s at rva 0x%07X does not point where it should, nothing patched", site->what, (unsigned)site->rva);
@@ -627,7 +701,7 @@ void InstallStreamerHooks()
 
     BYTE* lo = base + sites[0]->rva;
     BYTE* hi = lo;
-    for (const CodeSite* site : sites) {
+    for (const Site* site : sites) {
         lo = std::min(lo, base + site->rva);
         hi = std::max(hi, base + site->rva + site->length);
     }
