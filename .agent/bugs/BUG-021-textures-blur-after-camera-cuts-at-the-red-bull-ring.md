@@ -1,11 +1,11 @@
 ---
 name: BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring
 kind: bug
-description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, with the reload fix off as much as on, because the 1024 MB texture pool is full while 1.4 GB of video memory sits unused
+description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, with the reload fix off as much as on, the scenery because the 1024 MB texture pool is full and the car because the engine drops its livery at every cut even with room to spare, parked low priority
 updated: 2026-09-13
-links: [DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-track-textures-blur-when-many-cars-are-close, BUG-010-texture-pool-shrinks-on-race-load-and-restart]
+links: [DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-track-textures-blur-when-many-cars-are-close, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
 status: open
-severity: bug
+severity: nit
 area: streaming
 reported: 2026-09-13
 parent:
@@ -52,5 +52,42 @@ buys this scene room that a race does not have.
 
 ## Fix
 
-Absent. The next step is the same pit menu wait with `tile_pool_mb=1536`, which answers whether pool
-room is what the cut is waiting on.
+Absent.
+
+## A bigger pool fixes the scenery and not the car, 2026-09-13
+
+Session `logs/rbr-blur-20260913/C-pool-1536-fix-off`, the same pit menu wait with `tile_pool_mb=1536`
+and nothing else changed. Owner wording: "it fixed it for most scenes except the car scene. so a
+partial fix. Since the textures do load anyways, this is a low priority issue. Try another angle."
+
+The streaming trace names the car's part. The Ferrari's livery, `skins\design_1\EXT_Skin_C` and
+`EXT_Skin_D`, 340 tiles each at full detail, is dropped straight to its coarsest level by the
+streamer's drop of textures not admitted at all the moment a shot of the track starts, and loaded
+again when the camera comes back to the car, over one or two passes.
+
+| livery `EXT_Skin_C` in the Red Bull Ring scene | pass | event |
+|---|---|---|
+| 21.3 s | 21 | loaded to full detail, gate space 18,630 tiles |
+| 121.3 s | 127 | dropped to the coarsest level |
+| 137.7 s and 138.7 s | 144, 145 | wanted full detail again on two passes |
+| 154.1 s | 161 | dropped to the coarsest level |
+| 170.5 s | 178 | wanted full detail again |
+| 187.0 s | 195 | dropped to the coarsest level |
+
+The gate had 11,000 to 20,000 tiles free through those cuts, so the drop is not the pool asking for
+room. The engine throws away every texture of the shot it leaves, and the showcase comes back to the
+car every 30 s or so. The livery never has a feedback reading (mip -1), so the car's detail comes
+from the engine's own priority and not from what the shader saw.
+
+Two angles for later, neither tried:
+
+- **Keep what is not needed while nothing waits.** Refuse a drop of a texture not admitted at all
+  while the previous pass turned no load away for space. With room it keeps the car across cuts. With
+  the shipped 1024 MB pool at the Red Bull Ring a load is turned away on every pass, so it would never
+  act there and changes nothing at the default, which is where the scenery blur lives.
+- **A pool sized to the scene.** The scenery half needs room, and the fixed pool is 1024 MB so a 29 AI
+  race keeps its headroom. The engine's own resizing measures the room while the previous scene is
+  still in memory (BUG-010), so this means sizing it again after the unload.
+
+Parked as low priority on the owner's word. It belongs with the streaming round of TODO-019, which
+already covers the Red Bull Ring's texture traffic while driving.
