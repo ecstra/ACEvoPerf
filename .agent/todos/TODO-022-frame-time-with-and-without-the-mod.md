@@ -32,6 +32,10 @@ The mod costs 3.8 percent parked and 8 percent on a lap, 10.34 against 10.66 ms 
 both pools to 366 MB and streamed no textures at all, so the budgets are the first suspect. It is not
 the reload fix, which measured 1.4 percent faster on its own, so this continues on its own branch.
 
+Run P1, the mod with the engine's own budgets, got back 2.72 of the 3.64 fps parked and 5.72 of 7.76
+on the lap, and the owner saw everything mushy again. So three quarters of the cost is the detail the
+budgets buy, and the rest of the mod is about 1 percent. P2 splits textures from meshes.
+
 ## Done when
 
 The mod fully passive and the shipped defaults have been run as a controlled pair on the undervolted
