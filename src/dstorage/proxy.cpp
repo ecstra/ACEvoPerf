@@ -6,6 +6,7 @@
 #include "acevo/telemetry/timeline.h"
 #include "acevo/telemetry/load_sampler.h"
 #include "acevo/telemetry/streaming_trace.h"
+#include "acevo/render/texture_writes.h"
 #include "acevo/overlay/overlay.h"
 #include <unordered_map>
 
@@ -145,6 +146,7 @@ static void TraceFileRequest(const DSTORAGE_REQUEST* request)
 
     if (request->Options.DestinationType == DSTORAGE_REQUEST_DESTINATION_TILES) {
         const DSTORAGE_DESTINATION_TILES& tiles = request->Destination.Tiles;
+        NoteStreamedResource(tiles.Resource);
         TraceRow("req", "%p,%u,%u,%llu,%u", (void*)tiles.Resource, tiles.TiledRegionStartCoordinate.Subresource,
             tiles.TileRegionSize.NumTiles, (unsigned long long)source.Offset, source.Size);
         return;

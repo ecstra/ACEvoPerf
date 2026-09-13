@@ -6,6 +6,7 @@
 #include "acevo/dstorage/stats.h"
 #include "acevo/engine/exceptions.h"
 #include "acevo/engine/streamer.h"
+#include "acevo/render/texture_writes.h"
 
 static HANDLE g_timelineThread = nullptr;
 
@@ -72,6 +73,7 @@ static DWORD WINAPI TimelineThread(void*)
         Sleep(1000);
         ThrowLogTick();
         StreamerTick();
+        TextureWritesTick();
         g_hitchLogBudget.store(5);
         if (!anyCsv) continue;
         double t = NowSec(); double dt = t - lastT; if (dt <= 0) dt = 1; lastT = t;

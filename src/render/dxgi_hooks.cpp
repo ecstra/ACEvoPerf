@@ -4,6 +4,7 @@
 #include "acevo/core/iat.h"
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/adapter.h"
+#include "acevo/render/texture_writes.h"
 
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChainForHwnd)(IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateSwapChain)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**);
@@ -20,6 +21,7 @@ static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self
     if (SUCCEEDED(hr) && pp && *pp) {
         HookSwapChain(*pp);
         LogDisplayOwner(self, device, hwnd);
+        TextureWritesOnSwapChain(device);
     }
     return hr;
 }
