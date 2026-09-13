@@ -70,6 +70,8 @@ void LoadConfig()
     g_cfg.workingSetFloorMb = IniInt(L"process", L"working_set_floor_mb", 0);
 
     g_cfg.streamerReloadFix = IniBool(L"engine", L"streamer_reload_fix", true);
+    g_cfg.streamerRankFix = IniBool(L"engine", L"streamer_rank_fix", true);
+    g_cfg.streamerPartialLoads = IniBool(L"engine", L"streamer_partial_loads", true);
 
     {
         std::vector<wchar_t> buf(32768);

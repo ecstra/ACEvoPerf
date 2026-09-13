@@ -39,6 +39,8 @@ struct Config {
     int  workingSetFloorMb = 0;      // 0 = leave alone
     // [engine]
     bool streamerReloadFix = true;   // refuse the texture streamer's drop of a mip it keeps reloading
+    bool streamerRankFix = true;     // rank a texture level by its most important request, not its least
+    bool streamerPartialLoads = true; // load the levels that fit when a texture's whole step does not
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

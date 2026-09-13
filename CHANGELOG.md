@@ -93,6 +93,22 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Fixed
 
+- In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
+  seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
+  the engine's texture streamer cause it, and both only show once the texture pool is full, which
+  on a 6 GB card it always is in a race with AI. First, every object that draws a texture asks for
+  it with its own priority, and the streamer kept the lowest of those requests. Your car asks for
+  its livery at the top priority, an AI car of the same model 50 m away asks for the same file near
+  the bottom, and the livery was ranked as if only that AI car wanted it, so it was pushed out of
+  the pool. In a recorded thirty car race every one of 7036 texture levels with differing requests
+  kept the lowest. The mod makes the streamer keep the highest (`streamer_rank_fix`). Second, the
+  streamer only loads a texture's missing detail in one piece. A livery at its coarsest level needs
+  340 tiles at once, the free space at its turn was usually a few dozen to a couple of hundred, so
+  it stayed at 256 by 256 for 72 seconds after a race start while there was room for most of its
+  detail. The mod loads the levels that fit and the rest follow as space comes back
+  (`streamer_partial_loads`). Both are in `[engine]`, on, 0 turns either off. Not checked in game
+  yet.
+
 - The trackside big screens were a blurry mess while the display in the menu next to them looked
   fine. They are one texture holding 64 frames in an 8 by 8 grid, stepped through as an animation,
   which means the engine picks its mip from the whole sheet rather than the frame on show, so every

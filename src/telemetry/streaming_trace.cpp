@@ -49,7 +49,7 @@ static void WriteOut(std::string& rows)
         std::wstring path = g_dir + L"acevo_perf_streaming.csv";
         g_file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (g_file == INVALID_HANDLE_VALUE) return;
-        static const char header[] = "t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m\r\n";
+        static const char header[] = "t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o\r\n";
         DWORD w;
         WriteFile(g_file, header, (DWORD)(sizeof header - 1), &w, nullptr);
     }

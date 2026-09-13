@@ -66,14 +66,15 @@ tile requests or uploads against the share of all frames that do.
 
 Written only with `[developer] streaming_trace=1`, from hooks on the engine's texture streamer
 (`src/engine/streamer.cpp`) and from the DirectStorage queue proxy. Rows are buffered and written
-once a second by the timeline thread. The header is `t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m`, `t_s`
-is seconds since attach on the same clock as the frames CSV, and the kind says what the letters
-hold. Levels count from 0, the coarsest, and a tile is 64 KB.
+once a second by the timeline thread. The header is `t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o`,
+`t_s` is seconds since attach on the same clock as the frames CSV, and the kind says what the
+letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 
 - `kick`, one pass of the streamer, written at its first event. a kick number, b pool capacity in
   tiles, c admission budget, d records built, e records admitted, f tiles admitted, g records
   rejected, h load gate space at that moment, i load gate byte, then for the previous kick j
-  textures that wanted a finer level, k loads turned away for space, l drops, m drops refused
+  textures that wanted a finer level, k loads turned away for space, l drops, m drops refused, n
+  loads cut to the levels that fit, o tiles those loads carried
 - `tex`, a texture seen for the first time. a Texture pointer, b its `ID3D12Resource` (the `res`
   of `req` rows), c level count, d package path
 - `want`, an admitted texture below its admitted level, so a load is attempted. a kick, b texture,

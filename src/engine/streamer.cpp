@@ -25,13 +25,34 @@
 // churn removed, and a fifth to a quarter of the reload traffic while driving, where most drops
 // are real changes of view and pass through.
 //
-// The five sites, each the rewrite of one rel32 displacement:
+// Two more things go wrong once the pool is contended, in any race with a field of cars (BUG-020).
+//
+// A texture ranked by its least important use. Every object that draws a texture asks for it with
+// its own priority, and the kick has to keep one record per texture level. It sorts the records of
+// one level by ascending priority and keeps the first, so the lowest request wins. The player's
+// car asks at 60000 and an AI car of the same model 50 m away asks for the same livery at 11250,
+// so the player's own car falls out of the pool whenever it has company, and a grass texture drawn
+// both under the camera and a kilometre away is ranked as if it were only far away. In a thirty car
+// race every one of 7036 records whose requests differed kept the lowest. The fix sorts those
+// records highest first, so the engine's own dedupe keeps the most important request.
+//
+// A load that is all or nothing. The load step sums every level between the current one and the
+// admitted one and starts nothing unless the whole sum fits the free space at that texture's turn.
+// A 4096 texture at its coarsest level needs 340 tiles in one piece, the space left at its turn is
+// usually a few dozen to a couple of hundred, so it waits at 256 by 256 while smaller textures take
+// the space. The player's livery waited 72 kicks after a race start with enough room for the three
+// levels below its finest on most of them. The fix loads the levels that fit, and the rest follow
+// on later kicks as space comes back.
+//
+// The seven sites, each the rewrite of one rel32 displacement:
 //
 //   S1  the lea that hands the kick job its function, through a stub that counts kicks
 //   S2  the selected update's read of the current level, which also sees the admitted level
 //   S3  the selected update's tail jump into dropLevels, a drop to a lower admitted level
 //   S4  the kick's call of dropLevels(texture, 0) for a texture not admitted at all
 //   D   the jump taken when a load does not fit the free pool space, through a stub that counts it
+//       or, with partial loads on, one that finds the levels that do fit
+//   R   the call of the sort in front of the record dedupe
 //
 // Why this is safe to do:
 //
@@ -39,7 +60,13 @@
 //     is written, and none of those ranges carries a base relocation. A game update that touches
 //     any of it means nothing is patched and the log names the region that moved.
 //   - Only 4 byte displacements change, so no instruction boundary moves. The selected update has
-//     a single caller, the kick, and the kick thunk has a single reference, the S1 lea.
+//     a single caller, the kick, and the kick thunk has a single reference, the S1 lea. The sort R
+//     calls is shared with other code, so only this one call is moved, and the replacement orders
+//     plain 16 byte records by the same keys with priority reversed.
+//   - A partial load goes down the engine's own load path with a lower target level and the tiles
+//     of just those levels, the same pair the whole step would have used, so the gate, the started
+//     count and the load job see a load they already handle. A running job below the admitted level
+//     is left to finish, and the next kick asks for the rest.
 //   - Kicks are serialised, the scheduler waits on the previous kick's job before it queues the
 //     next one, so the per texture state below needs no lock. A second hook arriving while one is
 //     running would mean that is wrong, and everything then passes straight to the engine.
@@ -97,6 +124,8 @@ static const Region kRegions[] = {
     { 0x1C84890, 0x00B, 0xF653FF13C1B4B00Bull, "the pool capacity getter" },
     { 0x1C84850, 0x018, 0x73C1BA48A014B4BEull, "the pool pending getter" },
     { 0x278BFD0, 0x016, 0x7DAA70DF7484B254ull, "the pool used getter" },
+    { 0x1F2E0DA, 0x0CA, 0x15B32D00FC948EEDull, "the record dedupe (R)" },
+    { 0x1F17490, 0x010, 0x1F4BF375CADBE480ull, "the engine's record sort" },
 };
 
 // The layouts the census reads, checked only when it is on. A mismatch turns the census off and
@@ -123,9 +152,70 @@ static const Site kSiteLevel = { "S2", 0x1F212C1, 1, 5, 0x00DC2D1 };    // call 
 static const Site kSiteDrop = { "S3", 0x1F21451, 1, 5, 0x0110342 };     // jmp dropLevels
 static const Site kSiteDrop0 = { "S4", 0x1F2EDB9, 1, 5, 0x0110342 };    // call dropLevels
 static const Site kSiteKick = { "S1", 0x1F2939B, 3, 7, 0x0186AFB };     // lea rax, kick thunk
+static const Site kSiteSort = { "R", 0x1F2E0F4, 1, 5, 0x1F17490 };      // call the record sort
 
 static const uint32_t kRvaKick = 0x1F2D110;
 static const uint32_t kRvaDropLevels = 0x1C82390;
+static const uint32_t kRvaLoadPath = 0x1F21381;    // the fall through of D, the load itself
+static const uint32_t kRvaRecordSort = 0x1F17490;
+
+// The partial load stub, reached through D when a texture's whole step does not fit. At D the
+// engine holds the node in r15, the admitted level in r10d, the gate space in ecx and the tiles of
+// the whole step in esi, and neither path after D reads rax, rdx, r8, r9 or r11 before writing
+// them. The stub climbs from the current level while the running sum still fits the gate, then
+// enters the load path with that level in r10d and its tiles in esi, or counts a denial and takes
+// the engine's skip when not even the next level fits. The admitted level itself is never tried,
+// the engine has just found that the whole step does not fit. Once a hook has faulted the stub
+// takes the engine's skip straight away, like every other hook passing through.
+static const BYTE kPartialLoadStub[] = {
+    0x80, 0x3D, 0x00, 0x00, 0x00, 0x00, 0x00,       // 00  cmp byte [rip+broken], 0
+    0x75, 0x75,                                     // 07  jne 7E
+    0x49, 0x8B, 0x07,                               // 09  mov rax, [r15]          the texture
+    0x4C, 0x8B, 0x98, 0x60, 0x01, 0x00, 0x00,       // 0C  mov r11, [rax+160h]     its level entries
+    0x48, 0x8B, 0x90, 0x68, 0x01, 0x00, 0x00,       // 13  mov rdx, [rax+168h]
+    0x4C, 0x29, 0xDA,                               // 1A  sub rdx, r11            their size in bytes
+    0x44, 0x8B, 0x80, 0x7C, 0x01, 0x00, 0x00,       // 1D  mov r8d, [rax+17Ch]     target so far, the current level
+    0x45, 0x89, 0xC1,                               // 24  mov r9d, r8d
+    0x31, 0xF6,                                     // 27  xor esi, esi
+    0x41, 0xFF, 0xC1,                               // 29  inc r9d
+    0x45, 0x39, 0xD1,                               // 2C  cmp r9d, r10d
+    0x7D, 0x22,                                     // 2F  jge 53
+    0x49, 0x63, 0xC1,                               // 31  movsxd rax, r9d
+    0x48, 0x6B, 0xC0, 0x30,                         // 34  imul rax, rax, 48
+    0x48, 0x83, 0xC0, 0x30,                         // 38  add rax, 48
+    0x48, 0x39, 0xD0,                               // 3C  cmp rax, rdx
+    0x77, 0x12,                                     // 3F  ja 53
+    0x41, 0x8B, 0x44, 0x03, 0xD8,                   // 41  mov eax, [r11+rax-28h]  the level's tiles
+    0x01, 0xF0,                                     // 46  add eax, esi
+    0x39, 0xC8,                                     // 48  cmp eax, ecx
+    0x7F, 0x07,                                     // 4A  jg 53
+    0x89, 0xC6,                                     // 4C  mov esi, eax
+    0x45, 0x89, 0xC8,                               // 4E  mov r8d, r9d
+    0xEB, 0xD6,                                     // 51  jmp 29
+    0x49, 0x8B, 0x07,                               // 53  mov rax, [r15]
+    0x44, 0x3B, 0x80, 0x7C, 0x01, 0x00, 0x00,       // 56  cmp r8d, [rax+17Ch]
+    0x74, 0x1F,                                     // 5D  je 7E
+    0x45, 0x89, 0xC2,                               // 5F  mov r10d, r8d
+    0x48, 0xFF, 0x05, 0x00, 0x00, 0x00, 0x00,       // 62  inc qword [rip+partial loads]
+    0x48, 0x01, 0x35, 0x00, 0x00, 0x00, 0x00,       // 69  add [rip+partial tiles], rsi
+    0xFF, 0x25, 0x00, 0x00, 0x00, 0x00,             // 70  jmp [rip]
+    0, 0, 0, 0, 0, 0, 0, 0,                         // 76    the load path
+    0x48, 0xFF, 0x05, 0x00, 0x00, 0x00, 0x00,       // 7E  inc qword [rip+denied]
+    0xFF, 0x25, 0x00, 0x00, 0x00, 0x00,             // 85  jmp [rip]
+    0, 0, 0, 0, 0, 0, 0, 0,                         // 8B    the engine's skip
+};
+
+struct StubPatch {
+    uint8_t dispAt;     // a rip relative disp32, or an absolute qword when nextIp is 0
+    uint8_t nextIp;
+};
+
+static const StubPatch kPartialBroken = { 0x02, 0x07 };
+static const StubPatch kPartialCount = { 0x65, 0x69 };
+static const StubPatch kPartialTiles = { 0x6C, 0x70 };
+static const StubPatch kPartialLoad = { 0x76, 0 };
+static const StubPatch kPartialDenied = { 0x81, 0x85 };
+static const StubPatch kPartialSkip = { 0x8B, 0 };
 
 // ---------------------------------------------------------------------------
 // Engine layouts, each one read by code inside the regions above
@@ -238,11 +328,17 @@ static uint64_t Fnv1a64(const BYTE* p, size_t n)
 // ---------------------------------------------------------------------------
 
 using DropLevelsFn = void (*)(BYTE* texture, int keepLevel);
+using RecordSortFn = void (*)(BYTE* first, BYTE* last, ptrdiff_t count, uint8_t predicate);
 
 static bool g_installed = false;
 static DropLevelsFn g_dropLevels = nullptr;
+static RecordSortFn g_recordSort = nullptr;
 static const uint64_t* g_kickCount = nullptr;       // bumped by the S1 stub
 static const uint64_t* g_deniedCount = nullptr;     // bumped by the D stub
+static const uint64_t* g_partialCount = nullptr;    // bumped by the partial load stub
+static const uint64_t* g_partialTiles = nullptr;
+static BYTE* g_brokenFlag = nullptr;                // the partial load stub's copy of g_broken
+static std::atomic<uint64_t> g_rankSorts{0};
 static std::atomic<bool> g_broken{false};
 static std::atomic<bool> g_inHook{false};
 static std::atomic<BYTE*> g_allocator{nullptr};
@@ -288,6 +384,10 @@ static std::unordered_map<const BYTE*, TextureState> s_textures;
 static uint64_t s_kick = 0;
 static uint64_t s_deniedAtKickStart = 0;
 static uint64_t s_deniedLastKick = 0;
+static uint64_t s_partialAtKickStart = 0;
+static uint64_t s_partialLastKick = 0;
+static uint64_t s_partialTilesAtKickStart = 0;
+static uint64_t s_partialTilesLastKick = 0;
 static KickTally s_tally;
 
 // ---------------------------------------------------------------------------
@@ -602,6 +702,7 @@ static void CensusFinalFlush()
 
 static void Broken(const char* where)
 {
+    if (g_brokenFlag) *g_brokenFlag = 1;
     if (!g_broken.exchange(true))
         Log("[streamer] a hook faulted in %s. Every hook passes straight through to the engine for the rest of the session, "
             "so the game streams exactly as it would without the mod.", where);
@@ -640,14 +741,21 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
     uint64_t denied = *g_deniedCount;
     s_deniedLastKick = denied - s_deniedAtKickStart;
     s_deniedAtKickStart = denied;
+    uint64_t partial = *g_partialCount;
+    s_partialLastKick = partial - s_partialAtKickStart;
+    s_partialAtKickStart = partial;
+    uint64_t partialTiles = *g_partialTiles;
+    s_partialTilesLastKick = partialTiles - s_partialTilesAtKickStart;
+    s_partialTilesAtKickStart = partialTiles;
     g_allocator.store((BYTE*)At<BYTE*>(str, streamer::kAllocator));
     g_kicks++;
 
-    TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u",
+    TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
         (unsigned long long)now, At<int32_t>(str, streamer::kCap), At<int32_t>(str, streamer::kAvail),
         At<int32_t>(str, streamer::kRecords), At<int32_t>(str, streamer::kAdmitted), At<int32_t>(str, streamer::kAdmittedTiles),
         At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
-        s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused);
+        s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
+        (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
     CensusKick(str, frame, now);
 
     s_tally = KickTally{};
@@ -827,6 +935,49 @@ static void HookStreamerDropUnadmitted(BYTE* tex, int keep, BYTE* str, BYTE* fra
     if (!refuse) g_dropLevels(tex, keep);
 }
 
+// The kick's record, as the admission loop and the dedupe read it.
+struct Record {
+    uint64_t pathHash;
+    uint16_t priority;
+    uint8_t requested;      // 1 in every record a kick builds, the engine orders set before clear
+    uint8_t pad0;
+    uint16_t tiles;
+    uint8_t level;
+    uint8_t pad1;
+};
+static_assert(sizeof(Record) == 16, "the kick's records are 16 bytes");
+
+static void SortRecordsHighestFirst(BYTE* first, BYTE* last)
+{
+    std::sort((Record*)first, (Record*)last, [](const Record& a, const Record& b) {
+        if (a.pathHash != b.pathHash) return a.pathHash < b.pathHash;
+        if (a.level != b.level) return a.level < b.level;
+        if ((a.requested != 0) != (b.requested != 0)) return a.requested != 0;
+        return a.priority > b.priority;
+    });
+}
+
+// Replaces the one call of the engine's sort in front of the record dedupe. The dedupe keeps the
+// first record of each texture level, so ordering them highest first keeps the most important
+// request. With the fix off, or once a hook has faulted, the engine's own sort runs as before.
+static void HookRecordSort(BYTE* first, BYTE* last, ptrdiff_t count, uint8_t predicate)
+{
+    bool sorted = false;
+    if (g_cfg.streamerRankFix && !g_broken.load(std::memory_order_relaxed)) {
+        __try {
+            SortRecordsHighestFirst(first, last);
+            sorted = true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            Broken("R");
+        }
+    }
+    if (sorted) {
+        g_rankSorts++;
+        return;
+    }
+    g_recordSort(first, last, count, predicate);
+}
+
 // ---------------------------------------------------------------------------
 // Installing
 // ---------------------------------------------------------------------------
@@ -875,11 +1026,30 @@ struct Emitter {
         memcpy(at, &target, 8);
         at += 8;
     }
+
+    BYTE* Copy(const BYTE* code, size_t size)
+    {
+        BYTE* start = at;
+        memcpy(at, code, size);
+        at += size;
+        return start;
+    }
 };
+
+static void PatchStub(BYTE* stub, StubPatch patch, const BYTE* target)
+{
+    if (!patch.nextIp) {
+        memcpy(stub + patch.dispAt, &target, 8);
+        return;
+    }
+    int32_t disp = (int32_t)(target - (stub + patch.nextIp));
+    memcpy(stub + patch.dispAt, &disp, 4);
+}
 
 void InstallStreamerHooks()
 {
-    if (!g_cfg.streamingTrace && !g_cfg.streamerReloadFix && !g_cfg.streamerCensus) return;
+    bool anyFix = g_cfg.streamerReloadFix || g_cfg.streamerRankFix || g_cfg.streamerPartialLoads;
+    if (!g_cfg.streamingTrace && !anyFix && !g_cfg.streamerCensus) return;
 
     BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
     auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
@@ -905,7 +1075,8 @@ void InstallStreamerHooks()
         g_censusOn = false;
     }
 
-    const Site* sites[] = { &kSiteDenied, &kSiteLevel, &kSiteDrop, &kSiteDrop0, &kSiteKick };
+    const Site* sites[] = { &kSiteDenied, &kSiteLevel, &kSiteDrop, &kSiteDrop0, &kSiteKick, &kSiteSort };
+    const size_t siteCount = sizeof sites / sizeof sites[0];
     for (const Site* site : sites) {
         int32_t rel = At<int32_t>(base + site->rva, site->dispOffset);
         if ((int64_t)site->rva + site->length + rel != (int64_t)site->target) {
@@ -923,14 +1094,28 @@ void InstallStreamerHooks()
     BYTE* counters = cave + page;
     g_kickCount = (const uint64_t*)counters;
     g_deniedCount = (const uint64_t*)(counters + 8);
+    g_partialCount = (const uint64_t*)(counters + 16);
+    g_partialTiles = (const uint64_t*)(counters + 24);
+    g_brokenFlag = counters + 32;
     g_dropLevels = (DropLevelsFn)(base + kRvaDropLevels);
+    g_recordSort = (RecordSortFn)(base + kRvaRecordSort);
 
     // mov edx, [rbx+8] is the admitted level, r14 the context. mov r8, r12 is the streamer and
     // mov r9, rbp the kick frame, at both drops.
     Emitter emit{ cave };
     BYTE* deniedStub = emit.at;
-    emit.IncrementQword(counters + 8);
-    emit.JumpTo(base + kSiteDenied.target);
+    if (g_cfg.streamerPartialLoads) {
+        emit.Copy(kPartialLoadStub, sizeof kPartialLoadStub);
+        PatchStub(deniedStub, kPartialBroken, g_brokenFlag);
+        PatchStub(deniedStub, kPartialCount, counters + 16);
+        PatchStub(deniedStub, kPartialTiles, counters + 24);
+        PatchStub(deniedStub, kPartialLoad, base + kRvaLoadPath);
+        PatchStub(deniedStub, kPartialDenied, counters + 8);
+        PatchStub(deniedStub, kPartialSkip, base + kSiteDenied.target);
+    } else {
+        emit.IncrementQword(counters + 8);
+        emit.JumpTo(base + kSiteDenied.target);
+    }
     BYTE* levelStub = emit.at;
     emit.Bytes({ 0x8B, 0x53, 0x08, 0x4D, 0x8B, 0xC6 });
     emit.JumpTo(&HookStreamerLevel);
@@ -943,6 +1128,8 @@ void InstallStreamerHooks()
     BYTE* kickStub = emit.at;
     emit.IncrementQword(counters);
     emit.JumpTo(base + kRvaKick);
+    BYTE* sortStub = emit.at;
+    emit.JumpTo(&HookRecordSort);
 
     DWORD old = 0;
     if (!VirtualProtect(cave, page, PAGE_EXECUTE_READ, &old)) {
@@ -953,9 +1140,9 @@ void InstallStreamerHooks()
     FlushInstructionCache(GetCurrentProcess(), cave, page);
 
     // Every displacement is computed before any write, so a stub out of reach patches nothing.
-    BYTE* stubs[] = { deniedStub, levelStub, dropStub, drop0Stub, kickStub };
-    int32_t rels[5] = {};
-    for (int i = 0; i < 5; ++i) {
+    BYTE* stubs[] = { deniedStub, levelStub, dropStub, drop0Stub, kickStub, sortStub };
+    int32_t rels[siteCount] = {};
+    for (size_t i = 0; i < siteCount; ++i) {
         int64_t rel = stubs[i] - (base + sites[i]->rva + sites[i]->length);
         if (rel > INT32_MAX || rel < INT32_MIN) {
             VirtualFree(cave, 0, MEM_RELEASE);
@@ -976,15 +1163,17 @@ void InstallStreamerHooks()
         Log("[streamer] could not make the exe's code writable, nothing patched");
         return;
     }
-    for (int i = 0; i < 5; ++i) memcpy(base + sites[i]->rva + sites[i]->dispOffset, &rels[i], 4);
+    for (size_t i = 0; i < siteCount; ++i) memcpy(base + sites[i]->rva + sites[i]->dispOffset, &rels[i], 4);
     DWORD ignored = 0;
     VirtualProtect(lo, hi - lo, old, &ignored);
     FlushInstructionCache(GetCurrentProcess(), lo, hi - lo);
 
     g_installed = true;
-    Log("[streamer] hooked the texture streamer: kicks, admitted levels, drops and loads turned away for space. "
-        "Reload fix %s, streaming trace %s.",
+    Log("[streamer] hooked the texture streamer: kicks, admitted levels, drops, loads turned away for space and the record ranking. "
+        "Reload fix %s. Rank fix %s. Partial loads %s. Streaming trace %s.",
         g_cfg.streamerReloadFix ? "on, flipping textures keep their finer mip while the engine's tile margin is free" : "off, it only reports what it would refuse",
+        g_cfg.streamerRankFix ? "on, a texture level keeps its most important request" : "off",
+        g_cfg.streamerPartialLoads ? "on, a texture loads the levels that fit when its whole step does not" : "off",
         g_cfg.streamingTrace ? "on" : "off");
     if (g_censusOn) Log("[streamer] census on, every kick's demand and ranked records go to acevo_perf_census.bin");
 }
@@ -1013,13 +1202,16 @@ static void Report(const char* when)
 {
     int64_t used = 0, total = 0, pending = 0;
     bool havePool = ReadPoolLine(&used, &total, &pending);
-    Log("[streamer]%s kicks %llu | wanted a finer level %llu, loads turned away for space %llu | drops %llu (%llu not admitted at all) | "
-        "refused %llu drops holding %.1f MB that would have been reloaded, would refuse %llu, flips pinned %llu | tile pool %lld of %lld used, %lld pending%s",
+    Log("[streamer]%s kicks %llu | wanted a finer level %llu, loads turned away for space %llu, loads cut to what fits %llu (%.1f MB) | "
+        "drops %llu (%llu not admitted at all) | refused %llu drops holding %.1f MB that would have been reloaded, would refuse %llu, "
+        "flips pinned %llu | kicks ranked by the most important request %llu | tile pool %lld of %lld used, %lld pending%s",
         when, (unsigned long long)g_kicks.load(), (unsigned long long)g_wantsFiner.load(),
         (unsigned long long)(g_deniedCount ? *g_deniedCount : 0),
+        (unsigned long long)(g_partialCount ? *g_partialCount : 0), (g_partialTiles ? *g_partialTiles : 0) * 64.0 / 1024.0,
         (unsigned long long)g_drops.load(), (unsigned long long)g_dropsUnadmitted.load(),
         (unsigned long long)g_refused.load(), g_refusedTiles.load() * 64.0 / 1024.0,
         (unsigned long long)g_wouldRefuse.load(), (unsigned long long)g_pins.load(),
+        (unsigned long long)g_rankSorts.load(),
         (long long)used, (long long)total, (long long)pending, havePool ? "" : " (not read yet)");
 }
 
