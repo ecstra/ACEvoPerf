@@ -2,8 +2,8 @@
 name: TODO-010-resume-the-one-percent-low-hunt
 kind: todo
 description: pick the 1 percent low hunt back up from the recorded evidence, the leads that were never tested and the instruments that were removed
-updated: 2026-09-06
-links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, one-percent-low-hunt-2026-09-05, telemetry]
+updated: 2026-09-13
+links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, one-percent-low-hunt-2026-09-05, telemetry, reference-machine-has-no-direct-gpu-display]
 status: open
 area: render
 created: 2026-09-06
@@ -24,11 +24,13 @@ work spread across the renderer's code, and everything else ruled out. The full 
 
 ## Leads never tested
 
-- Displays on the discrete GPU. The game's log lists both monitors as outputs of the AMD
-  integrated adapter and the render thread waits inside the AMD D3D11 driver every present, 0.9
-  ms in a median frame and up to 4 ms in a slow one. A MUX, hybrid mode off, or a port wired to
-  the RTX 3060 removes that path. The owner says the laptop has no Optimus, so first find out
-  what the vendor tool offers.
+- Displays on the discrete GPU, **not possible on the reference machine**. The game's log lists
+  both monitors as outputs of the AMD integrated adapter and the render thread waits inside the
+  AMD D3D11 driver every present, 0.9 ms in a median frame and up to 4 ms in a slow one. The
+  laptop has no MUX, its external monitor is on HDMI through the integrated GPU and there is no
+  USB-C cable, owner wording 2026-09-13: "THERE IS NO MUX on this laptop and I do not have any
+  cable that directly connects the GPU to the monitor". Only a user with a directly wired display
+  could test it. See [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
 - Render thread isolation: pin the render thread to one physical core and keep the game's other
   threads off its hyperthread sibling, raise it above the workers. The core speed probe said the
   core was only 5 percent slower in slow frames, so this is a small lever, but it is the one

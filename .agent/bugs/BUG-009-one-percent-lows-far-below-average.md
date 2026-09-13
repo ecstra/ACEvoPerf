@@ -249,7 +249,14 @@ had undervolted the card, so the spread is not the throttle's. Windows as in
   is not the bulk of the tail.
 - **Both monitors are still outputs of the AMD integrated GPU** in every run of the day, the game's
   own `[Monitor]` lines and the mod's `[display]` warning, so every frame is still copied across
-  adapters, the one lead of TODO-010 that needs the owner's hardware.
+  adapters. That path cannot be tested on the reference machine, owner wording: "THERE IS NO MUX on
+  this laptop and I do not have any cable that directly connects the GPU to the monitor (Type c to
+  hdmi, i do not have. I have connected via hdmi to hdmi)." See
+  [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
+
+Parked again on 2026-09-13. The mod already evens the pacing, what is left is the width of the
+engine's own frame times on a laptop that presents through its integrated GPU, and the one lead
+that could move it needs hardware the reference machine does not have.
 
 ## Verification
 
