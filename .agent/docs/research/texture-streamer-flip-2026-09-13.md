@@ -99,10 +99,34 @@ on every kick. Over the session it refused 1,401 drops and let go 690 times (cov
 flip 172, not admitted 124, moved away 99, stale 45), and the margin let 17 through. No hook
 faulted. The owner watched the picture over a lap and reported "nothing looks wrong per say".
 
-Frame rate is not claimed. Boot 2 parked at about 90 fps on a fresh launch and boot 1 at about 82
-straight after ten minutes of hotlapping, with no GPU sampler running in either, and the process
-used the same 25 percent CPU both times. The churn was measured at about 4 percent of frame time on
-2026-09-12, so a gain of that size would be consistent, but these two boots cannot show it.
+Boot 1 and boot 2 ran at different thermal states, so neither says anything about frame rate.
+
+## What it is worth in frames
+
+A controlled pair on 2026-09-13 (`logs/perf-ab-20260913`), after the owner undervolted the GPU and
+set the fans aggressively. Same build, same Nürburgring preset and pit exit spot, the GPU cooled back
+to 47 and 49 °C before each launch, `nvidia-smi` sampling throughout. Run A had the fix and the
+trace off, so no hook was installed at all. Run B had the fix on. Parked windows are the same 100 s
+of each stay, chosen from the per second tile traffic.
+
+| | run A, off | run B, fix on |
+|---|---|---|
+| parked fps | 88.42 | **89.66** |
+| parked median, p99 frame time | 11.27, 14.04 ms | 11.13, 13.81 ms |
+| parked 1 percent low | 68.9 | 69.5 |
+| parked tile traffic | 19.25 MB/s | **0.00 MB/s** |
+| parked process CPU | 26.7 percent | 25.4 percent |
+| parked GPU clock, power, temperature | 1822 MHz, 94.4 W, 70.6 °C | 1822 MHz, 95.5 W, 71.8 °C |
+| lap fps, 1 percent low | 86.31, 63.9 | 86.95, 63.8 |
+| lap tile traffic | 14.88 MB/s | 13.51 MB/s |
+
+The GPU sat at the same clock with no throttle reason active in either run, the first pair on this
+machine where the card was not the variable. **Parked the fix gains 1.23 fps, 1.4 percent**, with a
+95 percent interval of 1.02 to 1.43 fps over the per second samples, which covers the noise inside
+the two runs and not a difference between sessions. Within run A the frames that carried a tile
+request averaged 12.37 ms against 11.30 ms for the rest, but they are only 115 of 8,842, so most of
+the cost is spread across every frame, the uploads and remaps competing with rendering on a GPU at
+97 percent. The laps differed by seven seconds of pace and their difference is inside lap noise.
 
 ## Driving at the Red Bull Ring
 

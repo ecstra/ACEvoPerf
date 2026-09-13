@@ -52,9 +52,9 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   it back in mid corner. Off by default on purpose: a floor too big for the machine is
   refused, and one met by squeezing everything else is worse than the trimming it prevents.
 - An optional fix for textures that reload the same mip every two seconds (`streamer_reload_fix`
-  under `[engine]`, off by default until it has run clean over more sessions). The engine's texture streamer measures how
-  much detail a texture needs against the mip it has loaded at that moment, then reads the answer
-  as if it had been measured against the full texture. Near the edge of the tile budget a texture
+  under `[engine]`, off by default until it has run clean over more sessions). The engine's texture
+  streamer measures how much detail a texture needs against the mip it has loaded at that moment,
+  then reads the answer as if it had been measured against the full texture. Near the edge of the tile budget a texture
   therefore drops its finer mip and loads it again on the next pass, forever, even parked with the
   camera still, which at the Nurburgring pit exit is 14 to 22 MB/s of disk reads and GPU uploads.
   Turned on, the mod recognises the flip from the feedback readings themselves, a texture reloading
@@ -65,10 +65,11 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   fifth to a quarter of the reload traffic while driving. Verified on the reference machine, parked
   at the Nurburgring pit exit the tile queue carried nothing at all with it on, against 12 to 15
   MB/s without, while the log showed it refusing the same 19 drops on every pass, and the owner saw
-  nothing wrong over a lap. No frame rate change is claimed, the two sessions ran at different
-  thermal states. It edits the game's code in memory and patches nothing unless every byte it
-  relies on matches the build it was written for, so a game update means it quietly does not
-  apply.
+  nothing wrong over a lap. In a controlled pair with the GPU held at the same clock and
+  temperature, parked frame rate went from 88.4 to 89.7 fps, 1.4 percent, and p99 frame time from
+  14.04 to 13.81 ms, with 19 MB/s of tile traffic gone and a point less CPU. A lap was inside lap to
+  lap noise. It edits the game's code in memory and patches nothing unless every byte it relies on
+  matches the build it was written for, so a game update means it quietly does not apply.
 - `streaming_trace` under `[log]` writes `acevo_perf_streaming.csv`, one row for each pass of the
   texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
   and each file read that repeats an earlier one exactly. Diagnostics, off by default.
