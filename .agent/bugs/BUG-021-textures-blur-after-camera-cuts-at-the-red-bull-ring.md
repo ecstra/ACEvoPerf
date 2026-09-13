@@ -3,7 +3,7 @@ name: BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring
 kind: bug
 description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, with the reload fix off as much as on, the scenery because the 1024 MB texture pool is full and the car because the engine drops its livery at every cut even with room to spare, parked low priority
 updated: 2026-09-13
-links: [DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-track-textures-blur-when-many-cars-are-close, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
+links: [DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
 status: open
 severity: nit
 area: streaming

@@ -22,7 +22,7 @@ links: [agent-index, spec-docs]
 
 ## ops
 
-- [telemetry](ops/telemetry.md), the log and CSV files and their columns, the streaming trace, plus the GPU sampler
+- [telemetry](ops/telemetry.md), the log and CSV files and their columns, the streaming trace, the streamer census, plus the GPU sampler
 - [build-and-release](ops/build-and-release.md), build, install, uninstall, gates, and publishing on Overtake and GitHub
 - [tools](ops/tools.md), the Python tools and their commands
 
@@ -41,3 +41,4 @@ links: [agent-index, spec-docs]
 - [tile-pool-reshuffle-2026-09-12](research/tile-pool-reshuffle-2026-09-12.md), the parked tile churn as first measured, 22 MB/s and about 4 percent of frame time, with the probe and dedupe of that day and the readings the next round corrected
 - [frame-time-mod-against-passive-2026-09-13](research/frame-time-mod-against-passive-2026-09-13.md), the mod costs 3.8 percent parked and 8 percent on a lap against itself passive on a GPU held still, most of it mesh detail the 1433 MB mesh budget loads, which 366 MB gets back unseen but starves the mesh streamer, frozen on the GP and churning at the Red Bull Ring
 - [texture-streamer-flip-2026-09-13](research/texture-streamer-flip-2026-09-13.md), the churn is the texture streamer reading feedback measured against the loaded mip as if against the full texture, confirmed live and fixed behind an off by default switch, plus the full pool, the Red Bull Ring's driving traffic and 3.5 GB of repeated reads
+- [texture-streamer-overload-2026-09-13](research/texture-streamer-overload-2026-09-13.md), a census of every kick in a thirty car race shows the streamer ranking each texture by its least important request and loading only whole steps, both fixed and seen fixed in game, with the player's car and driver holding half the 1 GB pool and AI cars ranked like props

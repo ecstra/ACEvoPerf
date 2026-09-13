@@ -3,7 +3,7 @@ name: DEC-017-streamer-reload-fix-refuses-the-drop
 kind: decision
 description: the texture streamer's flip is fixed by refusing the drop of a texture recognised as flipping from its own feedback readings, guarded only by the engine's 1024 tile margin, rather than by correcting the conversion, refusing the reload, deduplicating uploads or standing down whenever the pool is contended
 updated: 2026-09-13
-links: [texture-streamer-flip-2026-09-13, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, tile-pool-reshuffle-2026-09-12, DEC-016-agility-sdk-tried-and-removed, BUG-020-track-textures-blur-when-many-cars-are-close]
+links: [texture-streamer-flip-2026-09-13, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, tile-pool-reshuffle-2026-09-12, DEC-016-agility-sdk-tried-and-removed, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles]
 date: 2026-09-13
 area: streaming
 status: standing

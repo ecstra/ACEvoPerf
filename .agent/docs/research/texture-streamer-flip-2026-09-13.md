@@ -173,12 +173,13 @@ refresh.
 
 With 29 AI the pool sat at its ceiling the whole race and track and car textures were pushed to their
 coarsest level in bursts, which the owner saw as blurry cars at the start and when the field passed,
-recorded in [BUG-020](../../bugs/BUG-020-track-textures-blur-when-many-cars-are-close.md). The same
-race with the fix off (`logs/ai30-B-fix-off`) looked the same to the owner, "blur looked the same. I
-dont think this is related to our streaming fix, this is overload issue". Over the racing time of each
-run the tile queue carried 1,020 MB a minute with the fix and 1,425 without, and loads turned away
-for space were 5,844 and 5,237 a minute. The two races differed in length and in what happened in
-them, so those are indications rather than a controlled pair.
+recorded in [BUG-020](../../bugs/BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles.md),
+whose causes are in [texture-streamer-overload-2026-09-13](texture-streamer-overload-2026-09-13.md).
+The same race with the fix off (`logs/ai30-B-fix-off`) looked the same to the owner, "blur looked
+the same. I dont think this is related to our streaming fix, this is overload issue". Over the racing
+time of each run the tile queue carried 1,020 MB a minute with the fix and 1,425 without, and loads
+turned away for space were 5,844 and 5,237 a minute. The two races differed in length and in what
+happened in them, so those are indications rather than a controlled pair.
 
 ## Repeated file reads
 

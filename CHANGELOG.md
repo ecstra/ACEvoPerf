@@ -106,8 +106,13 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   340 tiles at once, the free space at its turn was usually a few dozen to a couple of hundred, so
   it stayed at 256 by 256 for 72 seconds after a race start while there was room for most of its
   detail. The mod loads the levels that fit and the rest follow as space comes back
-  (`streamer_partial_loads`). Both are in `[engine]`, on, 0 turns either off. Not checked in game
-  yet.
+  (`streamer_partial_loads`). Both are in `[engine]`, on, 0 turns either off. Verified on the
+  reference machine in a second race of 29 AI. The player's car was sharp 1 to 2 s into the grid and
+  the road 5 to 10 s after, where before the livery stayed blurry for most of a lap, the grass
+  ground was sharp, drops fell from 11,091 to 2,600 and tile traffic from 13 to 3 MB/s, and frame
+  rate did not change. What it cannot do is make a 1 GB pool hold everything, so in a full field AI
+  cars of other models and some trackside buildings can still look blurry, because the game fills
+  the pool with your own car and driver first.
 
 - The trackside big screens were a blurry mess while the display in the menu next to them looked
   fine. They are one texture holding 64 frames in an 8 by 8 grid, stepped through as an animation,

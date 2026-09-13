@@ -3,7 +3,7 @@ name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
 updated: 2026-09-13
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, game-requests-1gb-staging-buffer, content-package]
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package]
 ---
 
 # DirectStorage streaming
@@ -34,15 +34,23 @@ pool budget runs out, loads what was admitted if the load gate has space, and dr
 once. The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
 frees its tiles to a first in first out pool two frames later with no unmap. The pool runs full in
 normal play, 14,800 to 15,300 of 16,384 tiles used at 1024 MB on a 6 GB card, with about 120 loads
-turned away for space on every parked kick.
+turned away for space on every parked kick, and at 15,360 through a race with AI.
 
-The feedback is measured against the mip that is loaded and read as if against the full texture,
-so textures on the budget edge drop and reload the same mip every two kicks. The mod hooks the kick
-in `src/engine/streamer.cpp`, which writes the streaming trace and carries the off by default
-`[engine] streamer_reload_fix`
-([DEC-017](../../decisions/DEC-017-streamer-reload-fix-refuses-the-drop.md)). The evidence and the
-numbers are in
-[texture-streamer-flip-2026-09-13](../research/texture-streamer-flip-2026-09-13.md).
+Three things go wrong in it, each fixed from `src/engine/streamer.cpp`, which also writes the
+streaming trace and the census, all three on by default in `[engine]`.
+
+- The feedback is measured against the mip that is loaded and read as if against the full texture,
+  so textures on the budget edge drop and reload the same mip every two kicks.
+  `streamer_reload_fix` refuses that drop
+  ([DEC-017](../../decisions/DEC-017-streamer-reload-fix-refuses-the-drop.md)), with the evidence in
+  [texture-streamer-flip-2026-09-13](../research/texture-streamer-flip-2026-09-13.md).
+- A texture drawn by several objects keeps the lowest of their priorities, so the player's car and
+  shared track textures rank as their least important use. `streamer_rank_fix` keeps the highest.
+- A load starts only when every missing level fits the free space at once, so big textures wait at
+  their coarsest level while small ones take the space. `streamer_partial_loads` loads the levels
+  that fit. The last two are in
+  [texture-streamer-overload-2026-09-13](../research/texture-streamer-overload-2026-09-13.md),
+  with the priority tables and who holds the pool in a race.
 
 ## How files are requested
 
