@@ -38,9 +38,14 @@ budgets buy, and the rest of the mod is about 1 percent.
 
 Run P2, textures back to 366 MB with the 1433 MB mesh budget held, landed next to M. The mesh budget
 takes 2.10 of the budgets' 2.72 fps parked and 4.65 fps on the lap, the texture pool 0.62 fps
-parked, and the owner saw P2 only a tenth of the way to the mod's picture. Next is the mod's textures
-with the engine's 366 MB mesh budget, which needs the mesh budget written in the engine since no flag
-sets it alone.
+parked, and the owner saw P2 only a tenth of the way to the mod's picture.
+
+Run P3, the mod with a 366 MB mesh budget through the new `[developer] mesh_budget_mb`, matched N in
+the protocol with sharp textures, and the owner saw no difference anywhere. But 366 MB starves the
+mesh streamer, nothing streams on the GP and the Red Bull Ring churns 1.6 to 2.2 GB of uploads per
+lap, and a 29 AI race ran CPU bound at 56 fps against 67 earlier, not a pair. So the gap is mesh
+detail the engine loads as designed, no budget size fixes it, and what is left to look at is whether
+the mesh streamer loads detail the screen cannot show.
 
 ## Done when
 

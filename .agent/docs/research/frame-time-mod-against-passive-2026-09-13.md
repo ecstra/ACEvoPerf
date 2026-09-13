@@ -1,7 +1,7 @@
 ---
 name: frame-time-mod-against-passive-2026-09-13
 kind: doc
-description: a controlled pair on the undervolted reference card puts the mod's frame time cost at 3.8 percent parked and 8 percent on a lap against the mod fully passive, three quarters of it is the bigger budgets, and splitting them shows the 1433 MB mesh budget costs 2 percent parked and 5 on a lap for a small part of the picture while the texture pool buys most of it for under 1, with the reload fix ruled out
+description: a controlled pair on the undervolted reference card puts the mod's frame time cost at 3.8 percent parked and 8 percent on a lap against the mod fully passive, and most of it is mesh detail the canonical 1433 MB mesh budget loads, which a 366 MB budget gets back unseen but by starving the mesh streamer, frozen on the GP and churning 2 GB a lap at the Red Bull Ring, so no budget size fixes it
 updated: 2026-09-13
 links: [TODO-022-frame-time-with-and-without-the-mod, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, DEC-014-reflex-ships-on-boost-ships-off, BUG-007-blurry-road-and-textures, directstorage-streaming]
 ---
@@ -114,10 +114,64 @@ meshes as in M. There is no flag for the mesh budget alone, the canonical path f
   the tile pool (DEC-005). On this card the engine itself would pick 366 MB with its own staging
   buffers.
 
-## What splits it
+## P3, the mod's textures with a 366 MB mesh budget
 
-The test that decides it is the mod's textures with a small mesh budget, 1024 MB of tiles and the
-366 MB of meshes the engine picks. No flag reaches that, so it needs the mesh budget written in the
-engine the way the canonical path writes 1433 MB. The owner judges it against M, because a budget
-that buys frames by turning geometry blocky or popping is not a fix either. The last 1 percent,
-Reflex, the priorities and the bundled runtime, only if it still matters after that.
+Session `logs/frametime-20260913/P3-meshes-366`. No flag reaches this, so `[developer]
+mesh_budget_mb` was added, a stub that returns the configured size where the engine's budget function
+returns the canonical one (`src/engine/mesh_budget.cpp`). M with `mesh_budget_mb=366`, the log
+confirms the patch.
+
+| | N, passive | P3, textures 1024 MB, meshes 366 MB | M, mod on |
+|---|---|---|---|
+| parked fps, median, p99 | 96.56, 10.34 ms, 13.51 ms | 96.21, 10.31 ms, 12.80 ms | 92.92, 10.66 ms, 13.41 ms |
+| lap fps, median, p99 | 97.18, 10.36 ms, 13.68 ms | 95.88, 10.50 ms, 13.28 ms | 89.42, 11.22 ms, 14.27 ms |
+| GPU clock, power, temperature parked | 1822 MHz, 97.9 W, 72.0 °C | 1822 MHz, 98.7 W, 71.1 °C | 1822 MHz, 98.9 W, 73.2 °C |
+| tile traffic on the lap | 0 MB/s | 16.50 MB/s | 16.34 MB/s |
+
+- **It gets the whole frame cost back in the protocol.** P3 is 3.30 fps faster than M parked, 3.02 to
+  3.53, and 6.46 on the lap, 4.83 to 8.07. Against N it is 0.35 fps slower parked, 0.14 to 0.60, and
+  1.30 on the lap, 2.73 slower to 0.20 faster.
+- **The texture pool's own cost is inside the session drift.** P3 came out 0.58 fps faster than P1
+  parked with the bigger texture pool, so the 0.62 fps P2 put on the texture pool is noise between
+  sessions. The whole budget cost is the mesh budget.
+- **The owner saw no difference** in the protocol, a full Nordschleife lap or three laps of the Red
+  Bull Ring, possibly the ground under the grass a little blurrier. The textures stayed sharp.
+
+## What 366 MB does beyond the protocol
+
+The owner kept going in the same launch, a Nordschleife lap, a multiplayer event at the Red Bull Ring
+and a 29 AI race at the Nürburgring GP.
+
+- **What the extra budget holds is a small amount of mesh.** At the GP pit exit the 1433 MB budget
+  held 130 MB more than 366 MB, from both pairs (M 4419 against P3 4290 MB, and P2 3764 against P1
+  5426 MB less the 1792 MB of bigger staging buffers). So that scene wants about 500 MB of mesh, 366
+  MB caps it, and those 130 MB of finer levels cost 2 to 3 fps parked.
+- **At 366 MB the mesh streamer stops streaming on the GP.** Memory to GPU uploads on the lap were
+  3.8 MB/s at 1433 MB in M and P2, and 0 in P1 and P3.
+- **At the Red Bull Ring it churns**, per lap against the ten laps of `logs/streamer-boot1-1124` at
+  1433 MB in the table below.
+
+| Red Bull Ring, per lap | memory to GPU | peak | tiles |
+|---|---|---|---|
+| 1433 MB, single player, 9 laps | 139 to 156 MB | 18 to 26 MB/s | 2008 to 2270 MB |
+| 366 MB, multiplayer event, 3 laps | 1634 to 2174 MB | 262 to 432 MB/s | 1770 to 2013 MB |
+
+The bursts land at the same point of every lap, with nothing read from the package, so the same meshes
+leave the GPU and come back each lap. The multiplayer event ran a different car with other cars on
+track, so not every megabyte is the budget, but twelve to fifteen times the uploads in bursts that
+repeat with the lap is the texture flip's pattern at a budget edge.
+
+- **The race ran on the CPU's limit.** 56.3 fps with the GPU 63 to 74 percent busy and no mesh
+  uploads, against 67 fps in the two 29 AI races at 1433 MB earlier in the day. Those ran at 15:00
+  and this one at 8:00, so it is not a pair, and whether 366 MB costs anything in a race is open.
+
+## Where it stands
+
+Nothing in the gap is wasted work. It is the mesh detail the engine loads when given its canonical
+budget, and on this scene that detail costs 3.5 percent parked and 7 percent on a lap without the owner
+seeing it. The 366 MB the game picks without the mod is not a better value, it comes from the staging
+buffer bug (BUG-007) and it starves the mesh streamer, frozen on the GP and churning at the Red Bull
+Ring. A budget between the two saves nothing where a scene's mesh fits under it and caps the scenes
+that need more, so no size is a fix. What would be is the engine loading mesh detail the screen cannot
+show, the way the texture streamer did, which is a deep dive into the mesh streamer's level choice.
+The last 1 percent, Reflex, the priorities and the bundled runtime, is still untested.
