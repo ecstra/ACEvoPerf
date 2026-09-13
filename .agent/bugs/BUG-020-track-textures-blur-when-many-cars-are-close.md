@@ -37,10 +37,30 @@ Session `logs/dyntrack-20260913`, a ten car instant race at the Nürburgring GP 
   that fall out of admission are dropped at once, all the way to level 0.
 - **The reload fix refused nothing in that burst.** It refused 0 drops between 875 and 881 s, and
   it never refuses a drop of a texture that is not admitted at all.
+- **The flagged writes of that run were not writes into streamed textures.** 57 copies landed on
+  untiled 64 by 64 textures at addresses streamed textures had used earlier.
+
+## Thirty cars, with and without the reload fix
+
+Two races of 29 AI at the Nürburgring GP, `logs/ai30-A-fix-on` and `logs/ai30-B-fix-off`. Owner
+wording on A: "The start of the race = blurry cars. But most of it was fine. Lap 3 I let all the cars
+pass by me again and grass was a bit blurry, multiple cars became blurry for a second, some
+permanently blurry. mine blurred for like 1-2s or something." On B: "blur looked the same. I dont
+think this is related to our streaming fix, this is overload issue, not related".
+
+| 90 s after lights out | A, fix on | B, fix off |
+|---|---|---|
+| loads turned away for space per kick | 101 | 95 |
+| car and track textures dropped to level 0 | 148 and 1,127 | 334 and 1,082 |
+| tiles dropped | 3,467 MB | 4,135 MB |
+| drops the fix refused, tiles it held per kick | 111, 8.7 MB | 0 |
+
+The pool sat at 15,300 to 15,420 of 16,384 tiles used through both races. The overload is the same
+with the fix off, and what the fix holds, at most about 24 MB at the start and 3 to 9 MB while the
+field passed, is a percent or two of a pool running at 960 MB.
 
 ## Open
 
-- Whether the blur is the same with `streamer_reload_fix=0`, not yet run.
 - Whether the 40 minute crash is this. No logs arrived from that report. An 8 GB card gets a 1536 MB
   pool and 192 MB staging from `auto`, and a crash after a long session could equally be BUG-016's
   overhead or VRAM over the budget.

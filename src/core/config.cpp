@@ -74,7 +74,7 @@ void LoadConfig()
                       : (gp == L"realtime") ? 5 : 4;
     g_cfg.workingSetFloorMb = IniInt(L"process", L"working_set_floor_mb", 0);
 
-    g_cfg.streamerReloadFix = IniBool(L"engine", L"streamer_reload_fix", false);
+    g_cfg.streamerReloadFix = IniBool(L"engine", L"streamer_reload_fix", true);
 
     {
         std::vector<wchar_t> buf(32768);

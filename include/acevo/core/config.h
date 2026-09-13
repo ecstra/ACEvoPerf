@@ -33,7 +33,7 @@ struct Config {
     int  gpuPriority = 4;            // D3DKMT scheduling class, -1 = leave alone, 4 = high
     int  workingSetFloorMb = 0;      // 0 = leave alone
     // [engine]
-    bool streamerReloadFix = false;  // refuse the texture streamer's drop of a mip it keeps reloading
+    bool streamerReloadFix = true;   // refuse the texture streamer's drop of a mip it keeps reloading
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

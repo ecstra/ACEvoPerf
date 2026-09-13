@@ -142,6 +142,44 @@ The Nürburgring stint for comparison was 2,597 MB at 14.6 MB/s, led by `terrain
 and `details_alpha` 291 MB. The first menu minute reloaded 6.6 MB, so there is no loop worth the
 name in the menu.
 
+## Was the reload there for a reason
+
+The owner's question before keeping the fix: "what if it was there for a reason? ACE has something
+called dyanmic track and what if that + multiplayer needed that to see if a tile changed". Checked
+three ways.
+
+- **What a reload carries.** Across boot 1 and boot 2, 20,081 times a texture's mip was requested
+  again, every one with the same package offset and size, so the same bytes from a read only file.
+  The other 1,040 repeats of a resource address were a different texture that took a freed
+  address.
+- **Where the dynamic track lives.** The engine creates `dynamicTrackBuffer`, 65,536 entries of 4
+  bytes (`0x1da2a31`), and the dynamic track materials read it through grid constants
+  (`dynamicTrackTileDx`, `dynamicTrackGridLenghtX`). The streamed textures the fix held include 7
+  shared surfaces those materials also use, concrete, grass and the GP base, 24 of 1,401 refusals in
+  boot 2, all static layers.
+- **Whether anything writes into a streamed texture.** `src/render/texture_writes.cpp` records each
+  streamed texture's creation flags and hooks the four command list copy calls on all three command
+  list vtables, which are separate in this runtime (a first run hooked only the direct one and saw
+  no DirectStorage uploads at all). Over a thirty car race with skid marks
+  (`logs/ai30-A-fix-on`) there were 1,905 streamed textures, none created writable by a shader,
+  19,750 copies into them by DirectStorage, and 0 by the game or anything else. A multiplayer,
+  practice, rain and ten car session before it showed the same with the direct list only. The owner
+  saw skid marks, dirt, rain and cars behave normally throughout.
+
+Nothing the game does at runtime changes a streamed texture, so there was nothing for the reload to
+refresh.
+
+## Thirty cars
+
+With 29 AI the pool sat at its ceiling the whole race and track and car textures were pushed to their
+coarsest level in bursts, which the owner saw as blurry cars at the start and when the field passed,
+recorded in [BUG-020](../../bugs/BUG-020-track-textures-blur-when-many-cars-are-close.md). The same
+race with the fix off (`logs/ai30-B-fix-off`) looked the same to the owner, "blur looked the same. I
+dont think this is related to our streaming fix, this is overload issue". Over the racing time of each
+run the tile queue carried 1,020 MB a minute with the fix and 1,425 without, and loads turned away
+for space were 5,844 and 5,237 a minute. The two races differed in length and in what happened in
+them, so those are indications rather than a controlled pair.
+
 ## Repeated file reads
 
 Boot 1 read 3,554 MB from the file to memory queue that repeated an earlier read of the same file,

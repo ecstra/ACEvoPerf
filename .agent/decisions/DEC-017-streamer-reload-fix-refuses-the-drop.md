@@ -3,7 +3,7 @@ name: DEC-017-streamer-reload-fix-refuses-the-drop
 kind: decision
 description: the texture streamer's flip is fixed by refusing the drop of a texture recognised as flipping from its own feedback readings, guarded only by the engine's 1024 tile margin, rather than by correcting the conversion, refusing the reload, deduplicating uploads or standing down whenever the pool is contended
 updated: 2026-09-13
-links: [texture-streamer-flip-2026-09-13, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, tile-pool-reshuffle-2026-09-12, DEC-016-agility-sdk-tried-and-removed]
+links: [texture-streamer-flip-2026-09-13, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, tile-pool-reshuffle-2026-09-12, DEC-016-agility-sdk-tried-and-removed, BUG-020-track-textures-blur-when-many-cars-are-close]
 date: 2026-09-13
 area: streaming
 status: standing
@@ -20,8 +20,10 @@ a drop on a fresh reading and then a reload on a fresh reading no higher than th
 down by the levels lost. The pin lets go when a drop leaves the flip, the reading goes stale, the reading
 says the view moved away, screen coverage moves by more than a quarter, or the texture is not
 admitted at all. A drop is let through without forgetting the flip whenever used plus pending tiles
-no longer leave the engine's 1024 tile margin free. It ships as `[engine] streamer_reload_fix`, off
-by default, in `src/engine/streamer.cpp`.
+no longer leave the engine's 1024 tile margin free. It ships as `[engine] streamer_reload_fix` in
+`src/engine/streamer.cpp`, on by default since the owner's call of 2026-09-13, "Streamer fix keep
+it", once a write detector showed nothing in the game writes into streamed textures at runtime.
+`streamer_reload_fix=0` turns it off.
 
 ## Alternatives
 
