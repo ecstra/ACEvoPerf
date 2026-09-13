@@ -15,7 +15,8 @@
 //   - A shader writes it through an unordered access or render target view. D3D12 refuses both
 //     views unless the resource was created with D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS or
 //     ALLOW_RENDER_TARGET, so the creation flags of every streamed texture say whether it can be
-//     written this way at all. They are read once, at its first tile request.
+//     written this way at all. They are read at every tile request, since a texture freed and a
+//     new one created at its address would otherwise never be checked.
 //   - A command list copies into it. CopyTextureRegion, CopyResource, CopyTiles from a buffer and
 //     ResolveSubresource are hooked, vtable slots 16 to 19 of ID3D12GraphicsCommandList.
 //   - The CPU cannot map a reserved texture, and its tiles only ever change mapping through the
@@ -185,16 +186,23 @@ void NoteStreamedResource(ID3D12Resource* resource)
 {
     if (!g_cfg.streamingTrace || !resource) return;
 
-    AcquireSRWLockShared(&g_lock);
-    bool known = g_streamed.find(resource) != g_streamed.end();
-    ReleaseSRWLockShared(&g_lock);
-    if (known) return;
-
     D3D12_RESOURCE_DESC desc = resource->GetDesc();
+    auto sameAsRecorded = [&desc](const Streamed& recorded) {
+        return recorded.flags == desc.Flags && recorded.layout == desc.Layout;
+    };
+
+    AcquireSRWLockShared(&g_lock);
+    auto found = g_streamed.find(resource);
+    bool recorded = found != g_streamed.end() && sameAsRecorded(found->second);
+    ReleaseSRWLockShared(&g_lock);
+    if (recorded) return;
+
     AcquireSRWLockExclusive(&g_lock);
-    bool inserted = g_streamed.emplace(resource, Streamed{ NowSec(), desc.Flags, desc.Layout }).second;
+    auto [entry, inserted] = g_streamed.try_emplace(resource, Streamed{ NowSec(), desc.Flags, desc.Layout });
+    bool recordedMeanwhile = !inserted && sameAsRecorded(entry->second);
+    if (!inserted && !recordedMeanwhile) entry->second = Streamed{ NowSec(), desc.Flags, desc.Layout };
     ReleaseSRWLockExclusive(&g_lock);
-    if (!inserted) return;
+    if (recordedMeanwhile) return;
 
     if (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) g_streamedUav++;
     if (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) g_streamedRtv++;
