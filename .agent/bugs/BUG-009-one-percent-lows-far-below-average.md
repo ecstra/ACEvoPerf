@@ -215,6 +215,42 @@ largest excess in slow frames at 762 against 369 scaled, behind cohtml. The ques
 lock that is remains open. See
 [optimisation-deepdive-2026-09-12](../docs/research/optimisation-deepdive-2026-09-12.md).
 
+## Read again from the runs of 2026-09-13
+
+Picked back up on the owner's list, "Frametime, Memory Creep (leak), 1% all still remain". No new
+lap, the frames of that day's runs read again. They are the first with the GPU clock flat, the owner
+had undervolted the card, so the spread is not the throttle's. Windows as in
+[frame-time-mod-against-passive-2026-09-13](../docs/research/frame-time-mod-against-passive-2026-09-13.md),
+100 s parked at the Nürburgring GP pit exit.
+
+| run | frame to next frame | median | p99 | p99 over median | Reflex, priorities |
+|---|---|---|---|---|---|
+| N, mod passive | 2.56 ms | 10.34 ms | 13.51 ms | 1.31 | off |
+| M, mod on | 1.53 ms | 10.66 ms | 13.41 ms | 1.26 | on |
+| P1, mod on with the engine's budgets | 1.93 ms | 10.33 ms | 13.38 ms | 1.30 | on |
+| R, release 0.3.1 | 1.61 ms | 10.80 ms | 13.55 ms | 1.25 | on |
+
+- **Without the mod the frames alternate.** Run N goes 8.3, 12.4, 8.2, 12.2, 8.7, 12.1 ms, two humps
+  in its histogram, and its frame time correlates minus 0.88 with the next frame. That is the every
+  other frame alternation of lap one on 2026-09-05, back with the mod passive.
+- **The mod already evens it out.** Every run with the mod on has one hump around 10 to 10.5 ms and
+  a frame to frame swing of 1.5 to 1.9 ms against 2.6. Reflex is the likeliest part, it is the one
+  change to how frames queue, but the priorities and timer changed at the same time and were not
+  split.
+- **What is left is width.** With the mod on, p99 is 1.25 to 1.30 times the median, one hump, no
+  second mode. An overlay that shows p99 as its 1 percent low reads 74.6 fps against a 92.9 average
+  in run M, the 18 fps gap the owner reports.
+- **The texture streamer's pass adds a little.** On ten Red Bull Ring laps with the streaming trace
+  (`logs/streamer-boot1-1124`, 503 passes, reload fix off) 26.6 percent of the slowest 1 percent fall
+  in the first tenth of a second after a pass against 10.2 percent of all frames, and the frame
+  presented within 20 ms of a pass averages 0.51 ms longer than the rest. Parked with the reload fix
+  on (`logs/streamer-boot2-fix-1141`, 46 passes) no excess shows. So loads the pass starts cost about
+  half a millisecond on the next frame while driving, which moves frames near p99 across it, and it
+  is not the bulk of the tail.
+- **Both monitors are still outputs of the AMD integrated GPU** in every run of the day, the game's
+  own `[Monitor]` lines and the mod's `[display]` warning, so every frame is still copied across
+  adapters, the one lead of TODO-010 that needs the owner's hardware.
+
 ## Verification
 
 Absent.
