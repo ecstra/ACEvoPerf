@@ -1,7 +1,7 @@
 ---
 name: frame-time-mod-against-passive-2026-09-13
 kind: doc
-description: a controlled pair on the undervolted reference card puts the mod's frame time cost at 3.8 percent parked and 8 percent on a lap against the mod fully passive, and a third run with the engine's own budgets shows three quarters of it is the texture and mesh detail those budgets buy, with the reload fix ruled out
+description: a controlled pair on the undervolted reference card puts the mod's frame time cost at 3.8 percent parked and 8 percent on a lap against the mod fully passive, three quarters of it is the bigger budgets, and splitting them shows the 1433 MB mesh budget costs 2 percent parked and 5 on a lap for a small part of the picture while the texture pool buys most of it for under 1, with the reload fix ruled out
 updated: 2026-09-13
 links: [TODO-022-frame-time-with-and-without-the-mod, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, DEC-014-reflex-ships-on-boost-ships-off, BUG-007-blurry-road-and-textures, directstorage-streaming]
 ---
@@ -86,11 +86,38 @@ and the lap from 6 s after leaving the pit box to the lap completing, all taken 
   P1 ran 50 minutes after N from a card at 42 °C instead of 48, so part of that can be the session.
   On the lap it is 2.04 fps, 0.52 to 3.61, over a lap driven 9 s slower.
 
+## P2, textures back to 366 MB with the mesh budget held
+
+Session `logs/frametime-20260913/P2-textures-366`. M with `tile_pool_mb=366`, so textures as in N and
+meshes as in M. There is no flag for the mesh budget alone, the canonical path fixes it at 1433 MB and
+`tile_pool_mb` sets only the tile pool. The game log confirms a 366 MB tile pool and the canonical
+1433 MB mesh budget.
+
+| | P1, both 366 MB | P2, textures 366 MB, meshes 1433 MB | M, textures 1024 MB, meshes 1433 MB |
+|---|---|---|---|
+| parked fps, median, p99 | 95.63, 10.33 ms, 13.38 ms | 93.53, 10.63 ms, 13.18 ms | 92.92, 10.66 ms, 13.41 ms |
+| lap fps, median, p99 | 95.14, 10.49 ms, 13.92 ms | 90.49, 11.09 ms, 13.89 ms | 89.42, 11.22 ms, 14.27 ms |
+| GPU clock, power, temperature parked | 1822 MHz, 96.8 W, 70.4 °C | 1822 MHz, 97.9 W, 72.5 °C | 1822 MHz, 98.9 W, 73.2 °C |
+| VRAM used parked | 5426 MB | 3764 MB | 4419 MB |
+
+- **The mesh budget is most of the cost.** P1 is 2.10 fps faster than P2 parked, 1.91 to 2.28, and
+  4.65 fps on the lap, 2.94 to 6.35. So of the budgets' 2.72 fps parked the meshes take 2.10 and the
+  texture pool 0.62, 0.46 to 0.79. On the lap the texture pool's 1.07 fps, 0.67 slower to 2.90
+  faster, is not told apart from nothing.
+- **The texture pool is most of the picture.** The owner saw P2 as only slightly better than P1,
+  about a tenth of the way to the mod's usual picture, everything still mushy and blurry. That tenth
+  is the finer meshes and whatever the streamer managed in a full 366 MB pool, where it turned away
+  32,833 of the 35,000 finer levels it wanted.
+- **So the texture pool buys most of the sharpness for under 1 percent**, and the 1433 MB mesh
+  budget costs about 2 percent parked and 5 percent on the lap for a small part of it. That budget
+  is not the fix for this card, it rides along with the canonical flag, which the mod sets to fix
+  the tile pool (DEC-005). On this card the engine itself would pick 366 MB with its own staging
+  buffers.
+
 ## What splits it
 
-The budgets next, textures against meshes. There is no flag for the mesh budget alone, the canonical
-path fixes it at 1433 MB and `tile_pool_mb` sets only the tile pool, so P2 is M with
-`tile_pool_mb=366`. Textures as in N and meshes as in M. Near M means the mesh budget is the cost,
-near P1 means the texture pool is. The owner judges the picture as well as the numbers, because a
-budget that buys frames by turning the road back to mush is not a fix. The last 1 percent, Reflex,
-the priorities and the bundled runtime, only if it still matters after that.
+The test that decides it is the mod's textures with a small mesh budget, 1024 MB of tiles and the
+366 MB of meshes the engine picks. No flag reaches that, so it needs the mesh budget written in the
+engine the way the canonical path writes 1433 MB. The owner judges it against M, because a budget
+that buys frames by turning geometry blocky or popping is not a fix either. The last 1 percent,
+Reflex, the priorities and the bundled runtime, only if it still matters after that.
