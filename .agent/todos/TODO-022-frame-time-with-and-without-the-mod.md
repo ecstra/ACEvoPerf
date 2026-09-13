@@ -24,6 +24,14 @@ a 1024 MB staging buffer, which is the blurry road of BUG-007. The mod forces a 
 The controlled pair of 2026-09-13 put parked frame time at 11.1 to 11.3 ms with the mod, so 13 ms is
 more likely a driving or thermal reading, and the comparison has to hold both still.
 
+## Where it stands, 2026-09-13
+
+The first pair is run, [frame-time-mod-against-passive-2026-09-13](../docs/research/frame-time-mod-against-passive-2026-09-13.md).
+The mod costs 3.8 percent parked and 8 percent on a lap, 10.34 against 10.66 ms median parked and
+10.36 against 11.22 ms on the lap, with the GPU at the same clock. Without the mod the engine shrank
+both pools to 366 MB and streamed no textures at all, so the budgets are the first suspect. It is not
+the reload fix, which measured 1.4 percent faster on its own, so this continues on its own branch.
+
 ## Done when
 
 The mod fully passive and the shipped defaults have been run as a controlled pair on the undervolted
