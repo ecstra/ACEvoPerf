@@ -76,6 +76,9 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   the texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
   each file read that repeats an earlier one exactly, and any runtime write into a streamed texture.
   Diagnostics, off by default.
+- `streamer_census` under `[developer]` writes `acevo_perf_census.bin`, what the texture streamer
+  was asked for each second, how it ranked every texture level against the pool and what its
+  textures hold, for the blur in crowded races. Diagnostics, off by default.
 
 ### Changed
 

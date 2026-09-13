@@ -15,6 +15,7 @@ struct Config {
     bool traceFileIo = false;   // log the game's file I/O on the package
     bool loadSampler = false;   // suspends game threads to read them
     int  loadSampleUs = 1000;
+    bool streamerCensus = false; // acevo_perf_census.bin, every kick's demand, ranked records and tracked tiles
     // [directstorage]
     bool bundledRuntime = true;     // load acevo_perf\dstoragecore.dll instead of the game's older one
     int  stagingMb = 0;             // 0 = the game's own value, or the auto pick once the card is known
