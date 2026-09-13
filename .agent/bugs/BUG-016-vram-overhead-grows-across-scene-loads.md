@@ -225,6 +225,41 @@ undervolted the card that day and took the undervolt off again. Committed memory
 Next is naming what the committed memory is made of and which code keeps it, which the game does
 not log. Its only breakdown is the VRAM bucket list it prints after a GPU crash.
 
+## What the growth is made of, 2026-09-13
+
+The `[developer] memory_census` of `src/telemetry/memory_census.cpp` reads the process once memory
+has settled in the menu, see [telemetry](../docs/ops/telemetry.md). Session
+`logs/memcreep-20260913/S-census-settled`, mod on, the route of run Q, every figure in MB.
+
+| menu reading | commit charge | heap committed | heap in use | VirtualAlloc imports | other private | mapped |
+|---|---|---|---|---|---|---|
+| at start | 8149 | 3692 | 3569 | 22 | 4292 | 348 |
+| after the Nürburgring GP | 9401 | 5325 | 3870 | 54 | 3869 | 1372 |
+| after the Red Bull Ring | 9428 | 5334 | 3938 | 45 | 3896 | 1372 |
+| after the Nürburgring GP | 9578 | 5903 | 4104 | 50 | 3470 | 1372 |
+| after the Red Bull Ring | 9731 | 5924 | 4157 | 46 | 3607 | 1372 |
+
+- **It is the game's main heap.** One heap holds all of it, the one the CRT's `malloc` uses. Memory
+  committed through `VirtualAlloc` imports stays near 50 MB, and the rest of private memory falls
+  rather than grows.
+- **The game really uses only 588 MB more** after four tracks, 301 MB of it after the first.
+- **The heap holds 1.8 GB it has been given back**, 123 MB at start and 1,767 MB by the end, by the
+  heap's own count. `HeapCompact` on every heap returned nothing from the commit charge at any of the
+  five readings, so that free memory is spread across pages still partly in use. A harness showed
+  the heap's committed figure can lag the real charge, so the split between in use and free is the
+  heap's accounting, while the commit charge and the zero returned are exact.
+- **Mapped views jump by a gigabyte with the first track** and stay flat after it.
+
+Reading this: the creep is a small real growth in what the game keeps, about 300 MB with the first
+track and 50 to 170 MB with each track after, plus fragmentation of the process heap that no call
+into the heap undoes. The mod cannot defragment a heap the game is using, and moving the game onto a
+different allocator from a DLL would have to catch every allocation and every free from the first one
+on.
+
+The first census version read every ten seconds and froze the game on each read, 200 ms in the menu
+and 1.4 s on track (`logs/memcreep-20260913/R-census-mod-on`), because `HeapSummary` walks a heap of
+4 to 7 GB under its lock.
+
 ## Done when
 
 The overhead figure is flat across a dozen loads, or its growth is named and the mod either
