@@ -25,6 +25,7 @@
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
 #include "acevo/telemetry/load_sampler.h"
+#include "acevo/telemetry/memory_census.h"
 
 static void OnAttach(HMODULE h)
 {
@@ -55,6 +56,7 @@ static void OnAttach(HMODULE h)
         g_cfg.dxgiEnabled, g_cfg.frameStats, g_cfg.timeline, g_cfg.frames, g_cfg.hitchMs);
     Log("command line: %ls", GetCommandLineW());
 
+    InstallMemoryCensus();
     ApplyProcessTweaks();
     ApplyFlags("early");
     InstallStreamerHooks();

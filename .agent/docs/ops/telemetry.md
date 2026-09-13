@@ -11,7 +11,7 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-
 All files are written next to the game executable and overwritten on every launch. The log is
 on by default. Every diagnostic is in the ini's `[developer]` section and off by default, the two
 CSVs (`timeline=1`, `frames=1`), the streaming trace, request logging, the throw log, the package
-file trace and the load sampler. Copy
+file trace, the load sampler and the memory census. Copy
 them to a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
 gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
@@ -94,6 +94,29 @@ hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
 own tile pool figures (used, capacity, pending), and the file to memory queue's `[stats]` line is
 followed by the total of repeated reads.
+
+## acevo_perf_memory.csv
+
+Written only with `[developer] memory_census=1` (`src/telemetry/memory_census.cpp`), for BUG-016.
+The import slots of `VirtualAlloc` and `VirtualAlloc2` are patched in every module, again at each
+census for modules loaded later, and every commit is remembered with the three return addresses
+above the call. Every `stats_interval_s` the census checks each remembered range against the address
+space, so released and decommitted memory drops out, and writes rows under the header
+`t_s,kind,a,b,c,d,e,f,g`, sizes in MB.
+
+- `total`. a the process commit charge (`PrivateUsage`), b private committed memory found by walking
+  the address space, c heaps committed (`HeapSummary` over every process heap), d remembered
+  commits still committed, e mapped views committed, f images committed, g regions walked. b is c
+  plus d plus whatever neither covers
+- `heap`, every heap of 32 MB or more. a heap handle, b committed, c reserved
+- `site`, every call site still holding 4 MB or more, largest first. a MB, b ranges, c to e the
+  three return addresses as `module+0xRVA`, an address outside any module when the code was
+  generated at runtime
+
+A harness run outside the game confirmed the partition, three 64 MB commits as three sites, 64 MB
+committed in four pieces into one reservation as one site of four ranges with a recommit inside it
+not counted twice, a release and an 8 MB decommit dropping out exactly, 40 MB of heap under c and
+nothing left behind by four threads churning allocations.
 
 ## GPU sampler
 
