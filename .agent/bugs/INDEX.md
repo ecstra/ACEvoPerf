@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-13
+updated: 2026-09-14
 links: [agent-index, spec-bugs]
 ---
 
@@ -13,7 +13,7 @@ links: [agent-index, spec-bugs]
 bug
 
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), two Overtake reviewers report unlit trees at night and name `enable_pso_cache`, a default the mod turns on, the owner's own log shows the cache failing to deliver pipelines after a game update
-- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), committed RAM grows about a gigabyte with the first track and 90 to 470 MB with each track after, the VRAM overhead spikes after each Nürburgring unload, and a passive run shows the same, so the creep is the game's own and still unnamed
+- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), a one time heap fill of about 1.25 GB with the first track and then about 110 MB a track the game keeps, the same passive, page file space the only cost found, the VRAM overhead spike is placement, what grows is unnamed until TODO-023's run
 - [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships at a 2x cook shrink with 3 of 12 mip levels, and its 8 by 8 grid makes any coarse mip cost eight times the detail, 64 by 64 per frame on a full size screen
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3 spends 3.52 s building twenty tyre models for four distinct results, on the serial chain that ends the session load 2.05 s after streaming finishes
@@ -21,6 +21,10 @@ bug
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, and on a flat GPU clock the frames alternate long and short without the mod while the mod evens them, leaving a p99 of 1.25 times the median and the untested present path through the integrated GPU
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
+
+debt
+
+- [BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md), the override layer holds a 64 MB decoded package table for the whole session though the game reads its table in the first seconds
 
 nit
 

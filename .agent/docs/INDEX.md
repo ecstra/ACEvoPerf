@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-13
+updated: 2026-09-14
 links: [agent-index, spec-docs]
 ---
 
@@ -42,3 +42,4 @@ links: [agent-index, spec-docs]
 - [frame-time-mod-against-passive-2026-09-13](research/frame-time-mod-against-passive-2026-09-13.md), the mod costs 3.8 percent parked and 8 percent on a lap against itself passive on a GPU held still, most of it mesh detail the 1433 MB mesh budget loads, which 366 MB gets back unseen but starves the mesh streamer, frozen on the GP and churning at the Red Bull Ring
 - [texture-streamer-flip-2026-09-13](research/texture-streamer-flip-2026-09-13.md), the churn is the texture streamer reading feedback measured against the loaded mip as if against the full texture, confirmed live and fixed behind an off by default switch, plus the full pool, the Red Bull Ring's driving traffic and 3.5 GB of repeated reads
 - [texture-streamer-overload-2026-09-13](research/texture-streamer-overload-2026-09-13.md), a census of every kick in a thirty car race shows the streamer ranking each texture by its least important request and loading only whole steps, both fixed and seen fixed in game, with the player's car and driver holding half the 1 GB pool and AI cars ranked like props, left that way on the owner's call
+- [memory-creep-2026-09-14](research/memory-creep-2026-09-14.md), BUG-016's deep dive, the census read with VRAM taken out, a one time heap fill then about 110 MB a track the game keeps, every heap lever from a DLL measured and not worth shipping, the VRAM overhead spike as placement, page file space the only cost

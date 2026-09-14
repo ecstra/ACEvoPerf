@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-13
+updated: 2026-09-14
 links: [agent-index, spec-todos]
 ---
 
@@ -27,6 +27,10 @@ render
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the parked 1 percent low hunt: the leads never tested and the instruments to bring back
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), about 10 ms without the mod against 13 with it in the owner's reading, a controlled pair to split the sharper texture pool's price from anything wrong
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
+
+stability
+
+- [TODO-023-name-what-the-game-keeps-across-identical-loads](TODO-023-name-what-the-game-keeps-across-identical-loads.md), the memory census back, six identical Nürburgring GP visits and two memory dumps, to tell BUG-016's fill from a leak and name what grows
 
 engine-flags
 
