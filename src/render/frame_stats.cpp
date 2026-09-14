@@ -71,7 +71,6 @@ static void OnPresent(UINT syncInterval)
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
         sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
         sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
-        sample.uiEveryView = UiProbeEveryView();
         for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
         EnterCriticalSection(&g_frameCs);
         if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);

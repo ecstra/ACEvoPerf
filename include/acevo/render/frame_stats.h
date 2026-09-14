@@ -16,7 +16,6 @@ struct FrameSample {
     uint32_t gpumem;    // memory to GPU uploads
     float uiEndFrameMs; // the game UI's frame end, waiting for its job, with ui_probe
     float uiAdvanceMs;  // Cohtml view advances, with ui_probe
-    bool uiEveryView;   // the probe's every view block was on
 };
 extern std::vector<FrameSample> g_frameBuf;
 

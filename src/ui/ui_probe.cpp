@@ -14,14 +14,13 @@
 // every document the view loads afterwards.
 //
 // The game's UI object (EvoUi) keeps its GameUi behind [this+0xA8]. Its slot 7 posts the frame's UI
-// job (every listed view's Advance and the paint) and slot 8 waits for that job while running other
-// queued jobs, which is how UI layout ends up on the render thread. Slot 8 passes the renderer on in
-// rdx, so both wrappers pass every register argument through.
+// job (every listed view's Advance and the paint) with the UI clock as a float in xmm1 and a pointer
+// in r8. Its slot 8 waits for that job while running other queued jobs, which is how UI layout ends up
+// holding the render thread, and passes the renderer in rdx. Both wrappers pass every argument on.
 //
-// GameUi::PostFrame lists every view each frame only while GameUi+0x555 (the main menu showroom) or
-// +0x556 (pause) is set, otherwise one view a frame in rotation. The probe replaces that first test at
-// 0xDE379B with a jump to a stub that also takes the every view branch while a flag of its own is set.
-// The two game flags are left alone because other code reads them.
+// The layout sampler suspends a thread only while it is inside Cohtml's layout work, reads its stack
+// with the unwind tables of the modules loaded at start, and resumes it before counting anything. It
+// never allocates, locks or logs while a game thread is suspended.
 
 static const DWORD kTimeDateStamp = 0x6A9EC72A;
 static const DWORD kSizeOfImage = 0x06CDD000;
@@ -32,20 +31,12 @@ static const int kEndFrameSlot = 8;
 static const uint32_t kRvaPostFrameThunk = 0x0126E58;
 static const uint32_t kRvaEndFrameThunk = 0x00EB461;
 
-static const uint32_t kRvaRotationTest = 0x0DE379B;    // cmp byte [r14+0x555], 0 then jne, 14 bytes
-static const uint32_t kRvaPauseTest = 0x0DE37A9;       // cmp byte [r14+0x556], 0
-static const uint32_t kRvaEveryView = 0x0DE38B1;       // where both tests jump when set
-static const size_t kRotationTestLength = 14;
-static const size_t kRotationRegionLength = 0x1C;
-static const uint64_t kRotationRegionHash = 0xB6AB78A1E9FA112Dull;
-
 static const int kCreateSystemSlot = 1;
 static const int kExecuteWorkSlot = 5;
 static const int kCreateViewSlot = 3;
 static const int kAdvanceSlot = 6;
 static const int kAddInitialScriptSlot = 61;
-
-static const int kEveryViewBlockSeconds = 20;
+static const uint64_t kLayoutWork = 1;
 
 // The page script, tested outside the game against a stand in for the bundle before it went in.
 static const char kPageScript[] = R"js(
@@ -55,38 +46,58 @@ static const char kPageScript[] = R"js(
     window.__acevoUiProbe = true;
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
-
-    // Counted across document loads, so one session carries its own control.
-    function nextCount(key) {
-        var count = 1;
-        try {
-            count = (parseInt(localStorage.getItem(key), 10) || 0) + 1;
-            localStorage.setItem(key, String(count));
-        } catch (e) {}
-        return count;
-    }
-
-    // The navigation fix switches on every other visit of a page. The count is per page because
-    // pages are visited in different orders.
-    var visit = nextCount('acevo_ui_probe_visit_' + page);
-    var fixesOn = visit % 2 === 0;
-    var state = fixesOn ? 'on' : 'off';
-    console.log('[ACEvoPerf] ui probe ' + page + ' visit ' + visit + ' fixes ' + state);
+    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, page fixes on');
 
     var frame = 0;
-    var stats = { navCalls: 0, navScans: 0, navSkipped: 0, navMs: 0, setupInits: 0, setupIgnored: 0, setupInstances: 0 };
-    var setupFixesOn = false;
+    var framesThisSecond = 0;
+    var nav = { calls: 0, scans: 0, skipped: 0 };
+    var setup = { inits: 0, ignored: 0 };
+    var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };
+    var events = { mousemove: 0, transitions: 0, animations: 0 };
+    var top = {};
+    var topKeys = 0;
+
+    function describe(element) {
+        if (!element || !element.tagName) return '?';
+        var name = String(element.tagName).toLowerCase();
+        if (element.id) return name + '#' + element.id;
+        var list = element.classList;
+        if (list && list.length) return name + '.' + list[0];
+        return name;
+    }
+
+    // Counts one change to the page, keyed by what changed and on which element, so the log names
+    // the scripts that make the page lay itself out again.
+    function note(kind, element, detail) {
+        changes[kind]++;
+        var key = kind + ' ' + describe(element) + (detail ? ' ' + detail : '');
+        if (top[key] === undefined) {
+            if (topKeys >= 2000) return;
+            topKeys++;
+            top[key] = 0;
+        }
+        top[key]++;
+    }
 
     function report() {
-        if (!stats.navCalls && !stats.navScans && !stats.setupInits) return;
-        var elements = document.getElementsByTagName('*').length;
-        console.log('[ACEvoPerf] ui probe ' + page + ' fixes ' + state +
-            ' | navigation calls ' + stats.navCalls + ' scans ' + stats.navScans + ' skipped ' + stats.navSkipped +
-            ' scan ms ' + stats.navMs +
-            ' | setup fixes ' + (setupFixesOn ? 'on' : 'off') + ' init ' + stats.setupInits + ' ignored ' + stats.setupIgnored +
-            ' instances ' + stats.setupInstances +
-            ' | elements ' + elements);
-        for (var name in stats) stats[name] = 0;
+        var total = changes.classOps + changes.styleWrites + changes.attrWrites + changes.inserts + changes.removes + changes.htmlSets + changes.textSets;
+        if (total || nav.calls || setup.inits) {
+            var ranked = Object.keys(top).sort(function (a, b) { return top[b] - top[a]; }).slice(0, 10);
+            console.log('[ACEvoPerf] ui changes ' + page + ' | frames ' + framesThisSecond +
+                ' | class ' + changes.classOps + ' style ' + changes.styleWrites + ' attr ' + changes.attrWrites +
+                ' insert ' + changes.inserts + ' remove ' + changes.removes + ' html ' + changes.htmlSets + ' text ' + changes.textSets +
+                ' | mousemove ' + events.mousemove + ' transitions ' + events.transitions + ' animations ' + events.animations +
+                ' | navigation calls ' + nav.calls + ' scans ' + nav.scans + ' skipped ' + nav.skipped +
+                ' | setup init ' + setup.inits + ' ignored ' + setup.ignored +
+                ' | top ' + ranked.map(function (key) { return key + ' x' + top[key]; }).join('; '));
+        }
+        for (var a in changes) changes[a] = 0;
+        for (var b in events) events[b] = 0;
+        nav.calls = nav.scans = nav.skipped = 0;
+        setup.inits = setup.ignored = 0;
+        top = {};
+        topKeys = 0;
+        framesThisSecond = 0;
     }
 
     // Registered before any page script, so it runs first in every frame and the frame number
@@ -94,6 +105,7 @@ static const char kPageScript[] = R"js(
     var lastReport = Date.now();
     (function countFrames() {
         frame++;
+        framesThisSecond++;
         var now = Date.now();
         if (now - lastReport >= 1000) {
             lastReport = now;
@@ -102,49 +114,154 @@ static const char kPageScript[] = R"js(
         requestAnimationFrame(countFrames);
     })();
 
+    function findDescriptor(object, property) {
+        for (var proto = object; proto; proto = Object.getPrototypeOf(proto)) {
+            var descriptor = Object.getOwnPropertyDescriptor(proto, property);
+            if (descriptor) return { owner: proto, descriptor: descriptor };
+        }
+        return null;
+    }
+
+    var wrapped = [];
+
+    function wrapMethod(proto, name, before) {
+        if (!proto || typeof proto[name] !== 'function' || proto[name].__acevoWrapped) return;
+        var stock = proto[name];
+        var wrapper = function () {
+            try { before(this, arguments); } catch (e) {}
+            return stock.apply(this, arguments);
+        };
+        wrapper.__acevoWrapped = true;
+        proto[name] = wrapper;
+        wrapped.push(name);
+    }
+
+    function wrapSetter(proto, name, before) {
+        var found = proto && findDescriptor(proto, name);
+        if (!found || typeof found.descriptor.set !== 'function' || !found.descriptor.configurable) return;
+        var stockSet = found.descriptor.set;
+        Object.defineProperty(found.owner, name, {
+            configurable: true,
+            enumerable: found.descriptor.enumerable,
+            get: found.descriptor.get,
+            set: function (value) {
+                try { before(this, value); } catch (e) {}
+                return stockSet.call(this, value);
+            }
+        });
+        wrapped.push(name + '=');
+    }
+
+    // Remembers which element a style or class list object belongs to, so their writes can be
+    // attributed. The getter is wrapped only if the engine lets it be.
+    function tagOwner(name) {
+        var probe = document.createElement('div');
+        var found = findDescriptor(probe, name);
+        if (!found || typeof found.descriptor.get !== 'function' || !found.descriptor.configurable) return;
+        var stockGet = found.descriptor.get;
+        Object.defineProperty(found.owner, name, {
+            configurable: true,
+            enumerable: found.descriptor.enumerable,
+            set: found.descriptor.set,
+            get: function () {
+                var value = stockGet.call(this);
+                if (value && value.__acevoOwner !== this) {
+                    try { value.__acevoOwner = this; } catch (e) {}
+                }
+                return value;
+            }
+        });
+        wrapped.push(name + ' owner');
+    }
+
+    function installChangeCounters() {
+        tagOwner('style');
+        tagOwner('classList');
+
+        var element = window.Element && Element.prototype;
+        var node = window.Node && Node.prototype;
+        wrapMethod(element, 'setAttribute', function (self, args) { note('attrWrites', self, String(args[0])); });
+        wrapMethod(element, 'removeAttribute', function (self, args) { note('attrWrites', self, '-' + String(args[0])); });
+        wrapSetter(element, 'className', function (self) { note('classOps', self, 'className'); });
+        wrapSetter(element, 'innerHTML', function (self) { note('htmlSets', self, ''); });
+        wrapSetter(node, 'textContent', function (self) { note('textSets', self, ''); });
+        wrapMethod(node, 'appendChild', function (self, args) { note('inserts', self, describe(args[0])); });
+        wrapMethod(node, 'insertBefore', function (self, args) { note('inserts', self, describe(args[0])); });
+        wrapMethod(node, 'removeChild', function (self, args) { note('removes', self, describe(args[0])); });
+        wrapMethod(node, 'replaceChild', function (self, args) { note('inserts', self, describe(args[0])); });
+
+        var tokens = window.DOMTokenList && DOMTokenList.prototype;
+        ['add', 'remove', 'toggle', 'replace'].forEach(function (name) {
+            wrapMethod(tokens, name, function (self, args) {
+                note('classOps', self.__acevoOwner, name + ' ' + Array.prototype.slice.call(args, 0, 2).join(' '));
+            });
+        });
+
+        var style = window.CSSStyleDeclaration && CSSStyleDeclaration.prototype;
+        wrapMethod(style, 'setProperty', function (self, args) { note('styleWrites', self.__acevoOwner, String(args[0])); });
+        if (style) {
+            Object.getOwnPropertyNames(style).forEach(function (name) {
+                var descriptor = Object.getOwnPropertyDescriptor(style, name);
+                if (!descriptor || typeof descriptor.set !== 'function' || !descriptor.configurable) return;
+                var stockSet = descriptor.set;
+                Object.defineProperty(style, name, {
+                    configurable: true,
+                    enumerable: descriptor.enumerable,
+                    get: descriptor.get,
+                    set: function (value) {
+                        try { note('styleWrites', this.__acevoOwner, name); } catch (e) {}
+                        return stockSet.call(this, value);
+                    }
+                });
+            });
+        }
+
+        document.addEventListener('mousemove', function () { events.mousemove++; }, true);
+        document.addEventListener('transitionstart', function () { events.transitions++; }, true);
+        document.addEventListener('animationstart', function () { events.animations++; }, true);
+        console.log('[ACEvoPerf] ui probe change counters on ' + page + ': ' + wrapped.join(', '));
+    }
+
+    try {
+        installChangeCounters();
+    } catch (e) {
+        console.error('[ACEvoPerf] ui probe change counters failed', e);
+    }
+
     // BUG-025. Every navigable element's setupNavigation calls makeFocusable() with no section,
     // which scans the whole page once per section. A group of the controls page makes a hundred
     // such calls in one frame while its rows are still outside the document, so every scan finds
-    // the same elements. With the fixes on, the first call of a frame scans and the rest fold into
-    // one scan on the next frame, which also catches elements added later in that frame.
+    // the same elements. The first call of a frame scans and the rest fold into one scan on the
+    // next frame, which also catches elements added later in that frame.
     function patchNavigation(navigation) {
         if (!navigation || navigation.__acevoPatched || typeof navigation.makeFocusable !== 'function') return;
         var stock = navigation.makeFocusable;
         var scannedFrame = -1;
         var trailing = false;
 
-        function scan(self, args) {
-            var started = Date.now();
-            try {
-                return stock.apply(self, args);
-            } finally {
-                stats.navScans++;
-                stats.navMs += Date.now() - started;
-            }
-        }
-
         navigation.makeFocusable = function (sectionId) {
             if (sectionId) return stock.apply(this, arguments);
-            stats.navCalls++;
-            if (!fixesOn || scannedFrame !== frame) {
+            nav.calls++;
+            if (scannedFrame !== frame) {
                 scannedFrame = frame;
-                return scan(this, arguments);
+                nav.scans++;
+                return stock.apply(this, arguments);
             }
-            stats.navSkipped++;
+            nav.skipped++;
             if (trailing) return;
             trailing = true;
             var self = this;
             requestAnimationFrame(function () {
                 trailing = false;
                 try {
-                    scan(self, []);
+                    nav.scans++;
+                    stock.call(self);
                 } catch (e) {
                     console.error('[ACEvoPerf] ui probe trailing navigation scan failed', e);
                 }
             });
         };
         navigation.__acevoPatched = true;
-        console.log('[ACEvoPerf] ui probe navigation scans patched on ' + page);
     }
 
     var navigationObject;
@@ -167,40 +284,25 @@ static const char kPageScript[] = R"js(
     }
 
     // BUG-026. The vehicle setup page sends its Init request twice a few milliseconds apart and
-    // rebuilds everything for each answer. Vehicle setup opens inside the pit menu's document, so
-    // this fix switches on every other open instead of every other page visit, an open being an
-    // init with none in the three seconds before. With it on, a second init on the same element
-    // while its own request is outstanding is ignored, the pending mark clears when the answer
-    // arrives or after three seconds. Calls on different elements are counted, never ignored.
-    var setupInstanceCount = 0;
-    var lastSetupInitAt = 0;
-
+    // rebuilds everything for each answer. A second init on the same element while its own request
+    // is outstanding is ignored, the pending mark clears when the answer arrives or after three
+    // seconds. Calls on different elements are never ignored.
     function patchVehicleSetup(proto) {
         if (!proto || proto.__acevoPatched || typeof proto.init !== 'function') return;
         var stockInit = proto.init;
         proto.init = function () {
-            stats.setupInits++;
+            setup.inits++;
             var now = Date.now();
-            if (now - lastSetupInitAt > 3000) {
-                var open = nextCount('acevo_ui_probe_setup_open');
-                setupFixesOn = open % 2 === 0;
-                console.log('[ACEvoPerf] ui probe vehicle setup open ' + open + ' fixes ' + (setupFixesOn ? 'on' : 'off'));
-            }
-            lastSetupInitAt = now;
-            if (!this.__acevoSetupId) {
-                this.__acevoSetupId = ++setupInstanceCount;
-                stats.setupInstances++;
-            }
-            if (setupFixesOn && this.__acevoInitPendingSince && now - this.__acevoInitPendingSince < 3000) {
-                stats.setupIgnored++;
+            if (this.__acevoInitPendingSince && now - this.__acevoInitPendingSince < 3000) {
+                setup.ignored++;
                 return;
             }
             var client = this.Client;
             var stockRequest = client && client.request;
-            if (!setupFixesOn || typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
+            if (typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
 
             var self = this;
-            self.__acevoInitPendingSince = Date.now();
+            self.__acevoInitPendingSince = now;
             client.request = function (name, callback) {
                 client.request = stockRequest;
                 if (name !== 'Init' || typeof callback !== 'function') return stockRequest.apply(client, arguments);
@@ -216,7 +318,6 @@ static const char kPageScript[] = R"js(
             }
         };
         proto.__acevoPatched = true;
-        console.log('[ACEvoPerf] ui probe vehicle setup init patched on ' + page);
     }
 
     try {
@@ -243,19 +344,19 @@ typedef void* (*PFN_CreateView)(void* system, const void* settings);
 typedef uint64_t (*PFN_ExecuteWork)(void* library, uint64_t type, uint64_t mode, uint64_t family);
 typedef uint64_t (*PFN_Advance)(void* view, double milliseconds, uint64_t arg3, uint64_t arg4);
 typedef void (*PFN_AddInitialScript)(void* view, const char* script);
-typedef void (*PFN_UiFrame)(void* evoUi, void* arg2, void* arg3, void* arg4);
+typedef void (*PFN_PostFrame)(void* evoUi, float uiClock, void* arg3, void* arg4);
+typedef void (*PFN_EndFrame)(void* evoUi, void* renderer, void* arg3, void* arg4);
 
 static PFN_LibraryInitialize g_origInitialize = nullptr;
 static PFN_CreateSystem g_origCreateSystem = nullptr;
 static PFN_CreateView g_origCreateView = nullptr;
 static PFN_ExecuteWork g_origExecuteWork = nullptr;
 static PFN_Advance g_origAdvance = nullptr;
-static PFN_UiFrame g_origPostFrame = nullptr;
-static PFN_UiFrame g_origEndFrame = nullptr;
+static PFN_PostFrame g_origPostFrame = nullptr;
+static PFN_EndFrame g_origEndFrame = nullptr;
 
-static HMODULE g_cohtml = nullptr;
 static LARGE_INTEGER g_qpf = {};
-static BYTE* g_everyViewFlag = nullptr;
+static void* g_mainView = nullptr;
 
 static std::atomic<uint64_t> g_endFrameUsSincePresent{0};
 static std::atomic<uint64_t> g_advanceUsSincePresent{0};
@@ -273,6 +374,14 @@ struct ViewStats {
     uint64_t us, maxUs;
 };
 
+// A clock the game hands Cohtml, followed over one second against real time.
+struct ClockStats {
+    uint32_t calls;
+    double first, last, largestStep;
+    int64_t firstQpc, lastQpc;
+    uint32_t backwards;
+};
+
 struct SecondStats {
     ViewStats views[kMaxViews];
     int viewCount;
@@ -280,10 +389,13 @@ struct SecondStats {
     uint64_t workUs[kWorkTypes], workRenderUs[kWorkTypes], workMaxUs[kWorkTypes];
     uint32_t endFrames;
     uint64_t endFrameUs, endFrameMaxUs;
+    ClockStats postClock, advanceClock;
 };
 
 static SRWLOCK g_statsLock = SRWLOCK_INIT;
 static SecondStats g_stats = {};
+static double g_lastPostClock = 0, g_lastAdvanceClock = 0;
+static bool g_postClockSeen = false, g_advanceClockSeen = false;
 static int g_viewsCreated = 0;
 
 static int64_t Qpc()
@@ -298,16 +410,6 @@ static uint64_t ElapsedUs(int64_t since)
     return (uint64_t)((Qpc() - since) * 1000000 / g_qpf.QuadPart);
 }
 
-static uint64_t Fnv1a64(const BYTE* bytes, size_t length)
-{
-    uint64_t hash = 0xCBF29CE484222325ull;
-    for (size_t i = 0; i < length; ++i) {
-        hash ^= bytes[i];
-        hash *= 0x100000001B3ull;
-    }
-    return hash;
-}
-
 // Logs the first few thread changes only, in case the call moves between job threads every frame.
 static void NoteThread(std::atomic<DWORD>& slot, const char* what)
 {
@@ -316,6 +418,249 @@ static void NoteThread(std::atomic<DWORD>& slot, const char* what)
     DWORD previous = slot.exchange(thread, std::memory_order_relaxed);
     if (previous != thread && changesLogged.fetch_add(1, std::memory_order_relaxed) < 16)
         Log("[ui] %s runs on thread %lu", what, thread);
+}
+
+// Called under g_statsLock.
+static void NoteClock(ClockStats& stats, double& last, bool& seen, double value)
+{
+    int64_t now = Qpc();
+    if (seen) {
+        double step = value - last;
+        if (step < 0) stats.backwards++;
+        else stats.largestStep = std::max(stats.largestStep, step);
+    }
+    if (!stats.calls) {
+        stats.first = value;
+        stats.firstQpc = now;
+    }
+    stats.last = value;
+    stats.lastQpc = now;
+    stats.calls++;
+    last = value;
+    seen = true;
+}
+
+// ---------------------------------------------------------------------------
+// The layout sampler
+// ---------------------------------------------------------------------------
+
+struct UnwindModule {
+    uintptr_t base, end;
+    const RUNTIME_FUNCTION* functions;
+    DWORD count;
+    const char* label;
+};
+
+struct LayoutThread {
+    DWORD id;
+    HANDLE handle;
+    std::atomic<int> inside;
+};
+
+static const int kMaxUnwindModules = 8;
+static const int kMaxLayoutThreads = 16;
+static const int kMaxFrames = 48;
+static const int kCountSlots = 8192;
+static const int kReportSeconds = 5;
+
+static UnwindModule g_unwindModules[kMaxUnwindModules];
+static int g_unwindModuleCount = 0;
+static LayoutThread g_layoutThreads[kMaxLayoutThreads];
+static std::atomic<int> g_layoutThreadCount{0};
+static SRWLOCK g_registerLock = SRWLOCK_INIT;
+static thread_local int t_layoutSlot = -1;
+
+// Keys are the module index in the top byte and the function's rva below it.
+struct Count {
+    uint64_t key;
+    uint32_t samples;
+};
+static Count g_leafCounts[kCountSlots];
+static Count g_inclusiveCounts[kCountSlots];
+static uint32_t g_samples = 0, g_unattributed = 0;
+
+static void AddUnwindModule(const wchar_t* name, const char* label)
+{
+    HMODULE module = GetModuleHandleW(name);
+    if (!module || g_unwindModuleCount >= kMaxUnwindModules) return;
+    auto nt = (IMAGE_NT_HEADERS64*)((BYTE*)module + ((IMAGE_DOS_HEADER*)module)->e_lfanew);
+    const IMAGE_DATA_DIRECTORY& directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+    if (!directory.VirtualAddress || !directory.Size) return;
+    UnwindModule& entry = g_unwindModules[g_unwindModuleCount++];
+    entry.base = (uintptr_t)module;
+    entry.end = entry.base + nt->OptionalHeader.SizeOfImage;
+    entry.functions = (const RUNTIME_FUNCTION*)((BYTE*)module + directory.VirtualAddress);
+    entry.count = directory.Size / sizeof(RUNTIME_FUNCTION);
+    entry.label = label;
+}
+
+// The exception directory is sorted by start address, which is what lets the loader search it too.
+static const RUNTIME_FUNCTION* FindFunction(uintptr_t address, int& moduleIndex)
+{
+    for (int m = 0; m < g_unwindModuleCount; ++m) {
+        const UnwindModule& module = g_unwindModules[m];
+        if (address < module.base || address >= module.end) continue;
+        moduleIndex = m;
+        DWORD rva = (DWORD)(address - module.base);
+        size_t low = 0, high = module.count;
+        while (low < high) {
+            size_t middle = (low + high) / 2;
+            const RUNTIME_FUNCTION& function = module.functions[middle];
+            if (rva < function.BeginAddress) high = middle;
+            else if (rva >= function.EndAddress) low = middle + 1;
+            else return &function;
+        }
+        return nullptr;
+    }
+    moduleIndex = -1;
+    return nullptr;
+}
+
+static void AddCount(Count* table, uint64_t key)
+{
+    size_t slot = (size_t)((key * 0x9E3779B97F4A7C15ull) >> 51) & (kCountSlots - 1);
+    for (int probe = 0; probe < kCountSlots; ++probe, slot = (slot + 1) & (kCountSlots - 1)) {
+        if (table[slot].key == key) {
+            table[slot].samples++;
+            return;
+        }
+        if (!table[slot].key) {
+            table[slot].key = key;
+            table[slot].samples = 1;
+            return;
+        }
+    }
+}
+
+static int FramesOf(HANDLE thread, uint64_t* keys)
+{
+    CONTEXT context = {};
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+    if (!GetThreadContext(thread, &context)) return 0;
+
+    int frames = 0;
+    __try {
+        while (frames < kMaxFrames && context.Rip) {
+            int moduleIndex = -1;
+            const RUNTIME_FUNCTION* function = FindFunction((uintptr_t)context.Rip, moduleIndex);
+            if (moduleIndex < 0) break;    // code without unwind tables, script or another module
+            const UnwindModule& module = g_unwindModules[moduleIndex];
+            keys[frames++] = ((uint64_t)(moduleIndex + 1) << 56) | (function ? function->BeginAddress : (DWORD)(context.Rip - module.base));
+            if (!function) {
+                context.Rip = *(DWORD64*)context.Rsp;
+                context.Rsp += 8;
+                continue;
+            }
+            PVOID handlerData = nullptr;
+            DWORD64 establisher = 0;
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER, module.base, context.Rip, (PRUNTIME_FUNCTION)function, &context, &handlerData, &establisher, nullptr);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+    return frames;
+}
+
+static void TakeSample(LayoutThread& thread)
+{
+    uint64_t keys[kMaxFrames];
+    int frames = 0;
+    if (SuspendThread(thread.handle) == (DWORD)-1) return;
+    if (thread.inside.load(std::memory_order_relaxed) > 0) frames = FramesOf(thread.handle, keys);
+    ResumeThread(thread.handle);
+    if (!frames) return;
+
+    g_samples++;
+    AddCount(g_leafCounts, keys[0]);
+    for (int i = 0; i < frames; ++i) {
+        bool seen = false;
+        for (int j = 0; j < i && !seen; ++j) seen = keys[j] == keys[i];
+        if (!seen) AddCount(g_inclusiveCounts, keys[i]);
+    }
+}
+
+static int TopCounts(const Count* table, Count* top, int wanted)
+{
+    int found = 0;
+    for (int slot = 0; slot < kCountSlots; ++slot) {
+        if (!table[slot].key) continue;
+        int at;
+        if (found < wanted) {
+            at = found++;
+        } else if (table[slot].samples > top[wanted - 1].samples) {
+            at = wanted - 1;
+        } else {
+            continue;
+        }
+        top[at] = table[slot];
+        for (; at > 0 && top[at].samples > top[at - 1].samples; --at) std::swap(top[at], top[at - 1]);
+    }
+    return found;
+}
+
+static int AppendCounts(char* line, int length, size_t size, const char* title, const Count* table)
+{
+    Count top[12] = {};
+    int found = TopCounts(table, top, 12);
+    length += _snprintf_s(line + length, size - length, _TRUNCATE, " | %s", title);
+    for (int i = 0; i < found && length > 0; ++i) {
+        int moduleIndex = (int)(top[i].key >> 56) - 1;
+        const char* label = moduleIndex >= 0 ? g_unwindModules[moduleIndex].label : "?";
+        length += _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX %.0f%%", label,
+            (unsigned long long)(top[i].key & 0x00FFFFFFFFFFFFFFull), 100.0 * top[i].samples / std::max<uint32_t>(g_samples, 1));
+    }
+    return length;
+}
+
+static void ReportSamples()
+{
+    if (!g_samples) return;
+    char line[3072];
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] layout samples %u", g_samples);
+    length = AppendCounts(line, length, sizeof line, "innermost", g_leafCounts);
+    if (length > 0) AppendCounts(line, length, sizeof line, "on the stack", g_inclusiveCounts);
+    Log("%s", line);
+    memset(g_leafCounts, 0, sizeof g_leafCounts);
+    memset(g_inclusiveCounts, 0, sizeof g_inclusiveCounts);
+    g_samples = 0;
+}
+
+static DWORD WINAPI LayoutSamplerThread(void*)
+{
+    SetThreadDescription(GetCurrentThread(), L"ACEvoPerf UI layout sampler");
+    int64_t lastReport = Qpc();
+    for (;;) {
+        bool anyInside = false;
+        int count = g_layoutThreadCount.load(std::memory_order_relaxed);
+        for (int i = 0; i < count; ++i) {
+            LayoutThread& thread = g_layoutThreads[i];
+            if (thread.inside.load(std::memory_order_relaxed) <= 0) continue;
+            anyInside = true;
+            TakeSample(thread);
+        }
+        if (Qpc() - lastReport >= kReportSeconds * g_qpf.QuadPart) {
+            lastReport = Qpc();
+            ReportSamples();
+        }
+        Sleep(anyInside ? 1 : 4);
+    }
+}
+
+static LayoutThread* LayoutThreadForThisThread()
+{
+    if (t_layoutSlot >= 0) return &g_layoutThreads[t_layoutSlot];
+    AcquireSRWLockExclusive(&g_registerLock);
+    int count = g_layoutThreadCount.load(std::memory_order_relaxed);
+    if (count < kMaxLayoutThreads) {
+        HANDLE handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, GetCurrentThreadId());
+        if (handle) {
+            g_layoutThreads[count].id = GetCurrentThreadId();
+            g_layoutThreads[count].handle = handle;
+            t_layoutSlot = count;
+            g_layoutThreadCount.store(count + 1, std::memory_order_relaxed);
+        }
+    }
+    ReleaseSRWLockExclusive(&g_registerLock);
+    return t_layoutSlot >= 0 ? &g_layoutThreads[t_layoutSlot] : nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +675,7 @@ static uint64_t Hook_Advance(void* view, double milliseconds, uint64_t arg3, uin
     g_advanceUsSincePresent.fetch_add(us, std::memory_order_relaxed);
 
     AcquireSRWLockExclusive(&g_statsLock);
+    if (view == g_mainView) NoteClock(g_stats.advanceClock, g_lastAdvanceClock, g_advanceClockSeen, milliseconds);
     for (int i = 0; i < g_stats.viewCount; ++i) {
         ViewStats& stats = g_stats.views[i];
         if (stats.view != view) continue;
@@ -344,12 +690,15 @@ static uint64_t Hook_Advance(void* view, double milliseconds, uint64_t arg3, uin
 
 static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, uint64_t family)
 {
+    LayoutThread* sampled = type == kLayoutWork ? LayoutThreadForThisThread() : nullptr;
+    if (sampled) sampled->inside.fetch_add(1, std::memory_order_relaxed);
     int64_t started = Qpc();
     uint64_t result = g_origExecuteWork(library, type, mode, family);
     uint64_t us = ElapsedUs(started);
+    if (sampled) sampled->inside.fetch_sub(1, std::memory_order_relaxed);
+
     int slot = (type < kWorkTypes - 1) ? (int)type : kWorkTypes - 1;
     bool onRenderThread = GetCurrentThreadId() == g_endFrameThread.load(std::memory_order_relaxed);
-
     AcquireSRWLockExclusive(&g_statsLock);
     g_stats.workCalls[slot]++;
     g_stats.workUs[slot] += us;
@@ -386,6 +735,7 @@ static void* Hook_CreateView(void* system, const void* settings)
         g_stats.views[slot].width = width;
         g_stats.views[slot].height = height;
     }
+    if (number == 1) g_mainView = view;
     ReleaseSRWLockExclusive(&g_statsLock);
 
     void** vtable = *(void***)view;
@@ -396,7 +746,7 @@ static void* Hook_CreateView(void* system, const void* settings)
     if (number == 1) {
         auto addInitialScript = (PFN_AddInitialScript)vtable[kAddInitialScriptSlot];
         addInitialScript(view, kPageScript);
-        Log("[ui] page script added to view #1, the page fixes switch on every other visit of a page");
+        Log("[ui] page script added to view #1, it counts page changes and applies the page fixes");
     }
     return view;
 }
@@ -427,8 +777,8 @@ static void* Hook_LibraryInitialize(const char* licenseKey, const void* params)
 
 static void InstallCohtmlHooks()
 {
-    g_cohtml = GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
-    void* initialize = g_cohtml ? (void*)GetProcAddress(g_cohtml, "?Initialize@Library@cohtml@@SAPEAV12@PEBDAEBULibraryParams@2@@Z") : nullptr;
+    HMODULE cohtml = GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
+    void* initialize = cohtml ? (void*)GetProcAddress(cohtml, "?Initialize@Library@cohtml@@SAPEAV12@PEBDAEBULibraryParams@2@@Z") : nullptr;
     if (!initialize) {
         Log("[ui] Cohtml Library::Initialize not found, the Cohtml side of the probe is off");
         return;
@@ -436,23 +786,40 @@ static void InstallCohtmlHooks()
     g_origInitialize = (PFN_LibraryInitialize)initialize;
     int patched = PatchIatByAddress(GetModuleHandleW(nullptr), initialize, (void*)&Hook_LibraryInitialize);
     Log("[ui] Cohtml Library::Initialize, %d import slot(s) of the exe patched", patched);
+
+    AddUnwindModule(L"cohtml.WindowsDesktop.dll", "cohtml");
+    AddUnwindModule(L"RenoirCore.WindowsDesktop.dll", "renoir");
+    AddUnwindModule(L"v8.dll", "v8");
+    AddUnwindModule(L"ucrtbase.dll", "ucrtbase");
+    AddUnwindModule(L"ntdll.dll", "ntdll");
+    AddUnwindModule(L"kernelbase.dll", "kernelbase");
+    AddUnwindModule(nullptr, "exe");
+    HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
+    if (sampler) {
+        SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
+        CloseHandle(sampler);
+    }
+    Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
 }
 
 // ---------------------------------------------------------------------------
 // The game's UI frame
 // ---------------------------------------------------------------------------
 
-static void Hook_PostFrame(void* evoUi, void* arg2, void* arg3, void* arg4)
+static void Hook_PostFrame(void* evoUi, float uiClock, void* arg3, void* arg4)
 {
     NoteThread(g_postFrameThread, "the UI frame post");
-    g_origPostFrame(evoUi, arg2, arg3, arg4);
+    AcquireSRWLockExclusive(&g_statsLock);
+    NoteClock(g_stats.postClock, g_lastPostClock, g_postClockSeen, uiClock);
+    ReleaseSRWLockExclusive(&g_statsLock);
+    g_origPostFrame(evoUi, uiClock, arg3, arg4);
 }
 
-static void Hook_EndFrame(void* evoUi, void* arg2, void* arg3, void* arg4)
+static void Hook_EndFrame(void* evoUi, void* renderer, void* arg3, void* arg4)
 {
     NoteThread(g_endFrameThread, "the UI frame end");
     int64_t started = Qpc();
-    g_origEndFrame(evoUi, arg2, arg3, arg4);
+    g_origEndFrame(evoUi, renderer, arg3, arg4);
     uint64_t us = ElapsedUs(started);
     g_endFrameUsSincePresent.fetch_add(us, std::memory_order_relaxed);
 
@@ -463,14 +830,14 @@ static void Hook_EndFrame(void* evoUi, void* arg2, void* arg3, void* arg4)
     ReleaseSRWLockExclusive(&g_statsLock);
 }
 
-static bool ThisIsTheGameBuild(BYTE* base)
+static void InstallUiFrameHooks()
 {
+    BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
     auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
-    return nt->FileHeader.TimeDateStamp == kTimeDateStamp && nt->OptionalHeader.SizeOfImage == kSizeOfImage;
-}
-
-static void InstallUiFrameHooks(BYTE* base)
-{
+    if (nt->FileHeader.TimeDateStamp != kTimeDateStamp || nt->OptionalHeader.SizeOfImage != kSizeOfImage) {
+        Log("[ui] this is not the game build the UI frame hooks were written for, only the Cohtml side of the probe runs");
+        return;
+    }
     void** vtable = (void**)(base + kRvaEvoUiVtable);
     if ((BYTE*)vtable[kPostFrameSlot] != base + kRvaPostFrameThunk || (BYTE*)vtable[kEndFrameSlot] != base + kRvaEndFrameThunk) {
         Log("[ui] the game UI's vtable is not where it was read, frame post and end are not timed");
@@ -478,63 +845,6 @@ static void InstallUiFrameHooks(BYTE* base)
     }
     HookVtableSlot(vtable, kPostFrameSlot, (void*)&Hook_PostFrame, (void**)&g_origPostFrame, "the game UI frame post");
     HookVtableSlot(vtable, kEndFrameSlot, (void*)&Hook_EndFrame, (void**)&g_origEndFrame, "the game UI frame end");
-}
-
-// The stub takes the every view branch when the probe's flag is set, then runs the game's own test.
-//   cmp byte [rip+flag], 0 / jne every / cmp byte [r14+0x555], 0 / jne every / jmp pause test
-//   every: jmp every view branch
-static void InstallEveryViewSwitch(BYTE* base)
-{
-    BYTE* site = base + kRvaRotationTest;
-    if (Fnv1a64(site, kRotationRegionLength) != kRotationRegionHash) {
-        Log("[ui] the UI view rotation test at rva 0x%07X is not the code this was written against, the every view switch is off", (unsigned)kRvaRotationTest);
-        return;
-    }
-
-    const size_t page = 0x1000;
-    BYTE* stub = (BYTE*)VirtualAlloc(nullptr, 2 * page, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    if (!stub) {
-        Log("[ui] no memory for the every view stub, the switch is off");
-        return;
-    }
-    g_everyViewFlag = stub + page;
-
-    BYTE code[] = {
-        0x80, 0x3D, 0, 0, 0, 0, 0x00,                       // cmp byte ptr [rip + flag], 0
-        0x75, 0x18,                                         // jne every
-        0x41, 0x80, 0xBE, 0x55, 0x05, 0x00, 0x00, 0x00,     // cmp byte ptr [r14 + 0x555], 0
-        0x75, 0x0E,                                         // jne every
-        0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,     // jmp qword ptr [rip], the pause test
-        0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,     // every: jmp qword ptr [rip], the every view branch
-    };
-    int32_t flagDisp = (int32_t)(g_everyViewFlag - (stub + 7));
-    memcpy(code + 2, &flagDisp, 4);
-    BYTE* pauseTest = base + kRvaPauseTest;
-    BYTE* everyView = base + kRvaEveryView;
-    memcpy(code + 25, &pauseTest, 8);
-    memcpy(code + 39, &everyView, 8);
-    memcpy(stub, code, sizeof code);
-
-    DWORD old = 0;
-    if (!VirtualProtect(stub, page, PAGE_EXECUTE_READ, &old)) {
-        VirtualFree(stub, 0, MEM_RELEASE);
-        g_everyViewFlag = nullptr;
-        Log("[ui] could not make the every view stub executable, the switch is off");
-        return;
-    }
-    FlushInstructionCache(GetCurrentProcess(), stub, page);
-
-    BYTE jump[kRotationTestLength] = { 0xFF, 0x25, 0, 0, 0, 0 };    // jmp qword ptr [rip], the stub
-    memcpy(jump + 6, &stub, 8);
-    if (!VirtualProtect(site, kRotationTestLength, PAGE_EXECUTE_READWRITE, &old)) {
-        Log("[ui] could not make the UI view rotation test writable, the every view switch is off");
-        g_everyViewFlag = nullptr;
-        return;
-    }
-    memcpy(site, jump, sizeof jump);
-    VirtualProtect(site, kRotationTestLength, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), site, kRotationTestLength);
-    Log("[ui] every view switch installed at rva 0x%07X, it alternates in %d second blocks starting off", (unsigned)kRvaRotationTest, kEveryViewBlockSeconds);
 }
 
 // ---------------------------------------------------------------------------
@@ -546,14 +856,7 @@ void InstallUiProbe()
     if (!g_cfg.uiProbe) return;
     QueryPerformanceFrequency(&g_qpf);
     InstallCohtmlHooks();
-
-    BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
-    if (!ThisIsTheGameBuild(base)) {
-        Log("[ui] this is not the game build the UI frame hooks were written for, only the Cohtml side of the probe runs");
-        return;
-    }
-    InstallUiFrameHooks(base);
-    InstallEveryViewSwitch(base);
+    InstallUiFrameHooks();
 }
 
 uint32_t UiProbeTakeEndFrameUs()
@@ -566,20 +869,18 @@ uint32_t UiProbeTakeAdvanceUs()
     return (uint32_t)std::min<uint64_t>(g_advanceUsSincePresent.exchange(0, std::memory_order_relaxed), UINT32_MAX);
 }
 
-bool UiProbeEveryView()
+static int AppendClock(char* line, int length, size_t size, const char* title, const ClockStats& clock)
 {
-    return g_everyViewFlag && *g_everyViewFlag;
+    if (!clock.calls || length <= 0) return length;
+    double realMs = (clock.lastQpc - clock.firstQpc) * 1000.0 / g_qpf.QuadPart;
+    return length + _snprintf_s(line + length, size - length, _TRUNCATE,
+        " | %s %u calls, from %.3f to %.3f in %.1f ms real, largest step %.3f, backwards %u",
+        title, clock.calls, clock.first, clock.last, realMs, clock.largestStep, clock.backwards);
 }
 
 void UiProbeTick()
 {
     if (!g_cfg.uiProbe) return;
-
-    static int seconds = 0;
-    if (g_everyViewFlag && ++seconds % kEveryViewBlockSeconds == 0) {
-        *g_everyViewFlag = !*g_everyViewFlag;
-        Log("[ui] every view every frame %s", *g_everyViewFlag ? "on" : "off");
-    }
 
     SecondStats second;
     AcquireSRWLockExclusive(&g_statsLock);
@@ -595,11 +896,13 @@ void UiProbeTick()
     memset(g_stats.workMaxUs, 0, sizeof g_stats.workMaxUs);
     g_stats.endFrames = 0;
     g_stats.endFrameUs = g_stats.endFrameMaxUs = 0;
+    g_stats.postClock = {};
+    g_stats.advanceClock = {};
     ReleaseSRWLockExclusive(&g_statsLock);
 
     char line[2048];
-    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] every view %s | end frame %u, %.1f ms, max %.1f ms",
-        UiProbeEveryView() ? "on" : "off", second.endFrames, second.endFrameUs / 1000.0, second.endFrameMaxUs / 1000.0);
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] end frame %u, %.1f ms, max %.1f ms",
+        second.endFrames, second.endFrameUs / 1000.0, second.endFrameMaxUs / 1000.0);
     bool advanced = false;
     for (int i = 0; i < second.viewCount && length > 0; ++i) {
         const ViewStats& stats = second.views[i];
@@ -614,5 +917,7 @@ void UiProbeTick()
         length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | %s work %u, %.1f ms, on the render thread %.1f ms, max %.1f ms",
             kWorkNames[t], second.workCalls[t], second.workUs[t] / 1000.0, second.workRenderUs[t] / 1000.0, second.workMaxUs[t] / 1000.0);
     }
+    length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
+    AppendClock(line, length, sizeof line, "view #1 clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);
 }

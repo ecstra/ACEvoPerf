@@ -76,15 +76,14 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   the texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
   each file read that repeats an earlier one exactly, and any runtime write into a streamed texture.
   Diagnostics, off by default.
-- `ui_probe` under `[developer]` times the game's menus and HUD and tests two menu fixes against the
-  game's own behaviour in one session. It logs a `[ui]` line a second with how long each UI view takes
-  to update and how long the frame waits for the UI, adds those per frame to the frames CSV, and makes
-  every UI view update every frame in alternating 20 second blocks. A script added to the menu page
-  switches two fixes on and off. One stops the controls page scanning the whole page once for every new
-  row, on every other visit of a page. The other stops vehicle setup building itself twice when it
-  opens, on every other open. It
-  edits the game's code in memory only when the bytes match the build it was written for. Diagnostics,
-  off by default.
+- `ui_probe` under `[developer]` measures where the game's menus and HUD lose their time. It logs a
+  `[ui]` line a second with how long each UI view takes to update, how long the frame waits for the UI,
+  and the UI clock the game hands the UI engine against real time, adds the waits per frame to the frames
+  CSV, and every five seconds lists where the UI engine's layout work spends its time from samples of
+  its stack. A script added to the menu page counts what the pages change each second and on which
+  elements, and applies two menu fixes. One stops the controls page scanning the whole page once for
+  every new row, the other stops vehicle setup building itself twice when it opens. It hooks the game
+  only when the build matches the one it was written for. Diagnostics, off by default.
 
 ### Changed
 
