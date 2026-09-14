@@ -2,11 +2,11 @@
 name: BUG-017-trackside-big-screens-blurry
 kind: bug
 description: the trackside big screens are visibly blurry because their flipbook ships cooked at half size with only three of twelve mip levels, and the engine picks its mip from the whole 8 by 8 sheet rather than the frame on show, so a coarse mip costs eight times the detail
-updated: 2026-09-12
+updated: 2026-09-14
 links: [content-package, package-override-layer, BUG-001-texture-low-mip-shown-before-streaming]
 area: streaming
 status: fixed
-severity: medium
+severity: bug
 reported: 2026-09-12
 parent:
 ---

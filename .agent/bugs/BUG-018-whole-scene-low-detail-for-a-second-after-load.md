@@ -2,11 +2,11 @@
 name: BUG-018-whole-scene-low-detail-for-a-second-after-load
 kind: bug
 description: for one or two seconds after the curtain lifts the whole scene is at low detail, meshes and textures together, at game start and on entering a track, distinct from the approach driven mip band of BUG-001
-updated: 2026-09-12
+updated: 2026-09-14
 links: [directstorage-streaming, telemetry, BUG-001-texture-low-mip-shown-before-streaming, TODO-013-faster-session-loads]
 area: streaming
 status: open
-severity: medium
+severity: bug
 reported: 2026-09-12
 parent:
 ---

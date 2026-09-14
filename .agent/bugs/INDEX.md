@@ -12,9 +12,7 @@ links: [agent-index, spec-bugs]
 
 bug
 
-- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), two Overtake reviewers report unlit trees at night and name `enable_pso_cache`, a default the mod turns on, the owner's own log shows the cache failing to deliver pipelines after a game update
 - [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), a one time heap fill of about 1.25 GB with the first track and then about 110 MB a track the game keeps, the same passive, page file space the only cost found, the VRAM overhead spike is placement, what grows is unnamed until TODO-023's run
-- [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships at a 2x cook shrink with 3 of 12 mip levels, and its 8 by 8 grid makes any coarse mip cost eight times the detail, 64 by 64 per frame on a full size screen
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
 - [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line reads the engine's freed allocator at exit, the mod catches it but the game writes a crash report naming the mod
@@ -43,6 +41,8 @@ nit
 
 ## Fixed
 
+- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night reported with `enable_pso_cache` on, the flag shipped off and the owner saw night lighting work, closed on the owner's word with the mechanism still unexplained
+- [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships with 3 of 12 mip levels on an 8 by 8 grid, fixed by the overlay serving it with one mip level
 - [BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles](BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles.md), the full pool ranked each texture by its least important request and loaded detail only in one piece, both fixed and owner verified in a thirty car race, AI cars and some props still blurry in a full field by the owner's call
 - [BUG-003-menu-icons-stop-rendering](BUG-003-menu-icons-stop-rendering.md), VRAM starvation by the staging buffers, fixed by the 128 MB cap
 - [BUG-004-crash-on-car-or-track-change](BUG-004-crash-on-car-or-track-change.md), VRAM exhaustion on scene switch, same fix, owner verified
