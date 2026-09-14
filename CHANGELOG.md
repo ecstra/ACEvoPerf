@@ -80,10 +80,13 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   `[ui]` line a second with how long each UI view takes to update, how long the frame waits for the UI,
   and the UI clock the game hands the UI engine against real time, adds the waits per frame to the frames
   CSV, and every five seconds lists where the UI engine's layout work spends its time from samples of
-  its stack. A script added to the menu page counts what the pages change each second and on which
-  elements, and applies two menu fixes. One stops the controls page scanning the whole page once for
-  every new row, the other stops vehicle setup building itself twice when it opens. It hooks the game
-  only when the build matches the one it was written for. Diagnostics, off by default.
+  its stack. It also times every restyle pass of the UI engine, names the nodes a slow pass started
+  from and how many nodes it restyled, and traces each node marked for a restyle to the engine code
+  that marked it. A script added to the menu page counts what the pages change each second and on which
+  elements, matches every slow frame with what changed or was hovered in the frames before it, and
+  applies two menu fixes. One stops the controls page scanning the whole page once for every new row,
+  the other stops vehicle setup building itself twice when it opens. It hooks the game and the UI engine
+  only when their builds match the ones it was written for. Diagnostics, off by default.
 
 ### Changed
 

@@ -21,6 +21,9 @@
 // The layout sampler suspends a thread only while it is inside Cohtml's layout work, reads its stack
 // with the unwind tables of the modules loaded at start, and resumes it before counting anything. It
 // never allocates, locks or logs while a game thread is suspended.
+//
+// The style hooks patch Cohtml's own code, one function entry and four calls, only when the module's
+// stamp, size and the patched bytes match what was read. See the style invalidation section.
 
 static const DWORD kTimeDateStamp = 0x6A9EC72A;
 static const DWORD kSizeOfImage = 0x06CDD000;
@@ -39,6 +42,7 @@ static const int kAddInitialScriptSlot = 61;
 static const uint64_t kLayoutWork = 1;
 
 // The page script, tested outside the game against a stand in for the bundle before it went in.
+// MSVC takes at most 16,380 characters in one string literal, so it is two literals joined.
 static const char kPageScript[] = R"js(
 (function () {
     'use strict';
@@ -53,9 +57,22 @@ static const char kPageScript[] = R"js(
     var nav = { calls: 0, scans: 0, skipped: 0 };
     var setup = { inits: 0, ignored: 0 };
     var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };
-    var events = { mousemove: 0, transitions: 0, animations: 0 };
+    var events = { mousemove: 0, hover: 0, transitions: 0, animations: 0 };
     var top = {};
     var topKeys = 0;
+
+    // What happened in each frame, so a slow frame can be matched with the frames before it. The
+    // layout a frame's changes cause runs after that frame's scripts and holds the next frame back.
+    var kinds = ['hover', 'focus', 'class', 'classNoop', 'style', 'attr', 'dom', 'scroll'];
+    var bit = {};
+    kinds.forEach(function (kind, index) { bit[kind] = 1 << index; });
+    var kindOfChange = { classOps: 'class', styleWrites: 'style', attrWrites: 'attr', inserts: 'dom', removes: 'dom', htmlSets: 'dom', textSets: 'dom' };
+    var frameMask = 0;
+    var previousMask = 0;
+    var framesWith = kinds.map(function () { return 0; });
+    var slowAfter = kinds.map(function () { return 0; });
+    var slow = { frames: 0, alone: 0 };
+    var lastFrameAt = 0;
 
     function describe(element) {
         if (!element || !element.tagName) return '?';
@@ -66,10 +83,15 @@ static const char kPageScript[] = R"js(
         return name;
     }
 
+    function mark(kind) {
+        frameMask |= bit[kind];
+    }
+
     // Counts one change to the page, keyed by what changed and on which element, so the log names
     // the scripts that make the page lay itself out again.
-    function note(kind, element, detail) {
+    function note(kind, element, detail, frameKind) {
         changes[kind]++;
+        mark(frameKind || kindOfChange[kind]);
         var key = kind + ' ' + describe(element) + (detail ? ' ' + detail : '');
         if (top[key] === undefined) {
             if (topKeys >= 2000) return;
@@ -79,25 +101,48 @@ static const char kPageScript[] = R"js(
         top[key]++;
     }
 
+    function slowReport() {
+        if (!slow.frames) return '';
+        var parts = kinds.map(function (kind, index) { return kind + ' ' + slowAfter[index] + '/' + framesWith[index]; });
+        return ' | slow frames ' + slow.frames + ', after ' + parts.join(' ') + ', after nothing ' + slow.alone;
+    }
+
     function report() {
         var total = changes.classOps + changes.styleWrites + changes.attrWrites + changes.inserts + changes.removes + changes.htmlSets + changes.textSets;
-        if (total || nav.calls || setup.inits) {
+        if (total || nav.calls || setup.inits || slow.frames || events.hover) {
             var ranked = Object.keys(top).sort(function (a, b) { return top[b] - top[a]; }).slice(0, 10);
             console.log('[ACEvoPerf] ui changes ' + page + ' | frames ' + framesThisSecond +
                 ' | class ' + changes.classOps + ' style ' + changes.styleWrites + ' attr ' + changes.attrWrites +
                 ' insert ' + changes.inserts + ' remove ' + changes.removes + ' html ' + changes.htmlSets + ' text ' + changes.textSets +
-                ' | mousemove ' + events.mousemove + ' transitions ' + events.transitions + ' animations ' + events.animations +
+                ' | mousemove ' + events.mousemove + ' hover ' + events.hover + ' transitions ' + events.transitions + ' animations ' + events.animations +
                 ' | navigation calls ' + nav.calls + ' scans ' + nav.scans + ' skipped ' + nav.skipped +
                 ' | setup init ' + setup.inits + ' ignored ' + setup.ignored +
+                slowReport() +
                 ' | top ' + ranked.map(function (key) { return key + ' x' + top[key]; }).join('; '));
         }
         for (var a in changes) changes[a] = 0;
         for (var b in events) events[b] = 0;
         nav.calls = nav.scans = nav.skipped = 0;
         setup.inits = setup.ignored = 0;
+        for (var k = 0; k < kinds.length; k++) framesWith[k] = slowAfter[k] = 0;
+        slow.frames = slow.alone = 0;
         top = {};
         topKeys = 0;
         framesThisSecond = 0;
+    }
+
+    function closeFrame(now) {
+        var closing = frameMask;
+        frameMask = 0;
+        for (var k = 0; k < kinds.length; k++) if (closing & (1 << k)) framesWith[k]++;
+        if (lastFrameAt && now - lastFrameAt > 45) {
+            slow.frames++;
+            var before = closing | previousMask;
+            if (!before) slow.alone++;
+            for (var s = 0; s < kinds.length; s++) if (before & (1 << s)) slowAfter[s]++;
+        }
+        previousMask = closing;
+        lastFrameAt = now;
     }
 
     // Registered before any page script, so it runs first in every frame and the frame number
@@ -107,6 +152,7 @@ static const char kPageScript[] = R"js(
         frame++;
         framesThisSecond++;
         var now = Date.now();
+        closeFrame(now);
         if (now - lastReport >= 1000) {
             lastReport = now;
             try { report(); } catch (e) {}
@@ -174,6 +220,23 @@ static const char kPageScript[] = R"js(
         wrapped.push(name + ' owner');
     }
 
+    // True when a class list call leaves the list as it was, checked before the call runs.
+    function leavesClassesAlone(list, name, args) {
+        if (!list || typeof list.contains !== 'function' || !args.length) return false;
+        var i;
+        if (name === 'add') {
+            for (i = 0; i < args.length; i++) if (!list.contains(args[i])) return false;
+            return true;
+        }
+        if (name === 'remove') {
+            for (i = 0; i < args.length; i++) if (list.contains(args[i])) return false;
+            return true;
+        }
+        if (name === 'toggle') return args.length > 1 && !!args[1] === list.contains(args[0]);
+        if (name === 'replace') return !list.contains(args[0]);
+        return false;
+    }
+
     function installChangeCounters() {
         tagOwner('style');
         tagOwner('classList');
@@ -193,7 +256,8 @@ static const char kPageScript[] = R"js(
         var tokens = window.DOMTokenList && DOMTokenList.prototype;
         ['add', 'remove', 'toggle', 'replace'].forEach(function (name) {
             wrapMethod(tokens, name, function (self, args) {
-                note('classOps', self.__acevoOwner, name + ' ' + Array.prototype.slice.call(args, 0, 2).join(' '));
+                var alone = leavesClassesAlone(self, name, args);
+                note('classOps', self.__acevoOwner, name + ' ' + Array.prototype.slice.call(args, 0, 2).join(' ') + (alone ? ' unchanged' : ''), alone ? 'classNoop' : 'class');
             });
         });
 
@@ -217,6 +281,11 @@ static const char kPageScript[] = R"js(
         }
 
         document.addEventListener('mousemove', function () { events.mousemove++; }, true);
+        document.addEventListener('mouseover', function () { events.hover++; mark('hover'); }, true);
+        document.addEventListener('focusin', function () { mark('focus'); }, true);
+        document.addEventListener('focusout', function () { mark('focus'); }, true);
+        document.addEventListener('scroll', function () { mark('scroll'); }, true);
+        document.addEventListener('wheel', function () { mark('scroll'); }, true);
         document.addEventListener('transitionstart', function () { events.transitions++; }, true);
         document.addEventListener('animationstart', function () { events.animations++; }, true);
         console.log('[ACEvoPerf] ui probe change counters on ' + page + ': ' + wrapped.join(', '));
@@ -227,7 +296,7 @@ static const char kPageScript[] = R"js(
     } catch (e) {
         console.error('[ACEvoPerf] ui probe change counters failed', e);
     }
-
+)js" R"js(
     // BUG-025. Every navigable element's setupNavigation calls makeFocusable() with no section,
     // which scans the whole page once per section. A group of the controls page makes a hundred
     // such calls in one frame while its rows are still outside the document, so every scan finds
@@ -664,6 +733,427 @@ static LayoutThread* LayoutThreadForThisThread()
 }
 
 // ---------------------------------------------------------------------------
+// Style invalidation
+// ---------------------------------------------------------------------------
+
+// Read from cohtml.WindowsDesktop.dll 1.61.0.3. A document keeps the nodes whose style changed in a
+// set at +0x1D28, and the style update restyles the whole subtree of every node in it, because the
+// collection walks all children of each one whatever changed. So a change costs the size of the
+// subtree under the node it lands on, and these hooks name those nodes and the code that marked them.
+//   AddChangedNode(document, NodeRef*) at 0x3526C0 puts a node in the set.
+//   RestyleChanged at 0x3FCC40 restyles the set, called from 0x35C7F8 and again from 0x35CDA1.
+//   CollectRestyle(styler, set, restyle list, other list) at 0x3FA980, called from 0x3FCD90.
+//   RestyleAll at 0x3FE6E0 restyles the document after a stylesheet change, called from 0x35C697.
+// Both restyles take thirteen pointer arguments. The node fields are the ones the selector matcher
+// reads, the element type byte at +0x28, the id atom at +0x1E8 and the class atoms at +0x1F0.
+
+static const DWORD kCohtmlTimeDateStamp = 0x675439C7;
+static const DWORD kCohtmlSizeOfImage = 0x0070F000;
+
+static const uint32_t kRvaAddChangedNode = 0x3526C0;
+static const uint64_t kAddChangedNodeEntryFnv = 0x778E22D8F9870F20ull;   // its first 16 bytes
+static const uint32_t kRvaRestyleChanged = 0x3FCC40;
+static const uint32_t kRvaCollectRestyle = 0x3FA980;
+static const uint32_t kRvaRestyleAll = 0x3FE6E0;
+
+struct CallSite {
+    uint32_t rva;
+    uint32_t target;
+    const char* what;
+};
+
+static const CallSite kRestyleChangedCall = { 0x35C7F8, kRvaRestyleChanged, "the restyle of changed nodes" };
+static const CallSite kRestyleChangedAgainCall = { 0x35CDA1, kRvaRestyleChanged, "the second restyle of changed nodes" };
+static const CallSite kCollectRestyleCall = { 0x3FCD90, kRvaCollectRestyle, "the collection of nodes to restyle" };
+static const CallSite kRestyleAllCall = { 0x35C697, kRvaRestyleAll, "the restyle of the whole document" };
+
+namespace changed_node {
+    static const ptrdiff_t kKind = 0x20;        // bit 1 set, AddChangedNode leaves the node out
+    static const ptrdiff_t kTree = 0x24;        // bit 0 set while the node is in the document
+    static const ptrdiff_t kType = 0x28;
+    static const ptrdiff_t kId = 0x1E8;
+    static const ptrdiff_t kClasses = 0x1F0;
+    static const ptrdiff_t kClassCount = 0x1F8;
+}
+
+typedef uint32_t (*PFN_Restyle)(void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*);
+typedef uint64_t (*PFN_CollectRestyle)(void* styler, void* changed, void* restyle, void* other);
+
+static PFN_Restyle g_restyleChanged = nullptr;
+static PFN_Restyle g_restyleAll = nullptr;
+static PFN_CollectRestyle g_collectRestyle = nullptr;
+
+static const uint64_t kSlowRestyleUs = 15000;
+static const int kSlowRestylesPerSecond = 8;
+static const int kMarkPaths = 1024;
+static const int kMarkLevels = 3;
+
+struct SlowRestyle {
+    uint32_t us;
+    uint32_t nodes;
+    uint32_t changed;
+    char roots[200];
+};
+
+struct RestyleSecond {
+    uint32_t changedPasses, fullPasses;
+    uint64_t changedUs, changedMaxUs, fullUs, fullMaxUs;
+    uint64_t nodes;
+    int slowCount;
+    SlowRestyle slow[kSlowRestylesPerSecond];
+};
+
+// What the collection of the restyle running on this thread found, read when the restyle returns.
+struct Collection {
+    uint32_t nodes;
+    uint32_t changed;
+    char roots[200];
+};
+
+// One way into AddChangedNode, the return addresses of its caller and the two frames above it.
+struct MarkPath {
+    uint64_t returns[kMarkLevels];
+    uint32_t marks;
+    char sample[80];
+};
+
+static RestyleSecond g_restyles = {};       // under g_statsLock
+static thread_local Collection t_collection;
+static MarkPath g_markPaths[kMarkPaths];
+static SRWLOCK g_markLock = SRWLOCK_INIT;
+static std::atomic<uint32_t> g_markCalls{0};
+
+// The entry of AddChangedNode starts with mov [rsp+0x20], rbp, five bytes, which the jump to this stub
+// replaces. The stub keeps the argument registers, hands the hook the stack pointer and frame pointer
+// the call arrived with, replays the moved instruction and jumps back past it.
+static const BYTE kMarkStub[] = {
+    0x51,                                       // push rcx
+    0x52,                                       // push rdx
+    0x41, 0x50,                                 // push r8
+    0x41, 0x51,                                 // push r9
+    0x48, 0x83, 0xEC, 0x28,                     // sub rsp, 0x28
+    0x4C, 0x8D, 0x44, 0x24, 0x48,               // lea r8, [rsp+0x48]
+    0x4C, 0x8B, 0xCD,                           // mov r9, rbp
+    0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0,         // mov rax, OnAddChangedNode
+    0xFF, 0xD0,                                 // call rax
+    0x48, 0x83, 0xC4, 0x28,                     // add rsp, 0x28
+    0x41, 0x59,                                 // pop r9
+    0x41, 0x58,                                 // pop r8
+    0x5A,                                       // pop rdx
+    0x59,                                       // pop rcx
+    0x48, 0x89, 0x6C, 0x24, 0x20,               // mov [rsp+0x20], rbp
+    0xFF, 0x25, 0, 0, 0, 0,                     // jmp [rip]
+    0, 0, 0, 0, 0, 0, 0, 0,                     // AddChangedNode + 5
+};
+static const size_t kMarkStubHookAt = 20;
+static const size_t kMarkStubBackAt = sizeof kMarkStub - 8;
+
+static uint64_t Fnv1a64(const BYTE* p, size_t n)
+{
+    uint64_t h = 0xCBF29CE484222325ull;
+    for (size_t i = 0; i < n; ++i) {
+        h ^= p[i];
+        h *= 0x100000001B3ull;
+    }
+    return h;
+}
+
+// A 32 bit displacement reaches 2 GB either way, so the stubs have to live near Cohtml.
+static BYTE* AllocNear(BYTE* anchor, size_t size)
+{
+    SYSTEM_INFO si = {};
+    GetSystemInfo(&si);
+    const uintptr_t granularity = si.dwAllocationGranularity ? si.dwAllocationGranularity : 0x10000;
+    const uintptr_t reach = 0x60000000ull;
+
+    for (uintptr_t delta = granularity; delta < reach; delta += granularity) {
+        const uintptr_t base = (uintptr_t)anchor;
+        const uintptr_t candidates[2] = { base + delta, base > delta ? base - delta : 0 };
+        for (uintptr_t addr : candidates) {
+            if (!addr) continue;
+            void* p = VirtualAlloc((void*)(addr & ~(granularity - 1)), size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            if (p) return (BYTE*)p;
+        }
+    }
+    return nullptr;
+}
+
+static int AppendAtom(char* out, int length, int size, char lead, const char* atom)
+{
+    if (!atom || !atom[0] || length >= size - 2) return length;
+    out[length++] = lead;
+    for (int i = 0; atom[i] && i < 32 && length < size - 1; ++i) {
+        char c = atom[i];
+        out[length++] = (c >= 32 && c < 127) ? c : '?';
+    }
+    out[length] = 0;
+    return length;
+}
+
+// Only nodes the game is using reach this, so a read that faults means the offsets are wrong for
+// this node kind. The description says so instead of taking the game down.
+static void DescribeNode(const BYTE* node, char* out, int size)
+{
+    __try {
+        int length = _snprintf_s(out, size, _TRUNCATE, "t%02X", node[changed_node::kType]);
+        if (length < 0) return;
+        length = AppendAtom(out, length, size, '#', *(const char* const*)(node + changed_node::kId));
+        const char* const* classes = *(const char* const* const*)(node + changed_node::kClasses);
+        uint32_t classCount = *(const uint32_t*)(node + changed_node::kClassCount);
+        for (uint32_t i = 0; classes && i < classCount && i < 3; ++i) length = AppendAtom(out, length, size, '.', classes[i]);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        strcpy_s(out, size, "unreadable");
+    }
+}
+
+// The stub has no unwind data, so the caller's frames are unwound from the stack pointer and frame
+// pointer the call arrived with. Nodes AddChangedNode turns away are not counted.
+static bool ReadMark(void** nodeRef, const uint64_t* entryRsp, uint64_t callerRbp, uint64_t* returns, char* sample, int sampleSize)
+{
+    __try {
+        const BYTE* node = (const BYTE*)*nodeRef;
+        if (!node) return false;
+        if (!(*(const uint32_t*)(node + changed_node::kTree) & 1)) return false;
+        if (*(const uint32_t*)(node + changed_node::kKind) & 2) return false;
+
+        CONTEXT context = {};
+        context.Rip = entryRsp[0];
+        context.Rsp = (DWORD64)(entryRsp + 1);
+        context.Rbp = callerRbp;
+        returns[0] = context.Rip;
+        for (int level = 1; level < kMarkLevels; ++level) {
+            int moduleIndex = -1;
+            const RUNTIME_FUNCTION* function = FindFunction((uintptr_t)context.Rip, moduleIndex);
+            if (!function) break;
+            PVOID handlerData = nullptr;
+            DWORD64 establisher = 0;
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER, g_unwindModules[moduleIndex].base, context.Rip, (PRUNTIME_FUNCTION)function, &context, &handlerData, &establisher, nullptr);
+            returns[level] = context.Rip;
+        }
+        DescribeNode(node, sample, sampleSize);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+static void OnAddChangedNode(void*, void** nodeRef, const uint64_t* entryRsp, uint64_t callerRbp)
+{
+    g_markCalls.fetch_add(1, std::memory_order_relaxed);
+    uint64_t returns[kMarkLevels] = {};
+    char sample[80] = "";
+    if (!ReadMark(nodeRef, entryRsp, callerRbp, returns, sample, sizeof sample)) return;
+
+    size_t slot = (size_t)((returns[0] * 0x9E3779B97F4A7C15ull ^ returns[1] * 0xC2B2AE3D27D4EB4Full ^ returns[2]) >> 40) & (kMarkPaths - 1);
+    AcquireSRWLockExclusive(&g_markLock);
+    for (int probe = 0; probe < kMarkPaths; ++probe, slot = (slot + 1) & (kMarkPaths - 1)) {
+        MarkPath& path = g_markPaths[slot];
+        if (!path.marks) {
+            memcpy(path.returns, returns, sizeof returns);
+            strcpy_s(path.sample, sample);
+            path.marks = 1;
+            break;
+        }
+        if (memcmp(path.returns, returns, sizeof returns) == 0) {
+            path.marks++;
+            break;
+        }
+    }
+    ReleaseSRWLockExclusive(&g_markLock);
+}
+
+// The set is a table of node pointers with empty buckets null, its bucket count at +8 and its size
+// at +0x10. The first few nodes are named.
+static void ReadChangedSet(const BYTE* set, Collection& collection)
+{
+    __try {
+        const BYTE* const* buckets = *(const BYTE* const* const*)set;
+        uint32_t bucketCount = *(const uint32_t*)(set + 8);
+        collection.changed = (uint32_t)*(const uint64_t*)(set + 0x10);
+        int length = 0;
+        int named = 0;
+        for (uint32_t i = 0; buckets && i < bucketCount && named < 3; ++i) {
+            if (!buckets[i]) continue;
+            char name[80];
+            DescribeNode(buckets[i], name, sizeof name);
+            int written = _snprintf_s(collection.roots + length, sizeof collection.roots - length, _TRUNCATE, "%s%s", named ? ", " : "", name);
+            if (written < 0) break;
+            length += written;
+            named++;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        strcpy_s(collection.roots, "unreadable");
+    }
+}
+
+// The restyle list is a vector, its count at +8.
+static uint32_t ReadListCount(const BYTE* list)
+{
+    __try {
+        return *(const uint32_t*)(list + 8);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 0;
+    }
+}
+
+static uint64_t Hook_CollectRestyle(void* styler, void* changed, void* restyle, void* other)
+{
+    ReadChangedSet((const BYTE*)changed, t_collection);
+    uint64_t result = g_collectRestyle(styler, changed, restyle, other);
+    t_collection.nodes = ReadListCount((const BYTE*)restyle);
+    return result;
+}
+
+static uint32_t Hook_RestyleChanged(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6, void* arg7,
+    void* arg8, void* arg9, void* arg10, void* arg11, void* arg12, void* arg13)
+{
+    t_collection = {};
+    int64_t started = Qpc();
+    uint32_t result = g_restyleChanged(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
+    uint64_t us = ElapsedUs(started);
+
+    AcquireSRWLockExclusive(&g_statsLock);
+    g_restyles.changedPasses++;
+    g_restyles.changedUs += us;
+    g_restyles.changedMaxUs = std::max(g_restyles.changedMaxUs, us);
+    g_restyles.nodes += t_collection.nodes;
+    if (us >= kSlowRestyleUs && g_restyles.slowCount < kSlowRestylesPerSecond) {
+        SlowRestyle& slow = g_restyles.slow[g_restyles.slowCount++];
+        slow.us = (uint32_t)us;
+        slow.nodes = t_collection.nodes;
+        slow.changed = t_collection.changed;
+        strcpy_s(slow.roots, t_collection.roots);
+    }
+    ReleaseSRWLockExclusive(&g_statsLock);
+    return result;
+}
+
+static uint32_t Hook_RestyleAll(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6, void* arg7,
+    void* arg8, void* arg9, void* arg10, void* arg11, void* arg12, void* arg13)
+{
+    int64_t started = Qpc();
+    uint32_t result = g_restyleAll(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
+    uint64_t us = ElapsedUs(started);
+
+    AcquireSRWLockExclusive(&g_statsLock);
+    g_restyles.fullPasses++;
+    g_restyles.fullUs += us;
+    g_restyles.fullMaxUs = std::max(g_restyles.fullMaxUs, us);
+    ReleaseSRWLockExclusive(&g_statsLock);
+    return result;
+}
+
+static bool CallsTarget(const BYTE* base, const CallSite& site)
+{
+    if (base[site.rva] != 0xE8) return false;
+    int32_t rel;
+    memcpy(&rel, base + site.rva + 1, 4);
+    return (int64_t)site.rva + 5 + rel == (int64_t)site.target;
+}
+
+static void InstallStyleHooks()
+{
+    BYTE* base = (BYTE*)GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
+    if (!base) return;
+    auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
+    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+        Log("[ui] this is not the Cohtml build the style hooks were written for (stamp %08X, image %08X), restyles are not traced",
+            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+        return;
+    }
+    if (Fnv1a64(base + kRvaAddChangedNode, 16) != kAddChangedNodeEntryFnv) {
+        Log("[ui] AddChangedNode at rva 0x%06X is not the code it was read as, restyles are not traced", kRvaAddChangedNode);
+        return;
+    }
+    const CallSite* sites[] = { &kRestyleChangedCall, &kRestyleChangedAgainCall, &kCollectRestyleCall, &kRestyleAllCall };
+    for (const CallSite* site : sites) {
+        if (!CallsTarget(base, *site)) {
+            Log("[ui] %s at rva 0x%06X is not the call it was read as, restyles are not traced", site->what, site->rva);
+            return;
+        }
+    }
+
+    const size_t page = 0x1000;
+    BYTE* cave = AllocNear(base + kRvaAddChangedNode, page);
+    if (!cave) {
+        Log("[ui] no free memory within reach of Cohtml, restyles are not traced");
+        return;
+    }
+
+    BYTE* markStub = cave;
+    memcpy(markStub, kMarkStub, sizeof kMarkStub);
+    void* markHook = (void*)&OnAddChangedNode;
+    memcpy(markStub + kMarkStubHookAt, &markHook, 8);
+    BYTE* markBack = base + kRvaAddChangedNode + 5;
+    memcpy(markStub + kMarkStubBackAt, &markBack, 8);
+
+    // jmp qword ptr [rip], followed by the absolute target
+    BYTE* jumps = cave + sizeof kMarkStub;
+    auto emitJump = [&jumps](void* target) {
+        BYTE* start = jumps;
+        const BYTE opcode[6] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+        memcpy(jumps, opcode, sizeof opcode);
+        memcpy(jumps + sizeof opcode, &target, 8);
+        jumps += sizeof opcode + 8;
+        return start;
+    };
+    BYTE* restyleChangedStub = emitJump((void*)&Hook_RestyleChanged);
+    BYTE* collectStub = emitJump((void*)&Hook_CollectRestyle);
+    BYTE* restyleAllStub = emitJump((void*)&Hook_RestyleAll);
+
+    DWORD old = 0;
+    if (!VirtualProtect(cave, page, PAGE_EXECUTE_READ, &old)) {
+        VirtualFree(cave, 0, MEM_RELEASE);
+        Log("[ui] could not make the style stubs executable, restyles are not traced");
+        return;
+    }
+    FlushInstructionCache(GetCurrentProcess(), cave, page);
+
+    g_restyleChanged = (PFN_Restyle)(base + kRvaRestyleChanged);
+    g_restyleAll = (PFN_Restyle)(base + kRvaRestyleAll);
+    g_collectRestyle = (PFN_CollectRestyle)(base + kRvaCollectRestyle);
+
+    struct Patch {
+        BYTE* at;
+        BYTE opcode;
+        const BYTE* destination;
+        int32_t rel;
+    };
+    Patch patches[] = {
+        { base + kRvaAddChangedNode, 0xE9, markStub, 0 },
+        { base + kRestyleChangedCall.rva, 0xE8, restyleChangedStub, 0 },
+        { base + kRestyleChangedAgainCall.rva, 0xE8, restyleChangedStub, 0 },
+        { base + kCollectRestyleCall.rva, 0xE8, collectStub, 0 },
+        { base + kRestyleAllCall.rva, 0xE8, restyleAllStub, 0 },
+    };
+    // Every displacement is computed before any write, so a stub out of reach patches nothing.
+    for (Patch& patch : patches) {
+        int64_t rel = patch.destination - (patch.at + 5);
+        if (rel > INT32_MAX || rel < INT32_MIN) {
+            VirtualFree(cave, 0, MEM_RELEASE);
+            Log("[ui] a style stub is out of reach of Cohtml, restyles are not traced");
+            return;
+        }
+        patch.rel = (int32_t)rel;
+    }
+    int written = 0;
+    for (Patch& patch : patches) {
+        if (!VirtualProtect(patch.at, 5, PAGE_EXECUTE_READWRITE, &old)) {
+            Log("[ui] could not make Cohtml's code at rva 0x%06X writable, that hook is off", (unsigned)(patch.at - base));
+            continue;
+        }
+        patch.at[0] = patch.opcode;
+        memcpy(patch.at + 1, &patch.rel, 4);
+        DWORD ignored = 0;
+        VirtualProtect(patch.at, 5, old, &ignored);
+        FlushInstructionCache(GetCurrentProcess(), patch.at, 5);
+        written++;
+    }
+    Log("[ui] style hooks on at %d of %d places, restyle passes are timed and changed nodes are traced to the code that marked them",
+        written, (int)(sizeof patches / sizeof patches[0]));
+}
+
+// ---------------------------------------------------------------------------
 // Cohtml
 // ---------------------------------------------------------------------------
 
@@ -794,6 +1284,7 @@ static void InstallCohtmlHooks()
     AddUnwindModule(L"ntdll.dll", "ntdll");
     AddUnwindModule(L"kernelbase.dll", "kernelbase");
     AddUnwindModule(nullptr, "exe");
+    InstallStyleHooks();
     HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
     if (sampler) {
         SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
@@ -878,13 +1369,77 @@ static int AppendClock(char* line, int length, size_t size, const char* title, c
         title, clock.calls, clock.first, clock.last, realMs, clock.largestStep, clock.backwards);
 }
 
+static int AppendAddress(char* line, int length, size_t size, uint64_t address)
+{
+    for (int m = 0; m < g_unwindModuleCount; ++m) {
+        const UnwindModule& module = g_unwindModules[m];
+        if (address < module.base || address >= module.end) continue;
+        return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX", module.label, (unsigned long long)(address - module.base));
+    }
+    return length + _snprintf_s(line + length, size - length, _TRUNCATE, " 0x%llX", (unsigned long long)address);
+}
+
+static void ReportRestyles(const RestyleSecond& restyles)
+{
+    if (!restyles.changedPasses && !restyles.fullPasses) return;
+    Log("[ui] restyles %u, %.1f ms, max %.1f ms, %llu nodes | whole document restyles %u, %.1f ms, max %.1f ms",
+        restyles.changedPasses, restyles.changedUs / 1000.0, restyles.changedMaxUs / 1000.0, (unsigned long long)restyles.nodes,
+        restyles.fullPasses, restyles.fullUs / 1000.0, restyles.fullMaxUs / 1000.0);
+    for (int i = 0; i < restyles.slowCount; ++i) {
+        const SlowRestyle& slow = restyles.slow[i];
+        Log("[ui] slow restyle %.1f ms, %u nodes from %u changed, %s", slow.us / 1000.0, slow.nodes, slow.changed, slow.roots);
+    }
+}
+
+static void ReportMarks()
+{
+    uint32_t calls = g_markCalls.exchange(0, std::memory_order_relaxed);
+    if (!calls) return;
+
+    const int wanted = 10;
+    MarkPath top[wanted] = {};
+    int found = 0;
+    uint64_t marks = 0;
+    AcquireSRWLockExclusive(&g_markLock);
+    for (int slot = 0; slot < kMarkPaths; ++slot) {
+        const MarkPath& path = g_markPaths[slot];
+        if (!path.marks) continue;
+        marks += path.marks;
+        int at;
+        if (found < wanted) {
+            at = found++;
+        } else if (path.marks > top[wanted - 1].marks) {
+            at = wanted - 1;
+        } else {
+            continue;
+        }
+        top[at] = path;
+        for (; at > 0 && top[at].marks > top[at - 1].marks; --at) std::swap(top[at], top[at - 1]);
+    }
+    memset(g_markPaths, 0, sizeof g_markPaths);
+    ReleaseSRWLockExclusive(&g_markLock);
+
+    char line[4096];
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] changed nodes %llu of %u calls", (unsigned long long)marks, calls);
+    for (int i = 0; i < found && length > 0; ++i) {
+        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | %u from", top[i].marks);
+        for (int level = 0; level < kMarkLevels && top[i].returns[level] && length > 0; ++level)
+            length = AppendAddress(line, length, sizeof line, top[i].returns[level]);
+        if (length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " on %s", top[i].sample);
+    }
+    Log("%s", line);
+}
+
 void UiProbeTick()
 {
     if (!g_cfg.uiProbe) return;
 
     SecondStats second;
+    RestyleSecond restyles;
     AcquireSRWLockExclusive(&g_statsLock);
     second = g_stats;
+    restyles = g_restyles;
+    g_restyles = {};
     for (int i = 0; i < g_stats.viewCount; ++i) {
         ViewStats& stats = g_stats.views[i];
         stats.advances = 0;
@@ -920,4 +1475,7 @@ void UiProbeTick()
     length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
     AppendClock(line, length, sizeof line, "view #1 clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);
+
+    ReportRestyles(restyles);
+    ReportMarks();
 }
