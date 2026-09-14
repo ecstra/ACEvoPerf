@@ -1,9 +1,9 @@
 ---
 name: ui-lag-hunt-2026-09-06
 kind: doc
-description: one morning of instrumented runs into the menu and settings page lag, every lever the DLL has was tried and measured, where the cost really sits, the engine's surface, and why the mod carries nothing UI related
-updated: 2026-09-06
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts, telemetry, moddability]
+description: one morning of instrumented runs into the menu and settings page lag, every lever the DLL had was tried and measured, the engine's surface and the measurements, with several readings of where the cost sits corrected by the deep dive of 2026-09-14
+updated: 2026-09-14
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts, telemetry, moddability, ui-lag-deepdive-2026-09-14, DEC-019-ui-lag-work-reopened]
 ---
 
 # The UI lag hunt, 2026-09-06
@@ -12,6 +12,13 @@ The owner's complaint (BUG-014): the three menus lag a little, and the settings,
 vehicle setup pages inside them lag a lot, on open, on every switch and while they are used.
 This is the record of the morning, so the next attempt starts from the numbers. Session
 folders `logs/ui1-inspector` to `logs/ui16-relayout` hold the raw files.
+
+The measurements below stand. Several readings of them were corrected on 2026-09-14 in
+[ui-lag-deepdive-2026-09-14](ui-lag-deepdive-2026-09-14.md), which lists each one. In short, the
+forced layout reads force nothing, the controls page freeze is navigation scans in script three frames
+after the rows are built, hover focuses nothing, the vehicle setup "fps" was the page's tick rate on a
+view the engine advances one frame in three, `ExecuteWork`'s third argument is a family, and the frame
+waits for the whole UI job. The mod carries UI work again under DEC-019.
 
 ## Instruments
 

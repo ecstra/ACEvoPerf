@@ -1,10 +1,10 @@
 ---
 name: BUG-014-ui-pages-lag-on-open-switch-and-interaction
 kind: bug
-description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used
-updated: 2026-09-06
-links: [BUG-013-one-percent-lows-drop-after-window-or-input-switch, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
-status: wontfix
+description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used, reopened on the owner's pick and split by the 2026-09-14 deep dive into separate costs, filed as BUG-024 to BUG-027
+updated: 2026-09-14
+links: [ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load, TODO-027-the-ui-developer-build-and-one-session, DEC-019-ui-lag-work-reopened, BUG-013-one-percent-lows-drop-after-window-or-input-switch, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
+status: open
 severity: bug
 area: ui
 reported: 2026-09-06
@@ -61,14 +61,45 @@ the pages makes the game stutter and lag and interacting with anything makes it 
   empty, because the patched row build read the filter input before it existed and threw.
 - The full record with every number and the engine's surface is `ui-lag-hunt-2026-09-06`.
 
+## The deep dive, 2026-09-14
+
+Reopened by the owner on 2026-09-13 ("We could not fix that at all before, but we can deep-dive on it?")
+and picked as the one lane to work on 2026-09-14 (DEC-019). Five angles from the exe, the UI files and the
+hunt's sessions, no new run. The full record is
+[ui-lag-deepdive-2026-09-14](../docs/research/ui-lag-deepdive-2026-09-14.md).
+
+The lag is five separate costs.
+
+- **The controls page freeze** is the navigation library scanning the whole page once per new row per
+  section, in script, while the rows are not yet in the document,
+  [BUG-025](BUG-025-controls-page-scans-the-page-once-per-new-row.md).
+- **Interaction** is one Cohtml style and layout task per UI update that grows with the page, about 50 to
+  60 microseconds per element. What starts it and what it does inside Cohtml is still unknown.
+- **The pit menu and its pages** update the UI one frame in three,
+  [BUG-024](BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three.md).
+- **Document loads** rebuild every component, with the stylesheets parsed again each time,
+  [BUG-027](BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md), and vehicle setup
+  built twice per open, [BUG-026](BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open.md).
+- **The HUD while driving** is small on the render thread, 5 to 9 ms a second.
+
+Corrections to the evidence above. The "5,000 to 11,000 forced layout reads" force nothing, Gameface
+returns the last solved layout. The synchronous list build is 17 to 52 ms and the 260 to 360 ms freeze is
+the navigation scans three frames later. Hover focuses nothing, the handler that would is never
+registered. "12 to 29 fps" on vehicle setup is the page's tick rate on a view advanced one frame in three,
+the frames presented about three times faster. Every page switch is a document reload only when the target
+is a different document. And the render thread waits for the whole UI job, not only its layout, which is
+why moving layout to a mod thread changed nothing.
+
 ## Fix
 
-Won't fix, the owner's call on 2026-09-06 after two rounds: "NOT ours to fix right now and it
-appears that you cant fix right now either. Remove everything related to UI." The cost sits in
-the game's UI pages and scripts, where no engine lever of the DLL reaches, and the script
-overhaul that would change what the owner feels (TODO-011, dropped) is days of work against a
-50,000 line bundle with the risk seen twice. Every UI related piece was removed from the mod
-(DEC-010).
+Won't fix until 2026-09-14, the owner's call on 2026-09-06 after two rounds: "NOT ours to fix right now and
+it appears that you cant fix right now either. Remove everything related to UI." The cost was read as
+sitting in the game's UI pages and scripts, where no engine lever of the DLL reached, and every UI related
+piece was removed from the mod (DEC-010).
+
+Reopened on 2026-09-14 (DEC-019). The fix is absent. The first step is one developer build and one
+session that decide BUG-024 to BUG-026 and name the interaction cost,
+[TODO-027](../todos/TODO-027-the-ui-developer-build-and-one-session.md).
 
 ## Verification
 

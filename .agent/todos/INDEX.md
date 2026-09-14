@@ -30,6 +30,10 @@ render
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), the mod's 3.8 percent parked is the mesh detail the 1433 MB budget loads, authored detail per the mesh deep dive, the engine's own readout to ride a planned run, the last 1 percent unsplit
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 
+ui
+
+- [TODO-027-the-ui-developer-build-and-one-session](TODO-027-the-ui-developer-build-and-one-session.md), the UI lane, one developer build timing the engine side, toggling the pit menu flag and switching the controls page and vehicle setup fixes on alternate entries, then one owner session
+
 tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames

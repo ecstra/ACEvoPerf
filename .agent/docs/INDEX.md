@@ -31,7 +31,8 @@ links: [agent-index, spec-docs]
 - [moddability](research/moddability.md), how the game is built and what a mod can change
 - [lap-2026-09-05-nordschleife](research/lap-2026-09-05-nordschleife.md), the first telemetry lap and what it showed
 - [one-percent-low-hunt-2026-09-05](research/one-percent-low-hunt-2026-09-05.md), nineteen instrumented laps into the 1 percent low, what was measured, ruled out and left, read again by the 2026-09-14 deep dive
-- [ui-lag-hunt-2026-09-06](research/ui-lag-hunt-2026-09-06.md), a morning of instrumented runs into the menu and settings page lag, every DLL lever measured, where the cost sits, the engine's surface, why the mod left the UI alone
+- [ui-lag-hunt-2026-09-06](research/ui-lag-hunt-2026-09-06.md), a morning of instrumented runs into the menu and settings page lag, every DLL lever measured, the engine's surface, with the readings the 2026-09-14 deep dive corrected
+- [ui-lag-deepdive-2026-09-14](research/ui-lag-deepdive-2026-09-14.md), BUG-014's deep dive, the UI lag split into five costs, the controls page freeze as navigation scans in script, interaction as one Cohtml task per update, the pit menu updated one frame in three, document loads, a light HUD, twelve ranked fixes and one decisive developer build
 - [free-roam-unlock-2026-09-06](research/free-roam-unlock-2026-09-06.md), the hidden Free Roam mode found behind a password, switched on for an afternoon and dropped: the gate, what the package carries and lacks, the recipe
 - [ghost-car-2026-09-06](research/ghost-car-2026-09-06.md), the ghost car flag records, saves, loads and samples a lap every frame and nothing draws it, two sessions and the disassembly, dropped
 - [reflex-2026-09-12](research/reflex-2026-09-12.md), Reflex added to a game that ships none, confirmed by the driver, and four two lap runs showing why a card pinned at its thermal limit cannot show a difference in rate, read again as the part of the mod that evens the frame pacing

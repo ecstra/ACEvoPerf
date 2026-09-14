@@ -2,8 +2,8 @@
 name: TODO-021-the-engine-reads-the-same-data-twice
 kind: todo
 description: the engine reads 3.5 GB of package data a second time in one session, 633 MB of it inside a single Nürburgring load, the same with the mod passive, and the owner counts that as wasted operation rather than load time
-updated: 2026-09-13
-links: [texture-streamer-flip-2026-09-13, TODO-013-faster-session-loads, directstorage-streaming, content-package]
+updated: 2026-09-14
+links: [texture-streamer-flip-2026-09-13, TODO-013-faster-session-loads, directstorage-streaming, content-package, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load]
 status: open
 by: owner
 area: streaming
@@ -27,6 +27,11 @@ the Ferrari 296 GT3 meshes 96 and 81 MB, and `grass_3.scene` 91 MB. Round one of
 same 1.08 GB inside a Nürburgring load with the mod passive, so it is the engine's. Disk reads, a
 decoded copy in memory each time, and the CPU to decode and parse it. Full record in
 [texture-streamer-flip-2026-09-13](../docs/research/texture-streamer-flip-2026-09-13.md).
+
+The UI is one smaller instance. Its two stylesheets, 1.2 MB, are read and parsed again at every document
+load, 33 and 34 times in a 20 minute race session, 38.2 MB of repeated reads, filed on its own as
+[BUG-027](../bugs/BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md) because Cohtml
+has its own preload for it.
 
 ## Done when
 
