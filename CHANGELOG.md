@@ -101,6 +101,18 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Fixed
 
+- The menus lagged as soon as the mouse moved quickly, on hover, scrolling and dragging a slider,
+  worst on the settings, controls and vehicle setup pages. Every time the element under the mouse
+  changes, the UI engine (Coherent Gameface) works out which elements need their style redone. That
+  should be the hovered element and what is inside it, but because the game's stylesheets contain
+  one rule that styles an element by its earlier sibling (a leaderboard rule), it also redoes every
+  element that comes after the hovered one on the same level, and everything inside those. On a list of settings that is every row below the mouse, 1,200 to 1,300 elements and 50 to
+  65 ms, once or twice for every row the mouse crosses. Moving slowly that is a stutter now and then.
+  Moving quickly, or scrolling and dragging, which move the rows under the mouse, it is every frame,
+  about 15 frames a second. No rule in the game uses a hover or other state together with a sibling,
+  so the mod has the engine skip that sibling pass for state changes and keeps it for class and
+  attribute changes, which the leaderboard rule needs (`ui_restyle_fix`). It only patches the UI
+  engine and game builds it was checked against.
 - In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
   seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
   the engine's texture streamer cause it, and both only show once the texture pool is full, which

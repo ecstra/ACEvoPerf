@@ -1,4 +1,5 @@
 #include "acevo/ui/ui_probe.h"
+#include "acevo/core/code_patch.h"
 #include "acevo/core/config.h"
 #include "acevo/core/iat.h"
 #include "acevo/core/log.h"
@@ -767,6 +768,11 @@ static const CallSite kRestyleChangedAgainCall = { 0x35CDA1, kRvaRestyleChanged,
 static const CallSite kCollectRestyleCall = { 0x3FCD90, kRvaCollectRestyle, "the collection of nodes to restyle" };
 static const CallSite kRestyleAllCall = { 0x35C697, kRvaRestyleAll, "the restyle of the whole document" };
 
+// Invalidate(element, kind, first name, second name) at 0x37B690 marks the nodes a changed feature of
+// the element can restyle, called from 0x37BD11 only. Kind 5 is a state change such as hover, 3 a
+// class or attribute, 7 an id.
+static const CallSite kInvalidateCall = { 0x37BD11, 0x37B690, "the invalidation of a changed feature" };
+
 namespace changed_node {
     static const ptrdiff_t kKind = 0x20;        // bit 1 set, AddChangedNode leaves the node out
     static const ptrdiff_t kTree = 0x24;        // bit 0 set while the node is in the document
@@ -778,10 +784,12 @@ namespace changed_node {
 
 typedef uint32_t (*PFN_Restyle)(void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*, void*);
 typedef uint64_t (*PFN_CollectRestyle)(void* styler, void* changed, void* restyle, void* other);
+typedef uint64_t (*PFN_Invalidate)(void* element, uint64_t kind, void* first, void* second);
 
 static PFN_Restyle g_restyleChanged = nullptr;
 static PFN_Restyle g_restyleAll = nullptr;
 static PFN_CollectRestyle g_collectRestyle = nullptr;
+static PFN_Invalidate g_invalidate = nullptr;
 
 static const uint64_t kSlowRestyleUs = 15000;
 static const int kSlowRestylesPerSecond = 8;
@@ -817,9 +825,28 @@ struct MarkPath {
     char sample[80];
 };
 
+static const int kInvalidationKinds = 8;
+static const int kInvalidatedElements = 256;
+
+struct InvalidationKind {
+    uint32_t calls;
+    uint64_t marks;
+    uint32_t maxMarks;
+};
+
+struct InvalidatedElement {
+    char element[80];
+    uint8_t kind;
+    uint32_t calls;
+    uint64_t marks;
+};
+
 static RestyleSecond g_restyles = {};       // under g_statsLock
 static thread_local Collection t_collection;
+static thread_local uint32_t t_marks = 0;
 static MarkPath g_markPaths[kMarkPaths];
+static InvalidationKind g_invalidationKinds[kInvalidationKinds];         // under g_markLock
+static InvalidatedElement g_invalidatedElements[kInvalidatedElements];   // under g_markLock
 static SRWLOCK g_markLock = SRWLOCK_INIT;
 static std::atomic<uint32_t> g_markCalls{0};
 
@@ -847,36 +874,6 @@ static const BYTE kMarkStub[] = {
 };
 static const size_t kMarkStubHookAt = 20;
 static const size_t kMarkStubBackAt = sizeof kMarkStub - 8;
-
-static uint64_t Fnv1a64(const BYTE* p, size_t n)
-{
-    uint64_t h = 0xCBF29CE484222325ull;
-    for (size_t i = 0; i < n; ++i) {
-        h ^= p[i];
-        h *= 0x100000001B3ull;
-    }
-    return h;
-}
-
-// A 32 bit displacement reaches 2 GB either way, so the stubs have to live near Cohtml.
-static BYTE* AllocNear(BYTE* anchor, size_t size)
-{
-    SYSTEM_INFO si = {};
-    GetSystemInfo(&si);
-    const uintptr_t granularity = si.dwAllocationGranularity ? si.dwAllocationGranularity : 0x10000;
-    const uintptr_t reach = 0x60000000ull;
-
-    for (uintptr_t delta = granularity; delta < reach; delta += granularity) {
-        const uintptr_t base = (uintptr_t)anchor;
-        const uintptr_t candidates[2] = { base + delta, base > delta ? base - delta : 0 };
-        for (uintptr_t addr : candidates) {
-            if (!addr) continue;
-            void* p = VirtualAlloc((void*)(addr & ~(granularity - 1)), size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            if (p) return (BYTE*)p;
-        }
-    }
-    return nullptr;
-}
 
 static int AppendAtom(char* out, int length, int size, char lead, const char* atom)
 {
@@ -943,6 +940,7 @@ static void OnAddChangedNode(void*, void** nodeRef, const uint64_t* entryRsp, ui
     uint64_t returns[kMarkLevels] = {};
     char sample[80] = "";
     if (!ReadMark(nodeRef, entryRsp, callerRbp, returns, sample, sizeof sample)) return;
+    t_marks++;
 
     size_t slot = (size_t)((returns[0] * 0x9E3779B97F4A7C15ull ^ returns[1] * 0xC2B2AE3D27D4EB4Full ^ returns[2]) >> 40) & (kMarkPaths - 1);
     AcquireSRWLockExclusive(&g_markLock);
@@ -994,6 +992,42 @@ static uint32_t ReadListCount(const BYTE* list)
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return 0;
     }
+}
+
+// Counts the nodes one invalidation marked, by kind and by the element it started from.
+static uint64_t Hook_Invalidate(void* element, uint64_t kind, void* first, void* second)
+{
+    uint32_t marksBefore = t_marks;
+    uint64_t result = g_invalidate(element, kind, first, second);
+    uint32_t marks = t_marks - marksBefore;
+
+    char description[80];
+    DescribeNode((const BYTE*)element, description, sizeof description);
+    uint8_t kindByte = (uint8_t)kind;
+    size_t slot = (size_t)((Fnv1a64((const BYTE*)description, strlen(description)) ^ kindByte) & (kInvalidatedElements - 1));
+
+    AcquireSRWLockExclusive(&g_markLock);
+    InvalidationKind& stats = g_invalidationKinds[std::min<int>(kindByte, kInvalidationKinds - 1)];
+    stats.calls++;
+    stats.marks += marks;
+    stats.maxMarks = std::max(stats.maxMarks, marks);
+    for (int probe = 0; probe < kInvalidatedElements; ++probe, slot = (slot + 1) & (kInvalidatedElements - 1)) {
+        InvalidatedElement& entry = g_invalidatedElements[slot];
+        if (!entry.calls) {
+            strcpy_s(entry.element, description);
+            entry.kind = kindByte;
+            entry.calls = 1;
+            entry.marks = marks;
+            break;
+        }
+        if (entry.kind == kindByte && strcmp(entry.element, description) == 0) {
+            entry.calls++;
+            entry.marks += marks;
+            break;
+        }
+    }
+    ReleaseSRWLockExclusive(&g_markLock);
+    return result;
 }
 
 static uint64_t Hook_CollectRestyle(void* styler, void* changed, void* restyle, void* other)
@@ -1065,7 +1099,7 @@ static void InstallStyleHooks()
         Log("[ui] AddChangedNode at rva 0x%06X is not the code it was read as, restyles are not traced", kRvaAddChangedNode);
         return;
     }
-    const CallSite* sites[] = { &kRestyleChangedCall, &kRestyleChangedAgainCall, &kCollectRestyleCall, &kRestyleAllCall };
+    const CallSite* sites[] = { &kRestyleChangedCall, &kRestyleChangedAgainCall, &kCollectRestyleCall, &kRestyleAllCall, &kInvalidateCall };
     for (const CallSite* site : sites) {
         if (!CallsTarget(base, *site)) {
             Log("[ui] %s at rva 0x%06X is not the call it was read as, restyles are not traced", site->what, site->rva);
@@ -1100,6 +1134,7 @@ static void InstallStyleHooks()
     BYTE* restyleChangedStub = emitJump((void*)&Hook_RestyleChanged);
     BYTE* collectStub = emitJump((void*)&Hook_CollectRestyle);
     BYTE* restyleAllStub = emitJump((void*)&Hook_RestyleAll);
+    BYTE* invalidateStub = emitJump((void*)&Hook_Invalidate);
 
     DWORD old = 0;
     if (!VirtualProtect(cave, page, PAGE_EXECUTE_READ, &old)) {
@@ -1112,6 +1147,7 @@ static void InstallStyleHooks()
     g_restyleChanged = (PFN_Restyle)(base + kRvaRestyleChanged);
     g_restyleAll = (PFN_Restyle)(base + kRvaRestyleAll);
     g_collectRestyle = (PFN_CollectRestyle)(base + kRvaCollectRestyle);
+    g_invalidate = (PFN_Invalidate)(base + kInvalidateCall.target);
 
     struct Patch {
         BYTE* at;
@@ -1125,6 +1161,7 @@ static void InstallStyleHooks()
         { base + kRestyleChangedAgainCall.rva, 0xE8, restyleChangedStub, 0 },
         { base + kCollectRestyleCall.rva, 0xE8, collectStub, 0 },
         { base + kRestyleAllCall.rva, 0xE8, restyleAllStub, 0 },
+        { base + kInvalidateCall.rva, 0xE8, invalidateStub, 0 },
     };
     // Every displacement is computed before any write, so a stub out of reach patches nothing.
     for (Patch& patch : patches) {
@@ -1430,6 +1467,48 @@ static void ReportMarks()
     Log("%s", line);
 }
 
+static void ReportInvalidations()
+{
+    InvalidationKind kinds[kInvalidationKinds];
+    const int wanted = 8;
+    InvalidatedElement top[wanted] = {};
+    int found = 0;
+    AcquireSRWLockExclusive(&g_markLock);
+    memcpy(kinds, g_invalidationKinds, sizeof kinds);
+    for (int slot = 0; slot < kInvalidatedElements; ++slot) {
+        const InvalidatedElement& entry = g_invalidatedElements[slot];
+        if (!entry.calls) continue;
+        int at;
+        if (found < wanted) {
+            at = found++;
+        } else if (entry.marks > top[wanted - 1].marks) {
+            at = wanted - 1;
+        } else {
+            continue;
+        }
+        top[at] = entry;
+        for (; at > 0 && top[at].marks > top[at - 1].marks; --at) std::swap(top[at], top[at - 1]);
+    }
+    memset(g_invalidationKinds, 0, sizeof g_invalidationKinds);
+    memset(g_invalidatedElements, 0, sizeof g_invalidatedElements);
+    ReleaseSRWLockExclusive(&g_markLock);
+    if (!found) return;
+
+    char line[3072];
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] invalidations");
+    for (int kind = 0; kind < kInvalidationKinds && length > 0; ++kind) {
+        if (!kinds[kind].calls) continue;
+        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | kind %d %u calls, %llu marks, max %u",
+            kind, kinds[kind].calls, (unsigned long long)kinds[kind].marks, kinds[kind].maxMarks);
+    }
+    if (length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | most marks");
+    for (int i = 0; i < found && length > 0; ++i) {
+        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, "%s %s kind %u %u calls %llu marks",
+            i ? ";" : "", top[i].element, top[i].kind, top[i].calls, (unsigned long long)top[i].marks);
+    }
+    Log("%s", line);
+}
+
 void UiProbeTick()
 {
     if (!g_cfg.uiProbe) return;
@@ -1478,4 +1557,5 @@ void UiProbeTick()
 
     ReportRestyles(restyles);
     ReportMarks();
+    ReportInvalidations();
 }
