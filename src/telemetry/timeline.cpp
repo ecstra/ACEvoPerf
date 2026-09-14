@@ -7,6 +7,7 @@
 #include "acevo/engine/exceptions.h"
 #include "acevo/engine/streamer.h"
 #include "acevo/render/texture_writes.h"
+#include "acevo/ui/ui_probe.h"
 
 static HANDLE g_timelineThread = nullptr;
 
@@ -53,7 +54,7 @@ static DWORD WINAPI TimelineThread(void*)
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf timeline");
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
-    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req\r\n") : INVALID_HANDLE_VALUE;
+    HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req,ui_end_frame_ms,ui_advance_ms,ui_every_view\r\n") : INVALID_HANDLE_VALUE;
     bool anyCsv = csv != INVALID_HANDLE_VALUE || framesCsv != INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = anyCsv ? FindRenderAdapter() : nullptr;
 
@@ -74,6 +75,7 @@ static DWORD WINAPI TimelineThread(void*)
         ThrowLogTick();
         StreamerTick();
         TextureWritesTick();
+        UiProbeTick();
         g_hitchLogBudget.store(5);
         if (!anyCsv) continue;
         double t = NowSec(); double dt = t - lastT; if (dt <= 0) dt = 1; lastT = t;
@@ -124,9 +126,10 @@ static DWORD WINAPI TimelineThread(void*)
         std::vector<FrameSample> buf;
         EnterCriticalSection(&g_frameCs); buf.swap(g_frameBuf); LeaveCriticalSection(&g_frameCs);
         std::string out; out.reserve(buf.size() * 24);
-        char tmp[80];
+        char tmp[128];
         for (auto& fr : buf) {
-            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%u,%u,%u\r\n", fr.t, fr.ms, fr.tiles, fr.f2m, fr.gpumem);
+            int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%u,%u,%u,%.2f,%.2f,%d\r\n",
+                fr.t, fr.ms, fr.tiles, fr.f2m, fr.gpumem, fr.uiEndFrameMs, fr.uiAdvanceMs, fr.uiEveryView ? 1 : 0);
             out.append(tmp, m);
         }
         if (!out.empty()) { DWORD w; WriteFile(framesCsv, out.data(), (DWORD)out.size(), &w, nullptr); }

@@ -4,6 +4,7 @@
 #include "acevo/core/iat.h"
 #include "acevo/dstorage/stats.h"
 #include "acevo/render/reflex.h"
+#include "acevo/ui/ui_probe.h"
 
 static LARGE_INTEGER g_qpf = {};
 static LARGE_INTEGER g_qpcStart = {};
@@ -68,6 +69,9 @@ static void OnPresent(UINT syncInterval)
         sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
         sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
         sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
+        sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
+        sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
+        sample.uiEveryView = UiProbeEveryView();
         for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
         EnterCriticalSection(&g_frameCs);
         if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);

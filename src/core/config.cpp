@@ -113,4 +113,5 @@ void LoadConfig()
     g_cfg.traceFileIo = IniBool(L"developer", L"trace_file_io", false);
     g_cfg.loadSampler = IniBool(L"developer", L"load_sampler", false);
     g_cfg.loadSampleUs = IniInt(L"developer", L"sample_us", 1000);
+    g_cfg.uiProbe = IniBool(L"developer", L"ui_probe", false);
 }
