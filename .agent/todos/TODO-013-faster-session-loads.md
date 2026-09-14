@@ -2,8 +2,8 @@
 name: TODO-013-faster-session-loads
 kind: todo
 description: cut the session load, 17 s on the Nurburgring with three quarters of it in one streaming phase that issues tens of thousands of 30 KB requests at a fifth of the drive's speed, by reading ahead in the proxy and serving those requests from memory
-updated: 2026-09-12
-links: [directstorage-streaming, telemetry, one-percent-low-hunt-2026-09-05, content-package, BUG-019-car-physics-rebuilds-every-tyre-model-five-times]
+updated: 2026-09-14
+links: [directstorage-streaming, telemetry, one-percent-low-hunt-2026-09-05, content-package, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, memory-creep-2026-09-14]
 status: open
 by: owner
 area: streaming
@@ -264,6 +264,17 @@ section makes virtual calls, and how they wait only moves that time between "spi
 "blocked", it does not reduce it. A twenty one byte patch cannot fix a queue design.
 
 Evidence in `logs/joblock-A-off-1446` and `logs/joblock-B-on-1450`.
+
+## What the BUG-016 deep dive adds, 2026-09-14
+
+From [memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md).
+
+- **A menu load carries the previous track's teardown.** The same menu loads in a median 4.53 s after
+  a Nürburgring GP (7 loads) against 2.59 s after a Red Bull Ring (4), with 1.46 s against 0.20 s of
+  teardown inside it. Identical loads after identical predecessors drift a median 4 to 7 percent with
+  no link to how much memory the session has grown.
+- **The tyre builds are not the serial tail's cost.** BUG-019 is corrected, each build takes about
+  0.15 ms and the 5.6 s of gaps sit around the compound asset fetch at `0x105fd00`, still unread.
 
 ## Done when
 

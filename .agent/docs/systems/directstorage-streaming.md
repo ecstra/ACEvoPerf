@@ -2,8 +2,8 @@
 name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
-updated: 2026-09-13
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package]
+updated: 2026-09-14
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14]
 ---
 
 # DirectStorage streaming
@@ -65,7 +65,10 @@ meshes (34 MB).
 ## VRAM pool sizing
 
 The game never calls `DStorageSetConfiguration` and calls `SetStagingBufferSize(1024 MB)`. The
-runtime keeps two staging buffers of that size in local video memory. After its own allocations
+runtime keeps two staging buffers of that size in local video memory and two more on the CPU side,
+all four in the process's commit. The CPU side `SystemMemoryStagingBuffer` comes from the core's static
+CRT `_aligned_malloc` on the process heap, and the buffers are kept per factory and device, not per
+queue ([memory-creep-2026-09-14](../research/memory-creep-2026-09-14.md)). After its own allocations
 the engine (`DeviceAllocator.cpp`) computes `[Tile Pool] remainder N MB -> texture pool N/2.5`
 and the same for the mesh streamer. On a 6 GB card:
 

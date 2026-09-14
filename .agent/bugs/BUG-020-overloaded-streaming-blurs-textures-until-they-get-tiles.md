@@ -2,8 +2,8 @@
 name: BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles
 kind: bug
 description: in a race with a field of cars the texture pool is full and textures stayed blurry until they got their tiles, because the streamer ranked every texture by its least important request and loaded a texture's detail only in one piece, both fixed and seen fixed in game, with AI cars and some props still blurry in a full field accepted by the owner
-updated: 2026-09-13
-links: [texture-streamer-overload-2026-09-13, texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, DEC-018-a-full-texture-pool-keeps-the-players-car-first, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, directstorage-streaming]
+updated: 2026-09-14
+links: [texture-streamer-overload-2026-09-13, texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, DEC-018-a-full-texture-pool-keeps-the-players-car-first, BUG-016-vram-overhead-grows-across-scene-loads, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, directstorage-streaming, memory-creep-2026-09-14]
 status: fixed
 severity: bug
 area: streaming
@@ -45,7 +45,9 @@ priority table, was wrong. No material in these races carries the vehicle catego
 car ranks on a table of its own at 60000 and AI cars rank on the default table like props.
 
 The 40 minute multiplayer crash stays unattributed. No logs arrived from that report, and a crash
-after a long session on that 8 GB card could equally be BUG-016's overhead or VRAM over the budget.
+after a long session on that 8 GB card could be VRAM over the budget. BUG-016's overhead is not a
+candidate on track, the deep dive of 2026-09-14 found it reads the same as a fresh boot at every track
+load ([memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md)).
 
 ## Fix
 

@@ -2,8 +2,8 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-13
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12]
+updated: 2026-09-14
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14]
 ---
 
 # Telemetry
@@ -49,7 +49,11 @@ it samples and writes only while a CSV is on. Columns:
 - `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the discrete
   adapter, local segment
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
-- `ws_mb`, `commit_mb`: working set and private commit of the game process
+- `ws_mb`, `commit_mb`: working set and private commit of the game process. The game's private
+  commit includes its local VRAM one to one, so take `vram_used_mb` out before reading a commit step
+  as RAM. The game log's `Request session start` memory reading sits 0 to 306 MB above the settled
+  menu plateau, so memory comparisons use the timeline's plateau
+  ([memory-creep-2026-09-14](../research/memory-creep-2026-09-14.md))
 
 ## acevo_perf_frames.csv
 

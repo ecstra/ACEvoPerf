@@ -1,9 +1,9 @@
 ---
 name: BUG-019-car-physics-rebuilds-every-tyre-model-five-times
 kind: bug
-description: the Ferrari 296 GT3 builds each of its four tyre models five times during the car physics load, 3.52 s of tyre builds for four distinct results, on the serial chain that ends the session load two seconds after the streaming phase
-updated: 2026-09-12
-links: [TODO-013-faster-session-loads, BUG-012-pit-lane-return-freezes-over-a-second, optimisation-deepdive-2026-09-12]
+description: the Ferrari 296 GT3's car physics load logs twenty tyre compound builds across a 3.52 s span on the serial chain that ends the session load, but each build itself takes about 0.15 ms and the time sits between builds around the compound asset fetch, so the target is the fetch and not the builds
+updated: 2026-09-14
+links: [TODO-013-faster-session-loads, BUG-012-pit-lane-return-freezes-over-a-second, optimisation-deepdive-2026-09-12, memory-creep-2026-09-14]
 status: open
 severity: bug
 area: streaming
@@ -68,6 +68,26 @@ would then contend with streaming workers that are still busy, so part of the sa
 given back.
 
 It is car dependent. The RX-7's whole tyre phase is 173 ms, so there is nothing to win on it.
+
+## Corrected 2026-09-14
+
+The BUG-016 deep dive read the builder in the exe and the S session
+([memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md)), and three readings above do
+not hold.
+
+- **The count.** The Ferrari's preset `tyres_296gt3_sro.compatibletyres` lists five compounds per axle
+  (slick, wet, and slick NC_2, NC_3 and NC_4), three of them byte identical, so a load builds twenty
+  records from five distinct contents. It is not two compounds built five times.
+- **The cost per build.** `LOADING TYRE COMPOUND` (0x55f4ab0) is referenced only in the builder at
+  `0x2369bd0`, reached from the car build `0x221e010` through `0x236ee30` and the compound loop
+  `0x236f340`. Each build appends a 1,096 byte record to its wheel, and its logged part takes about
+  0.15 ms, 12 ms for 80 builds in `logs/memcreep-20260913/S-census-settled`. The 176 ms against 22 ms
+  per build and the 2.8 s "if the builds cost alike" do not hold.
+- **Where the span goes.** The gaps between builds total 5.6 s in S and span the builder's tail, the
+  handle release at `0x236f437` and the next compound asset fetch at `0x105fd00`. Memoising the builder
+  would save milliseconds. Any fix aims at the fetch, which is still unread.
+
+The chain reading above stands, the tyre span does sit on the serial tail of the load.
 
 ## Fix
 
