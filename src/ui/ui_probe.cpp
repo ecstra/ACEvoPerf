@@ -56,21 +56,26 @@ static const char kPageScript[] = R"js(
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
 
-    // Fixes switch on every other visit of the same page, counted across document loads, so one
-    // session carries its own control. The count is per page because pages are visited in
-    // different orders.
-    var visit = 1;
-    try {
-        var key = 'acevo_ui_probe_visit_' + page;
-        visit = (parseInt(localStorage.getItem(key), 10) || 0) + 1;
-        localStorage.setItem(key, String(visit));
-    } catch (e) {}
+    // Counted across document loads, so one session carries its own control.
+    function nextCount(key) {
+        var count = 1;
+        try {
+            count = (parseInt(localStorage.getItem(key), 10) || 0) + 1;
+            localStorage.setItem(key, String(count));
+        } catch (e) {}
+        return count;
+    }
+
+    // The navigation fix switches on every other visit of a page. The count is per page because
+    // pages are visited in different orders.
+    var visit = nextCount('acevo_ui_probe_visit_' + page);
     var fixesOn = visit % 2 === 0;
     var state = fixesOn ? 'on' : 'off';
     console.log('[ACEvoPerf] ui probe ' + page + ' visit ' + visit + ' fixes ' + state);
 
     var frame = 0;
     var stats = { navCalls: 0, navScans: 0, navSkipped: 0, navMs: 0, setupInits: 0, setupIgnored: 0, setupInstances: 0 };
+    var setupFixesOn = false;
 
     function report() {
         if (!stats.navCalls && !stats.navScans && !stats.setupInits) return;
@@ -78,7 +83,8 @@ static const char kPageScript[] = R"js(
         console.log('[ACEvoPerf] ui probe ' + page + ' fixes ' + state +
             ' | navigation calls ' + stats.navCalls + ' scans ' + stats.navScans + ' skipped ' + stats.navSkipped +
             ' scan ms ' + stats.navMs +
-            ' | setup init ' + stats.setupInits + ' ignored ' + stats.setupIgnored + ' instances ' + stats.setupInstances +
+            ' | setup fixes ' + (setupFixesOn ? 'on' : 'off') + ' init ' + stats.setupInits + ' ignored ' + stats.setupIgnored +
+            ' instances ' + stats.setupInstances +
             ' | elements ' + elements);
         for (var name in stats) stats[name] = 0;
     }
@@ -161,27 +167,37 @@ static const char kPageScript[] = R"js(
     }
 
     // BUG-026. The vehicle setup page sends its Init request twice a few milliseconds apart and
-    // rebuilds everything for each answer. With the fixes on, a second init on the same element
+    // rebuilds everything for each answer. Vehicle setup opens inside the pit menu's document, so
+    // this fix switches on every other open instead of every other page visit, an open being an
+    // init with none in the three seconds before. With it on, a second init on the same element
     // while its own request is outstanding is ignored, the pending mark clears when the answer
     // arrives or after three seconds. Calls on different elements are counted, never ignored.
     var setupInstanceCount = 0;
+    var lastSetupInitAt = 0;
 
     function patchVehicleSetup(proto) {
         if (!proto || proto.__acevoPatched || typeof proto.init !== 'function') return;
         var stockInit = proto.init;
         proto.init = function () {
             stats.setupInits++;
+            var now = Date.now();
+            if (now - lastSetupInitAt > 3000) {
+                var open = nextCount('acevo_ui_probe_setup_open');
+                setupFixesOn = open % 2 === 0;
+                console.log('[ACEvoPerf] ui probe vehicle setup open ' + open + ' fixes ' + (setupFixesOn ? 'on' : 'off'));
+            }
+            lastSetupInitAt = now;
             if (!this.__acevoSetupId) {
                 this.__acevoSetupId = ++setupInstanceCount;
                 stats.setupInstances++;
             }
-            if (fixesOn && this.__acevoInitPendingSince && Date.now() - this.__acevoInitPendingSince < 3000) {
+            if (setupFixesOn && this.__acevoInitPendingSince && now - this.__acevoInitPendingSince < 3000) {
                 stats.setupIgnored++;
                 return;
             }
             var client = this.Client;
             var stockRequest = client && client.request;
-            if (!fixesOn || typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
+            if (!setupFixesOn || typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
 
             var self = this;
             self.__acevoInitPendingSince = Date.now();
