@@ -3,7 +3,7 @@ name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
 updated: 2026-09-14
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14]
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # Telemetry
@@ -76,7 +76,9 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 
 - `kick`, one pass of the streamer, written at its first event. a kick number, b pool capacity in
   tiles, c admission budget, d records built, e records admitted, f tiles admitted, g records
-  rejected, h load gate space at that moment, i load gate byte, then for the previous kick j
+  rejected, h load gate space at that moment, i the loads byte (1 when the Resource Manager had no
+  unfinished job as the kick was scheduled, 0 means the kick starts no load at all), then for the
+  previous kick j
   textures that wanted a finer level, k loads turned away for space, l drops, m drops refused, n
   loads cut to the levels that fit, o tiles those loads carried
 - `tex`, a texture seen for the first time. a Texture pointer, b its `ID3D12Resource` (the `res`

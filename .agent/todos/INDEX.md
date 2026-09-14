@@ -20,6 +20,7 @@ streaming
 - [TODO-009-overlay-serves-copies-so-loose-files-stay-editable](TODO-009-overlay-serves-copies-so-loose-files-stay-editable.md), serve cached copies so loose files are not locked while the game runs
 - [TODO-014-proxy-implements-enqueuerequests-if-the-game-asks](TODO-014-proxy-implements-enqueuerequests-if-the-game-asks.md), the proxy declines IDStorageQueue3 to keep the overlay and the statistics in the path, implement it if a game build ever asks
 - [TODO-019-tile-upload-dedupe-done-properly](TODO-019-tile-upload-dedupe-done-properly.md), the redundant tile traffic left now the parked churn is fixed at its source, driving, 97 percent of 20 GB in ten minutes at the Red Bull Ring, starting from the recorded trace rather than the old dedupe
+- [TODO-024-a-follow-up-streamer-pass-after-a-camera-cut](TODO-024-a-follow-up-streamer-pass-after-a-camera-cut.md), BUG-021's first correction, a streamer pass fired when the Resource Manager's job count reads zero after a cut whose pass could not load, tested behind an every other cut arm in one pit menu run
 - [TODO-021-the-engine-reads-the-same-data-twice](TODO-021-the-engine-reads-the-same-data-twice.md), 3.5 GB of package data read a second time in one session, 633 MB of it inside one Nürburgring load, operation rather than load time in the owner's words
 
 render

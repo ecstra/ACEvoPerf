@@ -3,7 +3,7 @@ name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
 updated: 2026-09-14
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14]
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # DirectStorage streaming
@@ -31,7 +31,11 @@ a request follows the first frame that needs the mip by at least two frames.
 About once a second the streamer runs a kick. It takes one frame of demand, gives every (texture,
 level) a priority from material distance tables or GPU feedback, admits in priority order until the
 pool budget runs out, loads what was admitted if the load gate has space, and drops the rest at
-once. The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
+once. The drops come after the same kick's loads, so a kick's own drops never make room for its
+loads. A kick starts at most 128 loads, and none at all when the Resource Manager had any unfinished
+job when the kick was scheduled. A camera cut (a showcase shot change or a camera mode change) and the
+UI waiting for a texture both force a kick at once, and the next one then waits the full interval
+([texture-streamer-camera-cuts-2026-09-14](../research/texture-streamer-camera-cuts-2026-09-14.md)). The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
 frees its tiles to a first in first out pool two frames later with no unmap. The pool runs full in
 normal play, 14,800 to 15,300 of 16,384 tiles used at 1024 MB on a 6 GB card, with about 120 loads
 turned away for space on every parked kick, and at 15,360 through a race with AI.

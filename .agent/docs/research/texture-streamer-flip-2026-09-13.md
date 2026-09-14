@@ -3,7 +3,7 @@ name: texture-streamer-flip-2026-09-13
 kind: doc
 description: the tile churn is the texture streamer measuring detail against the mip it has loaded and reading the answer as if against the full texture, confirmed live, fixed from the mod behind an off by default switch, with the pool found full in normal play, 33.6 MB/s of repeat traffic while driving at the Red Bull Ring and 3.5 GB of repeated file reads a session
 updated: 2026-09-14
-links: [TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, TODO-021-the-engine-reads-the-same-data-twice, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, directstorage-streaming, telemetry, BUG-016-vram-overhead-grows-across-scene-loads, TODO-017-tier-2-variable-rate-shading]
+links: [TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, TODO-021-the-engine-reads-the-same-data-twice, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, directstorage-streaming, telemetry, BUG-016-vram-overhead-grows-across-scene-loads, TODO-017-tier-2-variable-rate-shading, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # The texture streamer measures detail against the mip it has loaded
@@ -19,7 +19,9 @@ the mod depends on are pinned by hash in `src/engine/streamer.cpp`.
 
 - **The kick.** A job at `0x1f2d110` runs when a 1000 ms deadline expires, re-armed once the
   previous kick has finished, so kicks land every 1.017 s. A kick is also forced when used plus
-  pending tiles exceed the pool.
+  pending tiles exceed the pool, true in code (`0x1F25F1B`) but never seen in six traces. The kicks
+  that are forced come from camera cuts and from the UI waiting for textures
+  ([texture-streamer-camera-cuts-2026-09-14](texture-streamer-camera-cuts-2026-09-14.md)).
 - **Demand is one frame.** Requests are collected for exactly one frame per kick and nothing
   carries over.
 - **Admission.** Every (texture, level) gets a 16 bit priority, from material distance tables or
