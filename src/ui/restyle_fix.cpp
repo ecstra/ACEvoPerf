@@ -12,10 +12,13 @@
 // matches. When the page's stylesheets hold any rule with a sibling combinator it also walks every
 // sibling that follows the element and marks the nodes under those, whatever feature changed, because
 // the only thing it checks is the count of such rules (+0x70 in the rule feature set, gate at
-// 0x37B92B). The state's invalidation set covers whole subtrees, so hovering a row marks every row
-// below it. On the settings pages that is the whole list, 1,200 to 1,300 elements and 50 to 65 ms
-// each time, once or twice for every row the mouse crosses, and while scrolling or dragging a slider
-// the rows move under the mouse and it happens every frame.
+// 0x37B92B). The state's invalidation set covers whole subtrees, so an invalidated row marks every
+// row below it.
+//
+// This is the second half of the UI restyle fix. The first, the stylesheet the overlay serves, stops
+// the page containers counting as state dependent. With only this half in, measured, every hover still
+// restyled the whole page through those containers. Once only the hovered row counts, this half keeps
+// that row from taking the rows below it along.
 //
 // The game's stylesheets hold one rule with a sibling combinator, ks-leaderboard .realtime-panel
 // .focused ~ .leaderboardline .driver-time, and no rule with a pseudo-class to the left of + or ~. A

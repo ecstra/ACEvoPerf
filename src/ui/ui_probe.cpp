@@ -740,7 +740,7 @@ static LayoutThread* LayoutThreadForThisThread()
 // Read from cohtml.WindowsDesktop.dll 1.61.0.3. A document keeps the nodes whose style changed in a
 // set at +0x1D28, and the style update restyles the whole subtree of every node in it, because the
 // collection walks all children of each one whatever changed. So a change costs the size of the
-// subtree under the node it lands on, and these hooks name those nodes and the code that marked them.
+// subtree under the node it lands on, and these hooks name those nodes and count what each invalidation marks.
 //   AddChangedNode(document, NodeRef*) at 0x3526C0 puts a node in the set.
 //   RestyleChanged at 0x3FCC40 restyles the set, called from 0x35C7F8 and again from 0x35CDA1.
 //   CollectRestyle(styler, set, restyle list, other list) at 0x3FA980, called from 0x3FCD90.
@@ -793,8 +793,6 @@ static PFN_Invalidate g_invalidate = nullptr;
 
 static const uint64_t kSlowRestyleUs = 15000;
 static const int kSlowRestylesPerSecond = 8;
-static const int kMarkPaths = 1024;
-static const int kMarkLevels = 3;
 
 struct SlowRestyle {
     uint32_t us;
@@ -818,13 +816,6 @@ struct Collection {
     char roots[200];
 };
 
-// One way into AddChangedNode, the return addresses of its caller and the two frames above it.
-struct MarkPath {
-    uint64_t returns[kMarkLevels];
-    uint32_t marks;
-    char sample[80];
-};
-
 static const int kInvalidationKinds = 8;
 static const int kInvalidatedElements = 256;
 
@@ -844,11 +835,9 @@ struct InvalidatedElement {
 static RestyleSecond g_restyles = {};       // under g_statsLock
 static thread_local Collection t_collection;
 static thread_local uint32_t t_marks = 0;
-static MarkPath g_markPaths[kMarkPaths];
 static InvalidationKind g_invalidationKinds[kInvalidationKinds];         // under g_markLock
 static InvalidatedElement g_invalidatedElements[kInvalidatedElements];   // under g_markLock
 static SRWLOCK g_markLock = SRWLOCK_INIT;
-static std::atomic<uint32_t> g_markCalls{0};
 
 // The entry of AddChangedNode starts with mov [rsp+0x20], rbp, five bytes, which the jump to this stub
 // replaces. The stub keeps the argument registers, hands the hook the stack pointer and frame pointer
@@ -903,61 +892,16 @@ static void DescribeNode(const BYTE* node, char* out, int size)
     }
 }
 
-// The stub has no unwind data, so the caller's frames are unwound from the stack pointer and frame
-// pointer the call arrived with. Nodes AddChangedNode turns away are not counted.
-static bool ReadMark(void** nodeRef, const uint64_t* entryRsp, uint64_t callerRbp, uint64_t* returns, char* sample, int sampleSize)
+// Counts the nodes AddChangedNode takes, for the invalidation that is running on this thread. It reads
+// the same two fields AddChangedNode reads right after, so the node is as safe to read as it is there.
+// Called up to a million times a second while a page restyles itself on every hover, so it only counts.
+static void OnAddChangedNode(void*, void** nodeRef, const uint64_t*, uint64_t)
 {
-    __try {
-        const BYTE* node = (const BYTE*)*nodeRef;
-        if (!node) return false;
-        if (!(*(const uint32_t*)(node + changed_node::kTree) & 1)) return false;
-        if (*(const uint32_t*)(node + changed_node::kKind) & 2) return false;
-
-        CONTEXT context = {};
-        context.Rip = entryRsp[0];
-        context.Rsp = (DWORD64)(entryRsp + 1);
-        context.Rbp = callerRbp;
-        returns[0] = context.Rip;
-        for (int level = 1; level < kMarkLevels; ++level) {
-            int moduleIndex = -1;
-            const RUNTIME_FUNCTION* function = FindFunction((uintptr_t)context.Rip, moduleIndex);
-            if (!function) break;
-            PVOID handlerData = nullptr;
-            DWORD64 establisher = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, g_unwindModules[moduleIndex].base, context.Rip, (PRUNTIME_FUNCTION)function, &context, &handlerData, &establisher, nullptr);
-            returns[level] = context.Rip;
-        }
-        DescribeNode(node, sample, sampleSize);
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return false;
-    }
-}
-
-static void OnAddChangedNode(void*, void** nodeRef, const uint64_t* entryRsp, uint64_t callerRbp)
-{
-    g_markCalls.fetch_add(1, std::memory_order_relaxed);
-    uint64_t returns[kMarkLevels] = {};
-    char sample[80] = "";
-    if (!ReadMark(nodeRef, entryRsp, callerRbp, returns, sample, sizeof sample)) return;
+    const BYTE* node = (const BYTE*)*nodeRef;
+    if (!node) return;
+    if (!(*(const uint32_t*)(node + changed_node::kTree) & 1)) return;
+    if (*(const uint32_t*)(node + changed_node::kKind) & 2) return;
     t_marks++;
-
-    size_t slot = (size_t)((returns[0] * 0x9E3779B97F4A7C15ull ^ returns[1] * 0xC2B2AE3D27D4EB4Full ^ returns[2]) >> 40) & (kMarkPaths - 1);
-    AcquireSRWLockExclusive(&g_markLock);
-    for (int probe = 0; probe < kMarkPaths; ++probe, slot = (slot + 1) & (kMarkPaths - 1)) {
-        MarkPath& path = g_markPaths[slot];
-        if (!path.marks) {
-            memcpy(path.returns, returns, sizeof returns);
-            strcpy_s(path.sample, sample);
-            path.marks = 1;
-            break;
-        }
-        if (memcmp(path.returns, returns, sizeof returns) == 0) {
-            path.marks++;
-            break;
-        }
-    }
-    ReleaseSRWLockExclusive(&g_markLock);
 }
 
 // The set is a table of node pointers with empty buckets null, its bucket count at +8 and its size
@@ -1186,7 +1130,7 @@ static void InstallStyleHooks()
         FlushInstructionCache(GetCurrentProcess(), patch.at, 5);
         written++;
     }
-    Log("[ui] style hooks on at %d of %d places, restyle passes are timed and changed nodes are traced to the code that marked them",
+    Log("[ui] style hooks on at %d of %d places, restyle passes are timed and each invalidation's marks are counted",
         written, (int)(sizeof patches / sizeof patches[0]));
 }
 
@@ -1406,16 +1350,6 @@ static int AppendClock(char* line, int length, size_t size, const char* title, c
         title, clock.calls, clock.first, clock.last, realMs, clock.largestStep, clock.backwards);
 }
 
-static int AppendAddress(char* line, int length, size_t size, uint64_t address)
-{
-    for (int m = 0; m < g_unwindModuleCount; ++m) {
-        const UnwindModule& module = g_unwindModules[m];
-        if (address < module.base || address >= module.end) continue;
-        return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX", module.label, (unsigned long long)(address - module.base));
-    }
-    return length + _snprintf_s(line + length, size - length, _TRUNCATE, " 0x%llX", (unsigned long long)address);
-}
-
 static void ReportRestyles(const RestyleSecond& restyles)
 {
     if (!restyles.changedPasses && !restyles.fullPasses) return;
@@ -1426,45 +1360,6 @@ static void ReportRestyles(const RestyleSecond& restyles)
         const SlowRestyle& slow = restyles.slow[i];
         Log("[ui] slow restyle %.1f ms, %u nodes from %u changed, %s", slow.us / 1000.0, slow.nodes, slow.changed, slow.roots);
     }
-}
-
-static void ReportMarks()
-{
-    uint32_t calls = g_markCalls.exchange(0, std::memory_order_relaxed);
-    if (!calls) return;
-
-    const int wanted = 10;
-    MarkPath top[wanted] = {};
-    int found = 0;
-    uint64_t marks = 0;
-    AcquireSRWLockExclusive(&g_markLock);
-    for (int slot = 0; slot < kMarkPaths; ++slot) {
-        const MarkPath& path = g_markPaths[slot];
-        if (!path.marks) continue;
-        marks += path.marks;
-        int at;
-        if (found < wanted) {
-            at = found++;
-        } else if (path.marks > top[wanted - 1].marks) {
-            at = wanted - 1;
-        } else {
-            continue;
-        }
-        top[at] = path;
-        for (; at > 0 && top[at].marks > top[at - 1].marks; --at) std::swap(top[at], top[at - 1]);
-    }
-    memset(g_markPaths, 0, sizeof g_markPaths);
-    ReleaseSRWLockExclusive(&g_markLock);
-
-    char line[4096];
-    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] changed nodes %llu of %u calls", (unsigned long long)marks, calls);
-    for (int i = 0; i < found && length > 0; ++i) {
-        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | %u from", top[i].marks);
-        for (int level = 0; level < kMarkLevels && top[i].returns[level] && length > 0; ++level)
-            length = AppendAddress(line, length, sizeof line, top[i].returns[level]);
-        if (length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " on %s", top[i].sample);
-    }
-    Log("%s", line);
 }
 
 static void ReportInvalidations()
@@ -1556,6 +1451,5 @@ void UiProbeTick()
     if (advanced || second.endFrames) Log("%s", line);
 
     ReportRestyles(restyles);
-    ReportMarks();
     ReportInvalidations();
 }

@@ -81,10 +81,10 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   and the UI clock the game hands the UI engine against real time, adds the waits per frame to the frames
   CSV, and every five seconds lists where the UI engine's layout work spends its time from samples of
   its stack. It also times every restyle pass of the UI engine, names the nodes a slow pass started
-  from and how many nodes it restyled, and traces each node marked for a restyle to the engine code
-  that marked it. A script added to the menu page counts what the pages change each second and on which
-  elements, matches every slow frame with what changed or was hovered in the frames before it, and
-  applies two menu fixes. One stops the controls page scanning the whole page once for every new row,
+  from and how many nodes it restyled, and counts how many nodes each change to an element marks for
+  a restyle, by element and kind of change. A script added to the menu page counts what the pages
+  change each second and on which elements, matches every slow frame with what changed or was hovered
+  in the frames before it, and applies two menu fixes. One stops the controls page scanning the whole page once for every new row,
   the other stops vehicle setup building itself twice when it opens. It hooks the game and the UI engine
   only when their builds match the ones it was written for. Diagnostics, off by default.
 
@@ -103,16 +103,23 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 - The menus lagged as soon as the mouse moved quickly, on hover, scrolling and dragging a slider,
   worst on the settings, controls and vehicle setup pages. Every time the element under the mouse
-  changes, the UI engine (Coherent Gameface) works out which elements need their style redone. That
-  should be the hovered element and what is inside it, but because the game's stylesheets contain
-  one rule that styles an element by its earlier sibling (a leaderboard rule), it also redoes every
-  element that comes after the hovered one on the same level, and everything inside those. On a list of settings that is every row below the mouse, 1,200 to 1,300 elements and 50 to
-  65 ms, once or twice for every row the mouse crosses. Moving slowly that is a stutter now and then.
-  Moving quickly, or scrolling and dragging, which move the rows under the mouse, it is every frame,
-  about 15 frames a second. No rule in the game uses a hover or other state together with a sibling,
-  so the mod has the engine skip that sibling pass for state changes and keeps it for class and
-  attribute changes, which the leaderboard rule needs (`ui_restyle_fix`). It only patches the UI
-  engine and game builds it was checked against.
+  changes, the UI engine (Coherent Gameface) restyles the elements whose look can depend on hover or
+  focus, together with everything inside them. It decides which ones those are from the part of each
+  selector that holds `:hover` or `:focus`, and the game's stylesheet has a few such parts that match
+  nearly every container on a page, `div:hover` and `div:focus` for the paint shop's page buttons and
+  `.component-body:hover` for the grid editor and the paint shop's material channels. So each hover
+  change restyled the whole page, 1,100 to 1,300 elements and 50 to 65 ms, and moving quickly, or
+  scrolling and dragging, which move the rows under the mouse, did that every frame, about 15 frames
+  a second. The mod serves the stylesheet with those parts narrowed to what the elements they style
+  always carry (`data-page` on the page buttons, `focus-indicator` on the grid item's body, the channel
+  group's own hover for its only child), so the same buttons still light up and the containers no
+  longer count. It is generated from the game's own stylesheet at start, and left untouched if an
+  update changed any of those parts. Second, because the stylesheet also has one rule that styles an
+  element by its earlier sibling (a leaderboard rule), the engine restyled every element after a
+  hovered one as well, every row below the mouse. No rule uses hover or focus together with a
+  sibling, so the engine now skips that pass for hover and focus changes and keeps it for class and
+  attribute changes, which the leaderboard rule needs. Both are `ui_restyle_fix` and only apply to
+  the game and UI engine builds they were checked against.
 - In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
   seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
   the engine's texture streamer cause it, and both only show once the texture pool is full, which

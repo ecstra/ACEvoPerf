@@ -266,6 +266,115 @@ static void AddBigScreenFix(size_t used)
         "cannot fall back to a coarse mip (BUG-017)", levels);
 }
 
+// The UI engine (Cohtml 1.61) counts an element as depending on hover or focus when the part of a
+// selector that holds :hover or :focus matches it, whatever the rest of the selector says. Every hover
+// or focus change then restyles each counted ancestor of the element under the mouse and everything
+// inside it. The game's stylesheet has parts that match nearly every page container. div:hover and
+// div:focus come from the paint shop's page buttons, .component-body:hover and .component-body:focus
+// from the grid editor and the paint shop's material channels. With those every div above the mouse
+// counts, so each hover change restyles the whole page, 1,100 to 1,300 elements and 50 to 65 ms,
+// measured with the UI probe on the settings, controls and vehicle setup pages. See BUG-014.
+//
+// Each part is narrowed to something the elements it styles always carry, so they still match and the
+// page containers no longer count. The paint shop's page buttons always get data-page, the grid editor
+// item's body always has focus-indicator, and a material channel group's body is the group's only
+// child, so the group's own hover stands in for it with the same specificity.
+static const char* const kUiStylesheet = "uiresources\\css\\uicomponents.css";
+static const wchar_t* const kUiStylesheetLooseFile = L"acevo_uicomponents.css";
+
+struct StyleEdit {
+    const char* from;
+    const char* to;
+    int expected;       // occurrences in the stylesheet of 0.9.1
+};
+
+static const StyleEdit kStyleEdits[] = {
+    { ".pagination > div:hover,", ".pagination > div[data-page]:hover,", 1 },
+    { ".pagination > div:focus {", ".pagination > div[data-page]:focus {", 1 },
+    { "ks-griditem > .component-body:hover ", "ks-griditem > .component-body.focus-indicator:hover ", 3 },
+    { "ks-griditem > .component-body:focus ", "ks-griditem > .component-body.focus-indicator:focus ", 2 },
+    { "ks-materialeditor #channelmode > .component-body:hover", "ks-materialeditor #channelmode:hover > .component-body", 1 },
+    { "ks-materialeditor #materialenable > .component-body:hover", "ks-materialeditor #materialenable:hover > .component-body", 1 },
+    { "ks-materialeditor #channels > .component-body:hover", "ks-materialeditor #channels:hover > .component-body", 1 },
+};
+
+static int CountOccurrences(const std::string& text, const char* needle)
+{
+    int count = 0;
+    const size_t length = strlen(needle);
+    for (size_t at = text.find(needle); at != std::string::npos; at = text.find(needle, at + length)) ++count;
+    return count;
+}
+
+static void ReplaceAll(std::string& text, const char* from, const char* to)
+{
+    const size_t fromLength = strlen(from), toLength = strlen(to);
+    for (size_t at = text.find(from); at != std::string::npos; at = text.find(from, at + toLength)) text.replace(at, fromLength, to);
+}
+
+// Same care as the big screen fix. A stylesheet that does not hold every part exactly as often as
+// expected was changed by an update and is served untouched.
+static void AddUiStyleFix(size_t used)
+{
+    if (!g_cfg.uiRestyleFix) return;
+
+    const std::string pkgPath = kUiStylesheet;
+    const uint64_t hash = Fnv1a64Utf16(pkgPath);
+    auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
+    size_t lo = 0, hi = used;
+    while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
+    if (lo >= used || hashAt(lo) != hash) {
+        Log("overlay: the UI stylesheet is not in this package, the UI restyle fix serves it untouched");
+        return;
+    }
+
+    const BYTE* entry = g_toc.data() + lo * SLOT;
+    uint16_t flags = 0;
+    uint64_t size = 0, offset = 0;
+    memcpy(&flags, entry + 0xE4, 2);
+    memcpy(&size, entry + 0xF0, 8);
+    memcpy(&offset, entry + 0xF8, 8);
+    if (size < 0x40000 || size > 0x1000000 || offset + size > g_pkgSize) {
+        Log("overlay: the UI stylesheet is %llu bytes at %llu, not what this expects, served untouched",
+            (unsigned long long)size, (unsigned long long)offset);
+        return;
+    }
+
+    std::vector<BYTE> raw;
+    if (!ReadPackageRange(offset, size, raw)) { Log("overlay: cannot read the UI stylesheet, served untouched"); return; }
+    if (flags & 0x100) XorRange(raw.data(), 0, raw.size());
+    std::string css(raw.begin(), raw.end());
+
+    for (const StyleEdit& edit : kStyleEdits) {
+        const int found = CountOccurrences(css, edit.from);
+        if (found != edit.expected) {
+            Log("overlay: the UI stylesheet has '%s' %d time(s) where %d were expected, served untouched", edit.from, found, edit.expected);
+            return;
+        }
+    }
+    for (const StyleEdit& edit : kStyleEdits) ReplaceAll(css, edit.from, edit.to);
+
+    std::vector<BYTE> corrected(css.begin(), css.end());
+    // The file has to carry the encoding the rebuilt table will claim for it.
+    if (!g_cfg.overlayClearXor) XorRange(corrected.data(), 0, corrected.size());
+
+    const std::wstring loose = g_dir + kUiStylesheetLooseFile;
+    HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the UI stylesheet is served untouched", loose.c_str(), GetLastError()); return; }
+    DWORD wrote = 0;
+    const bool ok = WriteFile(w, corrected.data(), (DWORD)corrected.size(), &wrote, nullptr) && wrote == corrected.size();
+    g_origCloseHandle(w);
+    if (!ok) { Log("overlay: short write to %ls, the UI stylesheet is served untouched", loose.c_str()); return; }
+
+    Override o;
+    o.loosePath = loose;
+    o.pkgPath = pkgPath;
+    o.size = corrected.size();
+    g_files.push_back(o);
+    Log("overlay: UI stylesheet, %zu hover and focus selector parts narrowed so page containers stop counting as hover dependent (BUG-014)",
+        sizeof kStyleEdits / sizeof kStyleEdits[0]);
+}
+
 // Read the real table, apply the overrides, re-encode. Called on the first table read.
 static void BuildToc()
 {
@@ -310,6 +419,7 @@ static void BuildToc()
     // The mod's own corrections join the list before it is applied, so they get a virtual offset
     // and a table slot exactly like a loose file the player put there.
     AddBigScreenFix(used);
+    AddUiStyleFix(used);
 
     g_virtBase = (g_pkgSize + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
     uint64_t next = g_virtBase;
@@ -467,11 +577,11 @@ void Install()
         Log("overlay: %zu loose file(s) under %ls", g_files.size(), folder.c_str());
     } else if (g_cfg.overlayEnabled) {
         Log("overlay: folder %ls not present%s", folder.c_str(),
-            g_cfg.fixBigScreens ? ", the mod's own asset fixes still apply" : ", layer idle");
+            (g_cfg.fixBigScreens || g_cfg.uiRestyleFix) ? ", the mod's own asset fixes still apply" : ", layer idle");
     }
     // The mod's own corrections are reason enough to hook the file calls. They are generated from
     // the player's package once the table is read, so there need not be a mods folder at all.
-    g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens);
+    g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens || g_cfg.uiRestyleFix);
     if (!g_active && !g_cfg.traceFileIo) return;
     int a = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
     int b = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);
