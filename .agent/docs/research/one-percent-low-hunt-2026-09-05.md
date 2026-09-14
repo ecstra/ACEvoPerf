@@ -2,8 +2,8 @@
 name: one-percent-low-hunt-2026-09-05
 kind: doc
 description: nineteen instrumented laps into the gap between the average and the 1 percent low, what each one measured, what was ruled out and what remains
-updated: 2026-09-06
-links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, TODO-010-resume-the-one-percent-low-hunt, lap-2026-09-05-nordschleife, telemetry]
+updated: 2026-09-14
+links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, TODO-010-resume-the-one-percent-low-hunt, lap-2026-09-05-nordschleife, telemetry, one-percent-lows-2026-09-14]
 ---
 
 # The 1 percent low hunt, 2026-09-05 to 2026-09-06
@@ -11,6 +11,12 @@ links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-dro
 The owner's complaint: the average sits at 80 to 90 fps and the 1 percent low 20 to 25 fps
 under it, on every lap, and the gap does not move with settings. This is the record of the
 evening and morning spent on it, so the next attempt starts from evidence.
+
+Read again on 2026-09-14 in [one-percent-lows-2026-09-14](one-percent-lows-2026-09-14.md), which
+corrects three readings here. `Present` carries half the slow frame excess through its coupling to the
+previous frame's GPU end, although no slow frame spent half its time inside it. The game does wait on
+its frame latency object once a frame. And the extra kernel waits of laps 12 to 14 are that present and
+semaphore wait, not a lock.
 
 ## Method
 

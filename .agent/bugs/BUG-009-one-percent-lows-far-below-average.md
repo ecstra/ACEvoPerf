@@ -1,9 +1,9 @@
 ---
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
-description: the 1 percent low frame rate sits about 20 fps under the displayed average
-updated: 2026-09-13
-links: [lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry]
+description: the 1 percent low frame rate sits about 20 fps under the displayed average, made of the present path through the integrated GPU, spread out renderer code and a ripple from the game updating one UI view per frame, not a lock or a job, with Reflex already evening the alternation
+updated: 2026-09-14
+links: [one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry, ui-lag-deepdive-2026-09-14]
 status: open
 severity: bug
 area: render
@@ -36,7 +36,8 @@ shown fps."
   few faces per frame (`facesPerFrame` in the exe, `CarReflectionQuality_High` in the owner's
   settings), clouds spread over 16 frames (`renderingTimeslicedOverFramesNumber: 16`), GI probes
   at 16 per frame (`gibake_probes_per_frame`), plus the present path through the integrated GPU
-  in windowed mode.
+  in windowed mode. (Corrected 2026-09-14. The phase locked cycles are the game updating one UI view
+  per frame in rotation, and lap 19 with reflections Low and the mirror off still shows them.)
 
 - Lap three of 2026-09-05 (car reflections Medium, `gibake_probes_per_frame=8`, windowed):
   first stint mean 11.1 ms (90 fps), p99 14.7 ms (68 fps), lag 2 autocorrelation down from
@@ -257,6 +258,45 @@ had undervolted the card, so the spread is not the throttle's. Windows as in
 Parked again on 2026-09-13. The mod already evens the pacing, what is left is the width of the
 engine's own frame times on a laptop that presents through its integrated GPU, and the one lead
 that could move it needs hardware the reference machine does not have.
+
+## The deep dive, 2026-09-14
+
+Five angles from the exe, the frames CSVs and the instrumented laps, no new run. The full record is
+[one-percent-lows-2026-09-14](../docs/research/one-percent-lows-2026-09-14.md).
+
+- **What the slowest frames are.** The present path first, `Present` returns a nearly fixed 2.5 to
+  4.4 ms after the GPU finished the previous frame and carries 50 to 59 percent of the slow frame
+  excess. Then 1.2 to 2.8 ms of spread out renderer code. Then periodic pieces, the largest a ripple
+  from the game advancing and painting one Cohtml view per frame in rotation over the HUD and the car's
+  dashboard displays, a 3 frame cycle for two display cars and a 2 frame one for the Mazda.
+- **Not a lock, not a job.** Lock waits add 0.01 to 0.22 ms per slow frame and the job scheduler about
+  0.06 ms. The 2026-09-12 table behind that lead included the session load.
+- **The UI's own processor time does not set the width**, taking every UI sample out of slow frames moves
+  p99 over median by at most 0.006. The rotation reaches frame time through the GPU and the next present.
+- **Reflex is what evens the long short alternation**, the split is on disk in the Reflex runs of
+  2026-09-12.
+- **No processor shortage.** The game uses about 4 of 16 logical processors, and lap 18's slower core was
+  the CPU clock in one stretch. The thread and core levers are killed as width fixes.
+
+No fix is shown to narrow the width on the Nürburgring protocol. Two runs with no build decide the next
+step, the view rotation test ([TODO-025](../todos/TODO-025-the-ui-view-rotation-test.md)) and one lean
+ETW trace started from the owner's elevated prompt
+([TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md)).
+
+Corrections to this record, each with its evidence in the research doc.
+
+- The alternating frame cost is not reflection cubemaps, clouds or GI probes, see the note above.
+- `Present` was not ruled out by "no slow frame spent over half its time inside it". It carries most of
+  the excess through its coupling to the previous frame's GPU end.
+- The game does wait on its frame latency object, once a frame at `0x1CE3AA6`. The 22:26 build compared
+  handle values and each `GetFrameLatencyWaitableObject` call returns its own handle.
+- Lap 18's "core 5 percent slower in the slowest frames" follows the CPU clock in one streaming stretch.
+- "About 3 ms of game code" is 1.2 to 2.8 ms on laps without GPU marks, and "0.3 to 1.2 ms of HUD script
+  only in slow frames" is V8 bursts after a load that do not set the width.
+- The lap 14 summary with cohtml first and `ZwWaitForAlertByThreadId` at 762 against 369 is lap 13's
+  cumulative build and mostly the load.
+- The mod evening the alternation is Reflex, damped rather than gone (M parked frame to next frame
+  correlation minus 0.67).
 
 ## Verification
 

@@ -19,7 +19,7 @@ bug
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
 - [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line reads the engine's freed allocator at exit, the mod catches it but the game writes a crash report naming the mod
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
-- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the render thread hands its main batch to the GPU 3 to 5 ms late in heavy views, and on a flat GPU clock the frames alternate long and short without the mod while the mod evens them, leaving a p99 of 1.25 times the median and the untested present path through the integrated GPU
+- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the slowest frames are the present path through the integrated GPU coupled to the previous frame's GPU end, spread out renderer code and a ripple from one UI view updated per frame, not a lock or a job, Reflex already evens the alternation, two runs with no build next
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
 
 debt
