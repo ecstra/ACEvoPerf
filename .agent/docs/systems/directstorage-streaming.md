@@ -3,7 +3,7 @@ name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
 updated: 2026-09-14
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14]
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14]
 ---
 
 # DirectStorage streaming
@@ -77,15 +77,18 @@ and the same for the mesh streamer. On a 6 GB card:
 | 1024 MB (game) | 2343 MB | 400 MB | 400 MB |
 | 256 MB | 807 MB | 1015 MB | 1015 MB |
 | 128 MB | 551 MB | 1115 MB | 1115 MB |
-| `force_canonical_pool_sizes` alone | | 1433 MB | 1433 MB |
+| `force_canonical_pool_sizes` alone, texture pool size Low | | 1433 MB | 1433 MB |
 | 128 MB plus `force_canonical_pool_sizes` and `tile_pool_mb=1024` (mod default) | 500 MB | 1024 MB fixed | 1433 MB cap |
 
-The dynamic formula has a second problem beyond the staging buffers: it runs during the scene
-transition while the outgoing scene is still resident, so those menu numbers do not survive a
-race. Measured on the same card, dynamic path: menu 1117 MB, race load 633 MB, session restart
-526 MB, with a gigabyte of VRAM unused in the race (BUG-010). With the two flags the tile pool is
-created once at `tile_pool_mb` and never resized, and the mesh budget is a 1433 MB cap that fills
-on demand. Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
+The dynamic formula has a second problem beyond the staging buffers. It runs whenever video settings
+are applied (`0x1D43090`), which on 0.9.0 happened at the menu, the race load and the restart while the
+outgoing scene was still resident, so those menu numbers did not survive a race. On the same card the
+dynamic path gave 1117 MB in the menu, 633 MB at the race load and 526 MB after a session restart, with
+a gigabyte of VRAM unused in the race (BUG-010). On 0.9.1 it ran once per launch in the runs of 2026-09-13. The mesh
+budget's formula is `max(256, 0.4 x remainder)` with no ceiling. The canonical sizes are the
+`texturePoolSize` define, 1433 MB at Low. `tile_pool_mb` fixes the tile pool on its own and is created
+once, so with the mod's defaults the canonical flag only sets the mesh budget, a 1433 MB cap that fills
+on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-2026-09-14.md)). Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
 Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's

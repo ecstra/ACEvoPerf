@@ -2,11 +2,16 @@
 name: handover-2026-09-13-frame-time-mesh-budget
 kind: doc
 description: state of the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1 against it
-updated: 2026-09-13
-links: [TODO-022-frame-time-with-and-without-the-mod, frame-time-mod-against-passive-2026-09-13, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default]
+updated: 2026-09-14
+links: [TODO-022-frame-time-with-and-without-the-mod, frame-time-mod-against-passive-2026-09-13, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, mesh-level-of-detail-2026-09-14]
 ---
 
 # Handover: frame time, the mesh budget
+
+Superseded on 2026-09-14 by the mesh deep dive,
+[mesh-level-of-detail-2026-09-14](../docs/research/mesh-level-of-detail-2026-09-14.md). The 0.3.1 run
+was done, the branch's commits are on main, and the race line below is corrected there, the 56 fps
+race is confounded and not a pair.
 
 ## Where the work stands
 

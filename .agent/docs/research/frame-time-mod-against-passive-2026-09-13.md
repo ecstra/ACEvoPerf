@@ -2,8 +2,8 @@
 name: frame-time-mod-against-passive-2026-09-13
 kind: doc
 description: a controlled pair on the undervolted reference card puts the mod's frame time cost at 3.8 percent parked and 8 percent on a lap against the mod fully passive, and most of it is mesh detail the canonical 1433 MB mesh budget loads, which a 366 MB budget gets back unseen but by starving the mesh streamer, frozen on the GP and churning 2 GB a lap at the Red Bull Ring, so no budget size fixes it
-updated: 2026-09-13
-links: [TODO-022-frame-time-with-and-without-the-mod, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, DEC-014-reflex-ships-on-boost-ships-off, BUG-007-blurry-road-and-textures, directstorage-streaming]
+updated: 2026-09-14
+links: [mesh-level-of-detail-2026-09-14, TODO-022-frame-time-with-and-without-the-mod, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, DEC-014-reflex-ships-on-boost-ships-off, BUG-007-blurry-road-and-textures, directstorage-streaming]
 ---
 
 # The mod's frame time against the mod doing nothing
@@ -194,3 +194,30 @@ Ring. A budget between the two saves nothing where a scene's mesh fits under it 
 that need more, so no size is a fix. What would be is the engine loading mesh detail the screen cannot
 show, the way the texture streamer did, which is a deep dive into the mesh streamer's level choice.
 The last 1 percent, Reflex, the priorities and the bundled runtime, is still untested.
+
+## Corrected 2026-09-14
+
+The deep dive into the mesh streamer's level choice ran,
+[mesh-level-of-detail-2026-09-14](mesh-level-of-detail-2026-09-14.md). It found the detail is what the
+meshes are authored with and not an engine fault, and it rechecked this doc against the CSVs and game
+logs.
+
+- **Setup.** Every protocol run's `Game Started` line reads Nürburgring GP Strecke Time Attack
+  Practice, not the 24h layout. The parked spot is the pit box. The card read 44 to 50 °C at attach.
+- **Result table.** M's parked tile traffic over the defined window is 0.60 MB/s, from the car already
+  rolling at 13:54:31, and 0.00 when cut at leaving the box, not 0.07.
+- **P1 and P2.** "The rest of the mod costs about 1 percent" is 0.38 to 0.97 fps. P1's card was 46 °C
+  at attach, not 42. "There is no flag for the mesh budget alone" holds only in that no flag picks a
+  size, since with `tile_pool_mb` set `force_canonical_pool_sizes` touches nothing but the mesh budget.
+- **P3.** Its lap ends through the pit entry (`pit_step Entering` at 15:04:33.881, lap completed at
+  15:04:43.844), so its last 10 s are the pit lane and its lap figures are not on the same path. The
+  parked comparison is unaffected.
+- **Beyond the protocol.** Both Red Bull Ring sessions were the same special event with the same
+  `ks_mazda_rx7_fd`, car id and no AI, so the budget is the difference. The 366 MB laps upload 1,580 to
+  2,174 MB in position bound bursts, two sites a lap, which shares the flip's mechanism family but not
+  its every other kick rhythm.
+- **The race.** The 8:00 against 15:00 objection falls away, the BUG-020 races ran at 8:00 at 1433 MB
+  and made 69 to 72 fps. The 56 fps race is dropped as evidence for another reason, it came after nine
+  scene loads, at higher commit and several times the texture traffic of the 1433 MB races.
+- **Where it stands.** "No size is a fix" rests on the rule that a budget under what a scene asks for
+  removes detail the level rule asked for, not on the race.

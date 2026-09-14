@@ -2,7 +2,7 @@
 name: texture-streamer-flip-2026-09-13
 kind: doc
 description: the tile churn is the texture streamer measuring detail against the mip it has loaded and reading the answer as if against the full texture, confirmed live, fixed from the mod behind an off by default switch, with the pool found full in normal play, 33.6 MB/s of repeat traffic while driving at the Red Bull Ring and 3.5 GB of repeated file reads a session
-updated: 2026-09-13
+updated: 2026-09-14
 links: [TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, TODO-021-the-engine-reads-the-same-data-twice, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, directstorage-streaming, telemetry, BUG-016-vram-overhead-grows-across-scene-loads, TODO-017-tier-2-variable-rate-shading]
 ---
 
@@ -233,7 +233,8 @@ Nürburgring as the second read 360 MB. Recorded in
   coarse shading can starve the count entirely. Why VRS stopped the churn in
   [TODO-017](../../todos/TODO-017-tier-2-variable-rate-shading.md).
 - **The streamer's own log lines exist.** They are written at info level to loggers created at
-  warn. The exe applies `-log_info=<logger>` from the command line after that, which is expected
-  to raise them, not tried.
+  warn. The level is applied when each logger is created, from name lists built at logging init, so
+  `-log_info=<logger>` is expected to raise them, traced for `meshStreamer` on 2026-09-14
+  ([mesh-level-of-detail-2026-09-14](mesh-level-of-detail-2026-09-14.md)) and not tried.
 - **Game logs start with NUL bytes.** Plain `grep` stops at "Binary file matches" and silently
   drops every later line, use `grep -a`.

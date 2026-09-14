@@ -2,7 +2,7 @@
 name: memory-index
 kind: doc
 description: index of project memory, one line per fact
-updated: 2026-09-13
+updated: 2026-09-14
 links: [agent-index, spec-memory]
 ---
 
@@ -14,7 +14,7 @@ project
 - [ghost-car-records-but-never-shows](ghost-car-records-but-never-shows.md), the ghost car flag records, saves, loads and samples a lap and nothing in the exe draws it, not shipped
 - [dstorage-dll-is-only-a-forwarder](dstorage-dll-is-only-a-forwarder.md), the runtime is dstoragecore.dll, the game claims that base name at start-up, nothing checks the two versions match, and the core's own entry points can be called directly
 - [game-requests-1gb-staging-buffer](game-requests-1gb-staging-buffer.md), the one call that starves texture pools on small cards
-- [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed
+- [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed, the per logger level switches among them
 - [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttles at 87 °C two minutes into a lap, the undervolt that held it flat hung the GPU and came off again
 - [reference-machine-has-no-direct-gpu-display](reference-machine-has-no-direct-gpu-display.md), no MUX and no output wired to the NVIDIA GPU, every frame crosses to the integrated GPU, never ask the owner for a way around it
 

@@ -2,8 +2,8 @@
 name: TODO-022-frame-time-with-and-without-the-mod
 kind: todo
 description: the owner reads about 10 ms frame time without the mod against about 13 ms with it, and wants to know whether something is wrong, which needs a controlled comparison that separates the mod's deliberate texture pool from anything that costs frames for nothing
-updated: 2026-09-13
-links: [texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, BUG-007-blurry-road-and-textures]
+updated: 2026-09-14
+links: [mesh-level-of-detail-2026-09-14, frame-time-mod-against-passive-2026-09-13, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, BUG-007-blurry-road-and-textures, TODO-023-name-what-the-game-keeps-across-identical-loads]
 status: open
 by: owner
 area: render
@@ -47,6 +47,11 @@ lap, and a 29 AI race ran CPU bound at 56 fps against 67 earlier, not a pair. So
 detail the engine loads as designed, no budget size fixes it, and what is left to look at is whether
 the mesh streamer loads detail the screen cannot show.
 
+**Corrected 2026-09-14.** The 56 fps race is not evidence of harm from a small budget. It ran after
+nine scene loads, with more commit and several times the texture traffic of the 1433 MB races, at the
+same process CPU, so it is dropped. "No budget size fixes it" rests on the rule that a budget under
+what a scene asks for removes detail the engine's level rule asked for.
+
 Run R, release 0.3.1 on the same protocol, had the gap too, 4.33 fps parked and 8.52 on the lap
 behind N, and 0.68 fps behind M parked with the parked churn the reload fix removed. So the gap has
 been there since the fixed pools shipped, not something added after the release.
@@ -57,6 +62,28 @@ Owner wording, 2026-09-13: "We will deep-dive later on for this (keep this as th
 have 2-3 more to fix". What is left is the deep dive into how the mesh streamer picks its levels,
 after BUG-009, BUG-016 and BUG-020 have had theirs. The lever that set the mesh budget came out with
 it, commit `a1840a0` has it.
+
+## The deep dive, 2026-09-14
+
+Run alongside the other deep dives rather than last, on the owner's word of 2026-09-13. The full
+record is [mesh-level-of-detail-2026-09-14](../docs/research/mesh-level-of-detail-2026-09-14.md).
+
+- **The mesh part is authored detail.** The engine picks a mesh's level by distance against the switch
+  distances in the mesh file, and what is loaded can only make the drawn level coarser. The 1433 MB
+  budget lets the authored LOD0 and LOD1 load, 80 to 87 percent of LOD0 triangles are under a pixel
+  where LOD1 takes over, and that is how the content is built. Changing it is the Custom level of
+  detail setting, a quality choice. The agents recommend closing the mesh part as not the mod's, the
+  owner's call.
+- **The flags do less than the docs said.** `tile_pool_mb` holds the tile pool on its own, and
+  `force_canonical_pool_sizes` then only sets the mesh budget, whose 1433 MB is the Low
+  `texturePoolSize` define. The engine's own formula with the mod's staging buffers would give about
+  1.0 to 1.1 GB, but it runs again at every video settings apply, so it cannot replace the flag.
+- **The rest of the mod is 0.38 to 0.97 fps parked**, inside the drift between launches. Only a toggle
+  inside one launch can measure it, with the rule for what changes written here before it is built.
+
+Next, with no build, `-log_info=meshStreamer` rides on a run already planned
+([TODO-023](TODO-023-name-what-the-game-keeps-across-identical-loads.md)) to show whether anything is
+trimmed at 1433 MB.
 
 ## Done when
 
