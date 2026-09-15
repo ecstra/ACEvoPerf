@@ -2,7 +2,7 @@
 name: tools
 kind: doc
 description: the Python tools in tools/ and what each command does
-updated: 2026-09-12
+updated: 2026-09-15
 links: [content-package, settings-files, telemetry]
 ---
 
@@ -74,3 +74,17 @@ clock second, the logged hitches and PSO activity from the game log.
 
 Every engine flag with file, name, type, default and help, recovered from the exe. Data files the
 tools produce or read live under `tools/data/`.
+
+## data/acevo_frames.wprp
+
+A lean Windows Performance Recorder profile for BUG-009 (TODO-026): context switches and ready threads
+with stacks, 1 kHz processor samples with stacks, DPC, interrupt and timer rows, and the DXGI, DxgKrnl,
+DWM and Win32k present and focus events. Kernel recording needs an elevated prompt.
+
+```powershell
+wpr -start "tools\data\acevo_frames.wprp!ACEvoFrames" -filemode
+wpr -stop "logs\<session>\trace.etl" -skipPdbGen
+```
+
+`wpr -profiledetails "tools\data\acevo_frames.wprp!ACEvoFrames"` lists what it records without starting it.
+Decode a trace with `xperf -i trace.etl -o trace.txt -a dumper` from the Windows Performance Toolkit.

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A lean Windows Performance Recorder profile for BUG-009: context switches and ready threads with stacks,
+     1 kHz processor samples with stacks, DPC, interrupt and timer rows, and the DXGI, DxgKrnl, DWM and Win32k
+     present and focus events without stacks. Start and stop it from an elevated prompt, see TODO-026. -->
+<WindowsPerformanceRecorder Version="1.0" Author="ACEvoPerf BUG-009">
+  <Profiles>
+    <SystemCollector Id="SC_ACEvoFrames" Name="NT Kernel Logger">
+      <BufferSize Value="1024" />
+      <Buffers Value="512" />
+      <StackCaching BucketCount="4093" CacheSize="256" />
+    </SystemCollector>
+    <EventCollector Id="EC_ACEvoFrames" Name="ACEvoFrames Event Collector">
+      <BufferSize Value="1024" />
+      <Buffers Value="256" />
+    </EventCollector>
+
+    <SystemProvider Id="SP_ACEvoFrames">
+      <Keywords>
+        <Keyword Value="CpuConfig" />
+        <Keyword Value="ProcessThread" />
+        <Keyword Value="Loader" />
+        <Keyword Value="CSwitch" />
+        <Keyword Value="ReadyThread" />
+        <Keyword Value="ThreadPriority" />
+        <Keyword Value="DPC" />
+        <Keyword Value="Interrupt" />
+        <Keyword Value="SampledProfile" />
+        <Keyword Value="Timer" />
+      </Keywords>
+      <Stacks>
+        <Stack Value="CSwitch" />
+        <Stack Value="ReadyThread" />
+        <Stack Value="SampledProfile" />
+      </Stacks>
+    </SystemProvider>
+
+    <EventProvider Id="EP_DxgKrnl" Name="802ec45a-1e99-4b83-9920-87c98277ba9d" NonPagedMemory="true" Level="5">
+      <Keywords>
+        <Keyword Value="0x0000000008000001" />
+      </Keywords>
+      <CaptureStateOnStart Timeout="30">
+        <Keyword Value="0x0000000008000001" />
+      </CaptureStateOnStart>
+    </EventProvider>
+    <EventProvider Id="EP_DXGI" Name="ca11c036-0102-4a2d-a6ad-f03cfed5d3c9" NonPagedMemory="true" Level="6">
+      <Keywords>
+        <Keyword Value="0x000000000000000f" />
+      </Keywords>
+    </EventProvider>
+    <EventProvider Id="EP_DwmCore" Name="9e9bba3c-2e38-40cb-99f4-9e8281425164" NonPagedMemory="true" Level="6">
+      <Keywords>
+        <Keyword Value="0x000000000000ffff" />
+      </Keywords>
+    </EventProvider>
+    <EventProvider Id="EP_Win32k" Name="8c416c79-d49b-4f01-a467-e56d3aa8234c" NonPagedMemory="true" Level="5">
+      <Keywords>
+        <Keyword Value="0x0000000400003000" />
+      </Keywords>
+    </EventProvider>
+
+    <Profile Id="ACEvoFrames.Verbose.File" Name="ACEvoFrames" Description="BUG-009 frame scheduling capture" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors>
+        <SystemCollectorId Value="SC_ACEvoFrames">
+          <SystemProviderId Value="SP_ACEvoFrames" />
+        </SystemCollectorId>
+        <EventCollectorId Value="EC_ACEvoFrames">
+          <EventProviders>
+            <EventProviderId Value="EP_DxgKrnl" />
+            <EventProviderId Value="EP_DXGI" />
+            <EventProviderId Value="EP_DwmCore" />
+            <EventProviderId Value="EP_Win32k" />
+          </EventProviders>
+        </EventCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>

@@ -2,7 +2,7 @@
 name: TODO-026-one-lean-etw-trace-of-the-slow-frames
 kind: todo
 description: one Windows performance trace of a parked minute and a lap, started by the owner from an elevated prompt, to name what the present thread waits on and who wakes it in BUG-009's slowest frames, its game code by RVA and the 60 Hz beat, replacing every in process instrument the hunt used to bring back
-updated: 2026-09-14
+updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, one-percent-lows-2026-09-14, TODO-010-resume-the-one-percent-low-hunt, telemetry, tools]
 status: open
 by: agent
@@ -21,7 +21,11 @@ The second run from BUG-009's deep dive
   present events without stacks. The heavy stock `CPU` plus `GPU` profiles add system calls, faults, disk
   IO and stacks on every graphics event, an estimated 0.3 to 0.35 ms a frame and 4 to 10 GB. The lean one
   is estimated at 0.13 ms a frame and 1.5 to 3 GB for about 190 s. The profile and its parser were drafted
-  in the deep dive and move into `tools/` and `tools/data/` under their own gates first.
+  in the deep dive and move into `tools/` and `tools/data/` under their own gates first. The profile is
+  `tools/data/acevo_frames.wprp` since 2026-09-15, accepted by `wpr -profiledetails`.
+- **What it has to answer now.** PresentMon on 2026-09-15 showed BUG-009's slowest 1 percent are heavy frames,
+  about 6 ms more work before `Present` and 2.7 ms more GPU work, so the first question is what the render
+  thread and the threads it waits on run in those frames against ordinary ones.
 - **A pre check with no game.** One minute from an elevated PowerShell, start the profile, wait 10 s,
   stop it, and decode it, which proves kernel rows, stack association, thread names, lost events and the
   data rate.
