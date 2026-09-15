@@ -28,7 +28,11 @@ The second run from BUG-009's deep dive
   thread and the threads it waits on run in those frames against ordinary ones.
 - **A pre check with no game.** One minute from an elevated PowerShell, start the profile, wait 10 s,
   stop it, and decode it, which proves kernel rows, stack association, thread names, lost events and the
-  data rate.
+  data rate. Run on 2026-09-15 with the game in its menu (`logs/trace-precheck-20260915`): 17 s, 388 MB,
+  about 23 MB a second, no lost buffers or events, `PerfCounter` clock. A 2 s slice holds 178,071 CSwitch,
+  91,896 ReadyThread and 14,596 SampledProfile rows with 531,266 stack rows, game samples resolve to exe
+  addresses against the `I-DCStart` base, 71 `T-DCStart` rows for the game, and DXGI `Present` start and stop
+  rows on the game's main thread. The start rundown carries no `ThreadName` rows for the game.
 - **The run.** The run M protocol of 2026-09-13, Nürburgring GP pit box, shipped ini with `frames=1`.
   Parked 20 s after the HUD, 60 s untraced, then the trace starts (drop its first 5 s), 60 s traced parked,
   one traced lap, the trace stops at the line. The trace is accepted if the median moves under 0.2 ms and
