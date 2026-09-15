@@ -4,7 +4,7 @@ kind: bug
 description: while driving, the HUD now and then restyles a large part of its page on the UI worker, about 24 ms of Cohtml style matching, and the game thread waits for it in EvoUi's end of frame, so one frame takes 35 ms and a short window 1 percent low reads about 30 fps
 updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, BUG-028-page-opens-still-hold-frames-of-100-to-200-ms, responsive-ui, TODO-026-one-lean-etw-trace-of-the-slow-frames]
-status: open
+status: fixed
 severity: bug
 area: ui
 reported: 2026-09-15
@@ -98,7 +98,8 @@ same removal call.
 ## Fix
 
 The responsive UI's child removal fix (`src/ui/child_removal_fix.cpp`, see
-[responsive-ui](../docs/systems/responsive-ui.md)). A removal marks only the parent's children that could
+[responsive-ui](../docs/systems/responsive-ui.md)), commits `a783b01` and `35c23a8`, 2026-09-15. The root cause
+is Cohtml's, a child removal invalidates the parent with a set built to match every node. A removal marks only the parent's children that could
 match a compound with `:first-child`, `:last-child`, `:only-child` or `:nth-child` or one right of `+` or
 `~`, read from the selectors Cohtml adds to the scope's feature set. Of the HUD's top level only the plain
 divs can match one (the game has `div:first-child` and `div:last-child` rules), so the wrong way label's
@@ -108,4 +109,23 @@ the custom tag compare made case sensitive.
 
 ## Verification
 
-Absent.
+`logs/children-fix-20260915`, build `35c23a8`, `[children] child removal fix on at 8 of 8 places`. The owner
+went through the menus (vehicle setup tabs, presets, the timetable, vehicle selection), then drove the Ferrari
+296 GT3 at the Red Bull Ring GP in practice: backwards until WRONG WAY showed, a pit stop, penalties on
+purpose for their popups, and six laps with the split timer on.
+
+- **Five wrong way episodes, none with a drop.** Three from driving backwards, one in the pit lane during the
+  stop (22:23:49 to 22:23:51) and a 0.18 s flicker near the pit entry (22:29:19), so the label does flash by
+  itself around the pit lane, which fits the first run's three pit lane drops. The worst frame around each
+  removal was 11.5 to 12.8 ms, against 29.4 to 34.4 ms before, the removal marked 0 to 2 children and the worst
+  restyle of those seconds was 2.0 to 2.4 ms.
+- **No slow restyle while driving.** Not one pass over 15 ms between the HUD loading and the pause, against six
+  in the first probe run and one in the second, and no `[ui] big child list change` in the whole session. Every
+  child removal of the session, menus included, took the narrowed path.
+- **Nothing else got slower.** The UI end frame wait per driving frame had a median of 0.309 ms against 0.277 ms
+  in the second probe run, and restyle time a second 32.3 ms against 30.6 ms, with more notifications this time.
+- **The menus looked right.** The one thing the owner found off, the timetable only half as wide, is the game's
+  own rule: the table sets `data-sectors` from the lap's splits, with no lap done that is 0, and
+  `ks-timetable[data-sectors="0"]` hides the split and best lap columns, leaving the 52rem of fixed width columns.
+  The vehicle setup page's 1,160 node restyles are an attribute change on its component (kind 7) that the
+  sessions before the fix show too.

@@ -517,6 +517,11 @@ thread waited for it at EvoUi's end of frame. The details are
 on the UI worker. So the owner's "30 at times" readings are single HUD frames, and the UI probe names what sets
 them off.
 
+The probe named it, a HUD part leaving the HUD's top level (the wrong way label, which also flickers around the
+pit lane), and Cohtml restyling everything under a parent on any child removal. The responsive UI's child
+removal fix took it out: the drive of 2026-09-15 evening had five wrong way episodes with no frame over 12.8 ms
+around them and no restyle over 15 ms while driving. BUG-029 is fixed.
+
 ## Verification
 
 Absent.
