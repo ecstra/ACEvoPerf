@@ -537,9 +537,18 @@ three probe runs carry the UI probe's own hooks, so they compare with each other
 
 - **No drop to 30 is left.** The worst one second window of the last run held 62 fps, against 29 and 11 in the runs
   before the fix.
-- **What is left is spread out.** The slowest 1 percent of the last run averages 12.05 ms against a 9.24 ms median.
-  Every 10 s stretch of the drive holds some of them, they carry 0.3 ms more UI frame end wait (0.69 against 0.38 ms)
-  and four and a half times the texture tile requests (0.90 against 0.20 a frame).
+- **What is left is spread out.** The slowest 1 percent of the last run averages 12.05 ms against a 9.24 ms median,
+  and every 10 s stretch of the drive holds some of them.
+- **About 15 fps of the gap is where on the track the car is.** With every frame set to the median of the 101 frames
+  around it, which keeps each spot's load and drops the unevenness, the 1 percent low is 92.8 fps (90.3 in
+  `trace-drive`). The heaviest 1 percent of spots run at a 10.66 ms median (94 fps), the lightest at 8.01 ms (125 fps).
+- **About 10 fps is frames being uneven at the same spot.** That is 92.8 down to 83.0 (90.3 to 79.7 in `trace-drive`).
+- **Streaming and the UI are a small part of that.** The slowest 1 percent hold four and a half times the tile
+  requests of the rest, but mostly because the heavy spots stream more. Against their own neighbours, frames with a
+  tile request (2.8 percent) are 0.43 ms slower (0.50 in `trace-drive`) and uploads to the GPU cost nothing
+  measurable. Giving those frames their neighbours' time raises the 1 percent low by 0.6 fps (0.7), taking the UI
+  waits over 1 ms out raises it by 0.8 fps, with the probe's own cost in them. The other 8 fps or so is the jitter the
+  trace of a good launch spread over GPU waits and the compositor's frame queue.
 - **A run with the probe off** is the player's number, the last clean one is `trace-drive` at 79.7.
 
 ## Verification
