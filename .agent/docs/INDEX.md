@@ -19,7 +19,7 @@ links: [agent-index, spec-docs]
 - [content-package](systems/content-package.md), content.kspkg layout, hash and cipher
 - [package-override-layer](systems/package-override-layer.md), loose files under acevo_mods shadow package entries, how and what was verified
 - [settings-files](systems/settings-files.md), user data location, which files are the account, the controls and the graphics, and the VideoSettings fields worth knowing
-- [responsive-ui](systems/responsive-ui.md), the one switch that keeps the menus smooth, its six parts, what each patches in Cohtml, the exe or the pages and how it checks the build, and the shared Cohtml hooks
+- [responsive-ui](systems/responsive-ui.md), the one switch that keeps the menus smooth and the HUD's driving frame times even, its six parts, what each patches in Cohtml, the exe or the pages and how it checks the build, and the shared Cohtml hooks
 
 ## ops
 
