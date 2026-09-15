@@ -32,6 +32,7 @@ nit
 
 ## Won't fix
 
+- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night reported with `enable_pso_cache` on, the flag was shipped off for a while, back on at the owner's word with nothing on the reference machine showing the fault, a user log reopens it
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), the 1.2 s is the engine parsing its 63 MB zlib and protobuf track preset at every session start and restart, same on every card
 - [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), the mip a surface gets at a distance is the engine's choice on every card, the streaming path answers in 9 ms bursts
 - [BUG-006-distant-objects-pop-in](BUG-006-distant-objects-pop-in.md), grass fades at 30 m and trees switch at 100 m by the package's own values on every card, the Custom LOD setting moves them at a cost
@@ -42,7 +43,6 @@ nit
 - [BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three](BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three.md), the pit menu and its pages advanced the UI one frame in three, fixed by keeping a menu page's surface in every frame while the car displays take turns, owner verified
 - [BUG-025-controls-page-scans-the-page-once-per-new-row](BUG-025-controls-page-scans-the-page-once-per-new-row.md), each new controls row scanned the whole page once per navigation section, fixed by folding the calls into one scan a frame, owner driven
 - [BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open](BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open.md), vehicle setup requested and built its setup twice per open, fixed by ignoring the second init while the first is out, owner driven
-- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night reported with `enable_pso_cache` on, the flag shipped off and the owner saw night lighting work, closed on the owner's word with the mechanism still unexplained
 - [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships with 3 of 12 mip levels on an 8 by 8 grid, fixed by the overlay serving it with one mip level
 - [BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles](BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles.md), the full pool ranked each texture by its least important request and loaded detail only in one piece, both fixed and owner verified in a thirty car race, AI cars and some props still blurry in a full field by the owner's call
 - [BUG-003-menu-icons-stop-rendering](BUG-003-menu-icons-stop-rendering.md), VRAM starvation by the staging buffers, fixed by the 128 MB cap

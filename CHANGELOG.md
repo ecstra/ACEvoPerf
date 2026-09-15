@@ -192,15 +192,6 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   this cannot recover is the half size cook, the 4096 source art is not in the package, so the
   screens end at 256 by 256 per frame rather than 512.
 
-- At night the car's own headlights stopped lighting the trees, and at Oulton Park the track
-  as well, while other cars' headlights in multiplayer looked right. Cause: the mod switched
-  on the engine's pipeline state cache (`enable_pso_cache`), which the game itself ships off,
-  and the cache does not always hand back the pipeline it was asked for. The flag is off by
-  default now. It only ever saved shader compilation stalls on repeat runs, it fixed nothing.
-  Reported twice on the mod's Overtake listing, one of the reporters found the flag. If you
-  have seen this, also delete `Saved Games\ACE\pipeline.library`, the mod cannot reach that
-  file and the game does not clear it when it updates.
-
 ### Verified
 
 - DirectStorage 1.3.0 measured over a lap, a track change to the full Nordschleife and a second

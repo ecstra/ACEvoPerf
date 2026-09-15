@@ -1,11 +1,11 @@
 ---
 name: BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache
 kind: bug
-description: two users on the Overtake listing report that at night the car's own headlights do not light trees at the Nurburgring and light nothing at Oulton Park, and that enable_pso_cache=false cures it, which is a default the mod turns on
-updated: 2026-09-14
+description: two users on the Overtake listing report that at night the car's own headlights do not light trees at the Nurburgring and light nothing at Oulton Park, and that enable_pso_cache=false cures it, a default the mod turned off for a while and turned back on at the owner's word on 2026-09-15
+updated: 2026-09-15
 links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release]
 area: render
-status: fixed
+status: wontfix
 severity: bug
 reported: 2026-09-11
 parent:
@@ -147,3 +147,10 @@ Closed as fixed on the owner's word, 2026-09-13: "015 is done." The shipped defa
 `enable_pso_cache=false` and the owner saw night lighting work with it. The mechanism behind the unlit
 trees is still not understood, as the section above says, so a report after the next release from a user
 with the flag off reopens it.
+
+## Won't fix, 2026-09-15
+
+The owner asked for the cache back on: "enable pso cache back again", saying the lights work with it on.
+`dist/acevo_perf.ini` ships `enable_pso_cache=true` again, the 0.3.1 value, and the unreleased changelog
+entry for the avoidance is gone. Nothing on the reference machine shows the cache breaking the scene, so
+the flag stays on until a user report with a game log shows it.
