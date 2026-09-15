@@ -23,7 +23,7 @@ then registers with the shared Cohtml hooks. The stylesheet part runs from the o
 | --- | --- | --- | --- |
 | Narrowed stylesheet | `AddUiStyleFix` in `src/overlay/overlay.cpp` | `overlay: UI stylesheet, 7 hover and focus selector parts narrowed` | serves `uiresources\css\uicomponents.css` with seven generic `:hover` and `:focus` selector parts narrowed |
 | Restyle fix | `src/ui/restyle_fix.cpp` | `[restyle]` | skips the sibling walk of a state change's invalidation |
-| Menu refresh fix | `src/ui/menu_refresh_fix.cpp` | `[menus]` | a menu page in a session updates every frame, the car displays take turns |
+| Menu refresh fix | `src/ui/menu_refresh_fix.cpp` | `[menus]` | a menu page and the HUD in a session update every frame, the car displays take turns |
 | Style matching fix | `src/ui/style_match_fix.cpp` | `[styles]` | elements skip rules they cannot match, custom element names are compared in place |
 | Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes added` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
 | Resource work move | `src/ui/responsive_ui.cpp` | `[responsive ui] resource work` | resource work the frame thread picks up runs on a mod thread |
@@ -52,15 +52,16 @@ and keeps it for classes, attributes and ids. Three code regions are hashed firs
 `GameUi::PostFrame` updates every UI surface each frame only in the main menu showroom and pause, and one
 surface a frame in turn otherwise, the menu and the car's two dashboard displays, so a menu in a session
 ran at a third of the frame rate. A stub at `0xDE37B7` keeps the main surface in every frame and passes the
-turn between the displays, only while the main view shows a menu page. Which page is shown comes from a
-hook on Cohtml's URL loader (`0x46B990`), whose stub sets a byte for the known menu pages and clears it for
-`hud.html`, so the HUD while driving keeps the game's rotation.
+turn between the displays. Which page is shown comes from a hook on Cohtml's URL loader (`0x46B990`), whose
+stub records whether the main view shows one of the known menu pages or `hud.html`.
 
-The stub reads a schedule byte rather than a flag, 0 the game's rotation, 1 the main surface every frame with
-the displays taking turns, 2 every surface every frame, the path the game jumps to itself from its main and
-pause menu tests. A menu page writes 1. The HUD writes 0, except under the developer test
-`[developer] hud_schedule_test=1` (BUG-009), where `MenuRefreshTick`, called once a second from the timeline
-thread, moves the HUD through 0, 1 and 2 in shuffled turns of 10 seconds and logs each turn as
+The stub reads a schedule byte, 0 the game's rotation, 1 the main surface every frame with the displays
+taking turns, 2 every surface every frame, the path the game jumps to itself from its main and pause menu
+tests. A menu page and the HUD both write 1. The HUD had the game's rotation until the run of 2026-09-15
+showed it widening driving frame times, a 1 ms ripple every third frame at the Red Bull Ring GP that the HUD
+every frame removed for 0.02 ms a frame, with the 1 percent low 7 fps higher (BUG-009). Under the developer
+test `[developer] hud_schedule_test=1`, `MenuRefreshTick`, called once a second from the timeline thread,
+moves the HUD through 0, 1 and 2 in shuffled turns of 10 seconds and logs each turn as
 `[hud test] t=<seconds> schedule <name>` and each page load as `[hud test] t=<seconds> page <url>`.
 
 ### Style matching fix

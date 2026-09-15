@@ -15,8 +15,9 @@
 // which is what it feels like, and every hover or slider step waits for the menu's turn.
 //
 // The stub at 0xDE37B7 keeps the main surface every frame and passes the turn around the displays only,
-// and only while the main surface shows a menu page. On the HUD it does what the game does, because
-// updating the HUD three times as often while driving would cost frame time. Which page is loaded comes
+// for a menu page and for the HUD. On the HUD the rotation widened frame times too, the heavy view's turn
+// landed as a 1 ms ripple every third frame, and the HUD every frame took 0.02 ms a frame and lifted the
+// 1 percent low by 7 fps at the Red Bull Ring GP (BUG-009, measured 2026-09-15). Which page is loaded comes
 // from Cohtml's URL loader (0x46B990, reached by View::LoadURL and by page navigation from script),
 // whose entry is redirected to a stub that looks at the URL and sets a byte the rotation stub reads.
 //
@@ -64,7 +65,7 @@ static const int kTestTurnSeconds = 10;
 static BYTE* g_schedule = nullptr;      // one byte on a read and write page, read by the rotation stub
 static SRWLOCK g_scheduleLock = SRWLOCK_INIT;
 static bool g_menuPage = false;
-static Schedule g_hudSchedule = kGameRotation;  // only the developer test changes it
+static Schedule g_hudSchedule = kMainEveryFrame;    // only the developer test changes it
 static int g_testSeconds = 0;
 static int g_testTurn = 3;
 static Schedule g_testOrder[3] = { kGameRotation, kMainEveryFrame, kEverySurfaceEveryFrame };
@@ -279,7 +280,7 @@ void InstallMenuRefreshFix()
         Log("[menus] could not patch the UI surface rotation, menus update as the game does");
         return;
     }
-    Log("[menus] menu refresh fix on, a menu page in a session updates every frame, the HUD and the car displays keep their turns");
+    Log("[menus] menu refresh fix on, the menu and the HUD update every frame and the car displays take turns");
     if (g_cfg.hudScheduleTest) Log("[hud test] on, the HUD changes schedule every %d seconds in a shuffled order", kTestTurnSeconds);
 }
 

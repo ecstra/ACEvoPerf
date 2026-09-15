@@ -11,7 +11,7 @@
 // into). It is made of these parts, each in its own file or section.
 //   the stylesheet the overlay serves, with the generic hover and focus selector parts narrowed
 //   the restyle fix, a hover no longer restyles every element after the hovered one
-//   the menu refresh fix, a menu in a session updates every frame
+//   the menu refresh fix, the menu and the HUD in a session update every frame
 //   the style matching fix, elements skip the rules they cannot match
 //   the page fixes below, a script added to the menu and HUD view that runs before each page's own
 //   the resource work move below, stylesheet parses no longer hold the frame

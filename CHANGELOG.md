@@ -14,6 +14,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - Blurry trackside big screens.
 - Your car, the grass and the kerbs going blurry in races with AI.
 - Textures reloading the same detail over and over, even with the car parked.
+- Uneven frame pacing while driving, which pulled the 1% lows well below the average frame rate.
 
 ### Added
 
@@ -21,7 +22,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - High GPU priority for the game.
 - The mod now comes with DirectStorage 1.3.0 and uses it in place of the game's 1.2.3.
 - `working_set_floor_mb`, off by default, keeps part of the game in memory so Windows can't page it out.
-- Developer settings `streaming_trace`, `load_sampler` and `ui_probe` for testing the mod, all off by default.
+- Developer settings `streaming_trace`, `load_sampler`, `ui_probe` and `hud_schedule_test` for testing the mod, all off by default.
 
 ### Changed
 
@@ -32,6 +33,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 ### Known issues
 
 - The heaviest menu pages can still hitch for a moment as they open.
+- The 1% lows still sit below the average frame rate while driving.
 - In a full race, AI cars and some trackside buildings can still look blurry. Texture memory runs out and the game fills it with your own car first.
 
 ## 0.3.1 (2026-09-06)
