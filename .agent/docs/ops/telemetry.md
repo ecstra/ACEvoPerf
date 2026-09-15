@@ -3,7 +3,7 @@ name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
 updated: 2026-09-15
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving]
 ---
 
 # Telemetry
@@ -114,8 +114,10 @@ followed by the total of repeated reads.
   thread, the resource work the responsive UI moved off it, and the UI clock against real time
 - `[ui] restyles`: Cohtml's restyle passes of changed nodes with the nodes they restyled, and whole
   document restyles, plus a `slow restyle` line for each pass over 15 ms naming its first changed nodes
-- `[ui] invalidations`: per kind the calls and the nodes marked (0 a child list change, 3 a class, 5 a state
-  such as hover, 7 an attribute such as `data-mode`), and the elements that marked the most
+- `[ui] invalidations`: per kind the calls and the nodes marked (0 a child list change, 2 an id, 3 a class, 5
+  a state such as hover, 7 an attribute such as `data-mode`), and the elements that marked the most
+- `[ui] big child list change`: the first child list change of the second that marked 200 nodes or more, its
+  element, marks, how many that second, and the call stack that led to it
 
 Every five seconds `[ui] layout samples` lists where Cohtml's layout work was, innermost function and on the
 stack, from the stack of a thread suspended only while it is inside that work. The style matching fix's
@@ -124,7 +126,10 @@ stubs show as `styles+0x...`.
 The probe also adds a script to the menu and HUD view whose once a second `[ACEvoPerf] ui changes <page>`
 line in the game log counts class, style, attribute and DOM writes, mouse events and transitions, what the
 responsive UI's page fixes did, and every frame over 45 ms against what changed in the two frames before
-it, with the ten busiest writes by element.
+it, with the ten busiest writes by element. On `hud.html` it counts no writes, the HUD's own come to about
+20,000 a second and its bindings change the page where the counters cannot see. There it logs
+`[ACEvoPerf] ui hud top level` for every change of the children of the HUD's top level, what was added and
+removed and the model values the top level's conditions read (BUG-029).
 
 ## HUD schedule test
 

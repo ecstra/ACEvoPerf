@@ -35,6 +35,7 @@ static const char kPageScript[] = R"js(
     window.__acevoUiProbe = true;
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
+    var onHud = page === 'hud.html';
     console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' + (window.__acevoUiFixes ? 'on' : 'off'));
 
     var framesThisSecond = 0;
@@ -141,11 +142,61 @@ static const char kPageScript[] = R"js(
         lastFrameAt = now;
     }
 
+    // The HUD's bindings add and remove its widgets natively, where the change counters cannot see, and
+    // a change in the HUD's top level restyles the whole HUD (BUG-029). Each one is logged with the model
+    // values the top level's conditions read.
+    var hudBody = null;
+    var hudNodes = [];
+
+    function describeNode(node) {
+        return node.nodeType === 1 ? describe(node) : String(node.nodeName);
+    }
+
+    function hudModels() {
+        var car = window.ModelCurrentCar || {};
+        var ui = window.ModelUIState || {};
+        var session = window.ModelUISessionState || {};
+        var timing = window.ModelTiming || {};
+        return 'wrong way ' + car.is_wrong_way + ' | online ' + ui.online_status + ' | game mode ' + ui.gamemode +
+            ' | free cam ' + ui.is_free_cam + ' | session flags ' + session.end_session_flag +
+            ' | wait time ' + JSON.stringify(session.wait_time) + ' | next session ' + JSON.stringify(session.time_to_next_session) +
+            ' | timing ' + JSON.stringify(timing.current);
+    }
+
+    // Walks the top level in place and builds lists only when something changed, so a frame allocates nothing.
+    function watchHudTopLevel() {
+        if (!hudBody || !hudBody.isConnected) {
+            hudBody = document.querySelector('ks-hud#mainHUD > .component-body');
+            hudNodes = [];
+            if (!hudBody) return;
+        }
+        var index = 0;
+        var node = hudBody.firstChild;
+        while (node && index < hudNodes.length && hudNodes[index] === node) {
+            node = node.nextSibling;
+            index++;
+        }
+        if (!node && index === hudNodes.length) return;
+
+        var nodes = [];
+        for (node = hudBody.firstChild; node; node = node.nextSibling) nodes.push(node);
+        if (hudNodes.length) {
+            var added = nodes.filter(function (each) { return hudNodes.indexOf(each) < 0; }).map(describeNode);
+            var removed = hudNodes.filter(function (each) { return nodes.indexOf(each) < 0; }).map(describeNode);
+            console.log('[ACEvoPerf] ui hud top level | added ' + (added.join(', ') || 'nothing') + ' | removed ' + (removed.join(', ') || 'nothing') +
+                ' | nodes ' + hudNodes.length + ' to ' + nodes.length + ' | ' + hudModels());
+        }
+        hudNodes = nodes;
+    }
+
     var lastReport = Date.now();
     (function countFrames() {
         framesThisSecond++;
         var now = Date.now();
         closeFrame(now);
+        if (onHud) {
+            try { watchHudTopLevel(); } catch (e) {}
+        }
         if (now - lastReport >= 1000) {
             lastReport = now;
             try { report(); } catch (e) {}
@@ -284,10 +335,14 @@ static const char kPageScript[] = R"js(
         console.log('[ACEvoPerf] ui probe change counters on ' + page + ': ' + wrapped.join(', '));
     }
 
-    try {
-        installChangeCounters();
-    } catch (e) {
-        console.error('[ACEvoPerf] ui probe change counters failed', e);
+    // On the HUD the counters wrap about 20,000 of the page's own writes a second, measured on 2026-09-15,
+    // and still miss the bindings' changes, so the top level watcher above stands in for them there.
+    if (!onHud) {
+        try {
+            installChangeCounters();
+        } catch (e) {
+            console.error('[ACEvoPerf] ui probe change counters failed', e);
+        }
     }
 })();
 )js";
@@ -655,8 +710,10 @@ static const CallSite kCollectRestyleCall = { 0x3FCD90, kRvaCollectRestyle, "the
 static const CallSite kRestyleAllCall = { 0x35C697, kRvaRestyleAll, "the restyle of the whole document" };
 
 // Invalidate(element, kind, first name, second name) at 0x37B690 marks the nodes a changed feature of
-// the element can restyle, called from 0x37BD11 only. Kind 5 is a state change such as hover, 3 a
-// class or attribute, 7 an id.
+// the element can restyle, called from 0x37BD11 only. Kind 0 is a child list change (0x37B600 passes it
+// with empty names), 2 an id (0x37DBE5 passes the id at +0x1E8), 3 a class, 5 a state such as hover, 7 an
+// attribute. Every kind 0 reads the same invalidation set (0x3F24B0), and on the HUD it matched every node
+// under the element, 878 marks for the HUD's top level on 2026-09-15.
 static const CallSite kInvalidateCall = { 0x37BD11, 0x37B690, "the invalidation of a changed feature" };
 
 namespace changed_node {
@@ -718,11 +775,26 @@ struct InvalidatedElement {
     uint64_t marks;
 };
 
+// A child list change that marks this many nodes restyles most of a page. The first one of each second
+// keeps the call stack that led to it, to tell a binding's change from a script's.
+static const uint8_t kChildListKind = 0;
+static const uint32_t kBigChildListMarks = 200;
+static const int kBigChildListFrames = 12;
+
+struct BigChildList {
+    uint32_t count;
+    char element[80];
+    uint32_t marks;
+    USHORT frames;
+    void* callers[kBigChildListFrames];
+};
+
 static RestyleSecond g_restyles = {};       // under g_statsLock
 static thread_local Collection t_collection;
 static thread_local uint32_t t_marks = 0;
 static InvalidationKind g_invalidationKinds[kInvalidationKinds];         // under g_markLock
 static InvalidatedElement g_invalidatedElements[kInvalidatedElements];   // under g_markLock
+static BigChildList g_bigChildList = {};                                 // under g_markLock
 static SRWLOCK g_markLock = SRWLOCK_INIT;
 
 // The entry of AddChangedNode starts with mov [rsp+0x20], rbp, five bytes, which the jump to this stub
@@ -844,7 +916,18 @@ static uint64_t Hook_Invalidate(void* element, uint64_t kind, void* first, void*
     uint8_t kindByte = (uint8_t)kind;
     size_t slot = (size_t)((Fnv1a64((const BYTE*)description, strlen(description)) ^ kindByte) & (kInvalidatedElements - 1));
 
+    void* callers[kBigChildListFrames];
+    USHORT frames = 0;
+    bool bigChildList = kindByte == kChildListKind && marks >= kBigChildListMarks;
+    if (bigChildList) frames = RtlCaptureStackBackTrace(1, kBigChildListFrames, callers, nullptr);
+
     AcquireSRWLockExclusive(&g_markLock);
+    if (bigChildList && !g_bigChildList.count++) {
+        strcpy_s(g_bigChildList.element, description);
+        g_bigChildList.marks = marks;
+        g_bigChildList.frames = frames;
+        memcpy(g_bigChildList.callers, callers, frames * sizeof callers[0]);
+    }
     InvalidationKind& stats = g_invalidationKinds[std::min<int>(kindByte, kInvalidationKinds - 1)];
     stats.calls++;
     stats.marks += marks;
@@ -1204,6 +1287,27 @@ static void ReportRestyles(const RestyleSecond& restyles)
     }
 }
 
+// Names an address by the module of the unwind tables it falls in, the same names the layout samples use.
+static int AppendAddress(char* line, int length, size_t size, void* address)
+{
+    int moduleIndex = -1;
+    FindFunction((uintptr_t)address, moduleIndex);
+    if (moduleIndex < 0) return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %p", address);
+    const UnwindModule& module = g_unwindModules[moduleIndex];
+    return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX", module.label,
+        (unsigned long long)((uintptr_t)address - module.base));
+}
+
+static void ReportBigChildList(const BigChildList& big)
+{
+    if (!big.count) return;
+    char line[1024];
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] big child list change on %s, %u marks, %u that second, called from",
+        big.element, big.marks, big.count);
+    for (USHORT i = 0; i < big.frames && length > 0; ++i) length = AppendAddress(line, length, sizeof line, big.callers[i]);
+    Log("%s", line);
+}
+
 static void ReportInvalidations()
 {
     InvalidationKind kinds[kInvalidationKinds];
@@ -1211,6 +1315,8 @@ static void ReportInvalidations()
     InvalidatedElement top[wanted] = {};
     int found = 0;
     AcquireSRWLockExclusive(&g_markLock);
+    BigChildList big = g_bigChildList;
+    g_bigChildList = {};
     memcpy(kinds, g_invalidationKinds, sizeof kinds);
     for (int slot = 0; slot < kInvalidatedElements; ++slot) {
         const InvalidatedElement& entry = g_invalidatedElements[slot];
@@ -1229,6 +1335,7 @@ static void ReportInvalidations()
     memset(g_invalidationKinds, 0, sizeof g_invalidationKinds);
     memset(g_invalidatedElements, 0, sizeof g_invalidatedElements);
     ReleaseSRWLockExclusive(&g_markLock);
+    ReportBigChildList(big);
     if (!found) return;
 
     char line[3072];
