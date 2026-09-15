@@ -2,8 +2,8 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-05
-links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable]
+updated: 2026-09-15
+links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
 ---
 
 # Package override layer
@@ -41,6 +41,15 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    `QueueProxy::EnqueueRequest`) get their source swapped to an `IDStorageFile` opened on the
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
    that has been requested once cannot be edited while the game runs.
+
+## The mod's own corrections
+
+The layer also serves files the mod generates at the first table read from the player's own package,
+with no `acevo_mods` folder needed: the big screen flipbook header with one mip level (`AddBigScreenFix`,
+`acevo_bigscreen.texture`, BUG-017) and the UI stylesheet with seven hover and focus selector parts narrowed
+(`AddUiStyleFix`, `acevo_uicomponents.css`, part of [responsive-ui](responsive-ui.md)). Each is written next
+to the exe and pushed as an override like a loose file, and each is skipped with a log line when the
+package entry is not the size or shape it expects.
 
 ## Verified on 2026-09-05
 

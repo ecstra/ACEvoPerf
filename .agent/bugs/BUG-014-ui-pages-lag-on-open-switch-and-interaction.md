@@ -1,10 +1,10 @@
 ---
 name: BUG-014-ui-pages-lag-on-open-switch-and-interaction
 kind: bug
-description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used, reopened on the owner's pick and split by the 2026-09-14 deep dive into separate costs, filed as BUG-024 to BUG-027
-updated: 2026-09-14
-links: [ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load, TODO-027-the-ui-developer-build-and-one-session, DEC-019-ui-lag-work-reopened, BUG-013-one-percent-lows-drop-after-window-or-input-switch, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
-status: open
+description: the menu, the in session menu and the pause menu lag, the settings, controls and vehicle setup pages stall on open, on every switch and while they are used, split by the 2026-09-14 deep dive into BUG-024 to BUG-027, fixed by the responsive UI and owner verified, with what page opens still cost filed as BUG-028
+updated: 2026-09-15
+links: [responsive-ui, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load, BUG-028-page-opens-still-hold-frames-of-100-to-200-ms, TODO-027-the-ui-developer-build-and-one-session, DEC-019-ui-lag-work-reopened, DEC-020-responsive-ui-is-one-switch-on-by-default, BUG-013-one-percent-lows-drop-after-window-or-input-switch, ui-lag-hunt-2026-09-06, DEC-010-no-ui-changes-ship, TODO-011-ui-overhaul-through-injected-scripts]
+status: fixed
 severity: bug
 area: ui
 reported: 2026-09-06
@@ -97,10 +97,28 @@ it appears that you cant fix right now either. Remove everything related to UI."
 sitting in the game's UI pages and scripts, where no engine lever of the DLL reached, and every UI related
 piece was removed from the mod (DEC-010).
 
-Reopened on 2026-09-14 (DEC-019). The fix is absent. The first step is one developer build and one
-session that decide BUG-024 to BUG-026 and name the interaction cost,
-[TODO-027](../todos/TODO-027-the-ui-developer-build-and-one-session.md).
+Reopened on 2026-09-14 (DEC-019). Fixed on branch `fix/ui-lag` over seven probe laps
+([responsive-ui-rounds-2026-09-15](../docs/research/responsive-ui-rounds-2026-09-15.md)), shipped as
+`[engine] responsive_ui`, on by default ([responsive-ui](../docs/systems/responsive-ui.md), DEC-020).
+
+- **Interaction** was a hover change restyling the whole page, 1,100 to 1,300 elements for 50 to 65 ms,
+  because four generic selector parts (`div:hover`, `div:focus`, `.component-body:hover` and `:focus`)
+  flagged every container as hover dependent and each flagged ancestor's subtree was restyled. Fixed by
+  serving the stylesheet with those parts narrowed (`f74523e`) and skipping the sibling walk of state
+  invalidations (`13f4308`).
+- **The pit menu and its pages**, BUG-024, the menu refresh fix (`f2792ad`).
+- **The controls page sliders**, a refresh storm of 24 to 34 full rebuilds a second, coalesced to one every
+  100 ms (`f2792ad`).
+- **The controls page freeze and vehicle setup**, BUG-025 and BUG-026, the page fixes (`5ef8d7d`, shipped in
+  `6848b45`).
+- **Page opens**, Cohtml matching 2,142 listed rules per element and copying custom element names per
+  compare, and the frame thread parsing stylesheets, the style matching fix and the resource work move
+  (`6848b45`). What they still cost is BUG-028, the stylesheet reparse BUG-027.
 
 ## Verification
 
-Absent.
+Owner verified in game, lap by lap. After the stylesheet: "holy shit that worked. we are not closing UI
+this time", hover, fast scrolling, sliders and switching smooth. After the menu refresh fix and the slider
+coalescing: "holy moly it works!". After the style matching fix and the resource work move: "works enough
+i guess". Measured, a restyle went from 14.0 to 6.3 µs a node between the last two laps, and the settings
+and controls open from 451 to 328 ms over budget.

@@ -2,9 +2,9 @@
 name: BUG-025-controls-page-scans-the-page-once-per-new-row
 kind: bug
 description: clicking a bindings group on the controls page freezes one frame for 250 to 500 ms because every new row makes the navigation library scan the whole page once per navigation section, 3.1 to 3.4 ms a row, while the rows are still parked outside the document so the scans change nothing
-updated: 2026-09-14
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, TODO-027-the-ui-developer-build-and-one-session, TODO-011-ui-overhaul-through-injected-scripts]
-status: open
+updated: 2026-09-15
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, TODO-027-the-ui-developer-build-and-one-session, TODO-011-ui-overhaul-through-injected-scripts, responsive-ui, responsive-ui-rounds-2026-09-15]
+status: fixed
 severity: bug
 area: ui
 reported: 2026-09-14
@@ -39,13 +39,16 @@ hunt's sessions ui3, ui4, ui7 and ui13.
 
 ## Fix
 
-Absent. The candidate patches `setupNavigation` to return early for a lazily loaded row still in its
-fragment, and folds the other calls into one stock `makeFocusable()` on the next animation frame, with the
-stock method as fallback, delivered as a script ahead of `components.js` through the package override
-layer or an initial script. About 30 lines. The overhaul round of 2026-09-06 broke the controls list by
-reading the filter input before it existed, so the patch touches nothing that runs before the page is
-built. Tested by TODO-027's build.
+A page fix of the responsive UI, the script in `src/ui/responsive_ui.cpp` added to the menu and HUD view as
+an initial script (see [responsive-ui](../docs/systems/responsive-ui.md)). It watches the page's
+`window.SpatialNavigation` and wraps `makeFocusable()`: the first call of an animation frame with no
+section scans, later calls in the frame fold into one scan on the next frame, which also covers rows that
+add buttons without calling it. Calls with a section pass straight through. It never runs before its page
+sets the library. First built into the probe on alternate visits (`5ef8d7d`, 2026-09-14), on for every
+visit from `74a9797`, shipped in `6848b45` on 2026-09-15.
 
 ## Verification
 
-Absent.
+The owner used the controls page in every lap from 2026-09-14 on without a broken list, and once the hover
+lag was fixed found the menus' switching fast ("Switching is fast. Sliders are fast."). The lap of
+2026-09-15 counted 1,011 calls, 144 scans and 919 folded, with no script error in the game log.

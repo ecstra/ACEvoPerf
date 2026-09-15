@@ -2,12 +2,13 @@
 name: decisions-index
 kind: doc
 description: index of every decision taken, newest first
-updated: 2026-09-14
+updated: 2026-09-15
 links: [agent-index, spec-decisions]
 ---
 
 # Decisions Index
 
+- [DEC-020-responsive-ui-is-one-switch-on-by-default](DEC-020-responsive-ui-is-one-switch-on-by-default.md), 2026-09-15, every UI fix ships under `responsive_ui`, on by default, with the page fixes out of the developer probe, rather than a switch per fix or fixes that run only with the probe
 - [DEC-019-ui-lag-work-reopened](DEC-019-ui-lag-work-reopened.md), 2026-09-14, the UI lag is the one lane worked after the five deep dives on the owner's pick, UI diagnostics in developer builds off by default and UI fixes shipped once verified in game, superseding DEC-010
 - [DEC-018-a-full-texture-pool-keeps-the-players-car-first](DEC-018-a-full-texture-pool-keeps-the-players-car-first.md), 2026-09-13, a full texture pool stays shared the way the engine ranks it, the player's car and driver first and AI cars like props, because ranking the car's finest levels lower or AI cars as cars only moves the blur
 - [DEC-017-streamer-reload-fix-refuses-the-drop](DEC-017-streamer-reload-fix-refuses-the-drop.md), 2026-09-13, the texture streamer's feedback flip is fixed by refusing the drop of a texture whose own readings show the flip, guarded by the engine's 1024 tile margin alone, rather than by correcting the conversion, refusing the reload, deduplicating or standing down whenever the pool is contended

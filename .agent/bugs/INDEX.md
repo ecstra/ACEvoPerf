@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-14
+updated: 2026-09-15
 links: [agent-index, spec-bugs]
 ---
 
@@ -19,11 +19,7 @@ bug
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the slowest frames are the present path through the integrated GPU coupled to the previous frame's GPU end, spread out renderer code and a ripple from one UI view updated per frame, not a lock or a job, Reflex already evens the alternation, two runs with no build next
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
-- [BUG-014-ui-pages-lag-on-open-switch-and-interaction](BUG-014-ui-pages-lag-on-open-switch-and-interaction.md), the menus lag and the settings, controls and vehicle setup pages stall, reopened on the owner's pick and split by the 2026-09-14 deep dive into BUG-024 to BUG-027 and an interaction cost still to name
-- [BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three](BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three.md), the pit menu and every page opened from it advance the UI one frame in three, because the engine's every view every frame rule covers only the main menu and pause
-- [BUG-025-controls-page-scans-the-page-once-per-new-row](BUG-025-controls-page-scans-the-page-once-per-new-row.md), a bindings group click freezes 250 to 500 ms because each new row scans the whole page once per navigation section while the rows are still outside the document
-- [BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open](BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open.md), every vehicle setup open requests the setup twice and builds all its groups twice
-- [BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load](BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md), 1.2 MB of UI stylesheets read and parsed again at every document load, 38 MB of repeat reads in a 20 minute race session
+- [BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load](BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md), 1.2 MB of UI stylesheets read and parsed again at every document load, 38 MB of repeat reads in a 20 minute race session, the parse off the frame thread since the responsive UI
 
 debt
 
@@ -31,6 +27,7 @@ debt
 
 nit
 
+- [BUG-028-page-opens-still-hold-frames-of-100-to-200-ms](BUG-028-page-opens-still-hold-frames-of-100-to-200-ms.md), with the responsive UI on the heavier pages still open with a frame or two of 100 to 200 ms, the page's own script, pages built over several frames restyling much of the page, the listed rules still walked
 - [BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring](BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring.md), every camera cut of the Red Bull Ring pit menu starts blurry, a cut forces a streamer pass that loads before it drops, often cannot load, then waits a second, the follow up pass of TODO-024 is the correction to test
 
 ## Won't fix
@@ -41,6 +38,10 @@ nit
 
 ## Fixed
 
+- [BUG-014-ui-pages-lag-on-open-switch-and-interaction](BUG-014-ui-pages-lag-on-open-switch-and-interaction.md), the menus lagged on hover, scrolling, sliders, switching and opening pages, fixed by the responsive UI over seven owner driven laps, what page opens still cost is BUG-028
+- [BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three](BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three.md), the pit menu and its pages advanced the UI one frame in three, fixed by keeping a menu page's surface in every frame while the car displays take turns, owner verified
+- [BUG-025-controls-page-scans-the-page-once-per-new-row](BUG-025-controls-page-scans-the-page-once-per-new-row.md), each new controls row scanned the whole page once per navigation section, fixed by folding the calls into one scan a frame, owner driven
+- [BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open](BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open.md), vehicle setup requested and built its setup twice per open, fixed by ignoring the second init while the first is out, owner driven
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night reported with `enable_pso_cache` on, the flag shipped off and the owner saw night lighting work, closed on the owner's word with the mechanism still unexplained
 - [BUG-017-trackside-big-screens-blurry](BUG-017-trackside-big-screens-blurry.md), the big screen flipbook ships with 3 of 12 mip levels on an 8 by 8 grid, fixed by the overlay serving it with one mip level
 - [BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles](BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles.md), the full pool ranked each texture by its least important request and loaded detail only in one piece, both fixed and owner verified in a thirty car race, AI cars and some props still blurry in a full field by the owner's call

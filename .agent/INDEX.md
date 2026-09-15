@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-14
+updated: 2026-09-15
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -27,22 +27,22 @@ line in the same commit.
 
 ## The knowledge
 
-- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 29 docs in four categories
+- [docs/INDEX.md](docs/INDEX.md), the knowledge library: 30 docs in four categories
   - foundation: [proxy-architecture](docs/foundation/proxy-architecture.md), the DLL in load order
-  - systems: [directstorage-streaming](docs/systems/directstorage-streaming.md), [engine-flags](docs/systems/engine-flags.md), [content-package](docs/systems/content-package.md), [package-override-layer](docs/systems/package-override-layer.md), [settings-files](docs/systems/settings-files.md)
+  - systems: [directstorage-streaming](docs/systems/directstorage-streaming.md), [engine-flags](docs/systems/engine-flags.md), [content-package](docs/systems/content-package.md), [package-override-layer](docs/systems/package-override-layer.md), [settings-files](docs/systems/settings-files.md), [responsive-ui](docs/systems/responsive-ui.md)
   - ops: [telemetry](docs/ops/telemetry.md), [build-and-release](docs/ops/build-and-release.md), [tools](docs/ops/tools.md)
-  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md), [one-percent-low-hunt-2026-09-05](docs/research/one-percent-low-hunt-2026-09-05.md), [ui-lag-hunt-2026-09-06](docs/research/ui-lag-hunt-2026-09-06.md), [free-roam-unlock-2026-09-06](docs/research/free-roam-unlock-2026-09-06.md), [ghost-car-2026-09-06](docs/research/ghost-car-2026-09-06.md), [reflex-2026-09-12](docs/research/reflex-2026-09-12.md), [directstorage-1-3-2026-09-12](docs/research/directstorage-1-3-2026-09-12.md), [optimisation-deepdive-2026-09-12](docs/research/optimisation-deepdive-2026-09-12.md), [engine-flags-in-game-2026-09-12](docs/research/engine-flags-in-game-2026-09-12.md), [tile-pool-reshuffle-2026-09-12](docs/research/tile-pool-reshuffle-2026-09-12.md), [texture-streamer-flip-2026-09-13](docs/research/texture-streamer-flip-2026-09-13.md), [texture-streamer-overload-2026-09-13](docs/research/texture-streamer-overload-2026-09-13.md), [frame-time-mod-against-passive-2026-09-13](docs/research/frame-time-mod-against-passive-2026-09-13.md), [memory-creep-2026-09-14](docs/research/memory-creep-2026-09-14.md), [mesh-level-of-detail-2026-09-14](docs/research/mesh-level-of-detail-2026-09-14.md), [texture-streamer-camera-cuts-2026-09-14](docs/research/texture-streamer-camera-cuts-2026-09-14.md), [one-percent-lows-2026-09-14](docs/research/one-percent-lows-2026-09-14.md), [ui-lag-deepdive-2026-09-14](docs/research/ui-lag-deepdive-2026-09-14.md)
+  - research: [moddability](docs/research/moddability.md), [lap-2026-09-05-nordschleife](docs/research/lap-2026-09-05-nordschleife.md), [one-percent-low-hunt-2026-09-05](docs/research/one-percent-low-hunt-2026-09-05.md), [ui-lag-hunt-2026-09-06](docs/research/ui-lag-hunt-2026-09-06.md), [free-roam-unlock-2026-09-06](docs/research/free-roam-unlock-2026-09-06.md), [ghost-car-2026-09-06](docs/research/ghost-car-2026-09-06.md), [reflex-2026-09-12](docs/research/reflex-2026-09-12.md), [directstorage-1-3-2026-09-12](docs/research/directstorage-1-3-2026-09-12.md), [optimisation-deepdive-2026-09-12](docs/research/optimisation-deepdive-2026-09-12.md), [engine-flags-in-game-2026-09-12](docs/research/engine-flags-in-game-2026-09-12.md), [tile-pool-reshuffle-2026-09-12](docs/research/tile-pool-reshuffle-2026-09-12.md), [texture-streamer-flip-2026-09-13](docs/research/texture-streamer-flip-2026-09-13.md), [texture-streamer-overload-2026-09-13](docs/research/texture-streamer-overload-2026-09-13.md), [frame-time-mod-against-passive-2026-09-13](docs/research/frame-time-mod-against-passive-2026-09-13.md), [memory-creep-2026-09-14](docs/research/memory-creep-2026-09-14.md), [mesh-level-of-detail-2026-09-14](docs/research/mesh-level-of-detail-2026-09-14.md), [texture-streamer-camera-cuts-2026-09-14](docs/research/texture-streamer-camera-cuts-2026-09-14.md), [one-percent-lows-2026-09-14](docs/research/one-percent-lows-2026-09-14.md), [ui-lag-deepdive-2026-09-14](docs/research/ui-lag-deepdive-2026-09-14.md), [responsive-ui-rounds-2026-09-15](docs/research/responsive-ui-rounds-2026-09-15.md)
 
 ## The trackers
 
-- [todos/INDEX.md](todos/INDEX.md), the work tracker: 15 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-027), 8 done, 3 dropped
-- [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 14 open, 9 fixed, 3 won't fix
-- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 16 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009, DEC-011 to DEC-019), 3 superseded
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 14 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-026), 9 done, 3 dropped
+- [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 11 open, 12 fixed, 3 won't fix
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 17 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009, DEC-011 to DEC-020), 3 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 1 closed (fix/streamer-feedback-churn)
 
 ## Memory and handovers
 
-- [memory/INDEX.md](memory/INDEX.md), project facts: 10 (7 project, 1 reference, 2 feedback)
+- [memory/INDEX.md](memory/INDEX.md), project facts: 11 (8 project, 1 reference, 2 feedback)
 - [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed
 - [handover/2026-09-13-frame-time-mesh-budget.md](handover/2026-09-13-frame-time-mesh-budget.md), the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1, superseded by the mesh deep dive

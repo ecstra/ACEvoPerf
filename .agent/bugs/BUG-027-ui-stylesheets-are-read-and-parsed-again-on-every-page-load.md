@@ -1,9 +1,9 @@
 ---
 name: BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load
 kind: bug
-description: the game reads and parses its 1.2 MB of UI stylesheets again at every document load, pause, resume, back to the pits and each main menu page, 38 MB of repeated reads in a 20 minute race session plus a full parse on the render thread each time, while the 2.3 MB script is read once
-updated: 2026-09-14
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, TODO-021-the-engine-reads-the-same-data-twice, TODO-027-the-ui-developer-build-and-one-session]
+description: the game reads and parses its 1.2 MB of UI stylesheets again at every document load, pause, resume, back to the pits and each main menu page, 38 MB of repeated reads in a 20 minute race session plus a full parse each time, off the frame thread since the responsive UI, while the 2.3 MB script is read once
+updated: 2026-09-15
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, TODO-021-the-engine-reads-the-same-data-twice, TODO-027-the-ui-developer-build-and-one-session, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-028-page-opens-still-hold-frames-of-100-to-200-ms]
 status: open
 severity: bug
 area: ui
@@ -32,7 +32,13 @@ From the deep dive of 2026-09-14,
 
 ## Fix
 
-Absent. The candidate calls the Cohtml system's `PreloadAndCacheStylesheet` (slot 22) for both sheets once
+Absent. Since `6848b45` (2026-09-15) the responsive UI hands resource work the frame thread picks up to a
+mod thread, so the parse no longer holds the frame, measured at 0.1 ms of resource work on the frame thread
+in the worst page open second against 57.4 ms before
+([responsive-ui-rounds-2026-09-15](../docs/research/responsive-ui-rounds-2026-09-15.md)). The reads and the
+parse at every load remain, and `uicomponents.css` now comes from the overlay's narrowed copy each time.
+
+The candidate calls the Cohtml system's `PreloadAndCacheStylesheet` (slot 22) for both sheets once
 after `Library::CreateSystem` returns. Medium risk, Coherent fixed a reuse failure in 1.65 and a crash on
 removing a `<link>` to a preloaded sheet with media rules in 3.1.1, and `uicomponents.css` has two
 `@media` blocks. Proven when the parse error appears once per process, killed by an unstyled page or a

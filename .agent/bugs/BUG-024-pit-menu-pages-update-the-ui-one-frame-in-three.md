@@ -2,9 +2,9 @@
 name: BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three
 kind: bug
 description: the pit lane menu and every page opened from it, vehicle setup, settings and controls, advance and paint the UI view only one game frame in three, the rotation the engine uses for the HUD while driving, because its every view every frame rule covers only the main menu showroom and pause
-updated: 2026-09-14
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, one-percent-lows-2026-09-14, TODO-027-the-ui-developer-build-and-one-session, TODO-025-the-ui-view-rotation-test]
-status: open
+updated: 2026-09-15
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, one-percent-lows-2026-09-14, TODO-027-the-ui-developer-build-and-one-session, TODO-025-the-ui-view-rotation-test, responsive-ui, responsive-ui-rounds-2026-09-15]
+status: fixed
 severity: bug
 area: ui
 reported: 2026-09-14
@@ -35,11 +35,14 @@ From the deep dive of 2026-09-14,
 
 ## Fix
 
-Absent. The candidate is a wrapper on EvoUi slot 24 that passes the menu flag while the main view's
-document is not `hud.html`, the path pause already takes, or a budget variant that keeps the main view in
-every frame and rotates only the displays. On heavy pages it trades a smoother scene for a menu that
-updates more often, so the owner judges the result. Tested by TODO-027's build.
+The budget variant, the menu refresh fix of the responsive UI (`src/ui/menu_refresh_fix.cpp`, commit
+`f2792ad`, 2026-09-14, see [responsive-ui](../docs/systems/responsive-ui.md)). A stub at `0xDE37B7` keeps
+the main surface in every frame and passes the turn between the dashboard displays, only while the main
+view shows a menu page, which a hook on Cohtml's URL loader tracks. On the HUD while driving the game's
+rotation stays, so TODO-025's ripple is untouched.
 
 ## Verification
 
-Absent.
+Owner verified on 2026-09-14 after the owner had felt every in session menu capped at 30 to 60 fps: "holy
+moly it works!". In the session of 2026-09-15 at 80 fps the main view advanced 80 times a second and each
+display 40 times.

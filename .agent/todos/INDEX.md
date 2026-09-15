@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-14
+updated: 2026-09-15
 links: [agent-index, spec-todos]
 ---
 
@@ -30,10 +30,6 @@ render
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), the mod's 3.8 percent parked is the mesh detail the 1433 MB budget loads, authored detail per the mesh deep dive, the engine's own readout to ride a planned run, the last 1 percent unsplit
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 
-ui
-
-- [TODO-027-the-ui-developer-build-and-one-session](TODO-027-the-ui-developer-build-and-one-session.md), the UI lane, one developer build timing the engine side, toggling the pit menu flag and switching the controls page and vehicle setup fixes on alternate entries, then one owner session
-
 tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames
@@ -52,6 +48,7 @@ engine-flags
 - streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed; TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
+- ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
 
 ## Dropped
 

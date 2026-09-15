@@ -2,7 +2,7 @@
 name: memory-index
 kind: doc
 description: index of project memory, one line per fact
-updated: 2026-09-14
+updated: 2026-09-15
 links: [agent-index, spec-memory]
 ---
 
@@ -17,6 +17,7 @@ project
 - [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed, the per logger level switches among them
 - [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttles at 87 °C two minutes into a lap, the undervolt that held it flat hung the GPU and came off again
 - [reference-machine-has-no-direct-gpu-display](reference-machine-has-no-direct-gpu-display.md), no MUX and no output wired to the NVIDIA GPU, every frame crosses to the integrated GPU, never ask the owner for a way around it
+- [handled-faults-stall-the-game](handled-faults-stall-the-game.md), the game's crash logger stalls a thread 120 to 210 ms on every access violation, even one the mod handles, so mod code never probes memory by faulting
 
 reference
 

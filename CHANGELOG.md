@@ -113,7 +113,12 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   On some page loads the game's frame thread also picked up the 1.1 MB stylesheet's parse while it waited
   for other work and held the frame for 30 to 60 ms, so resource work the frame thread picks up now runs
   on a thread of the mod, and style and layout work stays where the frame needs it. Both are part of
-  `responsive_ui` and only apply to the UI engine build they were checked against.
+  `responsive_ui` and only apply to the UI engine build they were checked against. Verified in game, a
+  restyle took 6.3 microseconds a node against 14.0 before, opening settings and the controls page from the
+  main menu stalled 328 ms against 451 ms with its worst frame at 126 ms against 166 ms, and the frame
+  thread ran 0.1 ms of resource work in the worst second of a page open against 57 ms. The heavier pages
+  still open with a frame or two of 100 to 200 ms, from the page's own script and from pages that build
+  themselves over several frames.
 - The controls page froze for a moment when it opened and on every click of a bindings group, 250 to
   500 ms with the Car and Car_Advanced groups. Every new row asks the navigation library to rescan the
   whole page, once for each navigation section, while the rows are still outside the page, so the scans

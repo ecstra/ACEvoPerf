@@ -2,8 +2,8 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-14
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
+updated: 2026-09-15
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
 ---
 
 # Telemetry
@@ -59,8 +59,10 @@ it samples and writes only while a CSV is on. Columns:
 
 One line per presented frame: `t_s`, `frame_ms` (time since the previous present) and the
 DirectStorage requests enqueued since the previous present, `tile_req` (texture tiles),
-`f2m_req` (package to memory) and `gpumem_req` (memory to GPU). Frames longer than two seconds
-are dropped as pauses. About 1 MB per ten minutes at 90 fps.
+`f2m_req` (package to memory) and `gpumem_req` (memory to GPU). With `ui_probe=1` two more columns
+carry the UI since the previous present, `ui_end_frame_ms` (the game's UI frame end, which waits for the
+frame's UI job) and `ui_advance_ms` (every Cohtml `View::Advance`), both 0 otherwise. Frames longer than two
+seconds are dropped as pauses. About 1 MB per ten minutes at 90 fps.
 
 The report's spread section reads it: median, p99 over median, frames over 1.3, 1.5 and 2 times
 the median with their share of the window's time, and how many of the slowest 1 percent carry
@@ -102,6 +104,28 @@ The log gets a `[streamer]` line every `stats_interval_s` with the same counts a
 own tile pool figures (used, capacity, pending), and the file to memory queue's `[stats]` line is
 followed by the total of repeated reads.
 
+## UI probe
+
+`[developer] ui_probe=1`, `src/ui/ui_probe.cpp`, for the game's Cohtml UI
+([responsive-ui](../systems/responsive-ui.md) is what it measured into being). Once a second in the log:
+
+- `[ui] end frame`: the UI frame end's count, total and worst wait, every view's `Advance` count, total and
+  worst by size, resource and layout work (`ExecuteWork` types 0 and 1) with the part run on the frame
+  thread, the resource work the responsive UI moved off it, and the UI clock against real time
+- `[ui] restyles`: Cohtml's restyle passes of changed nodes with the nodes they restyled, and whole
+  document restyles, plus a `slow restyle` line for each pass over 15 ms naming its first changed nodes
+- `[ui] invalidations`: per kind the calls and the nodes marked (0 a child list change, 3 a class, 5 a state
+  such as hover, 7 an attribute such as `data-mode`), and the elements that marked the most
+
+Every five seconds `[ui] layout samples` lists where Cohtml's layout work was, innermost function and on the
+stack, from the stack of a thread suspended only while it is inside that work. The style matching fix's
+stubs show as `styles+0x...`.
+
+The probe also adds a script to the menu and HUD view whose once a second `[ACEvoPerf] ui changes <page>`
+line in the game log counts class, style, attribute and DOM writes, mouse events and transitions, what the
+responsive UI's page fixes did, and every frame over 45 ms against what changed in the two frames before
+it, with the ten busiest writes by element.
+
 ## GPU sampler
 
 Run beside the game, the report script joins it on the clock second:
@@ -117,6 +141,12 @@ rendering logger to debug, and the flag `log_pso_on_creation=true` adds a line p
 object. On 0.9.0 the debug rendering logger only adds PSO cache lines. The log also names the
 adapter each monitor hangs off (`[Monitor] flat N (adapter ...)`), which told the 1 percent low
 hunt that both displays are outputs of the integrated GPU.
+
+The game's crash logger writes `[crash] Exception Detected` with a symbolised stack for every access
+violation in the process, including one the mod's own `__try` handles, and stalls the faulting thread 120
+to 210 ms doing it. The module it names is `DSTORAGE.dll` for the mod, with export names that mean nothing.
+Check a lap with new hook code for the line (BUG-022 is one, the UI probe's node reads were fifteen in a
+lap before 2026-09-15).
 
 ## Deeper instruments, removed
 

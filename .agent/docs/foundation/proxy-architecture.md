@@ -2,8 +2,8 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-12
-links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry]
+updated: 2026-09-15
+links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry, responsive-ui]
 ---
 
 # Proxy architecture
@@ -20,6 +20,7 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `render/` | `dxgi_hooks`, `frame_stats`, `adapter` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check |
 | `telemetry/` | `timeline` | the per second CSV thread and the frame CSV flush |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
+| `ui/` | `responsive_ui`, `restyle_fix`, `menu_refresh_fix`, `style_match_fix`, `cohtml_hooks`, `ui_probe` | the responsive UI and its parts, the shared Cohtml and UI frame hooks, the developer UI probe (see `responsive-ui`) |
 
 `include/acevo/common.h` holds the Windows, D3D12, DXGI and DirectStorage includes and the version
 string. Every header includes it, every source includes its own header first.
@@ -52,6 +53,10 @@ string. Every header includes it, every source includes its own header first.
    adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
    every loaded module (`PatchEverywhere`) so the package table read at startup can be rewritten.
+6. Also at attach: `InstallResponsiveUi` patches Cohtml's and the exe's UI code in memory and registers
+   its listeners, `InstallUiProbe` registers the probe's when it is on, and `InstallCohtmlHooks` then
+   patches the exe's import of Cohtml's `Library::Initialize` and wraps the game UI's frame post and end.
+   The Cohtml library, system and views are hooked as the game creates them.
 
 ## Pieces
 
@@ -79,9 +84,13 @@ string. Every header includes it, every source includes its own header first.
   flushes the frame buffer.
 - `overlay/overlay`: `BuildToc` rewrites the package table in memory, `Hook_ReadFile` serves it,
   `OverlayRedirect` points DirectStorage requests at the loose files (see `content-package`).
+- `ui/cohtml_hooks`: listener lists for the Cohtml library, its views and the game UI's frame post and
+  end, and the hooks that call them. `ui/responsive_ui` installs the responsive UI's parts, the page fixes
+  script and the resource work move, each part in its own file (see `responsive-ui`).
 
 ## What it never does
 
-- Write to game files or the content package. The overlay changes the table only in memory.
-- Hook anything on the render thread beyond `Present`.
+- Write to game files or the content package. The overlay changes the table only in memory, and code
+  patches (the texture streamer, the responsive UI) change the loaded image only.
+- Hook anything on the render thread beyond `Present` and the game UI's frame post and end.
 - Run code for a feature the ini disables: each piece checks its flag and returns early.
