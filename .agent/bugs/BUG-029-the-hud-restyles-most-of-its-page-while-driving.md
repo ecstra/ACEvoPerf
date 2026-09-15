@@ -43,12 +43,44 @@ frame. In that session the exe loaded at `0x7FF6F4230000`, Cohtml 1.61.0.3 at `0
 
 What change on the HUD sets off the restyle is not in the trace.
 
+`logs/probe-hud-20260915`, the UI probe over ten laps and a drive through the pit lane, same car, track and
+build, `ui_probe=1`. Six driving frames of 29.4 to 32.5 ms carry 22.8 to 24.5 ms of UI end frame wait, and
+each has one child list change (invalidation kind 0) on a `div.component-body` marking 878 nodes, then a
+restyle of 20.8 to 23.0 ms over 879 nodes. The HUD's top level `.component-body` under `ks-hud` is the only
+element with a subtree that size.
+
+| Time | Where | Frame | UI end frame | Restyle |
+| --- | --- | --- | --- | --- |
+| 20:10:52.4 | pit lane, 12 s after entering | 30.2 ms | 23.8 ms | 21.4 ms |
+| 20:10:59.1 | pit lane | 32.2 ms | 24.5 ms | 23.0 ms |
+| 20:11:04.1 | pit lane, 4 s before leaving | 32.5 ms | 23.8 ms | 22.3 ms |
+| 20:13:34.0 | lap 6 | 29.5 ms | 22.8 ms | 20.8 ms |
+| 20:13:35.6 | lap 6 | 29.4 ms | 23.4 ms | 21.0 ms |
+| 20:19:18.6 | lap 9 | 32.1 ms | 23.6 ms | 21.8 ms |
+
+- **Kind 0 is a child list change.** `0x37B600` passes it with empty names, and `0x3F24B0` gives every kind 0
+  the same invalidation set, which on the HUD matched every node under the element.
+- **The page's scripts did not do it.** The page script's counters of `appendChild`, `insertBefore`,
+  `removeChild` and `replaceChild` read 0 in those seconds while they counted about 20,000 other writes a
+  second, so the change comes from Cohtml itself, most likely a `data-bind-if` on one of the top level's
+  children (`#labelContinue`, `#labelDisconnected`, `#labelWrongWay`, `ks-laptime`, the two `ks-timer`,
+  `ks-hudwidgethost`, `ks-hudchat`, `ks-freecam`).
+- **The game log has nothing at those times.** The nearest lines are penalty cleared notices 2.3 s after the
+  lap 6 pair and 8.8 s before the lap 9 change.
+
+The same run had two stretches of 1.2 and 1.5 s of mostly 80 to 90 ms frames, at 20:13:01 on lap 6 and
+20:21:07 on lap 10. Most of those frames wait on no UI work, and the UI calls caught inside them take 73 to
+84 ms each, `Advance` on the HUD view in both, on a car display in the first, and a 71.6 ms restyle of one
+node in the second. None of the five drives of 2026-09-15 without the probe shows one, so the probe itself
+is the first suspect. The next run checks it.
+
 ## Fix
 
-Absent. The UI probe (`[developer] ui_probe=1`) logs every restyle pass over 15 ms with the first changed
-nodes, counts invalidations by element, and its page script matches slow frames with the class, style,
-attribute and DOM changes before them, which names the trigger. Once named, the fix is the kind the responsive
-UI already carries, a page fix or a narrowed rule.
+Absent. The UI probe now logs each change of the HUD's top level with the model values its conditions read
+(`[ACEvoPerf] ui hud top level` in the game log) and the call stack of every child list change that marks
+200 nodes or more (`[ui] big child list change`), and skips its change counters on the HUD. That names the
+element and the binding. The fix then keeps that element's change from reaching the top level, or narrows
+what a child list change marks.
 
 ## Verification
 
