@@ -1,6 +1,5 @@
 #include "acevo/ui/restyle_fix.h"
 #include "acevo/core/code_patch.h"
-#include "acevo/core/config.h"
 #include "acevo/core/log.h"
 
 // Read from cohtml.WindowsDesktop.dll 1.61.0.3 and the game's stylesheets of 0.9.1, measured with the
@@ -75,8 +74,6 @@ static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
 
 void InstallRestyleFix()
 {
-    if (!g_cfg.uiRestyleFix) return;
-
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
     auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
     if (gameNt->FileHeader.TimeDateStamp != kGameTimeDateStamp || gameNt->OptionalHeader.SizeOfImage != kGameSizeOfImage) {

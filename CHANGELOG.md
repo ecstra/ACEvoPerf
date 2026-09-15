@@ -84,12 +84,8 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   from and how many nodes it restyled, and counts how many nodes each change to an element marks for
   a restyle, by element and kind of change. A script added to the menu page counts what the pages
   change each second and on which elements, matches every slow frame with what changed or was hovered
-  in the frames before it, and applies three menu fixes. One stops the controls page scanning the whole
-  page once for every new row, one stops vehicle setup building itself twice when it opens, and one
-  lets the controls page rebuild itself at most ten times a second while a slider on it is dragged,
-  where the game had it rebuild every row and slider for each of the 24 to 34 updates a second. It
-  hooks the game and the UI engine only when their builds match the ones it was written for.
-  Diagnostics, off by default.
+  in the frames before it, and reports what the responsive UI's page fixes did. It hooks the game and
+  the UI engine only when their builds match the ones it was written for. Diagnostics, off by default.
 
 ### Changed
 
@@ -104,6 +100,30 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
 
 ### Fixed
 
+- Opening a menu page stuttered, the main menu, settings, the controls page and the pit lane menu
+  alike, with frames of 100 to 320 ms while the page came in. Most of that wait is the UI engine
+  matching the new page's elements against the game's 5,978 selectors. The engine looks most rules up
+  by class, but 2,142 of them start with a tag or an id, and those it ran through its full matcher for
+  every element, which the probe found in 40 to 67 percent of all its style and layout work. Checking
+  a tag against one of the game's own elements (the `ks-` ones, most of every page) also made the engine
+  copy the element's name into a new string, upper case it and free it again, about 800 times per
+  element. The mod now skips a rule whose tag or id the element does not have before the matcher runs,
+  the same first check the matcher makes and fails on, and compares those names where the element
+  keeps them, with the engine's own compare. Nothing is matched differently, only fewer calls are made.
+  On some page loads the game's frame thread also picked up the 1.1 MB stylesheet's parse while it waited
+  for other work and held the frame for 30 to 60 ms, so resource work the frame thread picks up now runs
+  on a thread of the mod, and style and layout work stays where the frame needs it. Both are part of
+  `responsive_ui` and only apply to the UI engine build they were checked against.
+- The controls page froze for a moment when it opened and on every click of a bindings group, 250 to
+  500 ms with the Car and Car_Advanced groups. Every new row asks the navigation library to rescan the
+  whole page, once for each navigation section, while the rows are still outside the page, so the scans
+  find nothing new. The first scan of a frame now runs and the rest fold into one scan on the next frame.
+  Vehicle setup asked the game for the car's setup twice every time it opened and built all its groups
+  for both answers, and now asks once. Dragging a slider on the controls page lagged behind the mouse,
+  because the game answers every slider step with a full refresh that rebuilds every row and slider on
+  the page, 24 to 34 times a second. A refresh while dragging now runs at most ten times a second and the
+  last step of a drag always lands. The three are a script the mod adds to the menu page, part of
+  `responsive_ui`. Verified in game.
 - The menus lagged as soon as the mouse moved quickly, on hover, scrolling and dragging a slider,
   worst on the settings, controls and vehicle setup pages. Every time the element under the mouse
   changes, the UI engine (Coherent Gameface) restyles the elements whose look can depend on hover or
@@ -121,16 +141,17 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   element by its earlier sibling (a leaderboard rule), the engine restyled every element after a
   hovered one as well, every row below the mouse. No rule uses hover or focus together with a
   sibling, so the engine now skips that pass for hover and focus changes and keeps it for class and
-  attribute changes, which the leaderboard rule needs. Both are `ui_restyle_fix` and only apply to
-  the game and UI engine builds they were checked against. Verified in game, hover, fast scrolling,
+  attribute changes, which the leaderboard rule needs. Both are part of `responsive_ui` and only apply
+  to the game and UI engine builds they were checked against. Verified in game, hover, fast scrolling,
   sliders and switching in the menus are smooth.
 - In a session the menus felt capped at 30 frames a second, the pit lane menu, settings and vehicle
   setup alike. Each frame the game updates the menu and the car's two dashboard displays in turn, one
   of the three per frame, unless the main menu or the pause menu is open. So at 90 frames a second the
   menu updated 30 times a second, and every hover, slider step and animation waited for its turn. The
   mod keeps the menu in every frame and passes the turn between the displays only, while the page on
-  screen is a menu. On the HUD while driving the game's own rotation is kept, so driving costs the same
-  (`ui_menu_refresh_fix`). It only applies to the game and UI engine builds it was checked against.
+  screen is a menu. On the HUD while driving the game's own rotation is kept, so driving costs the same.
+  Part of `responsive_ui`, and it only applies to the game and UI engine builds it was checked against.
+  Verified in game.
 - In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
   seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
   the engine's texture streamer cause it, and both only show once the texture pool is full, which

@@ -29,3 +29,24 @@ BYTE* AllocNear(BYTE* anchor, size_t size)
     }
     return nullptr;
 }
+
+bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* out)
+{
+    int64_t rel = destination - (from + 5);
+    if (rel > INT32_MAX || rel < INT32_MIN) return false;
+    int32_t value = (int32_t)rel;
+    out[0] = opcode;
+    memcpy(out + 1, &value, 4);
+    return true;
+}
+
+bool WriteCode(BYTE* at, const BYTE* code, size_t length)
+{
+    DWORD old = 0;
+    if (!VirtualProtect(at, length, PAGE_EXECUTE_READWRITE, &old)) return false;
+    memcpy(at, code, length);
+    DWORD ignored = 0;
+    VirtualProtect(at, length, old, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), at, length);
+    return true;
+}

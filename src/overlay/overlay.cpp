@@ -316,7 +316,7 @@ static void ReplaceAll(std::string& text, const char* from, const char* to)
 // expected was changed by an update and is served untouched.
 static void AddUiStyleFix(size_t used)
 {
-    if (!g_cfg.uiRestyleFix) return;
+    if (!g_cfg.responsiveUi) return;
 
     const std::string pkgPath = kUiStylesheet;
     const uint64_t hash = Fnv1a64Utf16(pkgPath);
@@ -324,7 +324,7 @@ static void AddUiStyleFix(size_t used)
     size_t lo = 0, hi = used;
     while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
     if (lo >= used || hashAt(lo) != hash) {
-        Log("overlay: the UI stylesheet is not in this package, the UI restyle fix serves it untouched");
+        Log("overlay: the UI stylesheet is not in this package, the responsive UI serves it untouched");
         return;
     }
 
@@ -577,11 +577,11 @@ void Install()
         Log("overlay: %zu loose file(s) under %ls", g_files.size(), folder.c_str());
     } else if (g_cfg.overlayEnabled) {
         Log("overlay: folder %ls not present%s", folder.c_str(),
-            (g_cfg.fixBigScreens || g_cfg.uiRestyleFix) ? ", the mod's own asset fixes still apply" : ", layer idle");
+            (g_cfg.fixBigScreens || g_cfg.responsiveUi) ? ", the mod's own asset fixes still apply" : ", layer idle");
     }
     // The mod's own corrections are reason enough to hook the file calls. They are generated from
     // the player's package once the table is read, so there need not be a mods folder at all.
-    g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens || g_cfg.uiRestyleFix);
+    g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens || g_cfg.responsiveUi);
     if (!g_active && !g_cfg.traceFileIo) return;
     int a = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
     int b = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);

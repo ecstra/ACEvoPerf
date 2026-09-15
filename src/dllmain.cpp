@@ -10,7 +10,7 @@
 //   render/     DXGI factory and swap chain hooks, per frame timing
 //   telemetry/  per second CSV, streaming trace
 //   overlay/    loose files that shadow package entries
-//   ui/         the UI engine restyle fix, the menu refresh fix, the developer UI probe
+//   ui/         the responsive UI and its parts, the shared Cohtml hooks, the developer UI probe
 //
 // Everything is configured by acevo_perf.ini next to this DLL and logged to
 // acevo_perf.log. No game files other than the replaced dstorage.dll are touched.
@@ -26,8 +26,8 @@
 #include "acevo/render/dxgi_hooks.h"
 #include "acevo/overlay/overlay.h"
 #include "acevo/telemetry/load_sampler.h"
-#include "acevo/ui/menu_refresh_fix.h"
-#include "acevo/ui/restyle_fix.h"
+#include "acevo/ui/cohtml_hooks.h"
+#include "acevo/ui/responsive_ui.h"
 #include "acevo/ui/ui_probe.h"
 
 static void OnAttach(HMODULE h)
@@ -62,9 +62,9 @@ static void OnAttach(HMODULE h)
     ApplyProcessTweaks();
     ApplyFlags("early");
     InstallStreamerHooks();
-    InstallRestyleFix();
-    InstallMenuRefreshFix();
+    InstallResponsiveUi();
     InstallUiProbe();
+    InstallCohtmlHooks();
     InstallDxgiHooks();
     InstallThrowLog();
     overlay::Install();

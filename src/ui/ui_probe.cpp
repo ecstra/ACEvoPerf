@@ -3,21 +3,19 @@
 #include "acevo/core/config.h"
 #include "acevo/core/iat.h"
 #include "acevo/core/log.h"
+#include "acevo/ui/cohtml_hooks.h"
+#include "acevo/ui/responsive_ui.h"
+#include "acevo/ui/style_match_fix.h"
 
 // Written against AssettoCorsaEVO.exe 0.9.1 (the Steam build of 2026-09-11) and
 // cohtml.WindowsDesktop.dll 1.61.0.3, from the UI deep dive of 2026-09-14
 // (.agent/docs/research/ui-lag-deepdive-2026-09-14.md).
 //
-// Cohtml is reached from the one export the exe imports, Library::Initialize, and then through
-// vtables. Library slot 1 CreateSystem, slot 5 ExecuteWork(type, mode, family). System slot 3
-// CreateView, ViewSettings width at +0x10 and height at +0x14. View slot 6 Advance(double ms),
-// returning the frame id, and slot 61 AddInitialScript(const char*), which runs at the start of
-// every document the view loads afterwards.
-//
-// The game's UI object (EvoUi) keeps its GameUi behind [this+0xA8]. Its slot 7 posts the frame's UI
-// job (every listed view's Advance and the paint) with the UI clock as a float in xmm1 and a pointer
-// in r8. Its slot 8 waits for that job while running other queued jobs, which is how UI layout ends up
-// holding the render thread, and passes the renderer in rdx. Both wrappers pass every argument on.
+// The Cohtml library, its views and the game's UI frame come from the shared hooks
+// (acevo/ui/cohtml_hooks.h). Library slot 5 is ExecuteWork(type, mode, family), view slot 6
+// Advance(double ms) returning the frame id, and slot 61 AddInitialScript(const char*), which runs at
+// the start of every document the view loads afterwards. The game's UI frame end waits for the frame's
+// UI job while running other queued jobs, which is how UI layout ends up holding the render thread.
 //
 // The layout sampler suspends a thread only while it is inside Cohtml's layout work, reads its stack
 // with the unwind tables of the modules loaded at start, and resumes it before counting anything. It
@@ -26,24 +24,10 @@
 // The style hooks patch Cohtml's own code, one function entry and four calls, only when the module's
 // stamp, size and the patched bytes match what was read. See the style invalidation section.
 
-static const DWORD kTimeDateStamp = 0x6A9EC72A;
-static const DWORD kSizeOfImage = 0x06CDD000;
-
-static const uint32_t kRvaEvoUiVtable = 0x3173D58;
-static const int kPostFrameSlot = 7;
-static const int kEndFrameSlot = 8;
-static const uint32_t kRvaPostFrameThunk = 0x0126E58;
-static const uint32_t kRvaEndFrameThunk = 0x00EB461;
-
-static const int kCreateSystemSlot = 1;
-static const int kExecuteWorkSlot = 5;
-static const int kCreateViewSlot = 3;
-static const int kAdvanceSlot = 6;
-static const int kAddInitialScriptSlot = 61;
 static const uint64_t kLayoutWork = 1;
 
-// The page script, tested outside the game against a stand in for the bundle before it went in.
-// MSVC takes at most 16,380 characters in one string literal, so it is two literals joined.
+// The page script, tested outside the game against a stand in for the bundle before it went in. The
+// page fixes it counts belong to the responsive UI, whose own script publishes their counts.
 static const char kPageScript[] = R"js(
 (function () {
     'use strict';
@@ -51,13 +35,9 @@ static const char kPageScript[] = R"js(
     window.__acevoUiProbe = true;
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
-    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, page fixes on');
+    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' + (window.__acevoUiFixes ? 'on' : 'off'));
 
-    var frame = 0;
     var framesThisSecond = 0;
-    var nav = { calls: 0, scans: 0, skipped: 0 };
-    var setup = { inits: 0, ignored: 0 };
-    var controls = { refreshes: 0, held: 0 };
     var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };
     var events = { mousemove: 0, hover: 0, transitions: 0, animations: 0 };
     var top = {};
@@ -109,25 +89,37 @@ static const char kPageScript[] = R"js(
         return ' | slow frames ' + slow.frames + ', after ' + parts.join(' ') + ', after nothing ' + slow.alone;
     }
 
+    // The responsive UI's page fixes count what they did, this reads and resets those counts.
+    function takeFixCounts() {
+        var fixes = window.__acevoUiFixes;
+        var taken = { navigation: { calls: 0, scans: 0, skipped: 0 }, setup: { inits: 0, ignored: 0 }, controls: { refreshes: 0, held: 0 } };
+        if (!fixes) return taken;
+        for (var group in taken) {
+            for (var count in taken[group]) {
+                taken[group][count] = fixes[group][count];
+                fixes[group][count] = 0;
+            }
+        }
+        return taken;
+    }
+
     function report() {
+        var fix = takeFixCounts();
         var total = changes.classOps + changes.styleWrites + changes.attrWrites + changes.inserts + changes.removes + changes.htmlSets + changes.textSets;
-        if (total || nav.calls || setup.inits || controls.refreshes || slow.frames || events.hover) {
+        if (total || fix.navigation.calls || fix.setup.inits || fix.controls.refreshes || slow.frames || events.hover) {
             var ranked = Object.keys(top).sort(function (a, b) { return top[b] - top[a]; }).slice(0, 10);
             console.log('[ACEvoPerf] ui changes ' + page + ' | frames ' + framesThisSecond +
                 ' | class ' + changes.classOps + ' style ' + changes.styleWrites + ' attr ' + changes.attrWrites +
                 ' insert ' + changes.inserts + ' remove ' + changes.removes + ' html ' + changes.htmlSets + ' text ' + changes.textSets +
                 ' | mousemove ' + events.mousemove + ' hover ' + events.hover + ' transitions ' + events.transitions + ' animations ' + events.animations +
-                ' | navigation calls ' + nav.calls + ' scans ' + nav.scans + ' skipped ' + nav.skipped +
-                ' | setup init ' + setup.inits + ' ignored ' + setup.ignored +
-                ' | controls refreshes ' + controls.refreshes + ' held ' + controls.held +
+                ' | navigation calls ' + fix.navigation.calls + ' scans ' + fix.navigation.scans + ' skipped ' + fix.navigation.skipped +
+                ' | setup init ' + fix.setup.inits + ' ignored ' + fix.setup.ignored +
+                ' | controls refreshes ' + fix.controls.refreshes + ' held ' + fix.controls.held +
                 slowReport() +
                 ' | top ' + ranked.map(function (key) { return key + ' x' + top[key]; }).join('; '));
         }
         for (var a in changes) changes[a] = 0;
         for (var b in events) events[b] = 0;
-        nav.calls = nav.scans = nav.skipped = 0;
-        setup.inits = setup.ignored = 0;
-        controls.refreshes = controls.held = 0;
         for (var k = 0; k < kinds.length; k++) framesWith[k] = slowAfter[k] = 0;
         slow.frames = slow.alone = 0;
         top = {};
@@ -149,11 +141,8 @@ static const char kPageScript[] = R"js(
         lastFrameAt = now;
     }
 
-    // Registered before any page script, so it runs first in every frame and the frame number
-    // is current when the page's callbacks run. performance.now() is frozen within a Cohtml frame.
     var lastReport = Date.now();
     (function countFrames() {
-        frame++;
         framesThisSecond++;
         var now = Date.now();
         closeFrame(now);
@@ -300,190 +289,15 @@ static const char kPageScript[] = R"js(
     } catch (e) {
         console.error('[ACEvoPerf] ui probe change counters failed', e);
     }
-)js" R"js(
-    // BUG-025. Every navigable element's setupNavigation calls makeFocusable() with no section,
-    // which scans the whole page once per section. A group of the controls page makes a hundred
-    // such calls in one frame while its rows are still outside the document, so every scan finds
-    // the same elements. The first call of a frame scans and the rest fold into one scan on the
-    // next frame, which also catches elements added later in that frame.
-    function patchNavigation(navigation) {
-        if (!navigation || navigation.__acevoPatched || typeof navigation.makeFocusable !== 'function') return;
-        var stock = navigation.makeFocusable;
-        var scannedFrame = -1;
-        var trailing = false;
-
-        navigation.makeFocusable = function (sectionId) {
-            if (sectionId) return stock.apply(this, arguments);
-            nav.calls++;
-            if (scannedFrame !== frame) {
-                scannedFrame = frame;
-                nav.scans++;
-                return stock.apply(this, arguments);
-            }
-            nav.skipped++;
-            if (trailing) return;
-            trailing = true;
-            var self = this;
-            requestAnimationFrame(function () {
-                trailing = false;
-                try {
-                    nav.scans++;
-                    stock.call(self);
-                } catch (e) {
-                    console.error('[ACEvoPerf] ui probe trailing navigation scan failed', e);
-                }
-            });
-        };
-        navigation.__acevoPatched = true;
-    }
-
-    var navigationObject;
-    try {
-        Object.defineProperty(window, 'SpatialNavigation', {
-            configurable: true,
-            enumerable: true,
-            get: function () { return navigationObject; },
-            set: function (value) {
-                navigationObject = value;
-                try {
-                    patchNavigation(value);
-                } catch (e) {
-                    console.error('[ACEvoPerf] ui probe navigation patch failed', e);
-                }
-            }
-        });
-    } catch (e) {
-        console.error('[ACEvoPerf] ui probe could not watch SpatialNavigation', e);
-    }
-
-    // BUG-026. The vehicle setup page sends its Init request twice a few milliseconds apart and
-    // rebuilds everything for each answer. A second init on the same element while its own request
-    // is outstanding is ignored, the pending mark clears when the answer arrives or after three
-    // seconds. Calls on different elements are never ignored.
-    function patchVehicleSetup(proto) {
-        if (!proto || proto.__acevoPatched || typeof proto.init !== 'function') return;
-        var stockInit = proto.init;
-        proto.init = function () {
-            setup.inits++;
-            var now = Date.now();
-            if (this.__acevoInitPendingSince && now - this.__acevoInitPendingSince < 3000) {
-                setup.ignored++;
-                return;
-            }
-            var client = this.Client;
-            var stockRequest = client && client.request;
-            if (typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
-
-            var self = this;
-            self.__acevoInitPendingSince = now;
-            client.request = function (name, callback) {
-                client.request = stockRequest;
-                if (name !== 'Init' || typeof callback !== 'function') return stockRequest.apply(client, arguments);
-                return stockRequest.call(client, name, function () {
-                    self.__acevoInitPendingSince = 0;
-                    return callback.apply(this, arguments);
-                });
-            };
-            try {
-                return stockInit.apply(this, arguments);
-            } finally {
-                if (client.request !== stockRequest) client.request = stockRequest;
-            }
-        };
-        proto.__acevoPatched = true;
-    }
-
-    // The controls page. While one of its sliders is dragged the game answers every step with a full
-    // refresh (InputConfigurationResponseRefresh with is_soft_set) 24 to 34 times a second, and each
-    // one rebuilds the binding rows and resyncs every slider on the page. A soft refresh now runs at
-    // most once every 100 ms, the newest one waiting in between and running when the time is up, so
-    // the last step of a drag always lands. A refresh that is replaced still merges its settings the
-    // way the page's handler starts, so the page ends where it would have. Other refreshes run at once.
-    var kControlsRefreshMs = 100;
-
-    function patchControlsRefresh(proto) {
-        if (!proto || proto.__acevoPatched || typeof proto.onDevicesChanged !== 'function') return;
-        var stockRefresh = proto.onDevicesChanged;
-
-        function mergeReplaced(self, data) {
-            if (data && data.wrapper && self.incomingSettings) Object.assign(self.incomingSettings, data.wrapper);
-        }
-
-        function run(self, data) {
-            self.__acevoRefreshAt = Date.now();
-            controls.refreshes++;
-            return stockRefresh.call(self, data);
-        }
-
-        proto.onDevicesChanged = function (data) {
-            var self = this;
-            if (self.__acevoRefreshWaiting) {
-                mergeReplaced(self, self.__acevoRefreshWaiting);
-                self.__acevoRefreshWaiting = null;
-            }
-            var now = Date.now();
-            var since = now - (self.__acevoRefreshAt || 0);
-            if (!data || !data.is_soft_set || since >= kControlsRefreshMs) return run(self, data);
-
-            controls.held++;
-            self.__acevoRefreshWaiting = data;
-            if (self.__acevoRefreshTimer) return;
-            self.__acevoRefreshTimer = setTimeout(function () {
-                self.__acevoRefreshTimer = 0;
-                var waiting = self.__acevoRefreshWaiting;
-                self.__acevoRefreshWaiting = null;
-                if (!waiting) return;
-                try {
-                    run(self, waiting);
-                } catch (e) {
-                    console.error('[ACEvoPerf] ui probe controls refresh failed', e);
-                }
-            }, kControlsRefreshMs - since);
-        };
-        proto.__acevoPatched = true;
-    }
-
-    try {
-        var stockDefine = customElements.define;
-        customElements.define = function (name, elementClass, options) {
-            if (name === 'ks-page-vehiclesetup') {
-                try {
-                    patchVehicleSetup(elementClass && elementClass.prototype);
-                } catch (e) {
-                    console.error('[ACEvoPerf] ui probe vehicle setup patch failed', e);
-                }
-            }
-            if (name === 'ks-page-settings-controls') {
-                try {
-                    patchControlsRefresh(elementClass && elementClass.prototype);
-                } catch (e) {
-                    console.error('[ACEvoPerf] ui probe controls refresh patch failed', e);
-                }
-            }
-            return stockDefine.call(customElements, name, elementClass, options);
-        };
-    } catch (e) {
-        console.error('[ACEvoPerf] ui probe could not watch custom elements', e);
-    }
 })();
 )js";
 
-typedef void* (*PFN_LibraryInitialize)(const char* licenseKey, const void* params);
-typedef void* (*PFN_CreateSystem)(void* library, const void* settings);
-typedef void* (*PFN_CreateView)(void* system, const void* settings);
 typedef uint64_t (*PFN_ExecuteWork)(void* library, uint64_t type, uint64_t mode, uint64_t family);
 typedef uint64_t (*PFN_Advance)(void* view, double milliseconds, uint64_t arg3, uint64_t arg4);
 typedef void (*PFN_AddInitialScript)(void* view, const char* script);
-typedef void (*PFN_PostFrame)(void* evoUi, float uiClock, void* arg3, void* arg4);
-typedef void (*PFN_EndFrame)(void* evoUi, void* renderer, void* arg3, void* arg4);
 
-static PFN_LibraryInitialize g_origInitialize = nullptr;
-static PFN_CreateSystem g_origCreateSystem = nullptr;
-static PFN_CreateView g_origCreateView = nullptr;
 static PFN_ExecuteWork g_origExecuteWork = nullptr;
 static PFN_Advance g_origAdvance = nullptr;
-static PFN_PostFrame g_origPostFrame = nullptr;
-static PFN_EndFrame g_origEndFrame = nullptr;
 
 static LARGE_INTEGER g_qpf = {};
 static void* g_mainView = nullptr;
@@ -526,7 +340,7 @@ static SRWLOCK g_statsLock = SRWLOCK_INIT;
 static SecondStats g_stats = {};
 static double g_lastPostClock = 0, g_lastAdvanceClock = 0;
 static bool g_postClockSeen = false, g_advanceClockSeen = false;
-static int g_viewsCreated = 0;
+static thread_local int64_t t_endFrameStarted = 0;
 
 static int64_t Qpc()
 {
@@ -621,6 +435,18 @@ static void AddUnwindModule(const wchar_t* name, const char* label)
     entry.end = entry.base + nt->OptionalHeader.SizeOfImage;
     entry.functions = (const RUNTIME_FUNCTION*)((BYTE*)module + directory.VirtualAddress);
     entry.count = directory.Size / sizeof(RUNTIME_FUNCTION);
+    entry.label = label;
+}
+
+// Code the mod placed into the game, with its own function table.
+static void AddUnwindRange(const BYTE* base, size_t size, const RUNTIME_FUNCTION* functions, DWORD count, const char* label)
+{
+    if (g_unwindModuleCount >= kMaxUnwindModules) return;
+    UnwindModule& entry = g_unwindModules[g_unwindModuleCount++];
+    entry.base = (uintptr_t)base;
+    entry.end = entry.base + size;
+    entry.functions = functions;
+    entry.count = count;
     entry.label = label;
 }
 
@@ -834,7 +660,7 @@ static const CallSite kRestyleAllCall = { 0x35C697, kRvaRestyleAll, "the restyle
 static const CallSite kInvalidateCall = { 0x37BD11, 0x37B690, "the invalidation of a changed feature" };
 
 namespace changed_node {
-    static const ptrdiff_t kKind = 0x20;        // bit 1 set, AddChangedNode leaves the node out
+    static const ptrdiff_t kKind = 0x20;        // bit 0 set for an element, bit 1 set AddChangedNode leaves the node out
     static const ptrdiff_t kTree = 0x24;        // bit 0 set while the node is in the document
     static const ptrdiff_t kType = 0x28;
     static const ptrdiff_t kId = 0x1E8;
@@ -936,13 +762,21 @@ static int AppendAtom(char* out, int length, int size, char lead, const char* at
     return length;
 }
 
-// Only nodes the game is using reach this, so a read that faults means the offsets are wrong for
-// this node kind. The description says so instead of taking the game down.
+// The changed set also holds nodes that are not elements and elements already taken out of the page,
+// whose id and class fields are not there or already freed. The game's crash logger stops the thread
+// that faults for 120 to 210 ms before any handler runs, measured on 2026-09-15, so only a connected
+// element has its names read, and the handler stays for a node that still breaks that.
 static void DescribeNode(const BYTE* node, char* out, int size)
 {
     __try {
         int length = _snprintf_s(out, size, _TRUNCATE, "t%02X", node[changed_node::kType]);
         if (length < 0) return;
+        bool element = *(const uint32_t*)(node + changed_node::kKind) & 1;
+        bool connected = *(const uint32_t*)(node + changed_node::kTree) & 1;
+        if (!element || !connected) {
+            _snprintf_s(out + length, size - length, _TRUNCATE, element ? " gone" : " node");
+            return;
+        }
         length = AppendAtom(out, length, size, '#', *(const char* const*)(node + changed_node::kId));
         const char* const* classes = *(const char* const* const*)(node + changed_node::kClasses);
         uint32_t classCount = *(const uint32_t*)(node + changed_node::kClassCount);
@@ -1239,17 +1073,8 @@ static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, ui
     return result;
 }
 
-static void* Hook_CreateView(void* system, const void* settings)
+static void OnView(void* view, int number, unsigned width, unsigned height)
 {
-    unsigned width = *(const unsigned*)((const BYTE*)settings + 0x10);
-    unsigned height = *(const unsigned*)((const BYTE*)settings + 0x14);
-    void* view = g_origCreateView(system, settings);
-    if (!view) {
-        Log("[ui] Cohtml view %ux%u was not created", width, height);
-        return view;
-    }
-
-    int number = ++g_viewsCreated;
     AcquireSRWLockExclusive(&g_statsLock);
     // Car displays are created again at every session load, so a full table gives up its oldest display.
     int slot = -1;
@@ -1270,89 +1095,41 @@ static void* Hook_CreateView(void* system, const void* settings)
     ReleaseSRWLockExclusive(&g_statsLock);
 
     void** vtable = *(void***)view;
-    HookVtableSlot(vtable, kAdvanceSlot, (void*)&Hook_Advance, (void**)&g_origAdvance, "Cohtml View::Advance");
-    Log("[ui] Cohtml view #%d %ux%u created", number, width, height);
+    HookVtableSlot(vtable, cohtml_slot::kViewAdvance, (void*)&Hook_Advance, (void**)&g_origAdvance, "Cohtml View::Advance");
 
     // The first view is the menu and HUD view, the car displays come after it and keep their scripts.
     if (number == 1) {
-        auto addInitialScript = (PFN_AddInitialScript)vtable[kAddInitialScriptSlot];
+        auto addInitialScript = (PFN_AddInitialScript)vtable[cohtml_slot::kViewAddInitialScript];
         addInitialScript(view, kPageScript);
-        Log("[ui] page script added to view #1, it counts page changes and applies the page fixes");
+        Log("[ui] page script added to view #1, it counts page changes and what the page fixes do");
     }
-    return view;
 }
 
-static void* Hook_CreateSystem(void* library, const void* settings)
+static void OnLibrary(void* library)
 {
-    void* system = g_origCreateSystem(library, settings);
-    if (!system) {
-        Log("[ui] Cohtml system was not created");
-        return system;
-    }
-    HookVtableSlot(*(void***)system, kCreateViewSlot, (void*)&Hook_CreateView, (void**)&g_origCreateView, "Cohtml System::CreateView");
-    return system;
-}
-
-static void* Hook_LibraryInitialize(const char* licenseKey, const void* params)
-{
-    void* library = g_origInitialize(licenseKey, params);
-    if (!library) {
-        Log("[ui] Cohtml library initialisation failed");
-        return library;
-    }
-    void** vtable = *(void***)library;
-    HookVtableSlot(vtable, kCreateSystemSlot, (void*)&Hook_CreateSystem, (void**)&g_origCreateSystem, "Cohtml Library::CreateSystem");
-    HookVtableSlot(vtable, kExecuteWorkSlot, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
-    return library;
-}
-
-static void InstallCohtmlHooks()
-{
-    HMODULE cohtml = GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
-    void* initialize = cohtml ? (void*)GetProcAddress(cohtml, "?Initialize@Library@cohtml@@SAPEAV12@PEBDAEBULibraryParams@2@@Z") : nullptr;
-    if (!initialize) {
-        Log("[ui] Cohtml Library::Initialize not found, the Cohtml side of the probe is off");
-        return;
-    }
-    g_origInitialize = (PFN_LibraryInitialize)initialize;
-    int patched = PatchIatByAddress(GetModuleHandleW(nullptr), initialize, (void*)&Hook_LibraryInitialize);
-    Log("[ui] Cohtml Library::Initialize, %d import slot(s) of the exe patched", patched);
-
-    AddUnwindModule(L"cohtml.WindowsDesktop.dll", "cohtml");
-    AddUnwindModule(L"RenoirCore.WindowsDesktop.dll", "renoir");
-    AddUnwindModule(L"v8.dll", "v8");
-    AddUnwindModule(L"ucrtbase.dll", "ucrtbase");
-    AddUnwindModule(L"ntdll.dll", "ntdll");
-    AddUnwindModule(L"kernelbase.dll", "kernelbase");
-    AddUnwindModule(nullptr, "exe");
-    InstallStyleHooks();
-    HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
-    if (sampler) {
-        SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
-        CloseHandle(sampler);
-    }
-    Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
+    HookVtableSlot(*(void***)library, cohtml_slot::kLibraryExecuteWork, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
 }
 
 // ---------------------------------------------------------------------------
 // The game's UI frame
 // ---------------------------------------------------------------------------
 
-static void Hook_PostFrame(void* evoUi, float uiClock, void* arg3, void* arg4)
+static void OnFramePost(float uiClock)
 {
     NoteThread(g_postFrameThread, "the UI frame post");
     AcquireSRWLockExclusive(&g_statsLock);
     NoteClock(g_stats.postClock, g_lastPostClock, g_postClockSeen, uiClock);
     ReleaseSRWLockExclusive(&g_statsLock);
-    g_origPostFrame(evoUi, uiClock, arg3, arg4);
 }
 
-static void Hook_EndFrame(void* evoUi, void* renderer, void* arg3, void* arg4)
+static void OnFrameEnd(bool after)
 {
-    NoteThread(g_endFrameThread, "the UI frame end");
-    int64_t started = Qpc();
-    g_origEndFrame(evoUi, renderer, arg3, arg4);
-    uint64_t us = ElapsedUs(started);
+    if (!after) {
+        NoteThread(g_endFrameThread, "the UI frame end");
+        t_endFrameStarted = Qpc();
+        return;
+    }
+    uint64_t us = ElapsedUs(t_endFrameStarted);
     g_endFrameUsSincePresent.fetch_add(us, std::memory_order_relaxed);
 
     AcquireSRWLockExclusive(&g_statsLock);
@@ -1360,23 +1137,6 @@ static void Hook_EndFrame(void* evoUi, void* renderer, void* arg3, void* arg4)
     g_stats.endFrameUs += us;
     g_stats.endFrameMaxUs = std::max(g_stats.endFrameMaxUs, us);
     ReleaseSRWLockExclusive(&g_statsLock);
-}
-
-static void InstallUiFrameHooks()
-{
-    BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
-    auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kTimeDateStamp || nt->OptionalHeader.SizeOfImage != kSizeOfImage) {
-        Log("[ui] this is not the game build the UI frame hooks were written for, only the Cohtml side of the probe runs");
-        return;
-    }
-    void** vtable = (void**)(base + kRvaEvoUiVtable);
-    if ((BYTE*)vtable[kPostFrameSlot] != base + kRvaPostFrameThunk || (BYTE*)vtable[kEndFrameSlot] != base + kRvaEndFrameThunk) {
-        Log("[ui] the game UI's vtable is not where it was read, frame post and end are not timed");
-        return;
-    }
-    HookVtableSlot(vtable, kPostFrameSlot, (void*)&Hook_PostFrame, (void**)&g_origPostFrame, "the game UI frame post");
-    HookVtableSlot(vtable, kEndFrameSlot, (void*)&Hook_EndFrame, (void**)&g_origEndFrame, "the game UI frame end");
 }
 
 // ---------------------------------------------------------------------------
@@ -1387,8 +1147,30 @@ void InstallUiProbe()
 {
     if (!g_cfg.uiProbe) return;
     QueryPerformanceFrequency(&g_qpf);
-    InstallCohtmlHooks();
-    InstallUiFrameHooks();
+    AddCohtmlLibraryListener(&OnLibrary);
+    AddCohtmlViewListener(&OnView);
+    AddUiFramePostListener(&OnFramePost);
+    AddUiFrameEndListener(&OnFrameEnd);
+
+    AddUnwindModule(L"cohtml.WindowsDesktop.dll", "cohtml");
+    AddUnwindModule(L"RenoirCore.WindowsDesktop.dll", "renoir");
+    AddUnwindModule(L"v8.dll", "v8");
+    AddUnwindModule(L"ucrtbase.dll", "ucrtbase");
+    AddUnwindModule(L"ntdll.dll", "ntdll");
+    AddUnwindModule(L"kernelbase.dll", "kernelbase");
+    AddUnwindModule(nullptr, "exe");
+    const BYTE* stubs = nullptr;
+    size_t stubsSize = 0;
+    const RUNTIME_FUNCTION* stubFunctions = nullptr;
+    DWORD stubCount = 0;
+    if (StyleMatchFixUnwind(&stubs, &stubsSize, &stubFunctions, &stubCount)) AddUnwindRange(stubs, stubsSize, stubFunctions, stubCount, "styles");
+    InstallStyleHooks();
+    HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
+    if (sampler) {
+        SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
+        CloseHandle(sampler);
+    }
+    Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
 }
 
 uint32_t UiProbeTakeEndFrameUs()
@@ -1506,6 +1288,8 @@ void UiProbeTick()
         length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | %s work %u, %.1f ms, on the render thread %.1f ms, max %.1f ms",
             kWorkNames[t], second.workCalls[t], second.workUs[t] / 1000.0, second.workRenderUs[t] / 1000.0, second.workMaxUs[t] / 1000.0);
     }
+    uint32_t moved = ResponsiveUiTakeMovedWork();
+    if (moved && length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | resource work moved off the render thread %u", moved);
     length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
     AppendClock(line, length, sizeof line, "view #1 clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);

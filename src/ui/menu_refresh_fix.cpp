@@ -1,6 +1,5 @@
 #include "acevo/ui/menu_refresh_fix.h"
 #include "acevo/core/code_patch.h"
-#include "acevo/core/config.h"
 #include "acevo/core/log.h"
 
 // Read from AssettoCorsaEVO.exe 0.9.1 and cohtml.WindowsDesktop.dll 1.61.0.3, measured with the UI
@@ -157,17 +156,6 @@ static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
     return true;
 }
 
-static bool WriteCode(BYTE* at, const BYTE* code, size_t length)
-{
-    DWORD old = 0;
-    if (!VirtualProtect(at, length, PAGE_EXECUTE_READWRITE, &old)) return false;
-    memcpy(at, code, length);
-    DWORD ignored = 0;
-    VirtualProtect(at, length, old, &ignored);
-    FlushInstructionCache(GetCurrentProcess(), at, length);
-    return true;
-}
-
 static bool Matches(BYTE* base, const Region& region)
 {
     if (Fnv1a64(base + region.rva, region.length) == region.fnv1a64) return true;
@@ -177,8 +165,6 @@ static bool Matches(BYTE* base, const Region& region)
 
 void InstallMenuRefreshFix()
 {
-    if (!g_cfg.uiMenuRefreshFix) return;
-
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
     BYTE* cohtml = (BYTE*)GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
     auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
