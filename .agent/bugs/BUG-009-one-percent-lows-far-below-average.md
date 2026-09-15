@@ -417,6 +417,13 @@ effect."
   against 74.8 for the game's rotation at 99.4 fps in the run before, the same gain as the A/B, smaller than
   the 15 to 20 fps the average loses as the card heats.
 - **The 60 Hz clock was strongest in the first half minute** and faded over two minutes.
+- **The overlay's dips are not in the game's presents.** The owner saw the NVIDIA overlay's 1 percent low drop to
+  about 30 fps at times with 100 fps showing, "Or the nvidia overlay is wrong". The mod times every `Present` and
+  `Present1` call on entry (`OnPresent` in `src/render/frame_stats.cpp`). Of 40,323 driving frames none was over
+  25 ms, the longest 21.7 ms, and a 1 percent low over any rolling second never went under 46 fps (median 81.7).
+  So a 30 fps reading is either frames reaching the screen late or dropped after `Present`, on the hand off to
+  the AMD display, or the overlay counting something else. Present times cannot tell which. PresentMon records
+  both the present and the display change per frame.
 
 The owner's 5070 desktop is gone, so no run there. The next step is naming the rest of the width, the
 60.000 Hz clock and the renderer's spread, with the GPU sampler running and the lean trace of
