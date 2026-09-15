@@ -71,16 +71,40 @@ element with a subtree that size.
 The same run had two stretches of 1.2 and 1.5 s of mostly 80 to 90 ms frames, at 20:13:01 on lap 6 and
 20:21:07 on lap 10. Most of those frames wait on no UI work, and the UI calls caught inside them take 73 to
 84 ms each, `Advance` on the HUD view in both, on a car display in the first, and a 71.6 ms restyle of one
-node in the second. None of the five drives of 2026-09-15 without the probe shows one, so the probe itself
-is the first suspect. The next run checks it.
+node in the second. None of the five drives of 2026-09-15 without the probe shows one. The owner sees them
+now and then without the probe too and asked to leave them alone, so they are not part of this bug.
+
+`logs/probe-hud-b-20260915`, eleven laps with a drive through the pit lane, the probe's top level watcher
+built in (`a4a3df3`). One change of the HUD's top level while driving, on lap 4:
+
+- 21:20:14.894, `added div#labelWrongWay`, `wrong way true`, a 12.3 ms frame with 4.1 ms of UI
+- 21:20:16.962, `removed div#labelWrongWay`, `wrong way false`, a 34.4 ms frame with 25.4 ms of UI end frame
+  wait, one child list change on the top level `.component-body` marking 878 nodes and a 23.5 ms restyle of
+  879
+
+The removal's call stack runs through Cohtml's bindings with no script (`cohtml+0x38FCBA` from `0x11E82E`,
+`0x11E73E`, `0x119314`), so it is the label's own `data-bind-if="{{ModelCurrentCar}}.is_wrong_way"`, which
+takes it out of the top level. Its `data-bind-class-toggle` on the same value already hides it, the
+stylesheet shows it only with `.visible`. Adding the label did not invalidate the top level, removing it did.
+The owner did not go the wrong way six times in the first run, so other top level parts, or the same label
+flickering in the pit lane, made the others, which the fix below covers without naming them.
+
+Cohtml's side, read from the code: every removal of a child invalidates the parent with the child list set,
+and the feature set's constructor (`0x3E8C10`) builds that set to match every node. Any conditional part of a
+page restyles everything under its parent when it goes away, and page builds that move nodes pay it too, 18
+child list changes of 200 marks or more in the second the HUD loads, the first marking 598, all through the
+same removal call.
 
 ## Fix
 
-Absent. The UI probe now logs each change of the HUD's top level with the model values its conditions read
-(`[ACEvoPerf] ui hud top level` in the game log) and the call stack of every child list change that marks
-200 nodes or more (`[ui] big child list change`), and skips its change counters on the HUD. That names the
-element and the binding. The fix then keeps that element's change from reaching the top level, or narrows
-what a child list change marks.
+The responsive UI's child removal fix (`src/ui/child_removal_fix.cpp`, see
+[responsive-ui](../docs/systems/responsive-ui.md)). A removal marks only the parent's children that could
+match a compound with `:first-child`, `:last-child`, `:only-child` or `:nth-child` or one right of `+` or
+`~`, read from the selectors Cohtml adds to the scope's feature set. Of the HUD's top level only the plain
+divs can match one (the game has `div:first-child` and `div:last-child` rules), so the wrong way label's
+removal should restyle a handful of nodes instead of 879. A
+test built from the source against fake Cohtml memory passes, and fails with the combinator index shifted or
+the custom tag compare made case sensitive.
 
 ## Verification
 
