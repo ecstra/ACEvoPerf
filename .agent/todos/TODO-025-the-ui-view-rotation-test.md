@@ -4,11 +4,11 @@ kind: todo
 description: one launch of a developer build that takes the UI view schedule through three schedules in 10 second turns at the Red Bull Ring GP, the game's rotation, the main view every frame and every view every frame, to show whether the UI rotation sets BUG-009's width now that the integrated GPU is ruled out
 updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, responsive-ui, telemetry, TODO-026-one-lean-etw-trace-of-the-slow-frames]
-status: open
+status: done
 by: agent
 area: render
 born: 2026-09-14
-done:
+done: 2026-09-15
 ---
 
 ## What
@@ -53,3 +53,8 @@ the mean frame time up by no more than 2 percent, is a fix the owner drives next
 rules out the UI rotation as the width on this machine, and
 [TODO-026](TODO-026-one-lean-etw-trace-of-the-slow-frames.md) runs next. The mean frame time of the main
 view every frame against every view every frame says which view is heavy.
+
+Done on 2026-09-15 with build `ca09393`, session `logs/hud-refresh-20260915`. The main view every frame
+narrowed p99 over the local median by 0.064 at 165 Hz (1.241 to 1.177) and by 0.056 and 0.072 in the two
+60 Hz stints, with the mean frame time up 0.02 ms, and the 3 frame ripple went from 1.00 to 0.04 ms. Every
+view every frame costs 0.1 ms more for the displays. The numbers are in BUG-009, and the fix build is next.

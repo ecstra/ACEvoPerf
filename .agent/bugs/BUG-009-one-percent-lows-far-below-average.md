@@ -1,7 +1,7 @@
 ---
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
-description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, what is left is spread out renderer code and a ripple from the game updating one UI view per frame, plus frames held for a display refresh the frame rate is above, with the UI schedule and a 60 Hz stint tested in one launch
+description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, the game updating one UI view per frame in turn is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, this laptop holds no frames for the refresh even at 60 Hz, the rest is spread out renderer code
 updated: 2026-09-15
 links: [one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry, ui-lag-deepdive-2026-09-14]
 status: open
@@ -353,6 +353,43 @@ display to 240hz and now it was 70-90 1%."
 
 Setting this laptop's monitor to 60 Hz puts it in the desktop's condition. [TODO-028](../todos/TODO-028-the-refresh-hold-test.md)
 runs that in the same launch as TODO-025, windowed and then fullscreen.
+
+## The UI schedule and 60 Hz run, 2026-09-15
+
+`logs/hud-refresh-20260915`, build `ca09393` with `hud_schedule_test=1`, Ferrari 296 GT3 at the Red Bull Ring
+GP. The HUD changed schedule every 10 seconds in shuffled sets of three. Three stints, 165 Hz windowed for
+7.5 minutes, then the monitor at 60 Hz (the game log's `WM_DISPLAYCHANGE` at 17:36:56) windowed for 4.7
+minutes, then fullscreen at 60 Hz (`Window updated: 1920x1080, Fullscreen: Yes`) for 3.3 minutes. The first
+second of every turn, anything off `hud.html` and the 20 seconds after each return to the track are dropped.
+"Local" is frame time over its 101 frame median.
+
+The 165 Hz stint, 43,627 frames.
+
+| schedule | average | p99 | slowest 1% mean | p99 over median | p99 local | 3 frame ripple | frames over 1.2 local |
+|---|---|---|---|---|---|---|---|
+| the game's rotation | 99.4 fps | 13.37 ms, 74.8 fps | 71.4 fps | 1.324 | 1.241 | 1.00 ms | 334 |
+| the HUD every frame, the displays taking turns | 99.2 fps | 12.23 ms, 81.8 fps | 79.1 fps | 1.216 | 1.177 | 0.04 ms | 99 |
+| every view every frame | 98.3 fps | 12.93 ms, 77.3 fps | 73.9 fps | 1.284 | 1.181 | 0.05 ms | 91 |
+
+- **The rotation is a real part of the width.** The HUD every frame narrows p99 over the local median by 0.064
+  and lifts the 1 percent low by 7 fps at the same average, 10.06 against 10.08 ms a frame. The 60 Hz stints
+  agree, 1.208 to 1.152 windowed and 1.216 to 1.144 fullscreen. The frame to next frame swing drops from 1.33
+  to 0.76 ms. Every view every frame removes the ripple as well but costs 0.1 ms a frame for the displays and
+  keeps a wider p99. At the Red Bull Ring GP the rotation is about 30 percent of the gap between the average
+  and the 1 percent low, 24.6 fps down to 17.4, and the owner's HUD lead holds.
+- **The HUD's own work is not the cost.** Updating it three times as often adds 0.02 ms a frame, so the ripple
+  came from when the rotation made work land, not from how much there was.
+- **The 60 Hz clock was in this launch** and weakens with a steady schedule, Rayleigh Z at 60.000 Hz of the
+  long frames 15.0 with the rotation, 10.0 with the HUD every frame and 1.9 with every view, against 0.7 to 3.2
+  at 57.3 Hz.
+- **This laptop does not hold frames for the refresh, even above it.** At 60 Hz, windowed and fullscreen, no
+  frame lands within 0.4 ms of a 16.67 ms step, the histograms end by 15 to 16 ms and the averages stay at
+  94 to 95 fps. The owner saw the same, "Wierd that the 60hz bug did not happen in my laptop". This laptop
+  presents through its AMD adapter, which evidently does not tie the frame latency wait to that display's
+  refresh (inference), so the desktop's 60 fps lows belong to a display wired to the rendering GPU and cannot
+  be reproduced here.
+
+The fix to drive is the HUD every frame with the displays taking turns, on by default in the responsive UI.
 
 ## Verification
 

@@ -4,11 +4,11 @@ kind: todo
 description: two stints at 60 Hz in the same launch as TODO-025, windowed and then fullscreen, to show whether this laptop holds frames for a display refresh the frame rate is above, as the owner's desktop did, and whether fullscreen lets them out
 updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, telemetry]
-status: open
+status: done
 by: agent
 area: render
 born: 2026-09-15
-done:
+done: 2026-09-15
 ---
 
 ## What
@@ -38,3 +38,8 @@ of frames at 16.7 ms steps. Frames bunched at 16.7 ms in the windowed stint, wit
 while the average stays over 60 fps, show the hold on this machine, and the fullscreen stint says whether
 fullscreen releases it. No bunching in the windowed stint means this laptop does not hold frames and the
 desktop's reading belongs to its own presentation path.
+
+Done on 2026-09-15 in `logs/hud-refresh-20260915`. No bunching. At 60 Hz windowed and fullscreen no frame
+landed within 0.4 ms of a 16.67 ms step, p99 was 13.13 and 13.35 ms and the averages 94.9 and 94.3 fps, so
+this laptop does not hold frames for the refresh and the desktop's reading belongs to its own presentation
+path.
