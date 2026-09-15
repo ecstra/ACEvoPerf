@@ -26,6 +26,10 @@ The second run from BUG-009's deep dive
 - **What it has to answer now.** PresentMon on 2026-09-15 showed BUG-009's slowest 1 percent are heavy frames,
   about 6 ms more work before `Present` and 2.7 ms more GPU work, so the first question is what the render
   thread and the threads it waits on run in those frames against ordinary ones.
+- **The drive, 2026-09-15.** `logs/trace-drive-20260915`, 5 min 25 s, 5.6 GB, no lost events, recorded from the pit
+  menu with no untraced half, so the cost check was not run. It caught a good launch. BUG-009 records the game
+  thread's waits with their sites and wakers, ready time, the Physics core overlap and the game code excess. Not
+  answered yet, the 60.000 Hz source and a launch with the bad heavy frames.
 - **A pre check with no game.** One minute from an elevated PowerShell, start the profile, wait 10 s,
   stop it, and decode it, which proves kernel rows, stack association, thread names, lost events and the
   data rate. Run on 2026-09-15 with the game in its menu (`logs/trace-precheck-20260915`): 17 s, 388 MB,

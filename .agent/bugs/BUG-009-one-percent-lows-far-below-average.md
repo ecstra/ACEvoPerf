@@ -475,6 +475,38 @@ overlay on, no PresentMon. In the owner's words, "this time it didnt even drop t
   file for about a minute, so the trace is decoded in 30 s pieces, four at a time, keeping only the game's
   samples, the game thread's stacks and context switches, the Physics thread's switches and the presents.
 
+What the trace shows, over 31,378 driving frames cut at the game thread's DXGI `Present` starts (median 9.30 ms,
+p99 11.88 ms), the 314 heavy frames at or over p99 (12.55 ms) against the 12,372 ordinary frames within 0.5 ms of
+the median.
+
+| per frame | heavy | ordinary | extra |
+|---|---|---|---|
+| game thread running | 8.38 ms | 6.76 ms | +1.62 |
+| waiting in the present path (`0x1E3AAD0`), woken by a DPC | 3.24 ms | 2.50 ms | +0.74 |
+| waiting on the frame latency object in `BeginFrame` (`0x1CE3A70`), woken by `dwm.exe` | 0.69 ms | 0.00 ms | +0.69 |
+| sleeping in the present path, the mod's Reflex sleep | 0.19 ms | 0.01 ms | +0.18 |
+| on the Physics thread's core | 0.32 ms | 0.14 ms | +0.18 |
+
+- **No single culprit in this launch.** The extra running time spreads over the main loop's frame step
+  (`0x896623` under `MainLoop` `0x74C6A0`, +0.61), the jobs the game thread runs itself under `0x279F830`
+  (+0.59), the texture streamer under the mod's hooks (+0.41 across both), the NVIDIA driver (+0.18), the kernel and
+  `ntdll` (+0.32), Cohtml (+0.15) and the job scheduler's spin lock `0x279FA90` (+0.10). The mod's own code is not
+  among the game thread's top 20 modules for the whole trace.
+- **Waits are woken on time.** After the GPU's DPC or `dwm.exe` readies the game thread it runs within 0.017 ms on
+  average, so there is no scheduling delay and no processor shortage, as the deep dive found.
+- **A full frame queue waits on the compositor.** In ordinary frames the frame latency object is already signalled
+  at `BeginFrame`. In 71 of the heavy frames it was not, and the thread that released it was `dwm.exe`, so after a
+  frame's GPU work runs long the next frame waits for the compositor to take the one before.
+- **Heavy frames bunch in one stretch of the lap.** 53 of the 1,039 frames between 160 and 170 s and 36 of the 1,000
+  between 270 and 280 s were heavy, both about 55 to 70 s into a lap, against 1 to 19 in other 10 s windows. Every
+  frame there is slower (99.9 to 103.8 fps against 99 to 117 elsewhere) with no more streaming (216 and 337 tile
+  requests against 142 to 329), so it is the scenery of that stretch. Its slowest 1 percent still held 73.6 to
+  75.9 fps.
+- **The bad launch is not in this trace.** The PresentMon drive's heavy frames came everywhere with twice the CPU
+  work. Two things differ: that launch, and the PresentMon capture itself, which was started with
+  `--stop_existing_session` while the NVIDIA overlay runs a `PresentMon_x64.exe` service of its own. Which one it
+  was is not known.
+
 ## Verification
 
 Absent.
