@@ -391,6 +391,37 @@ The 165 Hz stint, 43,627 frames.
 
 The fix to drive is the HUD every frame with the displays taking turns, on by default in the responsive UI.
 
+## The fix drive, 2026-09-15
+
+`logs/hud-fix-drive-20260915`, build `2483f0b` with the HUD every frame by default, Ferrari 296 GT3 at the
+Red Bull Ring GP, an out lap and laps of 1:41.1, 1:38.2 and 1:37.7, no pause between 17:55:37 and 18:02:47.
+The owner reads the NVIDIA app's overlay (Alt+R). In the owner's words, "The 1% was ok at the start and then
+tanked for some reason and became spotty. I could maybe tell it was smoother but it might be a placebo
+effect."
+
+| from the HUD | average | p99 | slowest 1% mean | p99 local | 3 frame ripple | 60.000 Hz Z |
+|---|---|---|---|---|---|---|
+| 20 to 50 s | 113.2 fps | 88.0 fps | 83.0 fps | 1.313 | 0.01 ms | 30.5 |
+| 50 to 230 s, 30 s blocks | 95.1 to 103.2 fps | 75.1 to 84.8 fps | 69.7 to 80.9 fps | 1.163 to 1.225 | 0.01 to 0.04 ms | 3.1 to 10.9 |
+| 230 to 430 s, 30 s blocks | 91.8 to 100.6 fps | 73.1 to 83.7 fps | 69.8 to 79.9 fps | 1.162 to 1.193 | 0.01 to 0.03 ms | 0.0 to 4.2 |
+
+- **The fix held for the whole drive.** The 3 frame ripple stayed at 0.01 to 0.04 ms against 1.00 ms with the
+  game's rotation in the run before, and the width against the local median stayed where the HUD every frame
+  had it in that run.
+- **The 1 percent low fell with the average.** The average went from 113 fps in the first half minute to 92 to
+  103 fps from the second minute on, and p99 went with it. The width did not grow. That fits the GPU heating
+  up two minutes into a lap, as on every run of this laptop ([thermal-throttle-dominates-lap-fps](../memory/thermal-throttle-dominates-lap-fps.md)),
+  though no GPU sampler ran to show it. Block to block the 1 percent low moves 73 to 85 fps with the part of
+  the lap, which a short window overlay shows as spotty.
+- **What the fix buys against that.** At an average near 99 fps the drive's blocks read about 81 fps at p99,
+  against 74.8 for the game's rotation at 99.4 fps in the run before, the same gain as the A/B, smaller than
+  the 15 to 20 fps the average loses as the card heats.
+- **The 60 Hz clock was strongest in the first half minute** and faded over two minutes.
+
+The owner's 5070 desktop is gone, so no run there. The next step is naming the rest of the width, the
+60.000 Hz clock and the renderer's spread, with the GPU sampler running and the lean trace of
+[TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md).
+
 ## Verification
 
 Absent.
