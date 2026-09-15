@@ -161,6 +161,11 @@ static bool LooksAtPosition(const BYTE* compound)
     return false;
 }
 
+static bool IsKeptApart(const char* name)
+{
+    return _stricmp(name, "class") == 0 || _stricmp(name, "id") == 0 || _stricmp(name, "style") == 0;
+}
+
 static void AddUnique(std::vector<const void*>& atoms, const void* atom)
 {
     if (std::find(atoms.begin(), atoms.end(), atom) == atoms.end()) atoms.push_back(atom);
@@ -194,8 +199,9 @@ static void NoteCompound(FeatureSet& set, const BYTE* compound)
             tellsApart = true;
             break;
         case kAttribute:
-            // The class attribute is read from the class list, not the attribute entries, so it tells nothing.
-            if (atom == *g_classAttributeAtom) continue;
+            // The matcher reads the class attribute from the class list, not the attribute entries, and the id
+            // and style may live outside them too, so those tell nothing. Atoms are the names' characters.
+            if (!atom || atom == *g_classAttributeAtom || IsKeptApart((const char*)atom)) continue;
             AddUnique(needs.attributes, atom);
             tellsApart = true;
             break;
