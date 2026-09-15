@@ -507,6 +507,16 @@ the median.
   `--stop_existing_session` while the NVIDIA overlay runs a `PresentMon_x64.exe` service of its own. Which one it
   was is not known.
 
+## The instant drops, 2026-09-15
+
+`logs/trace-long-20260915`, the lean trace over an out lap and the start of lap one. The owner saw the overlay drop
+"twice but only for an instant". One was a single 35.0 ms frame, a 28.5 fps 1 percent low over its second, and
+the trace puts it on the HUD: the UI worker restyled a large part of the HUD page for about 24 ms and the game
+thread waited for it at EvoUi's end of frame. The details are
+[BUG-029](BUG-029-the-hud-restyles-most-of-its-page-while-driving.md). The other was a 16.5 ms frame with HUD script
+on the UI worker. So the owner's "30 at times" readings are single HUD frames, and the UI probe names what sets
+them off.
+
 ## Verification
 
 Absent.
