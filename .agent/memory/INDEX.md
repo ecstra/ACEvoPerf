@@ -27,3 +27,4 @@ feedback
 
 - [feedback-ship-as-installable-mod](feedback-ship-as-installable-mod.md), judge every change against a stranger installing from a zip
 - [feedback-review-only-when-asked](feedback-review-only-when-asked.md), a code review runs only when the owner names one, and findings are fixed without the hunter and verifier
+- [feedback-public-docs-are-for-players](feedback-public-docs-are-for-players.md), the owner called the readme and the changelog AI slop on 2026-09-15, the public files are written for players and checked against public-docs

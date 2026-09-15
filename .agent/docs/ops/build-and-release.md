@@ -2,8 +2,8 @@
 name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
-updated: 2026-09-12
-links: [TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
+updated: 2026-09-15
+links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
 ---
 
 # Build and release
@@ -32,7 +32,10 @@ Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `
 and `acevo_dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
 `third_party/directstorage/bin/x64/`, the core renamed on the way into `dist/`), `acevo_perf.ini`
 and `README.txt`. The user copies them into the game folder and lets Windows replace
-`dstorage.dll`. Uninstall is the reverse, described in `dist/README.txt`.
+`dstorage.dll`. Uninstalling is deleting the mod's files and letting Steam verify the game files,
+which brings the game's own `dstorage.dll` back, as the readme and `dist/README.txt` say. Renaming
+`dstorage_orig.dll` back, the uninstall up to 0.3.1, no longer gives the stock game, because that
+file is Microsoft's 1.3.0 forwarder since DEC-015 and it runs on the game's 1.2.3 core.
 
 `dstorage_orig.dll` is only a forwarder, the runtime is the core beside it, and the game claims the
 name `dstoragecore.dll` at start-up, so the mod carries its core under a name nothing else asks for
@@ -52,9 +55,10 @@ from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/c
 and the release folder stay out of git (`.gitignore`), the two committed runtime DLLs are the
 exception because the payload needs them and their license allows it.
 
-Cutting a release: date the `Unreleased` section of `CHANGELOG.md` as the version, run
+To cut a release, swap `(unreleased)` in the version's `CHANGELOG.md` heading for the date, run
 `release.ps1` with the game closed, check the zip lists the five files, commit and tag
-`v<version>`. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
+`v<version>`. Then open the next version's changelog section and bump the version files in one
+commit, as [public-docs](public-docs.md) says. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
 0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
 the auto sizes, the flags, the overlay and the telemetry.
 
@@ -69,9 +73,10 @@ the owner's other repos use, with EVO outlined, from glyphs defined in the scrip
 Two channels, the same zip, decided in DEC-013. In this order once the tag exists:
 
 1. GitHub: `gh release create v<version> release/ACEvoPerf-<version>.0.zip --title
-   "ACEvoPerf <version>"` with `--notes-file` pointing at notes written in the readme's voice
-   (what it fixes, the important block, install, uninstall, the version's changes, credits,
-   the Overtake link at the top). `gh release edit` replaces the notes later.
+   "ACEvoPerf <version>"` with `--notes-file` pointing at notes written to
+   [public-docs](public-docs.md), the Overtake link at the top, then what it fixes and adds,
+   install, uninstall, the version's changelog section and the credits. `gh release edit`
+   replaces the notes later.
 2. Overtake: "Post an update" on the listing (`overtake.gg/downloads/acevoperf.86467`) with
    the same zip, the version number and a short update text. The listing's description
    holds the same content as the readme in plain paragraphs, the credits line for the

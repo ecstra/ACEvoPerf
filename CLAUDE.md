@@ -19,8 +19,11 @@ ACEvoPerf is a `dstorage.dll` proxy mod for Assetto Corsa EVO plus Python tools.
 - Source layout: headers under `include/acevo/<area>/`, sources under `src/<area>/`, one folder
   per concern, `src/dllmain.cpp` only wires them. Python tools in `tools/`, their data files in
   `tools/data/`.
-- `CHANGELOG.md` at the root records every user visible change (what it fixes and how) in the
-  same commit, under `Unreleased` until a version is cut.
+- `README.md`, `CHANGELOG.md` and `dist/README.txt` are written for players who have never seen the
+  code, in short plain lines without internals or measurements. Read
+  `.agent/docs/ops/public-docs.md` before changing any of them.
+- `CHANGELOG.md` at the root records every user visible change in the same commit, one line in the
+  player's words, under the next version's heading marked `(unreleased)` until that version is cut.
 - Areas used by the trackers: `streaming`, `render`, `ui`, `stability`, `engine-flags`,
   `foundation`, `tooling`, `release`, `docs`.
 
