@@ -429,6 +429,35 @@ The owner's 5070 desktop is gone, so no run there. The next step is naming the r
 60.000 Hz clock and the renderer's spread, with the GPU sampler running and the lean trace of
 [TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md).
 
+## PresentMon against the overlay, 2026-09-15
+
+`logs/presentmon-drive-20260915`, PresentMon 2.5.1 (Intel signed, `--track_hybrid_present`) beside the mod
+with the HUD fix, the owner's fan curve on, cut short by a power cut. In the owner's words, "nvidia overlay
+shows a constant 30-50 fps gap", and mid lap 1 "the 1% according to nvidia was 55 when fps was 110".
+
+- **The overlay and the mod agree.** PresentMon's present intervals match the mod's frames block for block, at
+  18:20:36 both read 112.9 fps with the slowest 1 percent averaging 59.6 fps, the owner's reading. The overlay's
+  1 percent low matches the slowest 1 percent's mean. p99, which the tables above lead with, reads 10 to 15 fps
+  higher.
+- **The path to the screen is clean.** 19,077 of 19,197 frames are `Hardware: Independent Flip` and 120
+  `Composed: Flip`, `HybridPresent` is 0 on every frame, tearing is allowed and no frame went undisplayed. This
+  laptop scans the NVIDIA frames out on the AMD display without composing them, which is why 60 Hz held nothing.
+- **A cool card lifts the median, not the slow frames.** Without the heat the average rose to 104 to 119 fps and
+  the median frame to 9.1 ms, while the slowest 1 percent stayed at 57 to 71 fps, so the gap in fps grew.
+- **The slow frames are heavy frames.** Over 15,738 driving frames, the slowest 1 percent (15.7 ms) against the
+  median frames (9.1 ms), in PresentMon's split: CPU busy, from the previous `Present` returning to this call
+  and the mod's Reflex sleep included, 12.37 against 6.00 ms, time inside `Present` 0.42 against 2.97, GPU busy
+  11.70 against 9.02, GPU wait 0.02 for both. The two frames before are ordinary (CPU busy 6.1 to 6.2, GPU busy
+  8.3 to 9.5), and the frame after waits 5.08 ms in `Present` for the heavy frame's GPU work. 124 of the 158
+  have over 10 ms of CPU busy. The frame carries more work on both sides, which a longer Reflex sleep would not.
+- **Not streaming, not the mod's tick, no fixed rhythm.** Streaming requests land in the slow frame or the two
+  before in 17.6 percent of slow frames against 13.9 of all frames, tile requests in the same frame 4.5 against
+  2.7. Against the mod's once a second tick the Rayleigh Z is 0.1. Slow frames come 0.25, 0.59 and 1.2 s apart
+  at the quartiles.
+
+What the heavy frames do is the next question, render thread samples in heavy frames against ordinary ones,
+which the lean trace of TODO-026 records without the in process sampler's shift.
+
 ## Verification
 
 Absent.
