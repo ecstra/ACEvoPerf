@@ -126,6 +126,15 @@ line in the game log counts class, style, attribute and DOM writes, mouse events
 responsive UI's page fixes did, and every frame over 45 ms against what changed in the two frames before
 it, with the ten busiest writes by element.
 
+## HUD schedule test
+
+`[developer] hud_schedule_test=1`, in `src/ui/menu_refresh_fix.cpp`, for BUG-009. While the HUD is up it
+changes how the game picks its UI surfaces every 10 seconds, in shuffled sets of three of the game's
+rotation, the main view every frame and every view every frame. The log carries
+`[hud test] t=<seconds> schedule <name>` at each turn and `[hud test] t=<seconds> page <url>` at each page
+load, on the same clock as the frames CSV's `t_s`, so each frame can be given its schedule. Details in
+[responsive-ui](../systems/responsive-ui.md).
+
 ## GPU sampler
 
 Run beside the game, the report script joins it on the clock second:

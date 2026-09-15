@@ -3,7 +3,7 @@ name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
 updated: 2026-09-15
-links: [responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
+links: [responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
 # Responsive UI
@@ -55,6 +55,13 @@ ran at a third of the frame rate. A stub at `0xDE37B7` keeps the main surface in
 turn between the displays, only while the main view shows a menu page. Which page is shown comes from a
 hook on Cohtml's URL loader (`0x46B990`), whose stub sets a byte for the known menu pages and clears it for
 `hud.html`, so the HUD while driving keeps the game's rotation.
+
+The stub reads a schedule byte rather than a flag, 0 the game's rotation, 1 the main surface every frame with
+the displays taking turns, 2 every surface every frame, the path the game jumps to itself from its main and
+pause menu tests. A menu page writes 1. The HUD writes 0, except under the developer test
+`[developer] hud_schedule_test=1` (BUG-009), where `MenuRefreshTick`, called once a second from the timeline
+thread, moves the HUD through 0, 1 and 2 in shuffled turns of 10 seconds and logs each turn as
+`[hud test] t=<seconds> schedule <name>` and each page load as `[hud test] t=<seconds> page <url>`.
 
 ### Style matching fix
 

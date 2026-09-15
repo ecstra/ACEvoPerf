@@ -23,7 +23,7 @@ links: [agent-index, spec-docs]
 
 ## ops
 
-- [telemetry](ops/telemetry.md), the log and CSV files and their columns, the streaming trace, the UI probe, the game log's crash logger, plus the GPU sampler
+- [telemetry](ops/telemetry.md), the log and CSV files and their columns, the streaming trace, the UI probe, the HUD schedule test, the game log's crash logger, plus the GPU sampler
 - [build-and-release](ops/build-and-release.md), build, install, uninstall, gates, and publishing on Overtake and GitHub
 - [tools](ops/tools.md), the Python tools and their commands
 - [public-docs](ops/public-docs.md), how the readme, the changelog and the zip readme are written for players, and how the next version is tracked

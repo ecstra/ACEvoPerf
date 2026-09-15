@@ -7,6 +7,7 @@
 #include "acevo/engine/exceptions.h"
 #include "acevo/engine/streamer.h"
 #include "acevo/render/texture_writes.h"
+#include "acevo/ui/menu_refresh_fix.h"
 #include "acevo/ui/ui_probe.h"
 
 static HANDLE g_timelineThread = nullptr;
@@ -76,6 +77,7 @@ static DWORD WINAPI TimelineThread(void*)
         StreamerTick();
         TextureWritesTick();
         UiProbeTick();
+        MenuRefreshTick();
         g_hitchLogBudget.store(5);
         if (!anyCsv) continue;
         double t = NowSec(); double dt = t - lastT; if (dt <= 0) dt = 1; lastT = t;

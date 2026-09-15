@@ -1,6 +1,8 @@
 #include "acevo/ui/menu_refresh_fix.h"
 #include "acevo/core/code_patch.h"
+#include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include "acevo/render/frame_stats.h"
 
 // Read from AssettoCorsaEVO.exe 0.9.1 and cohtml.WindowsDesktop.dll 1.61.0.3, measured with the UI
 // probe on 2026-09-14.
@@ -17,6 +19,11 @@
 // updating the HUD three times as often while driving would cost frame time. Which page is loaded comes
 // from Cohtml's URL loader (0x46B990, reached by View::LoadURL and by page navigation from script),
 // whose entry is redirected to a stub that looks at the URL and sets a byte the rotation stub reads.
+//
+// The developer test `[developer] hud_schedule_test` (BUG-009, TODO-025) moves the HUD through three
+// schedules in turns of 10 seconds, the game's rotation, the HUD every frame with the displays taking
+// turns, and every surface every frame, which is the path the game itself takes in the main and pause
+// menus. A menu page keeps the menu schedule throughout.
 
 static const DWORD kGameTimeDateStamp = 0x6A9EC72A;
 static const DWORD kGameSizeOfImage = 0x06CDD000;
@@ -46,21 +53,41 @@ static const char* const kMenuPages[] = {
     "gallery.html", "replay.html", "simgrid.html",
 };
 
-static BYTE* g_menuShown = nullptr;     // one byte on a read and write page, read by the rotation stub
+enum Schedule : BYTE {
+    kGameRotation = 0,              // one surface a frame in turn, the game's own pick
+    kMainEveryFrame = 1,            // the main surface every frame, the displays taking turns beside it
+    kEverySurfaceEveryFrame = 2,    // every surface every frame
+};
+static const char* const kScheduleNames[] = { "the game's rotation", "the main view every frame", "every view every frame" };
+static const int kTestTurnSeconds = 10;
 
-//   cmp byte ptr [rip+menu shown], 0 / je original
+static BYTE* g_schedule = nullptr;      // one byte on a read and write page, read by the rotation stub
+static SRWLOCK g_scheduleLock = SRWLOCK_INIT;
+static bool g_menuPage = false;
+static Schedule g_hudSchedule = kGameRotation;  // only the developer test changes it
+static int g_testSeconds = 0;
+static int g_testTurn = 3;
+static Schedule g_testOrder[3] = { kGameRotation, kMainEveryFrame, kEverySurfaceEveryFrame };
+static uint32_t g_testRandom = 0;
+
+//   cmp byte ptr [rip+schedule], 0 / je original
+//   cmp byte ptr [rip+schedule], 2 / je every surface
 //   mov rbx, [rsp+0x30] / mov rcx, [rsp+0x38] / sub rcx, rbx / sar rcx, 3     the surface count
 //   cmp rcx, 2 / jb original
 //   lea rax, [r14+0xB0] / cmp [rbx], rax / jne original                       the main surface first
 //   dec rcx / movsxd rax, dword ptr [r14+0x1EC] / inc rax / xor edx, edx / div rcx
 //   mov [r14+0x1EC], edx                                                      the display whose turn it is
 //   mov rax, [rbx+rdx*8+8] / mov [rbx+8], rax / lea rax, [rbx+0x10] / mov [rsp+0x38], rax
-//   jmp every surface path
+//   every surface: jmp every surface path
 //   original: mov rcx, [rsp+0x38] / jmp back to the game's pick
-// The list keeps its own buffer and capacity, only its end moves, so the game frees it as it would.
+// The list keeps its own buffer and capacity, only its end moves, so the game frees it as it would. Every
+// surface every frame reaches the path with the whole list and no register changed, as the game's own
+// jumps from its main and pause menu tests a few instructions earlier do.
 static const BYTE kRotationStub[] = {
     0x80, 0x3D, 0, 0, 0, 0, 0x00,
-    0x74, 0x5C,
+    0x74, 0x65,
+    0x80, 0x3D, 0, 0, 0, 0, 0x02,
+    0x74, 0x4E,
     0x48, 0x8B, 0x5C, 0x24, 0x30,
     0x48, 0x8B, 0x4C, 0x24, 0x38,
     0x48, 0x29, 0xD9,
@@ -84,10 +111,10 @@ static const BYTE kRotationStub[] = {
     0x48, 0x8B, 0x4C, 0x24, 0x38,
     0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
-static const size_t kRotationStubFlagDispAt = 2;
-static const size_t kRotationStubFlagNextIp = 7;
-static const size_t kRotationStubEveryViewAt = 93;
-static const size_t kRotationStubBackAt = 112;
+static const size_t kRotationStubStateDispAt[] = { 2, 11 };
+static const size_t kRotationStubStateNextIp[] = { 7, 16 };
+static const size_t kRotationStubEveryViewAt = 102;
+static const size_t kRotationStubBackAt = 121;
 
 // The URL loader starts with mov rax, rsp / push rbp / push rbx, five bytes, which the jump to this stub
 // replaces. The stub keeps the argument registers, hands the hook the view and the URL, replays the
@@ -114,6 +141,22 @@ static const BYTE kUrlStub[] = {
 static const size_t kUrlStubHookAt = 12;
 static const size_t kUrlStubBackAt = sizeof kUrlStub - 8;
 
+// A menu page keeps the menu schedule, the HUD gets whatever the developer test picked. Called with the
+// lock held.
+static void WriteSchedule()
+{
+    *g_schedule = g_menuPage ? kMainEveryFrame : g_hudSchedule;
+}
+
+static void SetMenuPage(bool menuPage, const char* path)
+{
+    AcquireSRWLockExclusive(&g_scheduleLock);
+    g_menuPage = menuPage;
+    WriteSchedule();
+    ReleaseSRWLockExclusive(&g_scheduleLock);
+    if (g_cfg.hudScheduleTest) Log("[hud test] t=%.3f page %s", NowSec(), path);
+}
+
 static bool EndsWithPage(const char* url, size_t length, const char* page)
 {
     size_t pageLength = strlen(page);
@@ -136,12 +179,12 @@ static void OnLoadUrl(void*, const char* url)
     path[length] = 0;
 
     if (EndsWithPage(path, length, "hud.html")) {
-        *g_menuShown = 0;
+        SetMenuPage(false, path);
         return;
     }
     for (const char* page : kMenuPages) {
         if (!EndsWithPage(path, length, page)) continue;
-        *g_menuShown = 1;
+        SetMenuPage(true, path);
         return;
     }
 }
@@ -193,12 +236,14 @@ void InstallMenuRefreshFix()
         Log("[menus] no free memory within reach of the game and Cohtml, nothing patched");
         return;
     }
-    g_menuShown = gameCave + page;
+    g_schedule = gameCave + page;
 
     BYTE* rotationStub = gameCave;
     memcpy(rotationStub, kRotationStub, sizeof kRotationStub);
-    int32_t flagDisp = (int32_t)(g_menuShown - (rotationStub + kRotationStubFlagNextIp));
-    memcpy(rotationStub + kRotationStubFlagDispAt, &flagDisp, 4);
+    for (size_t i = 0; i < _countof(kRotationStubStateDispAt); ++i) {
+        int32_t stateDisp = (int32_t)(g_schedule - (rotationStub + kRotationStubStateNextIp[i]));
+        memcpy(rotationStub + kRotationStubStateDispAt[i], &stateDisp, 4);
+    }
     BYTE* everyView = game + kRvaEveryView;
     BYTE* afterPick = game + kRvaAfterRotationPick;
     memcpy(rotationStub + kRotationStubEveryViewAt, &everyView, 8);
@@ -217,7 +262,7 @@ void InstallMenuRefreshFix()
         !VirtualProtect(gameCave, page, PAGE_EXECUTE_READ, &old) || !VirtualProtect(cohtmlCave, page, PAGE_EXECUTE_READ, &old)) {
         VirtualFree(gameCave, 0, MEM_RELEASE);
         VirtualFree(cohtmlCave, 0, MEM_RELEASE);
-        g_menuShown = nullptr;
+        g_schedule = nullptr;
         Log("[menus] the stubs could not be placed within reach, nothing patched");
         return;
     }
@@ -235,4 +280,30 @@ void InstallMenuRefreshFix()
         return;
     }
     Log("[menus] menu refresh fix on, a menu page in a session updates every frame, the HUD and the car displays keep their turns");
+    if (g_cfg.hudScheduleTest) Log("[hud test] on, the HUD changes schedule every %d seconds in a shuffled order", kTestTurnSeconds);
+}
+
+void MenuRefreshTick()
+{
+    if (!g_cfg.hudScheduleTest || !g_schedule) return;
+    if (g_testSeconds++ % kTestTurnSeconds != 0) return;
+
+    // A new shuffled set of three every three turns, so no schedule keeps the same place on the lap.
+    if (g_testTurn == 3) {
+        if (!g_testRandom) g_testRandom = (uint32_t)GetTickCount64() | 1;
+        for (int i = 2; i > 0; --i) {
+            g_testRandom ^= g_testRandom << 13;
+            g_testRandom ^= g_testRandom >> 17;
+            g_testRandom ^= g_testRandom << 5;
+            std::swap(g_testOrder[i], g_testOrder[g_testRandom % (uint32_t)(i + 1)]);
+        }
+        g_testTurn = 0;
+    }
+    Schedule next = g_testOrder[g_testTurn++];
+
+    AcquireSRWLockExclusive(&g_scheduleLock);
+    g_hudSchedule = next;
+    WriteSchedule();
+    ReleaseSRWLockExclusive(&g_scheduleLock);
+    Log("[hud test] t=%.3f schedule %s", NowSec(), kScheduleNames[next]);
 }

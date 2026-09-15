@@ -16,6 +16,7 @@ struct Config {
     bool loadSampler = false;   // suspends game threads to read them
     int  loadSampleUs = 1000;
     bool uiProbe = false;       // times the game's UI and counts what its pages change
+    bool hudScheduleTest = false; // moves the HUD through three update schedules, see src/ui/menu_refresh_fix.cpp
     // [directstorage]
     bool bundledRuntime = true;     // load acevo_perf\dstoragecore.dll instead of the game's older one
     int  stagingMb = 0;             // 0 = the game's own value, or the auto pick once the card is known

@@ -6,3 +6,7 @@
 // and patches nothing unless the game and cohtml.WindowsDesktop.dll are the builds it was written for.
 // See the source for what the game does and what is patched.
 void InstallMenuRefreshFix();
+
+// Once a second from the timeline thread. With `[developer] hud_schedule_test` it moves the HUD to its
+// next update schedule every 10 seconds, otherwise it does nothing.
+void MenuRefreshTick();
