@@ -57,6 +57,7 @@ static const char kPageScript[] = R"js(
     var framesThisSecond = 0;
     var nav = { calls: 0, scans: 0, skipped: 0 };
     var setup = { inits: 0, ignored: 0 };
+    var controls = { refreshes: 0, held: 0 };
     var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };
     var events = { mousemove: 0, hover: 0, transitions: 0, animations: 0 };
     var top = {};
@@ -110,7 +111,7 @@ static const char kPageScript[] = R"js(
 
     function report() {
         var total = changes.classOps + changes.styleWrites + changes.attrWrites + changes.inserts + changes.removes + changes.htmlSets + changes.textSets;
-        if (total || nav.calls || setup.inits || slow.frames || events.hover) {
+        if (total || nav.calls || setup.inits || controls.refreshes || slow.frames || events.hover) {
             var ranked = Object.keys(top).sort(function (a, b) { return top[b] - top[a]; }).slice(0, 10);
             console.log('[ACEvoPerf] ui changes ' + page + ' | frames ' + framesThisSecond +
                 ' | class ' + changes.classOps + ' style ' + changes.styleWrites + ' attr ' + changes.attrWrites +
@@ -118,6 +119,7 @@ static const char kPageScript[] = R"js(
                 ' | mousemove ' + events.mousemove + ' hover ' + events.hover + ' transitions ' + events.transitions + ' animations ' + events.animations +
                 ' | navigation calls ' + nav.calls + ' scans ' + nav.scans + ' skipped ' + nav.skipped +
                 ' | setup init ' + setup.inits + ' ignored ' + setup.ignored +
+                ' | controls refreshes ' + controls.refreshes + ' held ' + controls.held +
                 slowReport() +
                 ' | top ' + ranked.map(function (key) { return key + ' x' + top[key]; }).join('; '));
         }
@@ -125,6 +127,7 @@ static const char kPageScript[] = R"js(
         for (var b in events) events[b] = 0;
         nav.calls = nav.scans = nav.skipped = 0;
         setup.inits = setup.ignored = 0;
+        controls.refreshes = controls.held = 0;
         for (var k = 0; k < kinds.length; k++) framesWith[k] = slowAfter[k] = 0;
         slow.frames = slow.alone = 0;
         top = {};
@@ -390,6 +393,56 @@ static const char kPageScript[] = R"js(
         proto.__acevoPatched = true;
     }
 
+    // The controls page. While one of its sliders is dragged the game answers every step with a full
+    // refresh (InputConfigurationResponseRefresh with is_soft_set) 24 to 34 times a second, and each
+    // one rebuilds the binding rows and resyncs every slider on the page. A soft refresh now runs at
+    // most once every 100 ms, the newest one waiting in between and running when the time is up, so
+    // the last step of a drag always lands. A refresh that is replaced still merges its settings the
+    // way the page's handler starts, so the page ends where it would have. Other refreshes run at once.
+    var kControlsRefreshMs = 100;
+
+    function patchControlsRefresh(proto) {
+        if (!proto || proto.__acevoPatched || typeof proto.onDevicesChanged !== 'function') return;
+        var stockRefresh = proto.onDevicesChanged;
+
+        function mergeReplaced(self, data) {
+            if (data && data.wrapper && self.incomingSettings) Object.assign(self.incomingSettings, data.wrapper);
+        }
+
+        function run(self, data) {
+            self.__acevoRefreshAt = Date.now();
+            controls.refreshes++;
+            return stockRefresh.call(self, data);
+        }
+
+        proto.onDevicesChanged = function (data) {
+            var self = this;
+            if (self.__acevoRefreshWaiting) {
+                mergeReplaced(self, self.__acevoRefreshWaiting);
+                self.__acevoRefreshWaiting = null;
+            }
+            var now = Date.now();
+            var since = now - (self.__acevoRefreshAt || 0);
+            if (!data || !data.is_soft_set || since >= kControlsRefreshMs) return run(self, data);
+
+            controls.held++;
+            self.__acevoRefreshWaiting = data;
+            if (self.__acevoRefreshTimer) return;
+            self.__acevoRefreshTimer = setTimeout(function () {
+                self.__acevoRefreshTimer = 0;
+                var waiting = self.__acevoRefreshWaiting;
+                self.__acevoRefreshWaiting = null;
+                if (!waiting) return;
+                try {
+                    run(self, waiting);
+                } catch (e) {
+                    console.error('[ACEvoPerf] ui probe controls refresh failed', e);
+                }
+            }, kControlsRefreshMs - since);
+        };
+        proto.__acevoPatched = true;
+    }
+
     try {
         var stockDefine = customElements.define;
         customElements.define = function (name, elementClass, options) {
@@ -398,6 +451,13 @@ static const char kPageScript[] = R"js(
                     patchVehicleSetup(elementClass && elementClass.prototype);
                 } catch (e) {
                     console.error('[ACEvoPerf] ui probe vehicle setup patch failed', e);
+                }
+            }
+            if (name === 'ks-page-settings-controls') {
+                try {
+                    patchControlsRefresh(elementClass && elementClass.prototype);
+                } catch (e) {
+                    console.error('[ACEvoPerf] ui probe controls refresh patch failed', e);
                 }
             }
             return stockDefine.call(customElements, name, elementClass, options);

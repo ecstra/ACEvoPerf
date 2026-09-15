@@ -73,6 +73,7 @@ void LoadConfig()
     g_cfg.streamerRankFix = IniBool(L"engine", L"streamer_rank_fix", true);
     g_cfg.streamerPartialLoads = IniBool(L"engine", L"streamer_partial_loads", true);
     g_cfg.uiRestyleFix = IniBool(L"engine", L"ui_restyle_fix", true);
+    g_cfg.uiMenuRefreshFix = IniBool(L"engine", L"ui_menu_refresh_fix", true);
 
     {
         std::vector<wchar_t> buf(32768);

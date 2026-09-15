@@ -84,9 +84,12 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   from and how many nodes it restyled, and counts how many nodes each change to an element marks for
   a restyle, by element and kind of change. A script added to the menu page counts what the pages
   change each second and on which elements, matches every slow frame with what changed or was hovered
-  in the frames before it, and applies two menu fixes. One stops the controls page scanning the whole page once for every new row,
-  the other stops vehicle setup building itself twice when it opens. It hooks the game and the UI engine
-  only when their builds match the ones it was written for. Diagnostics, off by default.
+  in the frames before it, and applies three menu fixes. One stops the controls page scanning the whole
+  page once for every new row, one stops vehicle setup building itself twice when it opens, and one
+  lets the controls page rebuild itself at most ten times a second while a slider on it is dragged,
+  where the game had it rebuild every row and slider for each of the 24 to 34 updates a second. It
+  hooks the game and the UI engine only when their builds match the ones it was written for.
+  Diagnostics, off by default.
 
 ### Changed
 
@@ -119,7 +122,15 @@ machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
   hovered one as well, every row below the mouse. No rule uses hover or focus together with a
   sibling, so the engine now skips that pass for hover and focus changes and keeps it for class and
   attribute changes, which the leaderboard rule needs. Both are `ui_restyle_fix` and only apply to
-  the game and UI engine builds they were checked against.
+  the game and UI engine builds they were checked against. Verified in game, hover, fast scrolling,
+  sliders and switching in the menus are smooth.
+- In a session the menus felt capped at 30 frames a second, the pit lane menu, settings and vehicle
+  setup alike. Each frame the game updates the menu and the car's two dashboard displays in turn, one
+  of the three per frame, unless the main menu or the pause menu is open. So at 90 frames a second the
+  menu updated 30 times a second, and every hover, slider step and animation waited for its turn. The
+  mod keeps the menu in every frame and passes the turn between the displays only, while the page on
+  screen is a menu. On the HUD while driving the game's own rotation is kept, so driving costs the same
+  (`ui_menu_refresh_fix`). It only applies to the game and UI engine builds it was checked against.
 - In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
   seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
   the engine's texture streamer cause it, and both only show once the texture pool is full, which

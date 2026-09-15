@@ -42,6 +42,7 @@ struct Config {
     bool streamerRankFix = true;     // rank a texture level by its most important request, not its least
     bool streamerPartialLoads = true; // load the levels that fit when a texture's whole step does not
     bool uiRestyleFix = true;        // a hover no longer restyles every UI element after the hovered one
+    bool uiMenuRefreshFix = true;    // a menu in a session updates every frame, not one frame in three
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]
