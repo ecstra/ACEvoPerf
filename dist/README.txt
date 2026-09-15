@@ -4,15 +4,15 @@ INSTALL
   1. Close the game.
   2. Open the game folder. In Steam, right click the game, then Manage
      and Browse local files.
-  3. Copy dstorage.dll, dstorage_orig.dll, acevo_dstoragecore.dll and
-     acevo_perf.ini into that folder.
-  4. When Windows asks, replace the existing dstorage.dll.
+  3. Copy all the files from this zip into that folder, next to
+     AssettoCorsaEVO.exe.
+  4. When Windows asks, replace the file.
   5. Start the game.
 
   For the sharpest textures, set texture quality to Ultra in the game's
   graphics settings.
 
-  After a game update, copy dstorage.dll in again.
+  After a game update, copy the files in again.
 
 SETTINGS
   Everything is in acevo_perf.ini, one line per setting with a short note.

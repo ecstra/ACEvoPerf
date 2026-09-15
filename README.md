@@ -37,6 +37,7 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - NVIDIA Reflex
 - Higher CPU and GPU priority
 - A newer DirectStorage
+- The game's shader cache, for fewer stutters
 
 What changed in each version is in the [changelog](CHANGELOG.md).
 
@@ -45,13 +46,13 @@ What changed in each version is in the [changelog](CHANGELOG.md).
 1. Close the game.
 2. Download the zip from [Overtake](https://www.overtake.gg/downloads/acevoperf.86467/) or the [latest release](https://github.com/ecstra/ACEvoPerf/releases/latest). Both are the same file.
 3. Open the game folder. In Steam, right click the game, then **Manage** and **Browse local files**.
-4. Copy `dstorage.dll`, `dstorage_orig.dll`, `acevo_dstoragecore.dll` and `acevo_perf.ini` from the zip into that folder.
-5. When Windows asks, replace the existing `dstorage.dll`.
+4. Copy all the files from the zip into that folder, next to `AssettoCorsaEVO.exe`.
+5. When Windows asks, replace the file.
 6. Start the game.
 
 For the sharpest textures, set texture quality to Ultra in the game's graphics settings.
 
-After a game update, copy the mod's `dstorage.dll` in again.
+After a game update, copy the files in again.
 
 ## Uninstall
 

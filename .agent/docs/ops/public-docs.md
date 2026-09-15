@@ -34,6 +34,8 @@ docs, and the public files carry what a player can see or do.
 - The game version is the range the mod supports, `0.9+`, never a list of builds.
 - Install, uninstall and build are numbered steps with one action each and the commands in code
   blocks.
+- Install says copy all the files from the zip, never a list of file names. Uninstall names the
+  files, because the player has to pick them out of the game folder.
 - The punctuation and plain word rules of `CLAUDE.md` sections 6.3 and 7 apply here as well.
 
 ## README.md
@@ -86,5 +88,6 @@ steps are in [build-and-release](build-and-release.md).
 | badge "0.9.0 and 0.9.1" | badge "0.9+" |
 | "Laggy menus, on hover, scrolling, sliders and opening pages, worst on the settings, controls and vehicle setup pages." | "Laggy menus" |
 | a twenty line changelog entry on 5,978 selectors, 2,142 rules and microseconds a node | "Menu pages stuttering as they open." |
-| "What else it does", eight paragraphs | gone, the parts a player gets are three items under What it adds |
+| "What else it does", eight paragraphs | gone, the parts a player gets are four items under What it adds |
+| install step "Copy `dstorage.dll`, `dstorage_orig.dll`, `acevo_dstoragecore.dll` and `acevo_perf.ini` from the zip" | "Copy all the files from the zip into that folder" |
 | Build as one paragraph | four numbered steps with the commands |
