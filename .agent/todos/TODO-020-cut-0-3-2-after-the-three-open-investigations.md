@@ -3,7 +3,7 @@ name: TODO-020-cut-0-3-2-after-the-three-open-investigations
 kind: todo
 description: 0.3.2 is not cut until the streaming layer, the 1 percent lows and the VRAM overhead have each had their round, because the release is meant to be final rather than a staging post
 updated: 2026-09-15
-links: [TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, BUG-009-one-percent-lows-far-below-average, BUG-016-vram-overhead-grows-across-scene-loads, build-and-release, one-percent-lows-2026-09-14, memory-creep-2026-09-14, DEC-019-ui-lag-work-reopened, BUG-014-ui-pages-lag-on-open-switch-and-interaction]
+links: [public-docs, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, BUG-009-one-percent-lows-far-below-average, BUG-016-vram-overhead-grows-across-scene-loads, build-and-release, one-percent-lows-2026-09-14, memory-creep-2026-09-14, DEC-019-ui-lag-work-reopened, BUG-014-ui-pages-lag-on-open-switch-and-interaction]
 status: open
 by: owner
 area: release
@@ -43,14 +43,9 @@ the owner picked the UI lag as the lane to work next (DEC-019).
 
 ## What is already sitting on main waiting for it
 
-All verified on the reference machine, all unreleased:
-
-- DirectStorage 1.3.0 as the bundled runtime, read back from the runtime that really loaded
-- NVIDIA Reflex, in a game that ships none, confirmed by the driver
-- High GPU scheduling priority
-- The optional working set floor
-- The trackside big screen fix, BUG-017
-- The responsive UI, BUG-014
+The `0.3.2 (unreleased)` section of [CHANGELOG.md](../../CHANGELOG.md) is the list, one line per
+change, written in the same commit as the change. It replaced the list that sat here on 2026-09-15,
+which had fallen behind the three streamer fixes.
 
 Plus the session of 2026-09-12, which shipped no code and closed a lot: global illumination
 measured and closed, `gibake_probes_per_frame` dead, `log_pso_on_creation` dead, the Agility SDK

@@ -1,318 +1,65 @@
 # Changelog
 
-What the mod does, what it fixes and how, one entry per user visible change. Newest first.
-Verified means measured in `acevo_perf.log` or seen by the owner in the game on the reference
-machine (RTX 3060 Laptop 6 GB, Assetto Corsa EVO 0.9.0+release.48).
+Every version of ACEvoPerf and what changed in it, newest first.
 
-## Unreleased
-
-### Added
-
-- The mod brings its own DirectStorage runtime, Microsoft 1.3.0, and uses it instead of the 1.2.3
-  the game ships. Being honest about the size of this: going through Microsoft's changelog line by
-  line, exactly one fix between the two versions lands on a path this game uses, `DSTORAGE_TILES`
-  destinations for resources whose width and height differ. That is the texture tile queue, which
-  a short menu session already put 2263 requests and 1.6 GB through. Everything else in 1.2.4 and
-  1.3.0 is either a compression fix, and this game streams uncompressed (`compressed=0 gdeflate=0`
-  in every queue), or a new API for the game to call, which a game built against 1.2 never will.
-  So this is being on the current runtime with one relevant fix, not a speed increase, and no
-  measured frame rate or load time change is claimed.
-  Nothing of the game is replaced or renamed. `dstorage.dll` is only a forwarder and the runtime
-  is `dstoragecore.dll` beside it, which the game loads itself during start-up, so the mod ships
-  its copy as `acevo_dstoragecore.dll`, a name nothing else asks for, and calls it directly. A
-  game update cannot undo it and uninstalling is still a delete. Verified by reading the version
-  back off the runtime that really loaded rather than trusting what was shipped, which the log
-  reports at start: `DirectStorage 1.3.0 in use`. That check earned itself immediately, the first
-  attempt at this shipped correctly and still ran 1.2.3, and nothing but that line said so.
-  `bundled_runtime=0` in the ini goes back to the game's own runtime, and so does a missing file,
-  both saying so in the log.
-- NVIDIA Reflex, in a game that ships none. It is not a frame rate limiter and never caps
-  anything: it stops the CPU queueing frames further ahead of the GPU than it can use, so the
-  input behind a frame is newer. NVIDIA only, silently idle on anything else. Verified by
-  asking the driver itself rather than trusting the mod: the log reports
-  `low latency mode ON` from `NvAPI_D3D_GetSleepStatus` after a thousand frames, with zero
-  refused calls. Honest result on the reference machine: no frame rate change, measured over
-  four two lap runs, because that laptop is 97 percent GPU bound and pinned at 86 degrees for
-  the whole run, so nothing on the CPU side can add frames there. Latency, which is the point
-  of Reflex, was not measured. `reflex` in the ini, `reflex_boost` for low latency boost which
-  ships off because a thermally capped card has no clocks for it to hold up. On AMD and Intel
-  the mod checks the vendor of the adapter the game renders on and never loads NVIDIA's
-  library at all, so there is nothing to go wrong: having an NVIDIA driver on the machine is
-  not enough, it has to be the card doing the rendering.
-- The game now runs at high GPU scheduling priority. Windows gives every process a priority
-  class for its GPU work, separate from the CPU one, and nothing was setting it for this game.
-  It decides whose work the GPU scheduler takes first when something else is also drawing: a
-  browser, an overlay, or on a laptop the integrated chip compositing the desktop. Verified:
-  the log reads the value back after setting it and reports `normal -> high`. Honest caveat,
-  this is a correct thing to do rather than something measured to be faster, and on a machine
-  with nothing else on the GPU it will do nothing at all. `gpu_priority` in the ini,
-  `unchanged` to leave it alone.
-- An optional working set floor (`working_set_floor_mb`, off by default) keeps a minimum
-  amount of the game resident so Windows cannot page it out under memory pressure and fault
-  it back in mid corner. Off by default on purpose: a floor too big for the machine is
-  refused, and one met by squeezing everything else is worse than the trimming it prevents.
-- A fix for textures that reload the same mip every two seconds (`streamer_reload_fix` under
-  `[engine]`, on, 0 turns it off). The engine's texture streamer measures how much detail a texture
-  needs against the mip it has loaded at that moment, then reads the answer as if it had been
-  measured against the full texture. Near the edge of the tile budget a texture therefore drops its
-  finer mip and loads it again on the next pass, forever, even parked with the camera still, which
-  at the Nurburgring pit exit is 14 to 22 MB/s of disk reads and GPU uploads. The mod recognises
-  the flip from the feedback readings themselves, a texture reloading the mip it just dropped with
-  nothing about the view changed, and refuses its next drop while the engine's own 1024 tile margin
-  is free, so the texture stays on the sharper of the two mips it was flipping between. It lets go when the reading says the view moved away or the texture's screen
-  coverage changes. Replayed through a recorded session it removes all of the parked churn and a
-  fifth to a quarter of the reload traffic while driving. Verified on the reference machine, parked
-  at the Nurburgring pit exit the tile queue carried nothing at all with it on, against 12 to 15
-  MB/s without, while the log showed it refusing the same 19 drops on every pass, and the owner saw
-  nothing wrong over a lap. In a controlled pair with the GPU held at the same clock and
-  temperature, parked frame rate went from 88.4 to 89.7 fps, 1.4 percent, and p99 frame time from
-  14.04 to 13.81 ms, with 19 MB/s of tile traffic gone and a point less CPU. A lap was inside lap to
-  lap noise. In a thirty car race the tile queue carried about a quarter less while racing. Nothing
-  in the game writes into these textures at runtime, watched through multiplayer, rain, skid marks
-  and that race, so a reload only ever put the same package bytes back. It edits the game's code in
-  memory and patches nothing unless every byte it relies on matches the build it was written for,
-  so a game update means it quietly does not apply.
-- `streaming_trace` under `[developer]` writes `acevo_perf_streaming.csv`, one row for each pass of
-  the texture streamer, each texture it wants sharper, each mip it drops, each texture tile request,
-  each file read that repeats an earlier one exactly, and any runtime write into a streamed texture.
-  Diagnostics, off by default.
-- `ui_probe` under `[developer]` measures where the game's menus and HUD lose their time. It logs a
-  `[ui]` line a second with how long each UI view takes to update, how long the frame waits for the UI,
-  and the UI clock the game hands the UI engine against real time, adds the waits per frame to the frames
-  CSV, and every five seconds lists where the UI engine's layout work spends its time from samples of
-  its stack. It also times every restyle pass of the UI engine, names the nodes a slow pass started
-  from and how many nodes it restyled, and counts how many nodes each change to an element marks for
-  a restyle, by element and kind of change. A script added to the menu page counts what the pages
-  change each second and on which elements, matches every slow frame with what changed or was hovered
-  in the frames before it, and reports what the responsive UI's page fixes did. It hooks the game and
-  the UI engine only when their builds match the ones it was written for. Diagnostics, off by default.
-
-### Changed
-
-- Every diagnostic moved into one `[developer]` section of the ini, off by default: the timeline
-  and frames CSVs, the streaming trace, request logging, the throw log, the package file trace and
-  the load sampler. They are for testing the mod and cost files and a little performance, so normal
-  play never needs them and a problem report only needs `acevo_perf.log`. An older ini that still
-  has them in `[log]`, `[directstorage]`, `[profile]` or `[overlay]` simply leaves them off.
-- `acevo_perf.ini` is one line per setting with a short note beside it, in place of the long
-  explanations above each key, and the commented out optional flags are gone. Any engine flag still
-  works in `[flags]`.
+## 0.3.2 (unreleased)
 
 ### Fixed
 
-- Opening a menu page stuttered, the main menu, settings, the controls page and the pit lane menu
-  alike, with frames of 100 to 320 ms while the page came in. Most of that wait is the UI engine
-  matching the new page's elements against the game's 5,978 selectors. The engine looks most rules up
-  by class, but 2,142 of them start with a tag or an id, and those it ran through its full matcher for
-  every element, which the probe found in 40 to 67 percent of all its style and layout work. Checking
-  a tag against one of the game's own elements (the `ks-` ones, most of every page) also made the engine
-  copy the element's name into a new string, upper case it and free it again, about 800 times per
-  element. The mod now skips a rule whose tag or id the element does not have before the matcher runs,
-  the same first check the matcher makes and fails on, and compares those names where the element
-  keeps them, with the engine's own compare. Nothing is matched differently, only fewer calls are made.
-  On some page loads the game's frame thread also picked up the 1.1 MB stylesheet's parse while it waited
-  for other work and held the frame for 30 to 60 ms, so resource work the frame thread picks up now runs
-  on a thread of the mod, and style and layout work stays where the frame needs it. Both are part of
-  `responsive_ui` and only apply to the UI engine build they were checked against. Verified in game, a
-  restyle took 6.3 microseconds a node against 14.0 before, opening settings and the controls page from the
-  main menu stalled 328 ms against 451 ms with its worst frame at 126 ms against 166 ms, and the frame
-  thread ran 0.1 ms of resource work in the worst second of a page open against 57 ms. The heavier pages
-  still open with a frame or two of 100 to 200 ms, from the page's own script and from pages that build
-  themselves over several frames.
-- The controls page froze for a moment when it opened and on every click of a bindings group, 250 to
-  500 ms with the Car and Car_Advanced groups. Every new row asks the navigation library to rescan the
-  whole page, once for each navigation section, while the rows are still outside the page, so the scans
-  find nothing new. The first scan of a frame now runs and the rest fold into one scan on the next frame.
-  Vehicle setup asked the game for the car's setup twice every time it opened and built all its groups
-  for both answers, and now asks once. Dragging a slider on the controls page lagged behind the mouse,
-  because the game answers every slider step with a full refresh that rebuilds every row and slider on
-  the page, 24 to 34 times a second. A refresh while dragging now runs at most ten times a second and the
-  last step of a drag always lands. The three are a script the mod adds to the menu page, part of
-  `responsive_ui`. Verified in game.
-- The menus lagged as soon as the mouse moved quickly, on hover, scrolling and dragging a slider,
-  worst on the settings, controls and vehicle setup pages. Every time the element under the mouse
-  changes, the UI engine (Coherent Gameface) restyles the elements whose look can depend on hover or
-  focus, together with everything inside them. It decides which ones those are from the part of each
-  selector that holds `:hover` or `:focus`, and the game's stylesheet has a few such parts that match
-  nearly every container on a page, `div:hover` and `div:focus` for the paint shop's page buttons and
-  `.component-body:hover` for the grid editor and the paint shop's material channels. So each hover
-  change restyled the whole page, 1,100 to 1,300 elements and 50 to 65 ms, and moving quickly, or
-  scrolling and dragging, which move the rows under the mouse, did that every frame, about 15 frames
-  a second. The mod serves the stylesheet with those parts narrowed to what the elements they style
-  always carry (`data-page` on the page buttons, `focus-indicator` on the grid item's body, the channel
-  group's own hover for its only child), so the same buttons still light up and the containers no
-  longer count. It is generated from the game's own stylesheet at start, and left untouched if an
-  update changed any of those parts. Second, because the stylesheet also has one rule that styles an
-  element by its earlier sibling (a leaderboard rule), the engine restyled every element after a
-  hovered one as well, every row below the mouse. No rule uses hover or focus together with a
-  sibling, so the engine now skips that pass for hover and focus changes and keeps it for class and
-  attribute changes, which the leaderboard rule needs. Both are part of `responsive_ui` and only apply
-  to the game and UI engine builds they were checked against. Verified in game, hover, fast scrolling,
-  sliders and switching in the menus are smooth.
-- In a session the menus felt capped at 30 frames a second, the pit lane menu, settings and vehicle
-  setup alike. Each frame the game updates the menu and the car's two dashboard displays in turn, one
-  of the three per frame, unless the main menu or the pause menu is open. So at 90 frames a second the
-  menu updated 30 times a second, and every hover, slider step and animation waited for its turn. The
-  mod keeps the menu in every frame and passes the turn between the displays only, while the page on
-  screen is a menu. On the HUD while driving the game's own rotation is kept, so driving costs the same.
-  Part of `responsive_ui`, and it only applies to the game and UI engine builds it was checked against.
-  Verified in game.
-- In a race with a field of cars, your own car, the grass ground and the kerbs went blurry for
-  seconds at a time, and the car sometimes stayed blurry for most of the first lap. Two things in
-  the engine's texture streamer cause it, and both only show once the texture pool is full, which
-  on a 6 GB card it always is in a race with AI. First, every object that draws a texture asks for
-  it with its own priority, and the streamer kept the lowest of those requests. Your car asks for
-  its livery at the top priority, an AI car of the same model 50 m away asks for the same file near
-  the bottom, and the livery was ranked as if only that AI car wanted it, so it was pushed out of
-  the pool. In a recorded thirty car race every one of 7036 texture levels with differing requests
-  kept the lowest. The mod makes the streamer keep the highest (`streamer_rank_fix`). Second, the
-  streamer only loads a texture's missing detail in one piece. A livery at its coarsest level needs
-  340 tiles at once, the free space at its turn was usually a few dozen to a couple of hundred, so
-  it stayed at 256 by 256 for 72 seconds after a race start while there was room for most of its
-  detail. The mod loads the levels that fit and the rest follow as space comes back
-  (`streamer_partial_loads`). Both are in `[engine]`, on, 0 turns either off. Verified on the
-  reference machine in a second race of 29 AI. The player's car was sharp 1 to 2 s into the grid and
-  the road 5 to 10 s after, where before the livery stayed blurry for most of a lap, the grass
-  ground was sharp, drops fell from 11,091 to 2,600 and tile traffic from 13 to 3 MB/s, and frame
-  rate did not change. What it cannot do is make a 1 GB pool hold everything, so in a full field AI
-  cars of other models and some trackside buildings can still look blurry, because the game fills
-  the pool with your own car and driver first.
+- Laggy menus when hovering, scrolling or dragging a slider, worst on the settings, controls and vehicle setup pages.
+- Menu pages stuttering as they open.
+- Menus in a session running at a third of the frame rate.
+- The controls page freezing when it opens and when you click a bindings group.
+- Vehicle setup loading twice every time it opens.
+- Blurry trackside big screens.
+- Your car, the grass and the kerbs going blurry in races with AI.
+- Textures reloading the same detail over and over, even with the car parked.
 
-- The trackside big screens were a blurry mess while the display in the menu next to them looked
-  fine. They are one texture holding 64 frames in an 8 by 8 grid, stepped through as an animation,
-  which means the engine picks its mip from the whole sheet rather than the frame on show, so every
-  coarse mip step costs eight times the detail instead of two. The asset makes that worse twice
-  over: it ships cooked at half size from a 4096 source, where the flipbook sitting beside it in
-  the same folder ships at full size, and it carries three mip levels where its other neighbour,
-  identical in size, carries twelve. The coarsest level that ships works out at 64 by 64 pixels per
-  frame on a full size screen. The mod now serves that header with its mip count read as one, so
-  there is nothing coarse to fall back to. It is a single byte, generated at start from your own
-  `content.kspkg` into `acevo_bigscreen.texture` next to the exe, and the package is never touched.
-  Costs about 2 MB of video memory. `fix_big_screens=0` in the ini leaves the game as it is. What
-  this cannot recover is the half size cook, the 4096 source art is not in the package, so the
-  screens end at 256 by 256 per frame rather than 512.
+### Added
 
-### Verified
+- NVIDIA Reflex, for lower input lag on NVIDIA cards.
+- High GPU priority for the game.
+- The mod now comes with DirectStorage 1.3.0 and uses it in place of the game's 1.2.3.
+- `working_set_floor_mb`, off by default, keeps part of the game in memory so Windows can't page it out.
+- Developer settings `streaming_trace`, `load_sampler` and `ui_probe` for testing the mod, all off by default.
 
-- DirectStorage 1.3.0 measured over a lap, a track change to the full Nordschleife and a second
-  lap: the log confirms it is the runtime in use, with no errors, no fallbacks and no failed
-  calls, 13639 tile requests and 11 GB through the texture tile queue. Streaming throughput sits
-  inside the spread of the 1.2.3 sessions on the same machine (260.7 MB/s peak on the file to
-  memory queue against 258 to 291 before, 86.0 MB/s on the tile queue against 72 to 91), and
-  hitches keep the same shape they always had, clustered at start-up, the track load and the menu,
-  with one across nine minutes of driving. So nothing regressed and nothing improved, which is
-  what the changelog said to expect.
+### Changed
 
-- The mod works on game version 0.9.1+release.6 with no change. The flag scan found 204 flags
-  against 0.9.0's 203, wrote all four at their new addresses, capped the staging buffer and
-  created the 1024 MB tile pool once. Addresses move with every game build, names do not,
-  which is what the scan is for.
+- `acevo_perf.ini` has one line per setting with a short note beside it.
+- Diagnostic settings moved to a new `[developer]` section. If you turned one on in an older ini, set it again there.
+- The commented out engine flags are gone from the ini. Any engine flag still works under `[flags]`.
+
+### Known issues
+
+- The heaviest menu pages can still hitch for a moment as they open.
+- In a full race, AI cars and some trackside buildings can still look blurry. Texture memory runs out and the game fills it with your own car first.
 
 ## 0.3.1 (2026-09-06)
 
-### Changed
-
-- The two CSV files (`acevo_perf_timeline.csv`, `acevo_perf_frames.csv`) are off by default,
-  `timeline=1` and `frames=1` in the ini turn them on. The log stays on, it is the file to post
-  with a problem report.
-
 ### Fixed
 
-- With both CSVs off, the hitch lines in the log stopped after the first five of a session and
-  the throw log never wrote a line, because the thread that refills the hitch budget and ticks
-  the throw log only ran for the CSVs. It runs whenever the mod loads now, the sampling work
-  only while a CSV is on.
+- With the CSV logs off, `acevo_perf.log` stopped listing slow frames after the first five.
+
+### Changed
+
+- The two CSV logs are off by default. `timeline=1` and `frames=1` in the ini turn them on.
 
 ## 0.3.0 (2026-09-06)
 
+The first release.
+
 ### Fixed
 
-- Crashes on car change, track change and at startup on 6 GB cards. Cause: the game asks
-  DirectStorage for a 1 GB staging buffer, which the runtime keeps twice in video memory, so
-  2 GB of a 6 GB card were gone before the first texture. The mod caps the staging buffer at
-  128 MB (`staging_buffer_mb`). Verified: four car swaps and a car plus track swap in a row
-  with no crash.
-- Missing icons in the vehicle hub and the menus. Before the fix they loaded sometimes and most
-  of the time the tiles stayed empty with no icon at all, and they dropped out again after a
-  while in a session. Same cause, the staging buffers starved the video memory the icon
-  textures needed, same fix. Verified: icons load every time and stay through car and track
-  changes.
-- Blurry road, tyre and ground textures, worse after restarting a session (text on the tarmac
-  turned to mush). Cause: the engine sizes its texture and mesh pools from the memory left over
-  during scene transitions, which gave 633 MB in a race and 526 MB after a restart. The mod sets
-  the engine flags `force_canonical_pool_sizes=true` and `tile_pool_mb=1024`, so the pool is
-  created once at 1024 MB (mesh cap 1433 MB) and never shrinks. Verified: sharp textures on lap
-  four, unchanged after a restart. Texture quality must be Ultra in the game settings for the
-  full effect.
-
-### Improved
-
-- The texture tile pool and the DirectStorage staging buffer are sized from the card at start
-  (`tile_pool_mb=auto`, `staging_buffer_mb=auto`, the defaults now): the mod reads the render
-  adapter's dedicated memory the moment the game creates its DXGI factory, before the renderer
-  sizes its pools, and picks 1024, 1536, 2048 or 3072 MB of tiles and 128, 192 or 256 MB of
-  staging for cards under 7, 11 and 15 GB and above. The same zip is right on any card, a
-  number in the ini still overrides. Verified: 5994 MB card, 1024 and 128 chosen and applied.
+- Crashes at startup and on car or track changes.
+- Missing icons in the vehicle hub and menus.
+- Mushy road, tyre and ground textures, worst after restarting a session. Set texture quality to Ultra in the game for the full effect.
 
 ### Added
 
-- Display owner check: at swap chain creation the log says which adapter owns the monitor the
-  window sits on. When it is not the render adapter (laptops with two GPUs), a warning explains
-  that every frame is copied to the other adapter before it is shown, about a millisecond per
-  frame and more on slow frames, and that a display wired to the render adapter avoids it.
-- Package override layer: files under `acevo_mods\<package path>` next to the exe replace or add
-  entries of `content.kspkg` without touching the 64 GB package. The proxy rewrites the package
-  table in memory when the game reads it and points the game's DirectStorage requests at the
-  loose files. Verified with a replaced and an added file. This is the base for content changes.
-- Engine flags from the ini: any bool, int32 or double gflag of the game can be set under
-  `[flags]`, the mod finds the flag storage inside the exe at start (the release build ignores
-  flags on the command line). Defaults on: `enable_pso_cache=true` (fewer shader compile stalls
-  after the first run of a combination), `no_intro=true`.
-- Process tweaks: above normal priority class, Windows power throttling off for the game, 0.5 ms
-  timer resolution.
-- Telemetry: `acevo_perf.log` (everything applied, DirectStorage queues and requests, hitches over
-  `hitch_ms` with the streaming activity around them), `acevo_perf_timeline.csv` (one line per
-  second: fps, hitches, streaming volume, VRAM against budget, CPU), `acevo_perf_frames.csv` (one
-  line per frame). `tools/telemetry_report.py` summarises a session folder and joins an
-  `nvidia-smi` sample log on the clock second.
-- Per frame streaming counters: the frames CSV carries the tile, package to memory and memory to
-  GPU requests enqueued since the previous frame, so a slow frame can be matched to streaming.
-- Throw log (`[log] throw_log=1`, off by default): counts the C++ exceptions the game throws
-  by throw site and type and logs the busiest sites every ten seconds, because the render
-  thread was seen spending about two percent of its time in exception unwinding.
-- Drag and drop install: the zip holds `dstorage.dll` (the mod), `dstorage_orig.dll` (Microsoft's
-  DirectStorage 1.2.3 runtime, byte identical to the game's own), `acevo_perf.ini` and a readme.
-  No scripts.
-
-### Tools
-
-- `tools/kspkg.py`: inspect, list, extract and verify `content.kspkg` (64 MB table, FNV-1a 64 path
-  hashes, the XOR cipher with its phase restarting at every entry).
-- `tools/acevo_settings.py`: view and edit the binary settings files with the protobuf schema
-  pulled from the exe, profiles for a 6 GB card, backups before every write.
-- `tools/protodesc.py`: the schema extractor behind it. `tools/data/` holds the recovered flag
-  table and the schema dump.
-
-### Known, not fixed yet
-
-- Not the mod's to fix: the road ahead sharpening late and the grass and trees fading and
-  changing colour as the car gets close happen on every card (BUG-001, BUG-006). They are the
-  engine's own mip and level of detail distances, written into the content meshes, and the
-  game's Custom level of detail setting moves them at a frame rate cost.
-- Not the mod's to fix either: the 1.2 second freeze at every session start and on back to
-  pits is the engine parsing its 63 MB track preset (zlib blobs of one message per value), the
-  same on every card (BUG-012). `disable_dynamic_track=true` in the ini removes it together
-  with the track evolution.
-- Frame drops in a few sections of the Nordschleife (BUG-002) and a 1 percent low that sits 20
-  to 25 fps under the average (BUG-009). Nineteen measured laps narrowed the slow frames down to
-  the render thread handing its main command list to the GPU a few milliseconds late in heavy
-  views, with the swap chain, fences, waits, the GPU clock, the CPU clock, streaming and every
-  graphics setting ruled out one by one. No fix in the mod yet, the hunt is parked with its
-  evidence and its remaining leads (TODO-010). The drop after a window switch (BUG-013) is the
-  pause and HUD reload stalls passing through a rolling counter, plus the device rebuild on a
-  device change.
-- Not the mod's to fix: the menus and the settings, controls and vehicle setup pages lag on
-  open, on every switch and while they are used (BUG-014). The cost is in the game's own UI
-  pages and scripts, and the mod changes nothing in the UI. A menu that stops responding after
-  a window switch is the game pausing its UI until real input reaches the window, click into
-  it.
+- Texture memory and the loading buffer are sized for your card automatically. A number in the ini overrides it.
+- Engine flags can be set in the ini under `[flags]`. The shader cache and the intro skip are on by default.
+- Above normal CPU priority for the game, with Windows power throttling off and a finer system timer.
+- `acevo_perf.log` in the game folder lists what the mod did. Optional CSV logs record every second and every frame.
+- A warning in the log when a laptop's display runs off a different GPU than the one rendering the game.
+- An `acevo_mods` folder. Files in it replace the game's files without touching its content package.
+- Python tools in `tools/` to look inside the content package and edit the game's settings files.
