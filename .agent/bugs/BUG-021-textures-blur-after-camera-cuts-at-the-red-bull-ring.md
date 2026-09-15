@@ -1,9 +1,9 @@
 ---
 name: BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring
 kind: bug
-description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, with the reload fix off as much as on, the scenery because the 1024 MB texture pool is full and the car because the engine drops its livery at every cut even with room to spare, parked low priority
-updated: 2026-09-13
-links: [DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
+description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, because a cut forces a streamer pass that loads for the new shot before it drops the old one, often cannot load at all and then waits a full second, the car dropped whole at every cut away and the scenery three passes behind at 1024 MB, a follow up pass the correction to test
+updated: 2026-09-14
+links: [texture-streamer-camera-cuts-2026-09-14, TODO-024-a-follow-up-streamer-pass-after-a-camera-cut, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
 status: open
 severity: nit
 area: streaming
@@ -75,7 +75,9 @@ again when the camera comes back to the car, over one or two passes.
 | 187.0 s | 195 | dropped to the coarsest level |
 
 The gate had 11,000 to 20,000 tiles free through those cuts, so the drop is not the pool asking for
-room. The engine throws away every texture of the shot it leaves, and the showcase comes back to the
+room. (Corrected 2026-09-14. At the drop itself the gate was 0 to 339 tiles, the new shot's loads having
+just taken it, and 11,000 to 20,000 is the room during track shots seen at the cut back. The drop still
+has no request behind it, so it is still not the pool asking for room.) The engine throws away every texture of the shot it leaves, and the showcase comes back to the
 car every 30 s or so. The livery never has a feedback reading (mip -1), so the car's detail comes
 from the engine's own priority and not from what the shader saw.
 
@@ -91,3 +93,27 @@ Two angles for later, neither tried:
 
 Parked as low priority on the owner's word. It belongs with the streaming round of TODO-019, which
 already covers the Red Bull Ring's texture traffic while driving.
+
+## The deep dive, 2026-09-14
+
+Four angles from the exe, the traces and a replay of the streamer's decisions, no new run. The full
+record is [texture-streamer-camera-cuts-2026-09-14](../docs/research/texture-streamer-camera-cuts-2026-09-14.md).
+
+- **The mechanism.** A camera cut sets the streamer's kick deadline to now, so a pass runs on the cut
+  frame. It loads for the new shot against the free space from before it, drops the old shot only
+  afterwards, starts at most 128 loads and none at all when any Resource Manager job was unfinished,
+  then waits a full second. Half the pit menu cuts at 1024 MB ran with loads off.
+- **The car.** About 200 car textures, 6,753 tiles, drop to level 0 at every cut away and tie at the top
+  priority on the way back, so the livery was 192nd in line on 3 of 7 returns and its finest level was
+  asked for 1.2 to 2.3 s after the cut.
+- **The scenery.** At 1024 MB a car shot pushes the track textures out, and a cut to the track wants 5,300
+  to 7,200 tiles back into a few hundred of room, three passes. At 1536 MB, two.
+- **The shipped fixes.** A replay matched to S says the rank fix, partial loads and the reload fix change
+  no car measure at the cuts. The reload fix takes about a quarter of the pit menu's traffic out.
+- **The angles above.** "Keep what is not needed while nothing waits" is replayed and dead, 13 MB and no
+  livery at 1024 MB. "A pool sized to the scene" stays open on DEC-009.
+
+Next is a follow up pass after a cut that could not load, fired when the Resource Manager's count reads
+zero, [TODO-024](../todos/TODO-024-a-follow-up-streamer-pass-after-a-camera-cut.md). Keeping textures
+across cuts is the correction for bigger pools and waits on how the tile allocator behaves when it runs
+dry.

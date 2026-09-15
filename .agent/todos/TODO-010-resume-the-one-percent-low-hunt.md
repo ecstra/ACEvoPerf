@@ -1,9 +1,9 @@
 ---
 name: TODO-010-resume-the-one-percent-low-hunt
 kind: todo
-description: pick the 1 percent low hunt back up from the recorded evidence, the leads that were never tested and the instruments that were removed
-updated: 2026-09-13
-links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, one-percent-low-hunt-2026-09-05, telemetry, reference-machine-has-no-direct-gpu-display]
+description: pick the 1 percent low hunt back up from the recorded evidence, now through the deep dive of 2026-09-14, whose two runs replace the leads never tested and the instruments that were removed
+updated: 2026-09-14
+links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, one-percent-low-hunt-2026-09-05, one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, telemetry, reference-machine-has-no-direct-gpu-display]
 status: open
 area: render
 created: 2026-09-06
@@ -15,39 +15,41 @@ done-when: a clean driving minute has its slowest 1 percent of frames within 1.2
 Owner wording, 2026-09-06: "either fix or remove all logging and mark it as planned for future."
 The logging is removed, this is the plan.
 
-## Where it stands
+## Where it stands, 2026-09-14
 
-Nineteen laps say the slowest 1 percent of frames are the render thread handing its main
-command list batch to the GPU 3 to 5 ms late in heavy views, with the GPU idle in that gap, the
-work spread across the renderer's code, and everything else ruled out. The full record is in
-`one-percent-low-hunt-2026-09-05` and BUG-009.
+The deep dive of 2026-09-14 read the nineteen laps again with the exe
+([one-percent-lows-2026-09-14](../docs/research/one-percent-lows-2026-09-14.md)). The slowest frames are
+the present path through the integrated GPU, coupled to the previous frame's GPU end, then 1.2 to 2.8 ms
+of spread out renderer code, then periodic pieces led by the game advancing one UI view per frame in
+rotation. Reflex already evens the long short alternation. No fix is shown to narrow the width on the
+Nürburgring protocol.
 
-## Leads never tested
+## The leads, answered or moved
 
-- Displays on the discrete GPU, **not possible on the reference machine**. The game's log lists
-  both monitors as outputs of the AMD integrated adapter and the render thread waits inside the
-  AMD D3D11 driver every present, 0.9 ms in a median frame and up to 4 ms in a slow one. The
-  laptop has no MUX, its external monitor is on HDMI through the integrated GPU and there is no
-  USB-C cable, owner wording 2026-09-13: "THERE IS NO MUX on this laptop and I do not have any
-  cable that directly connects the GPU to the monitor". Only a user with a directly wired display
-  could test it. See [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
-- Render thread isolation: pin the render thread to one physical core and keep the game's other
-  threads off its hyperthread sibling, raise it above the workers. The core speed probe said the
-  core was only 5 percent slower in slow frames, so this is a small lever, but it is the one
-  the mod can pull without touching game data.
-- Which job the render thread waits for. The frame's main batch is late because the thread
-  spends its extra time in the renderer's job scheduler helping and waiting. A per frame count
-  of the job counters it waited on, with the counter's owner named from the exe, would say which
-  system is late (culling, animation, physics sync, UI).
-- HUD script on the render thread. V8 runs there only in slow frames, 0.3 to 1.2 ms. UI work is
-  off limits until the owner explains the UI problem, but the finding belongs to that talk.
-- The 0.1 percent: file to memory requests on the render thread's frame (5 frames of 45 ms in
-  lap 16, all with `f2m_req` above zero), a streaming hitch, not the spread.
+- **Displays on the discrete GPU.** Not possible on the reference machine, no MUX and no cable, see
+  [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
+- **Which job the render thread waits for.** Answered, no lock and no job. Lock waits add 0.01 to 0.22 ms
+  per slow frame and the scheduler about 0.06 ms, the extra waiting is the present call and the frame
+  latency object.
+- **HUD script on the render thread.** Answered, V8 comes in bursts after a load and does not set the
+  width. The UI's weight comes through the view rotation instead, tested by
+  [TODO-025](TODO-025-the-ui-view-rotation-test.md).
+- **Render thread isolation.** No processor shortage was found, and lap 18's slower core was the CPU clock.
+  Waits on [TODO-026](TODO-026-one-lean-etw-trace-of-the-slow-frames.md) showing ready time or a busy
+  sibling.
+- **The 0.1 percent.** File to memory requests on the render thread's frame, a streaming hitch, not the
+  spread. Unchanged.
 
-## Instruments to bring back
+## Instruments
 
-All in the history before the commit `removed: the latency hunt instrumentation`: the render
-thread sampler with the per minute slowest 1 percent cut and the stack module chain, the GPU
-timestamp marks per command list batch, the wait and fence hooks, the tile mapping and submit
-timing, the core speed probe, the input probe and the device watch. Each one takes a config key,
-none of them belong in the shipped build.
+None come back. One lean ETW trace started from the owner's elevated prompt sees what the in process
+sampler, wait hooks, fence hooks and core speed probe saw, without moving the present path the way the
+sampler did (TODO-026).
+
+## The done-when needs the owner
+
+The line above cannot tell a fix from a lucky minute. Read as p99 over median, single minutes on disk
+already cross 1.25 (R's lap minute 2 at 1.221), and read as the slowest 1 percent's mean over median whole
+laps sit at 1.308 to 1.391. A measure that works compares a stint against a baseline stint inside the same
+launch with a fixed margin, using whatever statistic the owner's frame counter shows. Kept as written until
+the owner picks.

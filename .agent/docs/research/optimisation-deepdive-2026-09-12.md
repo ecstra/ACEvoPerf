@@ -2,8 +2,8 @@
 name: optimisation-deepdive-2026-09-12
 kind: doc
 description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved of which the DLSS one then closed, the engine is well built and the live leads both sit on one serial chain at the end of a session load, the dynamic track preset and a duplicated tyre build
-updated: 2026-09-12
-links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads]
+updated: 2026-09-14
+links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14]
 ---
 
 # Optimisation deep dive
@@ -238,6 +238,16 @@ Worth noting separately, because it is the largest number in that table: **cohtm
 single contributor to slow driving frames**, at more than eight times its fast frame share. That is
 the UI, closed permanently by the owner in DEC-010 and BUG-014, so it is recorded and not pursued.
 
+**This section is wrong, corrected 2026-09-14.** The 23:02:06 summary is in lap 13's log, and lap 13 ran
+commit `ae7a34e`, whose tallies were cumulative from sampler start with no 100 ms filter. The minute ring
+and the filter quoted above arrived in `ef9fd2b`, the lap 14 build. So the table includes the session
+load. Lap 13's real second minute, the difference of its two summaries, gives cohtml minus 2.2 samples
+and `ZwWaitForAlertByThreadId` plus 2.7, and in the per minute cuts of laps 14 to 17 the lock waits add
+0.01 to 0.22 ms per slow frame. Cohtml is not the biggest contributor to slow driving frames, and the
+lock question is answered as not an owner. The killed finding stays killed, for this reason and not the
+reviewer's. See [one-percent-lows-2026-09-14](one-percent-lows-2026-09-14.md) and
+[ui-lag-deepdive-2026-09-14](ui-lag-deepdive-2026-09-14.md).
+
 ### The two content magnitude corrections, re-derived independently
 
 Both survived the deep dive as KEPT findings but with their sizes cut hard by the reviewers, so
@@ -395,6 +405,8 @@ call it 0.1 percent. Three of the five kills below are re-grounded on it and sur
   was 4665 MB of a 5226 MB budget "leaving 561 MB", so that figure is remaining headroom and not
   something a fix recovers. The bug's own cache off session moved the peak to 4590 MB, so 75 MB is
   the measured effect of the leading suspect. The prize really was misread. BUG-016 stays open.
+  (Overtaken 2026-09-14. The census ran, the VRAM side is placement the next load reuses, and the RAM
+  side needs one more run, [memory-creep-2026-09-14](memory-creep-2026-09-14.md).)
 - **The engine already sets residency priority.** Held on the earlier pass, recorded above.
 - **The Agility SDK export route.** The exe has 49 exports, all `ffx` and `tm_api`, with neither
   `D3D12SDKVersion` nor `D3D12SDKPath`. Confirms the fact, not the conclusion, hence entry 9 above.

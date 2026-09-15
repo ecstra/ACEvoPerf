@@ -2,8 +2,8 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-13
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12]
+updated: 2026-09-14
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # Telemetry
@@ -49,7 +49,11 @@ it samples and writes only while a CSV is on. Columns:
 - `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the discrete
   adapter, local segment
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
-- `ws_mb`, `commit_mb`: working set and private commit of the game process
+- `ws_mb`, `commit_mb`: working set and private commit of the game process. The game's private
+  commit includes its local VRAM one to one, so take `vram_used_mb` out before reading a commit step
+  as RAM. The game log's `Request session start` memory reading sits 0 to 306 MB above the settled
+  menu plateau, so memory comparisons use the timeline's plateau
+  ([memory-creep-2026-09-14](../research/memory-creep-2026-09-14.md))
 
 ## acevo_perf_frames.csv
 
@@ -72,7 +76,9 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 
 - `kick`, one pass of the streamer, written at its first event. a kick number, b pool capacity in
   tiles, c admission budget, d records built, e records admitted, f tiles admitted, g records
-  rejected, h load gate space at that moment, i load gate byte, then for the previous kick j
+  rejected, h load gate space at that moment, i the loads byte (1 when the Resource Manager had no
+  unfinished job as the kick was scheduled, 0 means the kick starts no load at all), then for the
+  previous kick j
   textures that wanted a finer level, k loads turned away for space, l drops, m drops refused, n
   loads cut to the levels that fit, o tiles those loads carried
 - `tex`, a texture seen for the first time. a Texture pointer, b its `ID3D12Resource` (the `res`

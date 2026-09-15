@@ -2,12 +2,13 @@
 name: decisions-index
 kind: doc
 description: index of every decision taken, newest first
-updated: 2026-09-13
+updated: 2026-09-14
 links: [agent-index, spec-decisions]
 ---
 
 # Decisions Index
 
+- [DEC-019-ui-lag-work-reopened](DEC-019-ui-lag-work-reopened.md), 2026-09-14, the UI lag is the one lane worked after the five deep dives on the owner's pick, UI diagnostics in developer builds off by default and UI fixes shipped once verified in game, superseding DEC-010
 - [DEC-018-a-full-texture-pool-keeps-the-players-car-first](DEC-018-a-full-texture-pool-keeps-the-players-car-first.md), 2026-09-13, a full texture pool stays shared the way the engine ranks it, the player's car and driver first and AI cars like props, because ranking the car's finest levels lower or AI cars as cars only moves the blur
 - [DEC-017-streamer-reload-fix-refuses-the-drop](DEC-017-streamer-reload-fix-refuses-the-drop.md), 2026-09-13, the texture streamer's feedback flip is fixed by refusing the drop of a texture whose own readings show the flip, guarded by the engine's 1024 tile margin alone, rather than by correcting the conversion, refusing the reload, deduplicating or standing down whenever the pool is contended
 - [DEC-015-bundled-directstorage-core-loaded-first](DEC-015-bundled-directstorage-core-loaded-first.md), 2026-09-12, the mod ships DirectStorage 1.3.0 as acevo_dstoragecore.dll and calls the core directly, because the game owns the name dstoragecore.dll and loads its own first
@@ -16,7 +17,7 @@ links: [agent-index, spec-decisions]
 - [DEC-013-overtake-front-door-github-mirror](DEC-013-overtake-front-door-github-mirror.md), 2026-09-06, the Overtake listing is the front door and the GitHub release the mirror, the same zip in both
 - [DEC-012-no-ghost-car-mod](DEC-012-no-ghost-car-mod.md), 2026-09-06, the ghost car flag does not ship and its branch is gone, the game records and loads a ghost but nothing shows it
 - [DEC-011-no-free-roam-mod](DEC-011-no-free-roam-mod.md), 2026-09-06, the Free Roam unlock does not ship and its branch is gone, the package stops at the Nürburgring complex, the recipe stays in the research record
-- [DEC-010-no-ui-changes-ship](DEC-010-no-ui-changes-ship.md), 2026-09-06, no UI change ships after the lag hunt, the Cohtml hook stays as a diagnostic, the overhaul is the owner's call
+- [DEC-010-no-ui-changes-ship](DEC-010-no-ui-changes-ship.md), 2026-09-06, superseded by DEC-019, no UI change shipped after the lag hunt and everything UI related was removed
 - [DEC-009-pool-and-staging-sizes-by-card](DEC-009-pool-and-staging-sizes-by-card.md), 2026-09-06, tile pool and staging buffer picked from the card's memory at the game's first DXGI factory
 - [DEC-008-frame-latency-left-to-the-game](DEC-008-frame-latency-left-to-the-game.md), 2026-09-05, the game's swap chain latency stays, the proxy logs the calls
 - [DEC-007-drag-and-drop-install-with-bundled-runtime](DEC-007-drag-and-drop-install-with-bundled-runtime.md), 2026-09-05, zip bundles the Microsoft runtime, no install scripts

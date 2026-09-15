@@ -2,8 +2,8 @@
 name: TODO-019-tile-upload-dedupe-done-properly
 kind: todo
 description: the round for the redundant tile traffic that is left, since the parked churn is now fixed at its source, which is driving, 97 percent of 20 GB in ten minutes at the Red Bull Ring asking again for mips already requested, with the 2026-09-12 dedupe's cliff shown impossible and its real wrong texture defects named
-updated: 2026-09-13
-links: [texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, TODO-018-look-properly-at-the-streaming-layer, directstorage-streaming, BUG-016-vram-overhead-grows-across-scene-loads]
+updated: 2026-09-14
+links: [texture-streamer-flip-2026-09-13, DEC-017-streamer-reload-fix-refuses-the-drop, tile-pool-reshuffle-2026-09-12, TODO-018-look-properly-at-the-streaming-layer, directstorage-streaming, BUG-016-vram-overhead-grows-across-scene-loads, texture-streamer-camera-cuts-2026-09-14, TODO-024-a-follow-up-streamer-pass-after-a-camera-cut]
 status: open
 by: owner
 area: streaming
@@ -59,6 +59,19 @@ coverage changes every kick while moving and its pin lets go.
 those 19.4 GB into feedback flips the fix released, flips with no fresh feedback, and genuine
 changes of view, then decide between widening the fix and a dedupe rebuilt on source identity.
 Either way, replay it through that trace before it costs the owner a session.
+
+## What the camera cut dive adds, 2026-09-14
+
+From [texture-streamer-camera-cuts-2026-09-14](../docs/research/texture-streamer-camera-cuts-2026-09-14.md).
+
+- **Camera cuts are a traffic source of their own.** In the Red Bull Ring pit menu showcase the reloads
+  after cuts run 9 to 13 MB/s at either pool size, a whole car of about 6,750 tiles dropped and loaded
+  again every cycle. Keeping textures across cuts would save 72 percent of them at 1536 MB and 7 percent
+  at 1024 MB. That work sits in TODO-024 and BUG-021.
+- **No duplicates in the pit menu.** 5 repeated requests of a held level in 330 s, and a pool rebuilt
+  from the trace stays within 8 tiles of the engine's counter.
+- **Cross run traffic numbers are unreliable.** Two identical 29 AI races differ by 28 percent in tile
+  traffic while their refusals match, so this round's measure has to be inside one run or a replay.
 
 ## What was built, so none of it is re-derived
 

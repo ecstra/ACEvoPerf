@@ -2,8 +2,8 @@
 name: BUG-006-distant-objects-pop-in
 kind: bug
 description: distant objects switch detail level visibly as the car approaches, reopened and traced to staticLevelOfDetail sitting unwritten at Low, which fixes all of it when turned on and halves the frame rate at every quality tier
-updated: 2026-09-12
-links: [settings-files, content-package, BUG-001-texture-low-mip-shown-before-streaming, TODO-005-lap-two-experiments]
+updated: 2026-09-14
+links: [settings-files, content-package, BUG-001-texture-low-mip-shown-before-streaming, TODO-005-lap-two-experiments, mesh-level-of-detail-2026-09-14]
 status: wontfix
 severity: nit
 area: render
@@ -124,6 +124,15 @@ Two things, independent of what the mod does:
 - The option that fixes it is labelled experimental and costs half the frame rate on a 6 GB laptop
   card, so the honest reading is that the cheap path and the correct path are currently the same
   switch, with nothing in between.
+
+## Why the experimental option halves the frame rate, 2026-09-14
+
+From the TODO-022 deep dive, read in the exe and the package but not re-checked by a second agent
+([mesh-level-of-detail-2026-09-14](../docs/research/mesh-level-of-detail-2026-09-14.md)). Tree meshes
+in the main and shadow views draw one fixed level taken from their static LOD fields (`0x1EDDE44`),
+and all 324 vegetation meshes that carry the block read 0, 0, 0. So with the experimental static LOD
+on, every tree draws LOD0 at every distance at every quality tier, which is why High and Low halved the
+frame rate alike. Another thing worth telling Kunos. The status stays won't fix.
 
 ## Verification
 

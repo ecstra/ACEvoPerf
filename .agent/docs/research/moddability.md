@@ -2,8 +2,8 @@
 name: moddability
 kind: doc
 description: how Assetto Corsa EVO 0.9.0 is built and what a mod can realistically change
-updated: 2026-09-05
-links: [content-package, engine-flags, settings-files, directstorage-streaming]
+updated: 2026-09-14
+links: [content-package, engine-flags, settings-files, directstorage-streaming, one-percent-lows-2026-09-14]
 ---
 
 # Moddability
@@ -29,8 +29,9 @@ cars is the ACE SDK on Steam Tools plus the `Saved Games\ACE\mods` folder.
 
 ## Hooking surface
 
-`dstorage.dll` is a plain import next to the exe, as are `WinPixEventRuntime.dll`,
-`OptickCore.dll`, `amd_fidelityfx_loader_dx12.dll` and `cohtml.WindowsDesktop.dll`. `dxgi.dll` and
+`dstorage.dll` is a plain import next to the exe, as are `amd_fidelityfx_loader_dx12.dll` and
+`cohtml.WindowsDesktop.dll`. `WinPixEventRuntime.dll` and `OptickCore.dll` sit next to it but the exe
+references neither, only the DirectStorage cores name the PIX runtime (checked 2026-09-14). `dxgi.dll` and
 `d3d12.dll` come from System32 and can be hooked through the import table from any loaded DLL. No
 anti cheat or binary integrity check was found. The online backend validates content SHA tables
 (`dump_sha_tables` flag). The exe is unpacked, has ASLR, no CFG, full RTTI and full protobuf

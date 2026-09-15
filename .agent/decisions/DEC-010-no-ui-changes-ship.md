@@ -2,12 +2,12 @@
 name: DEC-010-no-ui-changes-ship
 kind: decision
 description: the mod carries nothing UI related after the lag hunt, no hook, no switch, no tool, on the owner's word, the findings stay in the research record
-updated: 2026-09-06
-links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-hunt-2026-09-06, TODO-011-ui-overhaul-through-injected-scripts]
+updated: 2026-09-14
+links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-hunt-2026-09-06, TODO-011-ui-overhaul-through-injected-scripts, DEC-019-ui-lag-work-reopened]
 date: 2026-09-06
 area: ui
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-019-ui-lag-work-reopened
 ---
 
 ## Decision

@@ -2,8 +2,8 @@
 name: BUG-010-texture-pool-shrinks-on-race-load-and-restart
 kind: bug
 description: the engine sized the texture tile pool during scene transitions (633 MB in a race, 526 MB after a restart), fixed by fixed pool sizes
-updated: 2026-09-05
-links: [BUG-007-blurry-road-and-textures, directstorage-streaming, DEC-005-fixed-pool-sizes-by-default, engine-flags]
+updated: 2026-09-14
+links: [BUG-007-blurry-road-and-textures, directstorage-streaming, DEC-005-fixed-pool-sizes-by-default, engine-flags, mesh-level-of-detail-2026-09-14]
 status: fixed
 severity: bug
 area: streaming
@@ -38,6 +38,12 @@ percent of that remainder (`DeviceAllocator.cpp`).
 Root cause: the engine's dynamic pool sizing runs during the scene transition. Fixed by the
 defaults `force_canonical_pool_sizes=true` and `tile_pool_mb=1024` in `dist/acevo_perf.ini`
 (DEC-005), commit d5197d5, 2026-09-05.
+
+Named more exactly on 2026-09-14. The sizing runs when video settings are applied (`0x1D43090`), and
+on 0.9.0 the game applied them at the menu, the race load and the restart. `tile_pool_mb` alone keeps
+the tile pool fixed, `0x1C80EC4` returns before the canonical flag is read
+([mesh-level-of-detail-2026-09-14](../docs/research/mesh-level-of-detail-2026-09-14.md)). The fix
+stands.
 
 ## Verification
 

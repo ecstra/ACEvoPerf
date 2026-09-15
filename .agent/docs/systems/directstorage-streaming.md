@@ -2,8 +2,8 @@
 name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
-updated: 2026-09-13
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package]
+updated: 2026-09-14
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # DirectStorage streaming
@@ -31,7 +31,11 @@ a request follows the first frame that needs the mip by at least two frames.
 About once a second the streamer runs a kick. It takes one frame of demand, gives every (texture,
 level) a priority from material distance tables or GPU feedback, admits in priority order until the
 pool budget runs out, loads what was admitted if the load gate has space, and drops the rest at
-once. The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
+once. The drops come after the same kick's loads, so a kick's own drops never make room for its
+loads. A kick starts at most 128 loads, and none at all when the Resource Manager had any unfinished
+job when the kick was scheduled. A camera cut (a showcase shot change or a camera mode change) and the
+UI waiting for a texture both force a kick at once, and the next one then waits the full interval
+([texture-streamer-camera-cuts-2026-09-14](../research/texture-streamer-camera-cuts-2026-09-14.md)). The tile queue carries whole standard mips, the file to memory queue the packed tail. A drop
 frees its tiles to a first in first out pool two frames later with no unmap. The pool runs full in
 normal play, 14,800 to 15,300 of 16,384 tiles used at 1024 MB on a 6 GB card, with about 120 loads
 turned away for space on every parked kick, and at 15,360 through a race with AI.
@@ -65,7 +69,10 @@ meshes (34 MB).
 ## VRAM pool sizing
 
 The game never calls `DStorageSetConfiguration` and calls `SetStagingBufferSize(1024 MB)`. The
-runtime keeps two staging buffers of that size in local video memory. After its own allocations
+runtime keeps two staging buffers of that size in local video memory and two more on the CPU side,
+all four in the process's commit. The CPU side `SystemMemoryStagingBuffer` comes from the core's static
+CRT `_aligned_malloc` on the process heap, and the buffers are kept per factory and device, not per
+queue ([memory-creep-2026-09-14](../research/memory-creep-2026-09-14.md)). After its own allocations
 the engine (`DeviceAllocator.cpp`) computes `[Tile Pool] remainder N MB -> texture pool N/2.5`
 and the same for the mesh streamer. On a 6 GB card:
 
@@ -74,15 +81,18 @@ and the same for the mesh streamer. On a 6 GB card:
 | 1024 MB (game) | 2343 MB | 400 MB | 400 MB |
 | 256 MB | 807 MB | 1015 MB | 1015 MB |
 | 128 MB | 551 MB | 1115 MB | 1115 MB |
-| `force_canonical_pool_sizes` alone | | 1433 MB | 1433 MB |
+| `force_canonical_pool_sizes` alone, texture pool size Low | | 1433 MB | 1433 MB |
 | 128 MB plus `force_canonical_pool_sizes` and `tile_pool_mb=1024` (mod default) | 500 MB | 1024 MB fixed | 1433 MB cap |
 
-The dynamic formula has a second problem beyond the staging buffers: it runs during the scene
-transition while the outgoing scene is still resident, so those menu numbers do not survive a
-race. Measured on the same card, dynamic path: menu 1117 MB, race load 633 MB, session restart
-526 MB, with a gigabyte of VRAM unused in the race (BUG-010). With the two flags the tile pool is
-created once at `tile_pool_mb` and never resized, and the mesh budget is a 1433 MB cap that fills
-on demand. Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
+The dynamic formula has a second problem beyond the staging buffers. It runs whenever video settings
+are applied (`0x1D43090`), which on 0.9.0 happened at the menu, the race load and the restart while the
+outgoing scene was still resident, so those menu numbers did not survive a race. On the same card the
+dynamic path gave 1117 MB in the menu, 633 MB at the race load and 526 MB after a session restart, with
+a gigabyte of VRAM unused in the race (BUG-010). On 0.9.1 it ran once per launch in the runs of 2026-09-13. The mesh
+budget's formula is `max(256, 0.4 x remainder)` with no ceiling. The canonical sizes are the
+`texturePoolSize` define, 1433 MB at Low. `tile_pool_mb` fixes the tile pool on its own and is created
+once, so with the mod's defaults the canonical flag only sets the mesh budget, a 1433 MB cap that fills
+on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-2026-09-14.md)). Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
 Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's

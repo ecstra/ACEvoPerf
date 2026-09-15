@@ -1,12 +1,12 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the game's memory creeps across scene loads, committed RAM by about a gigabyte with the first track and 90 to 470 MB with every track after it, and the VRAM overhead spikes after each Nürburgring unload, the same with the mod passive, so it is the game's own and still unnamed
-updated: 2026-09-13
-links: [directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
+description: the game's committed memory grows across scene loads, a one time heap fill of about 1.25 GB with the first track and then about 110 MB a track the game really keeps, the same with the mod passive, costing page file space and nothing else found, while the VRAM overhead spike is placement the next load reuses, what grows is still unnamed
+updated: 2026-09-14
+links: [memory-creep-2026-09-14, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
 status: open
-severity: medium
+severity: bug
 ---
 
 ## Symptom
@@ -66,6 +66,11 @@ Loading gets slower over the same session, on content that does not change. The 
 13.14 s for an identical 1528 meshes and 1237 textures. Whatever accumulates costs time as
 well as memory, which makes an allocator that is doing more work to place each request a
 better fit than a simple leak.
+
+**Corrected 2026-09-14.** The menu loads in that table followed different tracks. A menu load
+after a Nürburgring carries its teardown (a median 4.53 s against 2.59 s after a Red Bull Ring), and
+identical loads after identical predecessors drift a median 4 to 7 percent with no link to commit,
+see [memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md).
 
 ## Reading
 
@@ -259,13 +264,41 @@ into the heap undoes. The mod cannot defragment a heap the game is using, and mo
 different allocator from a DLL would have to catch every allocation and every free from the first one
 on.
 
+**Corrected 2026-09-14.** Two readings above do not hold. The game's commit counts its local VRAM one
+to one, so the other private column holds 3.2 to 3.5 GB of VRAM. And `HeapSummary`'s committed figure
+overstates after load shaped churn, so the 1.8 GB "given back" is mostly that count. With VRAM taken
+out the first track is a one time step of 1,252 MB, and after it the growth is live heap, 234 MB and
+219 MB between visits to the same track while slack moved by minus 28 and plus 73 MB. The real slack is
+most likely 0.74 to 0.96 GB, set once. The mapped views jump in the first menu before any track, not
+with the first track.
+
 The first census version read every ten seconds and froze the game on each read, 200 ms in the menu
 and 1.4 s on track (`logs/memcreep-20260913/R-census-mod-on`), because `HeapSummary` walks a heap of
 4 to 7 GB under its lock.
 
 Deferred on the owner's word, 2026-09-13, to its own deep dive with a targeted fix if one exists.
 
+## The deep dive, 2026-09-14
+
+Five angles from the exe and the sessions on disk, no new run. The full record is
+[memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md).
+
+- **RAM.** One process heap serves the exe, Cohtml, fmod, DirectStorage, D3D12 and the driver. The
+  first track fills it once, about 650 MB of slack, and after that the game keeps about 110 MB a track
+  for real. No heap lever a DLL can pull is worth shipping, `HeapCompact` returns nothing and
+  `HeapOptimizeResources` gives back 6 to 7 percent that the next load takes again.
+- **VRAM.** The overhead spike is free space in the mesh pool's 32 MB blocks, pinned by menu buffers
+  placed while the track was still unloading. The next load reuses it, and its only cost was the
+  engine's dynamic pool sizing, which `force_canonical_pool_sizes` already skips.
+- **Cost.** Page file space. No blur, frame time, load time or out of memory evidence on any session.
+- **The mod.** A fixed 66 to 71 MB, 64 MB of it the overlay's table copy,
+  [BUG-023](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md).
+
+What keeps growing is still unnamed. One run with the census back and two memory dumps decides it,
+[TODO-023](../todos/TODO-023-name-what-the-game-keeps-across-identical-loads.md).
+
 ## Done when
 
-The overhead figure is flat across a dozen loads, or its growth is named and the mod either
-fixes it or the record says why it cannot.
+TODO-023's run says whether live heap keeps growing on identical loads, and either the growth is
+named and the mod fixes it, or the record says it is the game's own fill or cache and why the mod
+cannot reach it.
