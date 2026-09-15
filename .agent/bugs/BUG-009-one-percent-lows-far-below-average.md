@@ -1,7 +1,7 @@
 ---
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
-description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, what is left is spread out renderer code and a ripple from the game updating one UI view per frame, with the UI schedule tested first
+description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, what is left is spread out renderer code and a ripple from the game updating one UI view per frame, plus frames held for a display refresh the frame rate is above, with the UI schedule and a 60 Hz stint tested in one launch
 updated: 2026-09-15
 links: [one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry, ui-lag-deepdive-2026-09-14]
 status: open
@@ -323,6 +323,36 @@ definitely wrong".
 The first run is the UI schedule test of [TODO-025](../todos/TODO-025-the-ui-view-rotation-test.md), three
 schedules taking turns inside one launch. If none narrows the width, the ETW trace of
 [TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md) is next.
+
+## The refresh lead, 2026-09-15
+
+In the owner's words, "The 1% was 60fps while the framerate was uncapped. Display was at 60hz. I changed
+display to 240hz and now it was 70-90 1%."
+
+- **The game's vsync has three modes.** `enum VSync { Adaptive=0, Off=1, On=2 }` in the settings schema. The
+  RHI present at `0x1E3AAD0` passes sync interval 1 for On and sync interval 0 with
+  `DXGI_PRESENT_ALLOW_TEARING` for Off. For Adaptive it compares each frame's time since `BeginFrame` with
+  the refresh period read once at swap chain creation (`0x1E20A7C`, 1 over the window monitor's rate into
+  wrapper `+0x18`), syncs when two frames in a row come under 0.8 of it and tears when two come over 1.2.
+  Adaptive would have held that desktop at 60 fps, so it most likely ran Off. This laptop runs Off
+  (`v_sync: 1` in the game log).
+- **The reading, not measured.** When Windows composes a game's frames instead of flipping them, a frame
+  with vsync off still reaches the screen on the refresh, and the frame latency wait at `0x1CE3AA6` can
+  only release when a queued frame leaves. Slow frames then round up to refresh steps, 16.7 ms at 60 Hz, a
+  60 fps 1 percent low under an uncapped average, and 4.2 ms steps at 240 Hz, where a 9.5 ms frame that
+  misses a step lands at 12.5 ms, about 80 fps. Both of the owner's readings fit.
+- **This laptop does not hold frames at 165 Hz.** Its frame times do not bunch at multiples of 6.06 ms (the
+  `fix1-ai30-20260913` race has 13.0 percent within 0.4 ms of a multiple against 13.2 by chance), the deep
+  dive found no lock of present returns to either display, and Windows' variable refresh for games is on
+  here (`VRROptimizeEnable=1`). It runs below its refresh, the desktop at 60 Hz ran above it.
+- **The 60 fps pile in P3 is the game's background limit.** A window that is not activated is capped at
+  `occluded_frame_rate_limit` 60 (`Entering occluded state (isMinimized=false isActivated=false)` in the game
+  log), and P3's frames inside those windows form a sharp spike at 16.6 to 16.7 ms. The main loop's
+  limiter (`0x74D303` to `0x74D435`) targets 16.667 ms for menus, 1000 over the limit when occluded, and
+  nothing in gameplay. The 60.000 Hz clock the deep dive found while driving stays unnamed.
+
+Setting this laptop's monitor to 60 Hz puts it in the desktop's condition. [TODO-028](../todos/TODO-028-the-refresh-hold-test.md)
+runs that in the same launch as TODO-025, windowed and then fullscreen.
 
 ## Verification
 

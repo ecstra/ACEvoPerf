@@ -25,8 +25,9 @@ The log writes `[hud test]` lines with the time each schedule starts and every p
 The launch is only a measurement, the schedule changes too often to feel.
 
 One launch, the ini with `frames=1`, `timeline=1` and `ui_probe=0`, the machine idle and no window
-switching. Ferrari 296 GT3 at the Red Bull Ring GP, the car and track with the largest ripple on disk, 9 to
-10 minutes of hot laps.
+switching. Ferrari 296 GT3 at the Red Bull Ring GP, the car and track with the largest ripple on disk, 7
+minutes of hot laps at the monitor's own 165 Hz. The two 60 Hz stints of
+[TODO-028](TODO-028-the-refresh-hold-test.md) follow in the same launch.
 
 Each frame takes the schedule of its 10 second turn, with the first second of every turn and anything
 outside `hud.html` dropped. Per schedule, frame time over its 101 frame local median gives p99, next to the
