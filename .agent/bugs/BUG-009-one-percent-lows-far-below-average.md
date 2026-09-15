@@ -458,6 +458,23 @@ shows a constant 30-50 fps gap", and mid lap 1 "the 1% according to nvidia was 5
 What the heavy frames do is the next question, render thread samples in heavy frames against ordinary ones,
 which the lean trace of TODO-026 records without the in process sampler's shift.
 
+## The traced drive, 2026-09-15
+
+`logs/trace-drive-20260915`, the lean profile recording from the pit menu through an out lap, laps of 1:43.0
+and 1:36.3 and the quit, 5 min 25 s and 5.6 GB with no lost events, the HUD fix, the fan curve and the NVIDIA
+overlay on, no PresentMon. In the owner's words, "this time it didnt even drop that low on the 1%".
+
+- **A good launch.** Over 31,327 driving frames the average was 107.5 fps, p99 84.3 fps and the slowest 1 percent
+  79.8 fps, with the longest frame 15.6 ms. In 30 s blocks the slowest 1 percent held 77 to 84 fps. The
+  PresentMon drive an hour before, at a similar average, had its slowest 1 percent at 57 to 71 fps and frames of
+  18 to 24 ms. So the heavy frames vary by launch, the way the deep dive saw the 60 Hz clock come and go.
+- **The trace names the threads.** The game presents from `GameThread` (the main loop at `0x74C6A0` in
+  `PlatformClient.cpp`), beside `Physics`, `Render Worker 0` to `4` and two `Resource Manager Worker`s. The exe
+  loads at `0x7FF6D7070000`. The CPU is a Ryzen 9 5900HX, 8 cores, logical processors paired per core.
+- **Decoding it is heavy.** A second of trace is about 200 MB of text with stacks. Each `-range` pass scans the
+  file for about a minute, so the trace is decoded in 30 s pieces, four at a time, keeping only the game's
+  samples, the game thread's stacks and context switches, the Physics thread's switches and the presents.
+
 ## Verification
 
 Absent.
