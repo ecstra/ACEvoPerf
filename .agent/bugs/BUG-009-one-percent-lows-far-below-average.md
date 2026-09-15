@@ -522,6 +522,26 @@ pit lane), and Cohtml restyling everything under a parent on any child removal. 
 removal fix took it out: the drive of 2026-09-15 evening had five wrong way episodes with no frame over 12.8 ms
 around them and no restyle over 15 ms while driving. BUG-029 is fixed.
 
+## The gap after the HUD fixes, 2026-09-15
+
+Driving time only (pit exit plus 3 s to pit entry or the pause), the Ferrari 296 GT3 at the Red Bull Ring GP. The
+three probe runs carry the UI probe's own hooks, so they compare with each other more than with the rest.
+
+| Session | Probe | Driving | Avg fps | 1% low | 0.1% low | 1 s windows, median, 10th percentile, worst | Frames of 16 ms or more |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `hud-fix-drive` | off | 411 s | 98.6 (heat) | 74.3 | 63.8 | 81.4, 73.9, 46.1 | 11 |
+| `trace-drive` | off, traced | 293 s | 107.5 | 79.7 | 70.6 | 83.5, 74.0, 64.3 | 0 |
+| `probe-hud` | on | 1,069 s | 108.5 | 66.3 | 26.8 | 83.8, 69.8, 11.1 | 76 |
+| `probe-hud-b` | on | 1,032 s | 108.6 | 81.5 | 71.8 | 87.6, 77.2, 29.0 | 1 |
+| `children-fix` | on, BUG-029 fixed | 614 s | 108.2 | 83.0 | 74.0 | 86.4, 77.2, 62.0 | 1 |
+
+- **No drop to 30 is left.** The worst one second window of the last run held 62 fps, against 29 and 11 in the runs
+  before the fix.
+- **What is left is spread out.** The slowest 1 percent of the last run averages 12.05 ms against a 9.24 ms median.
+  Every 10 s stretch of the drive holds some of them, they carry 0.3 ms more UI frame end wait (0.69 against 0.38 ms)
+  and four and a half times the texture tile requests (0.90 against 0.20 a frame).
+- **A run with the probe off** is the player's number, the last clean one is `trace-drive` at 79.7.
+
 ## Verification
 
 Absent.
