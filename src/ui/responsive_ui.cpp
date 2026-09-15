@@ -2,6 +2,7 @@
 #include "acevo/core/config.h"
 #include "acevo/core/iat.h"
 #include "acevo/core/log.h"
+#include "acevo/ui/child_removal_fix.h"
 #include "acevo/ui/cohtml_hooks.h"
 #include "acevo/ui/menu_refresh_fix.h"
 #include "acevo/ui/restyle_fix.h"
@@ -356,6 +357,7 @@ void InstallResponsiveUi()
     InstallRestyleFix();
     InstallMenuRefreshFix();
     InstallStyleMatchFix();
+    InstallChildRemovalFix();
     AddCohtmlViewListener(&OnView);
     AddCohtmlLibraryListener(&OnLibrary);
     AddUiFrameEndListener(&OnFrameEnd);

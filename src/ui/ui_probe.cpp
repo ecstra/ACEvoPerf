@@ -3,6 +3,7 @@
 #include "acevo/core/config.h"
 #include "acevo/core/iat.h"
 #include "acevo/core/log.h"
+#include "acevo/ui/child_removal_fix.h"
 #include "acevo/ui/cohtml_hooks.h"
 #include "acevo/ui/responsive_ui.h"
 #include "acevo/ui/style_match_fix.h"
@@ -1403,4 +1404,10 @@ void UiProbeTick()
 
     ReportRestyles(restyles);
     ReportInvalidations();
+
+    ChildRemovalCounts removals = ChildRemovalFixTakeCounts();
+    if (removals.narrowed || removals.full) {
+        Log("[ui] child removals %u marked only the %u children that look at their position, %u took the engine's own restyle",
+            removals.narrowed, removals.marked, removals.full);
+    }
 }

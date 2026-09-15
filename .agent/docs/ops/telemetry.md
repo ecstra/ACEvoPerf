@@ -118,6 +118,8 @@ followed by the total of repeated reads.
   a state such as hover, 7 an attribute such as `data-mode`), and the elements that marked the most
 - `[ui] big child list change`: the first child list change of the second that marked 200 nodes or more, its
   element, marks, how many that second, and the call stack that led to it
+- `[ui] child removals`: the removals the responsive UI's child removal fix handled, the children they marked,
+  and the removals left to Cohtml's own invalidation
 
 Every five seconds `[ui] layout samples` lists where Cohtml's layout work was, innermost function and on the
 stack, from the stack of a thread suspended only while it is inside that work. The style matching fix's

@@ -25,6 +25,7 @@ then registers with the shared Cohtml hooks. The stylesheet part runs from the o
 | Restyle fix | `src/ui/restyle_fix.cpp` | `[restyle]` | skips the sibling walk of a state change's invalidation |
 | Menu refresh fix | `src/ui/menu_refresh_fix.cpp` | `[menus]` | a menu page and the HUD in a session update every frame, the car displays take turns |
 | Style matching fix | `src/ui/style_match_fix.cpp` | `[styles]` | elements skip rules they cannot match, custom element names are compared in place |
+| Child removal fix | `src/ui/child_removal_fix.cpp` | `[children]` | removing a child restyles only the children whose rules look at their position |
 | Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes added` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
 | Resource work move | `src/ui/responsive_ui.cpp` | `[responsive ui] resource work` | resource work the frame thread picks up runs on a mod thread |
 
@@ -85,6 +86,26 @@ What is matched does not change, only the calls that would have failed are not m
 hashed first, and each stub has unwind data registered with `RtlAddFunctionTable`, copied from the frame of
 the function it stands in, so stack walks and the UI probe's sampler pass through it
 (`StyleMatchFixUnwind`).
+
+### Child removal fix
+
+When an element loses a child, the removal (`0x38FCB4`) invalidates the element for its changed child list
+(slot 49, kind 0). That marks the element and every node under it, because the feature set's constructor
+(`0x3E8C10`) builds the child list invalidation set to match every node whatever the stylesheets hold, and the
+style update restyles all of them. A HUD part hidden with `data-bind-if` restyled the whole HUD when it went
+away, 879 nodes and 21 to 24 ms for the wrong way label (BUG-029).
+
+A removal can only restyle the element's other children, through `:first-child`, `:last-child`, `:only-child`
+and `:nth-child` (subtypes 5 to 8 of the simple selector matcher `0x3ED9D0`) and the `+` and `~` combinators
+(2 and 3 in `0x3EE1D0`). Cohtml 1.61 has no `:empty`, `:has` or `:not`. The fix follows each feature set from
+its construction (the six calls of `0x3E8C10`) and reads every selector Cohtml adds to it (the call of
+`0x3E8F80` at `0x3E9F41`, which every rule but a lone class, id, tag or `*` passes), keeping the compounds that
+hold such a pseudo-class or sit right of `+` or `~` by what they need of an element: its tag, custom name, id,
+classes and attributes. On a removal it looks up the element's feature set the way `0x37BC60` does and marks,
+with Cohtml's own mark (`0x37B5A0`), only the children that could match one of those compounds. A compound with
+nothing to tell elements apart, a feature set it did not see built, or a parent that is not a plain element
+takes Cohtml's own invalidation. Twelve code regions are hashed and the seven calls checked first. The UI probe
+counts both paths.
 
 ### Page fixes
 
