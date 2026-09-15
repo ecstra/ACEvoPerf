@@ -1,9 +1,9 @@
 ---
 name: TODO-025-the-ui-view-rotation-test
 kind: todo
-description: two launches with no build at the Red Bull Ring GP, stepping the dashboard displays setting and then turning the dashboards off, to prove the UI view rotation sets BUG-009's 3 frame ripple, name the heavy view and measure what a steady schedule would buy
-updated: 2026-09-14
-links: [BUG-009-one-percent-lows-far-below-average, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14, BUG-013-one-percent-lows-drop-after-window-or-input-switch, telemetry]
+description: one launch of a developer build that takes the UI view schedule through three schedules in 10 second turns at the Red Bull Ring GP, the game's rotation, the main view every frame and every view every frame, to show whether the UI rotation sets BUG-009's width now that the integrated GPU is ruled out
+updated: 2026-09-15
+links: [BUG-009-one-percent-lows-far-below-average, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, responsive-ui, telemetry, TODO-026-one-lean-etw-trace-of-the-slow-frames]
 status: open
 by: agent
 area: render
@@ -13,41 +13,42 @@ done:
 
 ## What
 
-The first run from BUG-009's deep dive
-([one-percent-lows-2026-09-14](../docs/research/one-percent-lows-2026-09-14.md)). No build, the shipped
-ini with `[developer] frames=1` and `timeline=1`, the GPU sampler from the telemetry doc running, the card
-cooled to the same temperature before each launch, and no window switching during a stint (BUG-013).
+A developer build with `[developer] hud_schedule_test=1`. Every 10 seconds, in a shuffled order inside
+each set of three, the mod changes how the game picks its UI views while the HUD is up.
 
-Launch A.
+- **The game's rotation.** One view a frame in turn, the HUD and then each dashboard display.
+- **The main view every frame.** The HUD every frame with the dashboard displays taking turns beside it,
+  what the responsive UI already does on menu pages.
+- **Every view every frame.** What the game itself does in the main menu and the pause menu.
 
-1. Ferrari 296 GT3 at the Red Bull Ring GP, hot laps for about 2 minutes with the dashboard displays
-   setting at MaxTwo, as shipped.
-2. Video settings, dashboard displays MaxOne, restart the session, 2 minutes of hot laps.
-3. The same with All, 2 minutes.
-4. The same back at MaxTwo, 2 minutes. Quit.
+The log writes `[hud test]` lines with the time each schedule starts and every page the main view loads.
+The launch is only a measurement, the schedule changes too often to feel.
 
-The game log must show `Enabled display for carId` after each restart.
+One launch, the ini with `frames=1`, `timeline=1` and `ui_probe=0`, the machine idle and no window
+switching. Ferrari 296 GT3 at the Red Bull Ring GP, the car and track with the largest ripple on disk, 9 to
+10 minutes of hot laps.
 
-Launch B. The same car and track with `[flags] no_dash=true`, two stints of 2 minutes. The mod log must
-show `flag no_dash = true` and the game log no `Found N display(s)` line for the player's car. Afterwards
-the setting and the flag go back.
-
-Read each stint's frames folded by 1 plus its allowed display count (4 for All) and the block p99 over
-median with the slot means evened out.
+Each frame takes the schedule of its 10 second turn, with the first second of every turn and anything
+outside `hud.html` dropped. Per schedule, frame time over its 101 frame local median gives p99, next to the
+mean frame time and the 3 frame fold.
 
 ## Why
 
-The deep dive read in the exe that the game advances one UI view per frame in rotation over the HUD and
-the car's allowed dashboard displays, and found a matching 3 frame ripple in every two display car's
-driving on disk and a 2 frame one for the one display Mazda. Its weight in the width runs from almost
-nothing at the Nürburgring to 0.03 to 0.06 of p99 over median at the Red Bull Ring GP. This run proves the
-mechanism before any change to the UI schedule is built.
+The deep dive of 2026-09-14 read in the exe that the game advances one UI view per frame in turn and found
+a matching 3 frame ripple in every two display car's driving on disk. It was never tested, because the
+present path through the integrated GPU looked like the larger part. On 2026-09-15 the owner's 5070
+desktop with no integrated GPU showed the same gap (BUG-009), so the UI rotation is the first lead left
+standing and the owner's own theory. Turns inside one launch take the section, the clock and the
+temperature out of the comparison, which two launches could not.
+
+The first plan, two launches with no build stepping the dashboard displays setting and `no_dash`, is
+replaced by this one.
 
 ## Done when
 
-BUG-009 records three answers. Whether the cycle length follows 3, 2 and 4 in launch A and is gone in
-launch B (killed if it stays 3 everywhere). Which view is heavy, the HUD if launch B's mean frame time is
-0.2 ms or more above launch A's MaxTwo stints, a dashboard if it is 0.1 ms or more below. And what a steady
-schedule buys at the Red Bull Ring GP, launch B's block p99 over median against launch A's MaxTwo stints,
-worth the owner's decision only if it is 0.02 or more narrower with the average down by no more than
-1 percent.
+BUG-009 records, per schedule, p99 over local median, the mean frame time and whether the 3 frame ripple
+is gone. A schedule that narrows p99 over local median by 0.02 or more against the game's rotation, with
+the mean frame time up by no more than 2 percent, is a fix the owner drives next. Under 0.01 for both
+rules out the UI rotation as the width on this machine, and
+[TODO-026](TODO-026-one-lean-etw-trace-of-the-slow-frames.md) runs next. The mean frame time of the main
+view every frame against every view every frame says which view is heavy.

@@ -2,7 +2,7 @@
 name: TODO-010-resume-the-one-percent-low-hunt
 kind: todo
 description: pick the 1 percent low hunt back up from the recorded evidence, now through the deep dive of 2026-09-14, whose two runs replace the leads never tested and the instruments that were removed
-updated: 2026-09-14
+updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, BUG-013-one-percent-lows-drop-after-window-or-input-switch, one-percent-low-hunt-2026-09-05, one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, telemetry, reference-machine-has-no-direct-gpu-display]
 status: open
 area: render
@@ -28,6 +28,8 @@ Nürburgring protocol.
 
 - **Displays on the discrete GPU.** Not possible on the reference machine, no MUX and no cable, see
   [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
+  Answered on 2026-09-15 by the owner's 5070 desktop, which has no integrated GPU and shows the same gap,
+  so the integrated GPU is not the cause (BUG-009). The UI view rotation goes first.
 - **Which job the render thread waits for.** Answered, no lock and no job. Lock waits add 0.01 to 0.22 ms
   per slow frame and the scheduler about 0.06 ms, the extra waiting is the present call and the frame
   latency object.

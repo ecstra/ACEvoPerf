@@ -1,8 +1,8 @@
 ---
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
-description: the 1 percent low frame rate sits about 20 fps under the displayed average, made of the present path through the integrated GPU, spread out renderer code and a ripple from the game updating one UI view per frame, not a lock or a job, with Reflex already evening the alternation
-updated: 2026-09-14
+description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, what is left is spread out renderer code and a ripple from the game updating one UI view per frame, with the UI schedule tested first
+updated: 2026-09-15
 links: [one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry, ui-lag-deepdive-2026-09-14]
 status: open
 severity: bug
@@ -297,6 +297,32 @@ Corrections to this record, each with its evidence in the research doc.
   cumulative build and mostly the load.
 - The mod evening the alternation is Reflex, damped rather than gone (M parked frame to next frame
   correlation minus 0.67).
+
+## A desktop with the same gap, 2026-09-15
+
+In the owner's words, "I played the same game on another PC (5070 PC, no iGPU, striaght GPU display.
+using nvidia surround display for triple monitor). And it had the same bug. The game was running a
+~100-110 FPS (native 5k) and the 1% was ~70-80 (MASSIVE diff, more than mine)", and "our AMD cause is
+definitely wrong".
+
+- **The integrated GPU reading is overturned.** The records of 2026-09-13 and 2026-09-14 parked this bug
+  as the width of a laptop that presents through its integrated GPU, with the present path as the part
+  that could not be removed here. A desktop with its displays on its only GPU shows the same gap, about
+  30 fps under the average against about 20 on the laptop. So the copy across adapters is not what makes
+  the width. What stays measured is the coupling, `Present` returning a fixed time after the previous
+  frame's GPU end, which hands on whatever varies in the frames' own work on any machine.
+- **The owner's lead is the UI.** "what if it's the UI throttling again (the on-screen display, the
+  overlays when racing)?" That is the deep dive's periodic piece that was never tested, the game advancing
+  and painting one UI view per frame in turn over the HUD and the car's dashboard displays, the same
+  rotation the responsive UI already took off menu pages (BUG-024). The main UI view matches the game
+  window here (`view #1 1920x1080` in the session logs), so across three monitors at 5K the HUD's turn
+  likely carries several times the pixels, which would fit a wider gap on that desktop.
+- **Not known yet.** Whether the mod was installed on that desktop, and which counter showed the 1 percent
+  low.
+
+The first run is the UI schedule test of [TODO-025](../todos/TODO-025-the-ui-view-rotation-test.md), three
+schedules taking turns inside one launch. If none narrows the width, the ETW trace of
+[TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md) is next.
 
 ## Verification
 

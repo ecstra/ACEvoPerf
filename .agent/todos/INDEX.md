@@ -26,7 +26,7 @@ streaming
 render
 
 - [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the 1 percent low hunt through the 2026-09-14 deep dive, its leads answered or moved to two runs, the done-when waiting on the owner's choice of measure
-- [TODO-025-the-ui-view-rotation-test](TODO-025-the-ui-view-rotation-test.md), two launches with no build stepping the dashboard displays setting and turning the dashboards off, to prove the UI view rotation's ripple and name the heavy view
+- [TODO-025-the-ui-view-rotation-test](TODO-025-the-ui-view-rotation-test.md), one launch of a developer build taking the UI view schedule through three schedules in 10 second turns, to show whether the UI rotation sets BUG-009's width now that the integrated GPU is ruled out
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), the mod's 3.8 percent parked is the mesh detail the 1433 MB budget loads, authored detail per the mesh deep dive, the engine's own readout to ride a planned run, the last 1 percent unsplit
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 

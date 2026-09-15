@@ -1,15 +1,20 @@
 ---
 name: one-percent-lows-2026-09-14
 kind: doc
-description: BUG-009's deep dive with no new run, the slowest frames are the present path through the integrated GPU coupled to the previous frame's GPU end, spread out renderer code, and a phase locked ripple from the game updating one UI view per frame in rotation, not a lock or a job, with Reflex already evening the long short alternation, no processor shortage, and two runs that need no build
-updated: 2026-09-14
+description: BUG-009's deep dive with no new run, the slowest frames are the present path through the integrated GPU coupled to the previous frame's GPU end, spread out renderer code, and a phase locked ripple from the game updating one UI view per frame in rotation, not a lock or a job, with Reflex already evening the long short alternation, no processor shortage, and two runs that need no build, its integrated GPU reading overturned on 2026-09-15 by a desktop with the same gap
+updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, TODO-010-resume-the-one-percent-low-hunt, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, one-percent-low-hunt-2026-09-05, optimisation-deepdive-2026-09-12, reflex-2026-09-12, DEC-014-reflex-ships-on-boost-ships-off, ui-lag-deepdive-2026-09-14, telemetry, reference-machine-has-no-direct-gpu-display]
 ---
 
 # The 1 percent lows, the deep dive
 
 BUG-009's round of 2026-09-14. Five angles from the exe, the frames CSVs and the old instrumented laps,
-each checked by a second agent, then a critic and two gap rounds. No new session. RVAs are for the
+each checked by a second agent, then a critic and two gap rounds. No new session.
+
+Corrected on 2026-09-15. The owner's 5070 desktop, with no integrated GPU and its displays on its only
+GPU, shows the same gap between the average and the 1 percent low, so the integrated GPU is not what makes
+the width. The coupling measured below still holds, it passes on variation that starts in the frames' own
+work. The UI view rotation is tested first ([TODO-025](../../todos/TODO-025-the-ui-view-rotation-test.md)). RVAs are for the
 0.9.1 exe unless marked 0.9.0. Laps 8 to 22 are the instrumented 0.9.0 laps of
 [one-percent-low-hunt-2026-09-05](one-percent-low-hunt-2026-09-05.md), and N, M, P1 to P3 and R the runs
 of 2026-09-13. The agents' scripts lived in the session's scratch space and are not kept.

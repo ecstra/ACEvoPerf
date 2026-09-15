@@ -1,8 +1,8 @@
 ---
 name: reference-machine-has-no-direct-gpu-display
 kind: memory
-description: the reference laptop has no MUX and no output wired to the NVIDIA GPU, so every frame crosses to the integrated GPU and that path cannot be tested away on this machine
-updated: 2026-09-13
+description: the reference laptop has no MUX and no output wired to the NVIDIA GPU, so every frame crosses to the integrated GPU and that path cannot be tested away on this machine, and a desktop without one showed it is not what makes the 1 percent lows
+updated: 2026-09-15
 links: [BUG-009-one-percent-lows-far-below-average, TODO-010-resume-the-one-percent-low-hunt, thermal-throttle-dominates-lap-fps]
 type: project
 ---
@@ -13,9 +13,10 @@ cable is available. Both monitors are outputs of the AMD adapter, as the game's 
 the mod's `[display]` warning show in every session, so every frame the NVIDIA GPU renders is copied
 to the AMD GPU before it is shown.
 
-It matters because the cross adapter present path is a lead for the 1 percent lows (BUG-009, the
+It mattered because the cross adapter present path was a lead for the 1 percent lows (BUG-009, the
 render thread spent 0.9 ms of a median frame and up to 4 ms of a slow one in it on 2026-09-05), and
-it cannot be removed on this machine to test it. The owner had answered this four times by
+it cannot be removed on this machine to test it. The owner answered that lead on 2026-09-15 from a
+5070 desktop with no integrated GPU and the same gap, so this path is not what makes the lows. The owner had answered this four times by
 2026-09-13: "THERE IS NO MUX on this laptop and I do not have any cable that directly connects the
 GPU to the monitor (Type c to hdmi, i do not have. I have connected via hdmi to hdmi)."
 
