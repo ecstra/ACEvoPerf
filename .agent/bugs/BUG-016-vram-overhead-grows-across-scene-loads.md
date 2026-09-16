@@ -1,7 +1,7 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, a fix on its branch, while the VRAM side is placement the next load reuses
+description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, a fix on its branch that freed every practice and menu session of a six visit run and cut the growth to about 5 MB a visit, while the VRAM side is placement the next load reuses
 updated: 2026-09-16
 links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
@@ -329,7 +329,38 @@ On the owner's word, `[engine] session_leak_fix` on `fix/memory-creep` (`1363062
 weak reference on each. After the game makes a new connection, every earlier one whose use count is 1 and
 whose game mode's list holds it is freed the way a last `std::shared_ptr` would be, count from 1 to 0 by
 compare and exchange, the entry cleared, then the control block's destroy and delete. A `[sessions]` log
-line names each. Waiting on a census run with the fix on.
+line names each.
+
+## The fix measured, 2026-09-16
+
+Session `logs/sessionfix-rbr-20260916`, build `17ddba4` with `session_leak_fix=1` and the census on, the
+owner's route of the leak run without dumps. Six Red Bull Ring practice visits parked in the pit box, back
+to the menu each time, then a quit. No lap was driven and no session restarted.
+
+- **Every session was freed.** Eleven `[sessions]` frees, the menu's `PaintShopGameMode` in 0.2 to 0.3 ms
+  and each practice's `TimeAttackRemote` in 5.3 to 5.7 ms, all on `GameThread` inside the connect. Two
+  connections were held at every connect, the current session and the one before it, which the manager
+  still holds when the next one connects. No crash, and the quit logged its detach.
+- **The live heap stopped growing.** Settled menu readings after each unload, MB.
+
+| after visit | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| heap in use, the leak run | 3724 | 3795 | 3854 | 3912 | 3969 | 4030 |
+| heap in use, with the fix | 3740 | 3748 | 3752 | 3755 | 3758 | 3765 |
+| commit, the leak run | 8748 | 9080 | 9210 | 9294 | 9357 | 9426 |
+| commit, with the fix | 8749 | 8951 | 8991 | 9061 | 9066 | 9075 |
+
+About 5 MB a visit is left of the 57, and after six visits the commit charge is 351 MB below the leak run.
+The first step still holds a whole practice session, the one the next connect frees, so it is a constant and
+not growth. What the last 5 MB a visit is has not been looked at.
+
+Seven VR launches the same evening ran the fix build with one or two loads each, too few for a free. One of
+them ended at 21:57 in SteamVR's own client, a fast fail from `vrclient_x64.dll` on `GameThread` with the menu
+loaded and nothing freed (`logs/sessionfix-rbr-20260916/vr_crash_2157.dmp`), and SteamVR's server had crashed
+twice before the fix existed.
+
+Not covered yet: driving, a session restart, a race with AI cars, and the other game modes built on
+`RemoteGameMode`, whose destructors have still never run under the fix.
 
 ## Done when
 
