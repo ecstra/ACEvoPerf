@@ -4,7 +4,7 @@ kind: bug
 description: the streamer's periodic log line reads the engine's tile pool through an allocator pointer saved during a kick, after the game has freed it at exit, and although the mod catches the fault the game's own crash handler writes a crash report naming the mod's DLL into the game log
 updated: 2026-09-16
 links: [texture-streamer-overload-2026-09-13, telemetry, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, TODO-023-name-what-the-game-keeps-across-identical-loads]
-status: branched
+status: fixed
 severity: bug
 area: stability
 reported: 2026-09-13
@@ -40,7 +40,8 @@ while the streamer runs, and `(not read yet)` still means no kick has read them.
 
 ## Verification
 
-Waiting on a launch. The census run of TODO-023 carries this fix, so its log should show the
-`[streamer]` line with real pool figures on track, and its quit no crash report on the `ACEvoPerf
-timeline` thread in the game log. The fault only ever came by chance at exit, so one clean quit
-proves the line still works, and the reasoning above is what proves the fault gone.
+The census run of TODO-023 on 2026-09-16 (`logs/census-rbr-20260916`) carried this fix for 23 minutes
+and fifteen scene loads. The `[streamer]` line printed real pool figures the whole session, 15,360 of
+16,384 used on track, the line at exit read 11,689 of 16,384 used and 0 pending, and the game log holds
+no crash report. The fault only ever came by chance at exit, so the clean quit shows the line still
+works, and the fault is gone by construction, the timeline thread no longer reads engine memory.
