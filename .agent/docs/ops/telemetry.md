@@ -3,7 +3,7 @@ name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
 updated: 2026-09-16
-links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving]
+links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
 # Telemetry
@@ -11,7 +11,7 @@ links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-
 All files are written next to the game executable and overwritten on every launch. The log is
 on by default. Every diagnostic is in the ini's `[developer]` section and off by default, the two
 CSVs (`timeline=1`, `frames=1`), the streaming trace, request logging, the throw log, the package
-file trace and the load sampler. Copy
+file trace, the load sampler and the memory census. Copy
 them to a session folder `logs/<name>-<yyyymmdd>-<hhmm>/` in the repo before analysing (`logs/` is
 gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that holds them, with
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
@@ -103,6 +103,49 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
 own tile pool figures (used, capacity, pending) as the last kick read them, and the file to memory
 queue's `[stats]` line is followed by the total of repeated reads.
+
+## acevo_perf_memory.csv
+
+Written only with `[developer] memory_census=1` (`src/telemetry/memory_census.cpp`), for BUG-016.
+It was taken out on 2026-09-13 and came back unchanged for the run of TODO-023. The import slots of
+`VirtualAlloc` and `VirtualAlloc2` are patched in every module, again at each census for modules
+loaded later, and every commit is remembered with the three return addresses above the call.
+
+A census runs when the commit charge has stayed within 150 MB for 15 s, once at start and then each
+time it has also fallen at least 700 MB from its highest reading since the last census, which is the
+menu after a track unloads. It checks each remembered range against the address space, so released
+and decommitted memory drops out, walks the address space, reads every heap with `HeapSummary`, then
+compacts every heap with `HeapCompact` and reads again. Each census writes a `[memory]` line in the
+log and rows under the header `t_s,kind,when,a,b,c,d,e,f,g,h`, `when` being `at start` or
+`after an unload`, sizes in MB.
+
+- `settled`. a the process commit charge (`PrivateUsage`), b private committed memory found by
+  walking the address space, c heaps committed, d heaps in use, e remembered commits still committed,
+  f mapped views committed, g images committed, h regions walked
+- `heap`, every heap of 32 MB or more. a heap handle, b committed, c in use, d reserved
+- `site`, every call site still holding 4 MB or more, largest first. a MB, b ranges, c to e the
+  three return addresses as `module+0xRVA`, an address outside any module when the code was
+  generated at runtime
+- `compacted`. a seconds the compaction took, b commit charge after, c heaps committed after, d heaps
+  in use after, e MB of commit charge returned, f seconds the reading before it took
+
+It ran every ten seconds at first, and `HeapSummary` walks a heap under its lock. The game's main heap
+holds 4 to 7 GB, so every census froze the game, 200 ms in the menu and 1.4 s on track
+(`logs/memcreep-20260913/R-census-mod-on`), hence the settled trigger.
+
+`HeapSummary`'s committed figure is not the commit charge. In a harness where 800 MB of small blocks
+were freed, the heap had already released the memory, the commit charge fell to 68 MB, and
+`HeapSummary` still reported 72 MB committed until `HeapCompact` brought it to 3 MB with the charge
+unchanged. So a compaction only returns memory when `e` of `compacted` says so, and the heap columns
+are the heap's own accounting. The same harness confirmed the partition otherwise, three 64 MB commits
+as three sites, 64 MB committed in four pieces into one reservation as one site of four ranges with a
+recommit inside it not counted twice, a release and an 8 MB decommit dropping out exactly, and nothing
+left behind by four threads churning allocations.
+
+Two corrections from the deep dive of 2026-09-14 apply to every reading. The game's commit charge and
+the private columns count its local video memory one to one, and `HeapSummary`'s committed figure
+overstates the heap after load shaped churn, see
+[memory-creep-2026-09-14](../research/memory-creep-2026-09-14.md).
 
 ## UI probe
 

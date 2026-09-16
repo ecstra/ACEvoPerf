@@ -116,4 +116,5 @@ void LoadConfig()
     g_cfg.loadSampleUs = IniInt(L"developer", L"sample_us", 1000);
     g_cfg.uiProbe = IniBool(L"developer", L"ui_probe", false);
     g_cfg.hudScheduleTest = IniBool(L"developer", L"hud_schedule_test", false);
+    g_cfg.memoryCensus = IniBool(L"developer", L"memory_census", false);
 }

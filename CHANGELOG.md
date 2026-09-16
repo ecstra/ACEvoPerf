@@ -23,7 +23,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - High GPU priority for the game.
 - The mod now comes with DirectStorage 1.3.0 and uses it in place of the game's 1.2.3.
 - `working_set_floor_mb`, off by default, keeps part of the game in memory so Windows can't page it out.
-- Developer settings `streaming_trace`, `load_sampler`, `ui_probe` and `hud_schedule_test` for testing the mod, all off by default.
+- Developer settings `streaming_trace`, `load_sampler`, `ui_probe`, `hud_schedule_test` and `memory_census` for testing the mod, all off by default.
 
 ### Changed
 

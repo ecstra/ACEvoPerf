@@ -7,6 +7,7 @@
 #include "acevo/engine/exceptions.h"
 #include "acevo/engine/streamer.h"
 #include "acevo/render/texture_writes.h"
+#include "acevo/telemetry/memory_census.h"
 #include "acevo/ui/menu_refresh_fix.h"
 #include "acevo/ui/ui_probe.h"
 
@@ -76,6 +77,7 @@ static DWORD WINAPI TimelineThread(void*)
         ThrowLogTick();
         StreamerTick();
         TextureWritesTick();
+        MemoryCensusTick();
         UiProbeTick();
         MenuRefreshTick();
         g_hitchLogBudget.store(5);
