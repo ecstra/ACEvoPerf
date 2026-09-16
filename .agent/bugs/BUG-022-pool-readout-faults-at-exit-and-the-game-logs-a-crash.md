@@ -2,9 +2,9 @@
 name: BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash
 kind: bug
 description: the streamer's periodic log line reads the engine's tile pool through an allocator pointer saved during a kick, after the game has freed it at exit, and although the mod catches the fault the game's own crash handler writes a crash report naming the mod's DLL into the game log
-updated: 2026-09-13
-links: [texture-streamer-overload-2026-09-13, telemetry, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles]
-status: open
+updated: 2026-09-16
+links: [texture-streamer-overload-2026-09-13, telemetry, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, TODO-023-name-what-the-game-keeps-across-identical-loads]
+status: branched
 severity: bug
 area: stability
 reported: 2026-09-13
@@ -31,8 +31,16 @@ for the log line would keep the timeline thread off engine memory altogether.
 
 ## Fix
 
-Absent.
+On `fix/pool-readout-at-exit`, commit `a92be48`, 2026-09-16. The first hook event of each kick reads
+the tile pool while the allocator is alive, through the same read the reload fix's margin test uses,
+and keeps used, capacity and pending in atomics. The `[streamer]` line and its at exit copy print those,
+so the timeline thread reads no engine memory at all. The saved allocator pointer and the timeline
+thread's `__try` read are gone. The figures in the line are now the last kick's, about a second old
+while the streamer runs, and `(not read yet)` still means no kick has read them.
 
 ## Verification
 
-Absent.
+Waiting on a launch. The census run of TODO-023 carries this fix, so its log should show the
+`[streamer]` line with real pool figures on track, and its quit no crash report on the `ACEvoPerf
+timeline` thread in the game log. The fault only ever came by chance at exit, so one clean quit
+proves the line still works, and the reasoning above is what proves the fault gone.

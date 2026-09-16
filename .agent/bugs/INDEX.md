@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-15
+updated: 2026-09-16
 links: [agent-index, spec-bugs]
 ---
 
@@ -15,7 +15,7 @@ bug
 - [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), a one time heap fill of about 1.25 GB with the first track and then about 110 MB a track the game keeps, the same passive, page file space the only cost found, the VRAM overhead spike is placement, what grows is unnamed until TODO-023's run
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
-- [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line reads the engine's freed allocator at exit, the mod catches it but the game writes a crash report naming the mod
+- [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line reads the engine's freed allocator at exit, the mod catches it but the game writes a crash report naming the mod, branched on `fix/pool-readout-at-exit` with the line printing what the last kick read, waiting on the census run's launch
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
 - [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the same gap on the owner's 5070 desktop with no integrated GPU rules out the integrated GPU present path, the UI view rotation is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, no refresh hold on this laptop even at 60 Hz, the fix driven and holding, PresentMon agrees with the NVIDIA overlay and shows a clean independent flip path, the trace of a good launch spreads the heavy frames over GPU waits, a compositor released frame queue, one heavy stretch of the lap and small engine costs, the bad launch not yet traced
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
