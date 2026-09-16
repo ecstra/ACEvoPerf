@@ -13,7 +13,7 @@ parent: BUG-016-vram-overhead-grows-across-scene-loads
 
 ## Problem
 
-Owner wording, 2026-09-16, listing what is left after the session leak fix: "the remaining mem leak".
+Owner wording, 2026-09-16, listing what is left after the session leak fix, "the remaining mem leak".
 
 With `session_leak_fix=1` every finished practice and menu session is freed, and the game's live heap still
 reads a few MB higher after every identical visit, where the leak before the fix was about 57 MB a visit.
