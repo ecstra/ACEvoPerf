@@ -44,7 +44,7 @@ engine-flags
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
-- stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a connection that owns itself, about 57 MB a Red Bull Ring visit)
+- stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a cycle between its connection and its game mode, about 57 MB a Red Bull Ring visit)
 
 ## Dropped
 

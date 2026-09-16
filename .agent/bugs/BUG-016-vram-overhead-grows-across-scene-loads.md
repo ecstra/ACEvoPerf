@@ -1,7 +1,7 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a LocalServerConnection that holds a shared pointer to itself, about 57 MB a Red Bull Ring visit, while the VRAM side is placement the next load reuses
+description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, a fix on its branch, while the VRAM side is placement the next load reuses
 updated: 2026-09-16
 links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
@@ -308,18 +308,28 @@ full record is [session-leak-census-2026-09-16](../docs/research/session-leak-ce
   session and the menu session after it, with the track's parsed scene three times over (45 MB of it the
   transform arrays of the four biggest instance sets), the season and session definitions, the game mode,
   the weather service, a physics body and the handlers registered on the connection.
-- **The owner is a connection that owns itself.** Each `LocalServerConnection` holds a `std::shared_ptr`
-  to itself at object +0x100. 14 of the 15 in the last dump have that as their only owner, and the one
-  in use has `GameServerConnectionManager` as its second. The connection points at its game mode (+0x618)
-  and at the block that reaches the session's scene and weather (+0x620).
+- **The owner is a cycle.** Each `LocalServerConnection` embeds a `LocalGameServer` that owns the
+  session's game mode, and the game mode's base, `RemoteGameMode`, keeps the connection in a list of
+  `std::shared_ptr` at +0x3E8. 14 of the 15 connections in the last dump have that entry as their only
+  owner, and the one in use has `GameServerConnectionManager` as its second. The pair at object +0x100,
+  first read as a strong pointer to itself, is the `enable_shared_from_this` weak pointer.
 - **The slack.** 363 MB of the heap's committed memory was not in use after one visit and 700 MB after
   seven, and `HeapSummary` overstated the commit by 176 MB.
 - **VRAM stays flat.** The same resource and overhead at every menu, and the mesh pool's 32 MB blocks at
   three in both dumps.
 
-A fix the mod could try is resetting a released connection's pointer to itself, so the whole session
-frees. Nothing has ever freed one in the shipped game, so those destructors are untested, and it needs
-the same census run to show the heap flat and exits clean. The other path is a report to Kunos.
+A fix the mod could try is ending the game mode's strong entry once nothing else holds the connection, so
+the whole session frees. Nothing has ever freed one in the shipped game, so those destructors are untested,
+and it needs the same census run to show the heap flat and exits clean. The other path is a report to Kunos.
+
+## The fix, 2026-09-16
+
+On the owner's word, `[engine] session_leak_fix` on `fix/memory-creep` (`1363062`,
+`src/engine/session_leak_fix.cpp`). It hooks the one call that makes a connection (0x124AAE8) and keeps a
+weak reference on each. After the game makes a new connection, every earlier one whose use count is 1 and
+whose game mode's list holds it is freed the way a last `std::shared_ptr` would be, count from 1 to 0 by
+compare and exchange, the entry cleared, then the control block's destroy and delete. A `[sessions]` log
+line names each. Waiting on a census run with the fix on.
 
 ## Done when
 

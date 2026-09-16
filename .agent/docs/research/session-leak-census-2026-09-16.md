@@ -1,7 +1,7 @@
 ---
 name: session-leak-census-2026-09-16
 kind: doc
-description: TODO-023's census run, seven identical Red Bull Ring visits with two full memory dumps, the game's live heap growing about 57 MB a visit without levelling off, named from the dumps as every practice session left whole in memory by a LocalServerConnection that holds a shared pointer to itself, with the heap slack, the VRAM side flat and the mesh budget never reached
+description: TODO-023's census run, seven identical Red Bull Ring visits with two full memory dumps, the game's live heap growing about 57 MB a visit without levelling off, named from the dumps and the exe as every session left whole in memory by a cycle, the game mode a local server connection owns holding that connection in a list of strong pointers, with the heap slack, the VRAM side flat and the mesh budget never reached
 updated: 2026-09-16
 links: [BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads, memory-creep-2026-09-14, telemetry, TODO-022-frame-time-with-and-without-the-mod, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
 ---
@@ -76,11 +76,25 @@ message into +0x8 of the block). So the track's parsed scene is kept three times
 
 ## Who keeps it
 
-Every one of the 15 `LocalServerConnection` objects holds a `std::shared_ptr` to itself, the pair at object
-+0x100 (the control block's +0x110 and +0x118) pointing back at its own control block. 14 of the 15 have a use
-count of 1, so that pointer is the only owner, and nothing can ever free them. The live one has a use count of 2,
-the second owner being `GameServerConnectionManager` at +0x30. When the manager lets go of a connection at the
-end of a session, the self reference keeps it.
+A reference cycle between each session's connection and its game mode. 14 of the 15 `LocalServerConnection`
+control blocks in M6 have a use count of 1 and a weak count of 3, and the live one has 2 and 3, its extra owner
+being `GameServerConnectionManager` at +0x30. Every pointer to a control block in the dump accounts for those
+counts, read against the exe.
+
+- **Object +0x100 is weak.** `LocalServerConnection` derives from `enable_shared_from_this`, and its make_shared
+  (0x1245B00) fills that pair with a weak reference. The first reading of these dumps took it for a strong
+  pointer to itself, and that was wrong.
+- **The server's list is weak.** The connection embeds a `LocalGameServer` at +0x4B8 (constructor 0x1B24950,
+  `ksPlatformCore\LocalGameServer.cpp`), whose list of connections at +0x130 is a `std::vector` of
+  `std::weak_ptr`. Its destructor (0x1B24E90) only drops weak counts.
+- **The game mode's list is strong.** The `LocalGameServer` owns the session's game mode at +0x160 and deletes it
+  in its destructor (0x1B24FA0). `RemoteGameMode`, the base of `TimeAttackRemote` and `PaintShopGameMode`, keeps
+  its connections at +0x3E8 in a `std::vector` of `std::shared_ptr`, released with use counts in its destructor
+  (0x19150D1 into 0x1921B10). In M6 both lists hold the one connection, as a pointer to its second base at
+  object +0x90.
+
+So the connection owns its game mode and the game mode owns the connection. When the manager lets go at the end
+of a session, the game mode's entry keeps the count at 1 and nothing can free either of them.
 
 Two connections leak per visit, one for the practice session and one for the menu session the game returns to,
 which matches one `TimeAttackRemote` and one `PaintShopGameMode` per visit. A connection keeps the parts below,
@@ -132,11 +146,11 @@ About 57 MB of RAM and its share of page file for every track visit at the Red B
 the menu session after it, for the life of the process, and more on tracks with bigger scenes. Fifty visits would
 hold about 3 GB.
 
-The chain has one cause a DLL could reach, the self reference. Resetting a connection's pointer to itself once
-`GameServerConnectionManager` has released it would let the whole session free. Its risk is that these
-destructors have never run in the shipped game, since nothing ever freed a connection, so a fix has to be proven
-with the same census run showing the heap flat and session exits and quits clean. The other path is a report to
-Kunos with these numbers.
+The chain has one cause a DLL could reach, the game mode's strong entry. Ending that one reference once nothing
+else holds the connection would let the whole session free. Its risk is that these destructors have never run in
+the shipped game, since nothing ever freed a connection, so a fix has to be proven with the same census run
+showing the heap flat and session exits and quits clean. The other path is a report to Kunos with these numbers.
+The owner chose the fix, `[engine] session_leak_fix` on `fix/memory-creep`.
 
 ## Scripts
 

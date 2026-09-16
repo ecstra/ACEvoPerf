@@ -59,6 +59,7 @@ Done on 2026-09-16, session `logs/census-rbr-20260916`, recorded in
 [session-leak-census-2026-09-16](../docs/research/session-leak-census-2026-09-16.md) (`c389941`) and BUG-016
 (`73e8d0e`). The owner drove the Red Bull Ring instead of the Nürburgring GP and seven visits instead of six,
 M1 after the first and M6 after the seventh. The live heap kept growing, about 57 MB a visit, the dumps named
-every session staying in memory behind a `LocalServerConnection` that holds a shared pointer to itself, the
-slack at M1 was 363 MB, and the mesh pool walk found the same three 32 MB blocks in both dumps. The ride along
+every session staying in memory behind a cycle between its `LocalServerConnection` and the game mode that
+holds it in a list of strong pointers (first read as the connection holding itself, corrected against the exe
+the same day), the slack at M1 was 363 MB, and the mesh pool walk found the same three 32 MB blocks in both dumps. The ride along
 ran, the mesh streamer peaked at 461 of 1433 MB.
