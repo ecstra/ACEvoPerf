@@ -1,9 +1,9 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the game's committed memory grows across scene loads, a one time heap fill of about 1.25 GB with the first track and then about 110 MB a track the game really keeps, the same with the mod passive, costing page file space and nothing else found, while the VRAM overhead spike is placement the next load reuses, what grows is still unnamed
-updated: 2026-09-14
-links: [memory-creep-2026-09-14, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
+description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a LocalServerConnection that holds a shared pointer to itself, about 57 MB a Red Bull Ring visit, while the VRAM side is placement the next load reuses
+updated: 2026-09-16
+links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
 status: open
 severity: bug
@@ -296,6 +296,30 @@ Five angles from the exe and the sessions on disk, no new run. The full record i
 
 What keeps growing is still unnamed. One run with the census back and two memory dumps decides it,
 [TODO-023](../todos/TODO-023-name-what-the-game-keeps-across-identical-loads.md).
+
+## The census run names it, 2026-09-16
+
+TODO-023's run, seven identical Red Bull Ring visits with the census and two full memory dumps. The
+full record is [session-leak-census-2026-09-16](../docs/research/session-leak-census-2026-09-16.md).
+
+- **It is a leak.** The live heap grew 126 MB with the first visit and then 52 to 71 MB with every
+  identical visit, about 57 MB, with no sign of levelling off.
+- **Every session stays in memory.** Between the dumps, six visits apart, each visit left its practice
+  session and the menu session after it, with the track's parsed scene three times over (45 MB of it the
+  transform arrays of the four biggest instance sets), the season and session definitions, the game mode,
+  the weather service, a physics body and the handlers registered on the connection.
+- **The owner is a connection that owns itself.** Each `LocalServerConnection` holds a `std::shared_ptr`
+  to itself at object +0x100. 14 of the 15 in the last dump have that as their only owner, and the one
+  in use has `GameServerConnectionManager` as its second. The connection points at its game mode (+0x618)
+  and at the block that reaches the session's scene and weather (+0x620).
+- **The slack.** 363 MB of the heap's committed memory was not in use after one visit and 700 MB after
+  seven, and `HeapSummary` overstated the commit by 176 MB.
+- **VRAM stays flat.** The same resource and overhead at every menu, and the mesh pool's 32 MB blocks at
+  three in both dumps.
+
+A fix the mod could try is resetting a released connection's pointer to itself, so the whole session
+frees. Nothing has ever freed one in the shipped game, so those destructors are untested, and it needs
+the same census run to show the heap flat and exits clean. The other path is a report to Kunos.
 
 ## Done when
 
