@@ -202,14 +202,17 @@ static void FreeFinishedSessions()
     }
 }
 
-static void Track(BYTE* control)
+// Returns how many connections are tracked with this one.
+static size_t Track(BYTE* control)
 {
-    if (!control || At<const void*>(control, 0) != g_controlBlockVtable) return;
-
-    _InterlockedIncrement((long*)(control + control::kWeaks));
     AcquireSRWLockExclusive(&g_lock);
-    g_connections.push_back(control);
+    if (control && At<const void*>(control, 0) == g_controlBlockVtable) {
+        _InterlockedIncrement((long*)(control + control::kWeaks));
+        g_connections.push_back(control);
+    }
+    size_t tracked = g_connections.size();
     ReleaseSRWLockExclusive(&g_lock);
+    return tracked;
 }
 
 // Replaces the one call of the connection's make_shared. The finished sessions are freed once the new
@@ -218,7 +221,14 @@ static void* HookMakeConnection(BYTE* out, void* a2, void* a3, void* a4, void* a
 {
     void* result = g_makeConnection(out, a2, a3, a4, a5, a6);
     FreeFinishedSessions();
-    Track(At<BYTE*>(out, 8));
+    size_t tracked = Track(At<BYTE*>(out, 8));
+
+    // Which thread connects decides what else could still be touching a freed session, so the log names it.
+    wchar_t* thread = nullptr;
+    bool named = SUCCEEDED(GetThreadDescription(GetCurrentThread(), &thread)) && thread && thread[0];
+    Log("[sessions] a session connected on thread '%ls' (%lu), %zu connections held with it, %u freed so far",
+        named ? thread : L"unnamed", GetCurrentThreadId(), tracked, g_freed);
+    if (thread) LocalFree(thread);
     return result;
 }
 

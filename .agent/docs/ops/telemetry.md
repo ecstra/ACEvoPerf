@@ -29,7 +29,8 @@ the render adapter.
 With `[engine] session_leak_fix=1` (`src/engine/session_leak_fix.cpp`, BUG-016) a `[sessions]` line
 names each finished session the fix frees when a later one connects, its game mode's class
 (`TimeAttackRemote` for a practice, `PaintShopGameMode` for the menu), how long freeing it took and how
-many have been freed so far.
+many have been freed so far, and another at every connect names the thread that connected and how many
+connections the fix is still holding a weak reference on.
 
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)
