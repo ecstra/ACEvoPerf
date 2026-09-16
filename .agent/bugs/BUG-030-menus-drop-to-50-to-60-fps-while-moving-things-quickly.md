@@ -2,7 +2,7 @@
 name: BUG-030-menus-drop-to-50-to-60-fps-while-moving-things-quickly
 kind: bug
 description: with the responsive UI on, moving something quickly in the static menus still drops the frame rate to 50 to 60 fps and the 1 percent low at times to 22 fps, and the UI probe caught the vehicle setup page restyling its whole page nine times a second through an attribute change on one of its components while the mouse moved
-updated: 2026-09-15
+updated: 2026-09-16
 links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-028-page-opens-still-hold-frames-of-100-to-200-ms, BUG-029-the-hud-restyles-most-of-its-page-while-driving, responsive-ui, telemetry]
 status: open
 severity: nit
@@ -16,6 +16,9 @@ parent: BUG-014-ui-pages-lag-on-open-switch-and-interaction
 In the owner's words, after the child removal fix: "We made the UI responsive but it drops the FPS to 50-60 when
 rapidly moving something (sometimes the 1% is at 22fps) but thats lower class issue since its a static UI not
 while driving." Which page and which movement (sweeping the mouse over rows, dragging a slider) is not named yet.
+
+On 2026-09-16 the owner listed it with the remaining memory leak as what is left, "the fps and 1% reducing when
+opening and interacting with the UI, the responsive UI". Page opens holding frames are BUG-028.
 
 ## Evidence
 

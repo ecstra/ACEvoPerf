@@ -120,7 +120,7 @@ dry.
 
 ## Sharp, blurry, then less sharp, 2026-09-16
 
-Owner wording, after the census run's seven Red Bull Ring pit box waits: "The textures or posters, hard
+Owner wording, after the census run's seven Red Bull Ring pit box waits, "The textures or posters, hard
 to describe. It loads/sharpens once. Then blurs again, then sharpens again (but not to the level of the
 first sharpen)... noticed it specifically on the poster on the pitstop wall. It might be happening to all
 textures, again, idk."
