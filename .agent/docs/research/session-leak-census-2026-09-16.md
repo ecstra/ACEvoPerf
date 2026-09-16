@@ -150,7 +150,8 @@ The chain has one cause a DLL could reach, the game mode's strong entry. Ending 
 else holds the connection would let the whole session free. Its risk is that these destructors have never run in
 the shipped game, since nothing ever freed a connection, so a fix has to be proven with the same census run
 showing the heap flat and session exits and quits clean. The other path is a report to Kunos with these numbers.
-The owner chose the fix, `[engine] session_leak_fix` on `fix/memory-creep`.
+The owner chose the fix, [session-leak-fix](../systems/session-leak-fix.md) on `fix/memory-creep`, and its first
+run the same evening freed all eleven sessions of six visits with the live heap growing about 5 MB a visit.
 
 ## Scripts
 
