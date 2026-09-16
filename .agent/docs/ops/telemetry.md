@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-15
+updated: 2026-09-16
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving]
 ---
 
@@ -101,8 +101,8 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
-own tile pool figures (used, capacity, pending), and the file to memory queue's `[stats]` line is
-followed by the total of repeated reads.
+own tile pool figures (used, capacity, pending) as the last kick read them, and the file to memory
+queue's `[stats]` line is followed by the total of repeated reads.
 
 ## UI probe
 

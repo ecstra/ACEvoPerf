@@ -308,7 +308,12 @@ static BYTE* g_brokenFlag = nullptr;                // the partial load stub's c
 static std::atomic<uint64_t> g_rankSorts{0};
 static std::atomic<bool> g_broken{false};
 static std::atomic<bool> g_inHook{false};
-static std::atomic<BYTE*> g_allocator{nullptr};
+
+// The tile pool as the last kick read it, for the report. The report runs on the timeline thread,
+// which outlives the engine's allocator at exit, and catching a fault there is not enough, the
+// game's crash handler sees it first and writes a crash report naming the mod (BUG-022).
+static std::atomic<int64_t> g_poolUsed{0}, g_poolTotal{0}, g_poolPending{0};
+static std::atomic<bool> g_poolRead{false};
 
 static std::atomic<uint64_t> g_kicks{0}, g_wantsFiner{0}, g_drops{0}, g_dropsUnadmitted{0};
 static std::atomic<uint64_t> g_refused{0}, g_refusedTiles{0}, g_wouldRefuse{0}, g_pins{0};
@@ -426,17 +431,31 @@ static Feedback ReadFeedback(const BYTE* str, const BYTE* tex)
     return fb;
 }
 
-// A refused drop's tiles are already counted in used, so this is the margin as it stands.
-static bool PoolKeepsMargin(const BYTE* str)
+struct PoolFigures {
+    int64_t used = 0;
+    int64_t total = 0;
+    int64_t pending = 0;
+};
+
+// Only from inside a kick, where the streamer's allocator is alive.
+static bool ReadPool(const BYTE* str, PoolFigures* figures)
 {
     const BYTE* alloc = At<BYTE*>(str, streamer::kAllocator);
     const BYTE* tilePool = alloc ? At<BYTE*>(alloc, allocator::kPool) : nullptr;
     if (!tilePool) return false;
 
-    int64_t total = At<int32_t>(tilePool, pool::kTotal);
-    int64_t used = (int64_t)At<uint64_t>(tilePool, pool::kUsed);
-    int64_t pending = At<int32_t>(alloc, allocator::kPending);
-    return used + pending + kPoolMarginTiles <= total;
+    figures->total = At<int32_t>(tilePool, pool::kTotal);
+    figures->used = (int64_t)At<uint64_t>(tilePool, pool::kUsed);
+    figures->pending = At<int32_t>(alloc, allocator::kPending);
+    return true;
+}
+
+// A refused drop's tiles are already counted in used, so this is the margin as it stands.
+static bool PoolKeepsMargin(const BYTE* str)
+{
+    PoolFigures figures;
+    if (!ReadPool(str, &figures)) return false;
+    return figures.used + figures.pending + kPoolMarginTiles <= figures.total;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,7 +509,13 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
     uint64_t partialTiles = *g_partialTiles;
     s_partialTilesLastKick = partialTiles - s_partialTilesAtKickStart;
     s_partialTilesAtKickStart = partialTiles;
-    g_allocator.store((BYTE*)At<BYTE*>(str, streamer::kAllocator));
+    PoolFigures figures;
+    if (ReadPool(str, &figures)) {
+        g_poolUsed.store(figures.used);
+        g_poolTotal.store(figures.total);
+        g_poolPending.store(figures.pending);
+        g_poolRead.store(true);
+    }
     g_kicks++;
 
     TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
@@ -916,26 +941,8 @@ void InstallStreamerHooks()
 // Reporting
 // ---------------------------------------------------------------------------
 
-static bool ReadPoolLine(int64_t* used, int64_t* total, int64_t* pending)
-{
-    const BYTE* alloc = g_allocator.load();
-    if (!alloc) return false;
-    __try {
-        const BYTE* tilePool = At<BYTE*>(alloc, allocator::kPool);
-        if (!tilePool) return false;
-        *total = At<int32_t>(tilePool, pool::kTotal);
-        *used = (int64_t)At<uint64_t>(tilePool, pool::kUsed);
-        *pending = At<int32_t>(alloc, allocator::kPending);
-        return true;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return false;
-    }
-}
-
 static void Report(const char* when)
 {
-    int64_t used = 0, total = 0, pending = 0;
-    bool havePool = ReadPoolLine(&used, &total, &pending);
     Log("[streamer]%s kicks %llu | wanted a finer level %llu, loads turned away for space %llu, loads cut to what fits %llu (%.1f MB) | "
         "drops %llu (%llu not admitted at all) | refused %llu drops holding %.1f MB that would have been reloaded, would refuse %llu, "
         "flips pinned %llu | kicks ranked by the most important request %llu | tile pool %lld of %lld used, %lld pending%s",
@@ -946,7 +953,8 @@ static void Report(const char* when)
         (unsigned long long)g_refused.load(), g_refusedTiles.load() * 64.0 / 1024.0,
         (unsigned long long)g_wouldRefuse.load(), (unsigned long long)g_pins.load(),
         (unsigned long long)g_rankSorts.load(),
-        (long long)used, (long long)total, (long long)pending, havePool ? "" : " (not read yet)");
+        (long long)g_poolUsed.load(), (long long)g_poolTotal.load(), (long long)g_poolPending.load(),
+        g_poolRead.load() ? "" : " (not read yet)");
 }
 
 void StreamerTick()
