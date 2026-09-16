@@ -33,10 +33,6 @@ tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames
 
-stability
-
-- [TODO-023-name-what-the-game-keeps-across-identical-loads](TODO-023-name-what-the-game-keeps-across-identical-loads.md), the memory census back, six identical Nürburgring GP visits and two memory dumps, to tell BUG-016's fill from a leak and name what grows, built on `fix/memory-creep` and installed, waiting on the owner's run
-
 engine-flags
 
 - [TODO-016-run-the-four-untouched-in-game-engine-flags](TODO-016-run-the-four-untouched-in-game-engine-flags.md), `no_gi`, `log_pso_on_creation`, `ai_run_dynamic_track` and `car_update_complete_max_interval` reachable from the ini today with no build, measured from a fixed stationary view
@@ -48,6 +44,7 @@ engine-flags
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
+- stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a connection that owns itself, about 57 MB a Red Bull Ring visit)
 
 ## Dropped
 

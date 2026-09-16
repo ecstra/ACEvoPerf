@@ -4,11 +4,11 @@ kind: todo
 description: one run with the memory census back in a developer build, six identical Nürburgring GP visits and two Task Manager memory dumps, to say whether the game's live heap keeps growing on identical loads and name what grows
 updated: 2026-09-16
 links: [BUG-016-vram-overhead-grows-across-scene-loads, memory-creep-2026-09-14, TODO-022-frame-time-with-and-without-the-mod, telemetry, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
-status: open
+status: done
 by: agent
 area: stability
 born: 2026-09-14
-done:
+done: 2026-09-16
 ---
 
 ## What
@@ -54,3 +54,11 @@ run with a heap walk can tell a one time fill from a leak and name the owner.
 BUG-016 holds the outcome of the census steps (live heap flat within 30 MB from the second repeat, or
 still growing), the M1 to M6 difference by C++ class and block size, the real heap slack at M1 and the
 mesh pool block walk.
+
+Done on 2026-09-16, session `logs/census-rbr-20260916`, recorded in
+[session-leak-census-2026-09-16](../docs/research/session-leak-census-2026-09-16.md) (`c389941`) and BUG-016
+(`73e8d0e`). The owner drove the Red Bull Ring instead of the Nürburgring GP and seven visits instead of six,
+M1 after the first and M6 after the seventh. The live heap kept growing, about 57 MB a visit, the dumps named
+every session staying in memory behind a `LocalServerConnection` that holds a shared pointer to itself, the
+slack at M1 was 363 MB, and the mesh pool walk found the same three 32 MB blocks in both dumps. The ride along
+ran, the mesh streamer peaked at 461 of 1433 MB.

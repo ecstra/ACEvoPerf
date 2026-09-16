@@ -83,8 +83,8 @@ the second owner being `GameServerConnectionManager` at +0x30. When the manager 
 end of a session, the self reference keeps it.
 
 Two connections leak per visit, one for the practice session and one for the menu session the game returns to,
-which matches one `TimeAttackRemote` and one `PaintShopGameMode` per visit. What a connection keeps, from its
-pointer fields and from climbing the pointers back from leaked objects in M6:
+which matches one `TimeAttackRemote` and one `PaintShopGameMode` per visit. A connection keeps the parts below,
+going by its pointer fields and by climbing the pointers back from leaked objects in M6.
 
 - object +0x618, the session's game mode (`TimeAttackRemote` for the track)
 - object +0x620, a 224 B block that both the connection and the game mode (+0x3E0) point at, which holds the
