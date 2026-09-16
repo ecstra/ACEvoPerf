@@ -31,6 +31,7 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - Blurry trackside big screens
 - Laggy menus
 - Unnecessary texture streaming
+- A memory leak growing with every track and menu you load
 
 ## What it adds
 
@@ -78,6 +79,7 @@ The game loads Microsoft's DirectStorage from `dstorage.dll` in its folder to re
 - **Big screens:** the screens fall back to very low detail copies of their video. The mod hides those copies, so the sharp one always shows.
 - **Menus:** the menus redo far more work than they need to on every hover and page change, and in a session they only update every third frame. The mod cuts the extra work and updates them every frame.
 - **Texture streaming:** the game keeps dropping and reloading the same textures, even with the car parked. The mod stops that.
+- **Memory leak:** the game never lets go of a track or menu once you leave it, so every load adds to its memory until you quit. The mod lets go of each one when the next one starts.
 
 ## Build
 
