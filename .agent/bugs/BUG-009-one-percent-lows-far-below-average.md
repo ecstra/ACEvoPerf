@@ -551,6 +551,21 @@ three probe runs carry the UI probe's own hooks, so they compare with each other
   trace of a good launch spread over GPU waits and the compositor's frame queue.
 - **A run with the probe off** is the player's number, the last clean one is `trace-drive` at 79.7.
 
+`logs/clean-laps-20260916`, the same car and track, build `35c23a8`, the probe off, four laps with a pause after
+the out lap's first 25 s:
+
+| Stretch | Driving | Avg fps | 1% low | 0.1% low | 1 s windows, median, 10th percentile, worst | Without unevenness | Frames of 16 ms or more |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| after the pause, laps 1 to 4 | 355 s | 108.0 | 82.9 | 74.3 | 87.0, 79.2, 63.7 | 94.2 | 0 |
+| out lap before the pause | 23 s | 112.9 | 49.4 | 16.6 | 88.5, 18.2, 16.4 | 103.2 | 5 |
+
+- **The steady number with the probe off matches the probe run.** 82.9 against 83.0 in `children-fix` and 79.7 in
+  `trace-drive`, with about 14 fps of track load and 11 of unevenness.
+- **The out lap had two pairs of 55 to 61 ms frames**, 9 and 24 s after the pit exit, and nothing like them after.
+  The first follows a second with the game's CPU at 34.9 and 32.4 percent against about 22 around it, the second
+  sits in a second with the system at 54.4 percent while the game held 21.9, so something outside the game was
+  busy. With the probe off nothing names them, and the HUD's drops were single 30 ms frames.
+
 ## Verification
 
 Absent.
