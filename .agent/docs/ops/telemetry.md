@@ -26,6 +26,11 @@ with the streaming activity since the previous hitch, the swap chain's creation 
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
 the render adapter.
 
+With `[engine] session_leak_fix=1` (`src/engine/session_leak_fix.cpp`, BUG-016) a `[sessions]` line
+names each finished session the fix frees when a later one connects, its game mode's class
+(`TimeAttackRemote` for a practice, `PaintShopGameMode` for the menu), how long freeing it took and how
+many have been freed so far.
+
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)
 with its mangled type name and, for `std::exception` types, the message of the first throw.

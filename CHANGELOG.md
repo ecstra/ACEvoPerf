@@ -16,6 +16,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - Textures reloading the same detail over and over, even with the car parked.
 - Uneven frame pacing while driving, which pulled the 1% lows well below the average frame rate.
 - Instant frame drops while driving when a HUD warning like Wrong Way goes away.
+- Memory use growing with every track and menu you load.
 
 ### Added
 

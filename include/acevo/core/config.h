@@ -44,6 +44,7 @@ struct Config {
     bool streamerRankFix = true;     // rank a texture level by its most important request, not its least
     bool streamerPartialLoads = true; // load the levels that fit when a texture's whole step does not
     bool responsiveUi = true;        // the menus stay smooth, see src/ui/responsive_ui.cpp for its parts
+    bool sessionLeakFix = true;      // free the finished sessions the game keeps in memory
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
     // [dxgi]

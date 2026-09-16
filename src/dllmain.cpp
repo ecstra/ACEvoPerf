@@ -21,6 +21,7 @@
 #include "acevo/engine/flags.h"
 #include "acevo/engine/process.h"
 #include "acevo/engine/exceptions.h"
+#include "acevo/engine/session_leak_fix.h"
 #include "acevo/engine/streamer.h"
 #include "acevo/render/frame_stats.h"
 #include "acevo/render/dxgi_hooks.h"
@@ -64,6 +65,7 @@ static void OnAttach(HMODULE h)
     ApplyProcessTweaks();
     ApplyFlags("early");
     InstallStreamerHooks();
+    InstallSessionLeakFix();
     InstallResponsiveUi();
     InstallUiProbe();
     InstallCohtmlHooks();
