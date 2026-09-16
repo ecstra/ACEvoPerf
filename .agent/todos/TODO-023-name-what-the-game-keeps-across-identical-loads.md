@@ -2,8 +2,8 @@
 name: TODO-023-name-what-the-game-keeps-across-identical-loads
 kind: todo
 description: one run with the memory census back in a developer build, six identical Nürburgring GP visits and two Task Manager memory dumps, to say whether the game's live heap keeps growing on identical loads and name what grows
-updated: 2026-09-14
-links: [BUG-016-vram-overhead-grows-across-scene-loads, memory-creep-2026-09-14, TODO-022-frame-time-with-and-without-the-mod, telemetry]
+updated: 2026-09-16
+links: [BUG-016-vram-overhead-grows-across-scene-loads, memory-creep-2026-09-14, TODO-022-frame-time-with-and-without-the-mod, telemetry, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash]
 status: open
 by: agent
 area: stability
@@ -20,7 +20,9 @@ Build. A developer branch that brings the memory census back exactly as the S se
 `0770d67` holds it, `8450d2e` removed it), settle 15 s within 150 MB, a reading at start and after
 each fall of 700 MB or more from the peak. Nothing else changes. `timeline=1` and the census switch
 on, `streaming_trace=1` may ride along. No `HeapOptimizeResources`, it would change the slack the dumps
-measure. Built before the owner sits down.
+measure. Built before the owner sits down. Built on 2026-09-16 as `fix/memory-creep` (`ceb4988`), on top
+of BUG-022's fix so the run's quit checks that fix too, and installed with `memory_census=1`,
+`timeline=1` and `frames=1`.
 
 The owner's route, about 20 minutes plus the dump freezes.
 

@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-15
+updated: 2026-09-16
 links: [agent-index, spec-todos]
 ---
 
@@ -35,7 +35,7 @@ tooling
 
 stability
 
-- [TODO-023-name-what-the-game-keeps-across-identical-loads](TODO-023-name-what-the-game-keeps-across-identical-loads.md), the memory census back, six identical Nürburgring GP visits and two memory dumps, to tell BUG-016's fill from a leak and name what grows
+- [TODO-023-name-what-the-game-keeps-across-identical-loads](TODO-023-name-what-the-game-keeps-across-identical-loads.md), the memory census back, six identical Nürburgring GP visits and two memory dumps, to tell BUG-016's fill from a leak and name what grows, built on `fix/memory-creep` and installed, waiting on the owner's run
 
 engine-flags
 
