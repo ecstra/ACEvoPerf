@@ -2,8 +2,8 @@
 name: TODO-022-frame-time-with-and-without-the-mod
 kind: todo
 description: the owner reads about 10 ms frame time without the mod against about 13 ms with it, and wants to know whether something is wrong, which needs a controlled comparison that separates the mod's deliberate texture pool from anything that costs frames for nothing
-updated: 2026-09-14
-links: [mesh-level-of-detail-2026-09-14, frame-time-mod-against-passive-2026-09-13, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, BUG-007-blurry-road-and-textures, TODO-023-name-what-the-game-keeps-across-identical-loads]
+updated: 2026-09-16
+links: [session-leak-census-2026-09-16, mesh-level-of-detail-2026-09-14, frame-time-mod-against-passive-2026-09-13, texture-streamer-flip-2026-09-13, DEC-005-fixed-pool-sizes-by-default, DEC-009-pool-and-staging-sizes-by-card, BUG-007-blurry-road-and-textures, TODO-023-name-what-the-game-keeps-across-identical-loads]
 status: open
 by: owner
 area: render
@@ -84,6 +84,13 @@ record is [mesh-level-of-detail-2026-09-14](../docs/research/mesh-level-of-detai
 Next, with no build, `-log_info=meshStreamer` rides on a run already planned
 ([TODO-023](TODO-023-name-what-the-game-keeps-across-identical-loads.md)) to show whether anything is
 trimmed at 1433 MB.
+
+## The readout rode the census run, 2026-09-16
+
+Seven Red Bull Ring visits parked in the pit box, `logs/census-rbr-20260916`. The mesh streamer logged
+105,124 `tracked N, used N MB, budget 1433 MB` lines and its use peaked at 461 MB, so nothing was trimmed at
+the Red Bull Ring. A heavier track, the Nordschleife or the Nürburgring GP driven, is where the budget could
+still bind.
 
 ## Done when
 
