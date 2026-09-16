@@ -28,7 +28,7 @@ nit
 
 - [BUG-030-menus-drop-to-50-to-60-fps-while-moving-things-quickly](BUG-030-menus-drop-to-50-to-60-fps-while-moving-things-quickly.md), moving something quickly in the static menus drops to 50 to 60 fps with the 1 percent low at times 22, the probe caught the vehicle setup page restyling all 1,161 nodes six times a second through an attribute change on one component, the attribute and the owner's movement to be named
 - [BUG-028-page-opens-still-hold-frames-of-100-to-200-ms](BUG-028-page-opens-still-hold-frames-of-100-to-200-ms.md), with the responsive UI on the heavier pages still open with a frame or two of 100 to 200 ms, the page's own script, pages built over several frames restyling much of the page, the listed rules still walked
-- [BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring](BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring.md), every camera cut of the Red Bull Ring pit menu starts blurry, a cut forces a streamer pass that loads before it drops, often cannot load, then waits a second, the follow up pass of TODO-024 is the correction to test
+- [BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring](BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring.md), every camera cut of the Red Bull Ring pit menu starts blurry, a cut forces a streamer pass that loads before it drops, often cannot load, then waits a second, the follow up pass of TODO-024 is the correction to test, and on 2026-09-16 the owner saw a pit wall poster sharpen, blur and come back less sharp, a trace to confirm
 
 ## Won't fix
 

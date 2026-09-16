@@ -2,8 +2,8 @@
 name: BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring
 kind: bug
 description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, because a cut forces a streamer pass that loads for the new shot before it drops the old one, often cannot load at all and then waits a full second, the car dropped whole at every cut away and the scenery three passes behind at 1024 MB, a follow up pass the correction to test
-updated: 2026-09-14
-links: [texture-streamer-camera-cuts-2026-09-14, TODO-024-a-follow-up-streamer-pass-after-a-camera-cut, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
+updated: 2026-09-16
+links: [texture-streamer-camera-cuts-2026-09-14, session-leak-census-2026-09-16, TODO-024-a-follow-up-streamer-pass-after-a-camera-cut, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
 status: open
 severity: nit
 area: streaming
@@ -117,3 +117,18 @@ Next is a follow up pass after a cut that could not load, fired when the Resourc
 zero, [TODO-024](../todos/TODO-024-a-follow-up-streamer-pass-after-a-camera-cut.md). Keeping textures
 across cuts is the correction for bigger pools and waits on how the tile allocator behaves when it runs
 dry.
+
+## Sharp, blurry, then less sharp, 2026-09-16
+
+Owner wording, after the census run's seven Red Bull Ring pit box waits: "The textures or posters, hard
+to describe. It loads/sharpens once. Then blurs again, then sharpens again (but not to the level of the
+first sharpen)... noticed it specifically on the poster on the pitstop wall. It might be happening to all
+textures, again, idk."
+
+The run had no streaming trace, so the poster's own passes are not on record. Its `[streamer]` lines show
+the pit box as the deep dive found it, the pool at 15,360 of 16,384 tiles and 75 to 100 loads turned away
+per pass, with the partial loads fix cutting a few loads a pass to the levels that fit. The shape fits the
+cut mechanism with a full pool. A texture loads for one shot, is dropped at the cut away, and on the way
+back gets only the levels that fit that pass, so it can settle below its first level until later passes
+find room. Telling that apart from a drop while the camera stays put needs one pit box wait with
+`streaming_trace=1` and the poster's texture found in `tex` rows.
