@@ -37,6 +37,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - The heaviest menu pages can still hitch for a moment as they open.
 - The 1% lows still sit below the average frame rate while driving.
 - In a full race, AI cars and some trackside buildings can still look blurry. Texture memory runs out and the game fills it with your own car first.
+- Sweeping the mouse or dragging something quickly in the menus can still drop the frame rate for a moment.
 
 ## 0.3.1 (2026-09-06)
 

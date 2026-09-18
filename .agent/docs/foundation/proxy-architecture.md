@@ -2,7 +2,7 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-15
+updated: 2026-09-18
 links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry, responsive-ui]
 ---
 
@@ -16,11 +16,11 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `src/` | `dllmain.cpp`, `exports.def`, `version.rc` | attach sequence, the export list, the version resource |
 | `core/` | `log`, `config`, `iat` | log file, ini reading into `g_cfg`, import table and vtable patching |
 | `dstorage/` | `proxy`, `stats` | the four exports, `FactoryProxy`, `QueueProxy`, process wide request counters |
-| `engine/` | `flags`, `process` | gflags scan and write, priority class, power throttling, timer resolution |
+| `engine/` | `flags`, `process`, `streamer`, `session_leak_fix`, `exceptions` | gflags scan and write, priority class, power throttling, timer resolution, the texture streamer's hooks and fixes, the finished sessions the game keeps (see `session-leak-fix`), the throw log |
 | `render/` | `dxgi_hooks`, `frame_stats`, `adapter` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check |
-| `telemetry/` | `timeline` | the per second CSV thread and the frame CSV flush |
+| `telemetry/` | `timeline`, `streaming_trace`, `load_sampler`, `memory_census` | the per second CSV thread and the frame CSV flush, the streaming trace rows, the loading sampler, the memory census (all three developer only) |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
-| `ui/` | `responsive_ui`, `restyle_fix`, `menu_refresh_fix`, `style_match_fix`, `cohtml_hooks`, `ui_probe` | the responsive UI and its parts, the shared Cohtml and UI frame hooks, the developer UI probe (see `responsive-ui`) |
+| `ui/` | `responsive_ui`, `restyle_fix`, `menu_refresh_fix`, `style_match_fix`, `child_removal_fix`, `cohtml_hooks`, `ui_probe` | the responsive UI and its parts, the shared Cohtml and UI frame hooks, the developer UI probe (see `responsive-ui`) |
 
 `include/acevo/common.h` holds the Windows, D3D12, DXGI and DirectStorage includes and the version
 string. Every header includes it, every source includes its own header first.
@@ -57,6 +57,10 @@ string. Every header includes it, every source includes its own header first.
    its listeners, `InstallUiProbe` registers the probe's when it is on, and `InstallCohtmlHooks` then
    patches the exe's import of Cohtml's `Library::Initialize` and wraps the game UI's frame post and end.
    The Cohtml library, system and views are hooked as the game creates them.
+7. Also at attach: `InstallStreamerHooks` rewrites the texture streamer's call sites and
+   `InstallSessionLeakFix` the one call that makes a local server connection, each only when every byte
+   it depends on matches the build it was written for (see `directstorage-streaming` and
+   `session-leak-fix`).
 
 ## Pieces
 
@@ -87,10 +91,13 @@ string. Every header includes it, every source includes its own header first.
 - `ui/cohtml_hooks`: listener lists for the Cohtml library, its views and the game UI's frame post and
   end, and the hooks that call them. `ui/responsive_ui` installs the responsive UI's parts, the page fixes
   script and the resource work move, each part in its own file (see `responsive-ui`).
+- `engine/streamer`: the texture streamer's hooks, its three fixes and the `[streamer]` line (see
+  `directstorage-streaming`). `engine/session_leak_fix` frees the sessions the game keeps (see
+  `session-leak-fix`). `engine/exceptions` counts the game's own C++ throws for the throw log.
 
 ## What it never does
 
 - Write to game files or the content package. The overlay changes the table only in memory, and code
-  patches (the texture streamer, the responsive UI) change the loaded image only.
+  patches (the texture streamer, the responsive UI, the session leak fix) change the loaded image only.
 - Hook anything on the render thread beyond `Present` and the game UI's frame post and end.
 - Run code for a feature the ini disables: each piece checks its flag and returns early.
