@@ -5,7 +5,7 @@ description: the game's committed memory grows across scene loads, the same with
 updated: 2026-09-16
 links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
-status: open
+status: fixed
 severity: bug
 ---
 
@@ -393,3 +393,8 @@ a thirty AI race. A session restarted from the pause menu is the one path still 
 TODO-023's run says whether live heap keeps growing on identical loads, and either the growth is
 named and the mod fixes it, or the record says it is the game's own fill or cache and why the mod
 cannot reach it.
+
+Met on 2026-09-18. The growth was named as whole sessions held by a cycle, the mod frees them
+([session-leak-fix](../docs/systems/session-leak-fix.md)), and what is left of the growth, about 5 MB a
+visit, is [BUG-031](BUG-031-the-heap-still-grows-about-5-mb-a-visit-with-the-session-leak-fix.md). The VRAM
+side was placement the next load reuses, with nothing to fix.

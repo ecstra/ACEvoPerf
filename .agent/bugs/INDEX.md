@@ -13,7 +13,6 @@ links: [agent-index, spec-bugs]
 bug
 
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
-- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), a one time heap fill with the first track and then a leak, the same passive, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, the session leak fix on `fix/memory-creep` freed every session of a six visit run and cut the growth to about 5 MB a visit, driving, restarts and races not covered yet, the VRAM side flat
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
@@ -41,6 +40,7 @@ nit
 
 ## Fixed
 
+- [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), the game's memory grew with every scene load, named by the census run as every finished session staying whole in memory behind a cycle between its local server connection and its game mode, fixed by the session leak fix over a six visit run and the owner's own play, what is left of the growth is BUG-031
 - [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line read the engine's freed allocator at exit and the game logged a crash report naming the mod, fixed by printing the pool figures the last kick read, a clean quit after the census run's fifteen loads
 - [BUG-029-the-hud-restyles-most-of-its-page-while-driving](BUG-029-the-hud-restyles-most-of-its-page-while-driving.md), the HUD restyled its whole page for 21 to 24 ms when a part left its top level, the wrong way label's data-bind-if and Cohtml's child removal set that matches every node, fixed by the responsive UI's child removal fix, owner driven with five wrong way episodes and no restyle over 15 ms while driving
 - [BUG-014-ui-pages-lag-on-open-switch-and-interaction](BUG-014-ui-pages-lag-on-open-switch-and-interaction.md), the menus lagged on hover, scrolling, sliders, switching and opening pages, fixed by the responsive UI over seven owner driven laps, what page opens still cost is BUG-028
