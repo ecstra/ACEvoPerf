@@ -30,6 +30,7 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - Blurry cars in races with AI
 - Blurry trackside big screens
 - Laggy menus
+- Uneven frame pacing while driving
 - Unnecessary texture streaming
 - A memory leak growing with every track and menu you load
 
@@ -78,6 +79,7 @@ The game loads Microsoft's DirectStorage from `dstorage.dll` in its folder to re
 - **Blurry cars in races:** once texture memory is full, the game ranks textures by the car that needs them least and loads new detail only when all of it fits. The mod ranks them by the car that needs them most and loads what fits.
 - **Big screens:** the screens fall back to very low detail copies of their video. The mod hides those copies, so the sharp one always shows.
 - **Menus:** the menus redo far more work than they need to on every hover and page change, and in a session they only update every third frame. The mod cuts the extra work and updates them every frame.
+- **Frame pacing:** the game splits its screen updates between the HUD and the car's displays, so some frames carry far more work than others. The mod gives the HUD every frame and lets the car displays take turns, which evens the frame times out.
 - **Texture streaming:** the game keeps dropping and reloading the same textures, even with the car parked. The mod stops that.
 - **Memory leak:** the game never lets go of a track or menu once you leave it, so every load adds to its memory until you quit. The mod lets go of each one when the next one starts.
 
