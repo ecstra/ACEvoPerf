@@ -359,8 +359,21 @@ them ended at 21:57 in SteamVR's own client, a fast fail from `vrclient_x64.dll`
 loaded and nothing freed (`logs/sessionfix-rbr-20260916/vr_crash_2157.dmp`), and SteamVR's server had crashed
 twice before the fix existed.
 
-Not covered yet: driving, a session restart, a race with AI cars, and the other game modes built on
-`RemoteGameMode`, whose destructors have still never run under the fix.
+## The play session, 2026-09-18
+
+`logs/airace-freeze-20260918`, the owner's own play, two laps at the Red Bull Ring, a minute at the
+Nordschleife, a Red Bull Ring lap on the online leaderboard, a Nordschleife minute on a multiplayer server
+and a thirty AI race at the Nürburgring. The mod's log of that launch was overwritten by the next one, what
+is kept here was read on the day.
+
+- **Seven sessions freed, no crash.** The practice sessions with laps driven, the leaderboard lap and the
+  menus between them all freed on `GameThread`, 0.2 to 21.9 ms each, and the game went on running through
+  driving, an online leaderboard session and a multiplayer server.
+- **The race session was never freed.** It was the last session of the launch, and the next launch's race
+  froze on the memory census with nothing freed at all, so the destructors of `InstantRaceRemote` and of a
+  race with AI cars have still never run. One more session started after a race covers that.
+- **The freeze at the race start is not the fix.**
+  [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was.
 
 ## Done when
 

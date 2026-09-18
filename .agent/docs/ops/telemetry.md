@@ -139,6 +139,10 @@ It ran every ten seconds at first, and `HeapSummary` walks a heap under its lock
 holds 4 to 7 GB, so every census froze the game, 200 ms in the menu and 1.4 s on track
 (`logs/memcreep-20260913/R-census-mod-on`), hence the settled trigger.
 
+The freeze grows with the heap. At the start of a thirty AI race the heap held 10 GB, the reading took 4.2 s
+and the game logged nothing for 13 s (`logs/airace-hang-20260918`). Leave the census off for anything but a
+memory run, and never for a race.
+
 `HeapSummary`'s committed figure is not the commit charge. In a harness where 800 MB of small blocks
 were freed, the heap had already released the memory, the commit charge fell to 68 MB, and
 `HeapSummary` still reported 72 MB committed until `HeapCompact` brought it to 3 MB with the charge
