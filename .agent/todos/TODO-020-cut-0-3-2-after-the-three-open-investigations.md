@@ -2,7 +2,7 @@
 name: TODO-020-cut-0-3-2-after-the-three-open-investigations
 kind: todo
 description: 0.3.2 is not cut until the streaming layer, the 1 percent lows and the VRAM overhead have each had their round, because the release is meant to be final rather than a staging post
-updated: 2026-09-15
+updated: 2026-09-18
 links: [public-docs, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, BUG-009-one-percent-lows-far-below-average, BUG-016-vram-overhead-grows-across-scene-loads, build-and-release, one-percent-lows-2026-09-14, memory-creep-2026-09-14, DEC-019-ui-lag-work-reopened, BUG-014-ui-pages-lag-on-open-switch-and-interaction]
 status: open
 by: owner
@@ -50,6 +50,16 @@ which had fallen behind the three streamer fixes.
 Plus the session of 2026-09-12, which shipped no code and closed a lot: global illumination
 measured and closed, `gibake_probes_per_frame` dead, `log_pso_on_creation` dead, the Agility SDK
 built and removed, Tier 2 VRS built and removed, and the tile pool reshuffle found.
+
+## Where the three stand, 2026-09-18
+
+All three are done. TODO-018 had its round and its fixes, BUG-009 had the HUD every frame and the child
+removal fix with four clean laps measured after them, and BUG-016 is fixed by the session leak fix.
+
+The release was cut the same day. The changelog's 0.3.2 heading carries the date, `release.ps1` built
+`release/ACEvoPerf-0.3.2.0.zip` with its five files, main is tagged `v0.3.2`, and 0.3.3 is open with the
+version files bumped. What is left is the publishing, the GitHub release and the Overtake update, both on
+the owner's word.
 
 ## Done when
 

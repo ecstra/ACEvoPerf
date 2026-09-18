@@ -12,7 +12,7 @@ links: [agent-index, spec-todos]
 
 release
 
-- [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post, TODO-018 done and the other two past their deep dives with runs to come
+- [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post, all three done, the zip built and main tagged `v0.3.2`, waiting on the GitHub release and the Overtake update
 
 streaming
 

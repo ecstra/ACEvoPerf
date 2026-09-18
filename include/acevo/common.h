@@ -17,4 +17,4 @@
 #include <intrin.h>
 #include "dstorage.h"
 
-#define ACEVO_PERF_VERSION "0.3.2"
+#define ACEVO_PERF_VERSION "0.3.3"
