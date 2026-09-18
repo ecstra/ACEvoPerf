@@ -45,5 +45,6 @@ thread and how many connections are held, see [telemetry](../ops/telemetry.md).
 
 Six Red Bull Ring practice visits parked in the pit box with the menu between them, eleven sessions freed on
 `GameThread` in 0.2 to 5.7 ms each, no crash, the live heap growing about 5 MB a visit instead of 57 (BUG-016
-holds the table). Driving, session restarts, races with AI cars and the other game modes have not run under it
-yet, and their game mode destructors had never run in the shipped game.
+holds the table). Then the owner's own play, laps driven at two tracks, a leaderboard lap, a multiplayer
+session and a thirty AI race, whose `InstantRaceRemote` freed in 29.1 ms inside the next load. A session
+restarted from the pause menu is the one path that has not run under it.

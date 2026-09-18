@@ -371,9 +371,22 @@ is kept here was read on the day.
   driving, an online leaderboard session and a multiplayer server.
 - **The race session was never freed.** It was the last session of the launch, and the next launch's race
   froze on the memory census with nothing freed at all, so the destructors of `InstantRaceRemote` and of a
-  race with AI cars have still never run. One more session started after a race covers that.
+  race with AI cars had still never run.
 - **The freeze at the race start is not the fix.**
   [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was.
+
+## A race session freed, 2026-09-18
+
+`logs/racefree-20260918`, the run that closed the last gap. A thirty AI race at the Nürburgring, out to the
+menu, then a practice at the same track, then a quit.
+
+- The menu's `PaintShopGameMode` freed in 0.3 ms and the race's `InstantRaceRemote` freed in 29.1 ms, both on
+  `GameThread` at the next session's connect.
+- The 29 ms sits inside the load that follows, whose own frame took 748 ms, so nothing of it is visible.
+- No exception anywhere in the game log, and the quit logged its detach.
+
+With this the fix has freed a menu, a practice with laps driven, a leaderboard lap, a multiplayer session and
+a thirty AI race. A session restarted from the pause menu is the one path still not run.
 
 ## Done when
 
