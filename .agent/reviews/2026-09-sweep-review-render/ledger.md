@@ -28,7 +28,7 @@ left standing.
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
-| 3 | Reflex survives the session it is installed in | closed, awaiting the owner's run | 2026-09-20 |
+| 3 | Reflex survives the session it is installed in | closed, runtime confirmed | 2026-09-20 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -738,3 +738,26 @@ setting, and it is the configuration that used to kill Reflex.
   than before them, which is H-11's reorder.
 - Not one `Present sync interval = ` line and not one `[hitch]` line in the whole run, which is what
   the new line claims and the only way to check it.
+
+Batch 3 needed a third run, session `logs/render-b3-20260920`, with the ini back to its defaults
+and the owner toggling fullscreen and back mid session. It settles two things the source alone
+could not.
+
+- **The swap chain identity holds at runtime, on both hooks.** The whole batch rests on
+  `IDXGISwapChain`, `IDXGISwapChain1` and `IUnknown` being one address for one object, which is
+  sound from DXGI's single inheritance but had never been executed. `Present sync interval = 0`
+  and 62 `[hitch]` lines prove `OnPresent` matched `g_timedChain`, and
+  `[reflex] running, 1000 frames paced, 0 refused` with the driver answering `low latency mode ON`
+  proves `OnFrameBegin` matched `g_swapChain`. Had either comparison been wrong the counters would
+  have stayed at zero and neither line could exist.
+- **The engine does not rebuild its swap chain on a window mode change.** The game's own log has
+  `[Monitor] update requested ... fullscreen true` at 14:17:55 and `fullscreen false` at 14:18:00,
+  and `acevo_perf.log` has exactly one `CreateSwapChainForHwnd` for the run. So it resizes in
+  place. H-14's failure, a replaced swap chain on the same device, does not arise through that
+  path on 0.9.1, and Reflex kept pacing across both transitions, the thousandth frame landing four
+  seconds after the second one.
+
+That makes H-14's fix insurance against a case this engine has not been seen to produce. Worth
+saying plainly, and it is not angle one's batch 4 over again: that spent five commits and two
+sub agent rounds on a path a single log line then proved dead, this cost one condition and one
+log line, and the alternative was Reflex going silent while still reporting itself on.
