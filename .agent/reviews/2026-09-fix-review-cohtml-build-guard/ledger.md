@@ -328,6 +328,66 @@ deliberately keeps off the HUD because that page makes about twenty thousand wri
 dashboard is the same shape. Needs a size collision, which does not exist on this hardware, where the
 dashboards are power of two render targets and the menu view matches the swap chain exactly.
 
+### V-06: the log added for H-06 fired on a resolution increase and stayed silent on a decrease
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 853fae7, 2026-09-20, the log is removed and the limit is filed as BUG-033
+
+The condition was `size >= claimed` on a packed value with width in the high word, which is a width major
+lexicographic order and not a size comparison at all. Claimed 1920x1080 and remade at 1280x720 compares
+smaller, so nothing was logged, the page fixes did not go in, and nothing said so, which is F-02's
+original complaint reproduced exactly.
+
+The direction matters. A fullscreen to windowed change, which is the BUG-013 device change this fix exists
+to survive, remakes the view at the smaller client size. So the likely case was the silent one and the
+justification written in this ledger for the line was true of one direction only.
+
+The line also misdescribed its own test, since 1440x2560 has 1.8 times the pixels of 1920x1080 and was
+silent while 2560x480 has 0.6 times the pixels and fired claiming to be at least as big. A heuristic that
+is wrong in the common direction and misleading in its wording is worse than no line, so it is gone and
+the limit is a filed bug instead, which is what house rule 9.6 asks for.
+
+### V-07: the header carried the superseded first cut of the rule
+- severity: debt
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 853fae7, 2026-09-20
+
+`include/acevo/ui/cohtml_hooks.h` still said the view is told by size rather than by being first, which
+e79a13d made false when it put the ordinal back in front. That commit corrected the systems doc and the
+source comment and left the header, which is the file both consumers actually read. The same upkeep miss
+as H-07, one file over, which is the third time in this branch.
+
+### V-08: a zero size first view disabled the size path for the session and said nothing
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 853fae7, 2026-09-20, it logs once that only the first view will be recognised
+
+H-05's capture is gone, and the degraded mode it leaves behind was itself silent, which is the same class
+of problem H-06 was raised over.
+
+### V-09: a non first view at exactly the first view's size takes the identity
+- severity: bug, unobserved
+- found-by: verifier
+- batch: 2
+- status: wontfix, this is the trade the fix is
+- fix:
+
+Impossible before this batch. It is the direct cost of recognising a remake at all: to accept a later view
+of the claimed size as the menu view, you accept any view of that size. Such a view would receive both
+scripts, and in the probe `g_mainView` would move to it, so the main view clock would follow the wrong
+view. Not present in any recorded session, where the menu view matches the swap chain exactly and the
+dashboards are power of two render targets at 1024x1024, 512x2048, 512x512 and 512x128. The ordinal is
+tried first, so the menu view itself is never the one that loses out, only the collision would gain.
+
+What would settle it is a session at a resolution matching a car display, 1024x1024 windowed for example.
+Recorded here rather than guarded against, because guarding needs the same external signal BUG-033 needs.
+
 ## What the hunter established about F-02 itself
 
 F-02 has never fired. Across twelve recorded sessions, including focus switches, pauses, a logged device
@@ -457,6 +517,31 @@ unverified by definition. It proved the bound arithmetic exactly, the largest `a
 byte read is `size - 1`, checked the 1024 cap against seven real Windows PEs where the fixed block always
 sits at offset 40 in a resource of 896 to 940 bytes, and confirmed the log split leaves no path silent. It
 returned not clean, on the documentation rather than the code, which is V-04 and V-05 above.
+
+## The batch 2 verifier's verdict
+
+Not clean on the first pass, on V-06 above. F-02 and H-05 both proved gone.
+
+F-02: a menu view remade at 1920x1080 as view 54 packs to the same size as the claim, is recognised, gets
+both scripts, and `g_mainView` moves to it. The ordinal path is exactly as reliable as before, since
+`firstView ||` short circuits. It also noted that `Hook_CreateView` returns before the counter increments
+on a refused creation, so view number one is always a view that exists.
+
+H-05, walked in all three cases it was asked for. A first view of size zero still takes the identity and
+every later view then needs `size != 0 && size == 0`, which is unsatisfiable, so no car display can take
+it. A later view of size zero is rejected. Two concurrent creations cannot both be first, because the
+counter is a sequentially consistent read modify write, and only the first view writes the claimed size,
+so a race can cause a missed match and never a false claim.
+
+It also cleared the change I was least sure of, the probe's eviction rule. Rows hold unique view pointers,
+so at most one row can equal `g_mainView` and with 32 slots at least 31 stay candidates, and the write is
+guarded regardless. It called the change a net improvement, because the old rule pinned the dead view one
+row forever after a remake and left the live menu view evictable.
+
+Two things it raised are the owner's rather than mine. `CHANGELOG.md` has an empty `0.3.3 (unreleased)`
+heading while this branch restores menu fixes after a device change, which is player visible, and that
+wants a line before any release. And nothing here has been run: no launch has exercised batch 2, so
+everything above is source and build only.
 
 ## Hunter and verifier finds outside this batch's scope
 
