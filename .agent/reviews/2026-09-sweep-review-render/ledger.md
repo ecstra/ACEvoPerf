@@ -26,7 +26,7 @@ left standing.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the auto sizes land on the card the game actually renders on | closed, awaiting the owner's run | 2026-09-20 |
+| 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | pending | |
 | 3 | Reflex survives the session it is installed in | pending | |
 | 4 | the leftovers | pending | |
@@ -419,7 +419,25 @@ laptop's numbers, 1024 and 128, unchanged by the whole batch in every enumeratio
 new log strings against the 4096 byte log buffer and against what the code actually does. Flags that
 are not `auto`, untouched by the change in `ApplyFlags`.
 
-Two things nobody can check here. No card other than the 5994 MB RTX 3060 Laptop appears in any
+One thing nobody can check here. No card other than the 5994 MB RTX 3060 Laptop appears in any
 session on disk, so the 256 and 512 brackets, the zero dedicated path, the UMA carve out and the
-mismatch warning have never run anywhere. And no run of this build exists at all, so not one of the
-new log lines has been printed by the game.
+mismatch warning have never run anywhere.
+
+## The run
+
+Session `logs/render-b1-20260920`, the owner's launch to a loaded track on 2026-09-20. The three
+things it had to show, and did:
+
+- `auto sizes: 'NVIDIA GeForce RTX 3060 Laptop GPU' has 5994 MB dedicated -> tile pool 1024 MB,
+  staging buffer 128 MB` at 13:08:20.838, the same pick this machine has always had, so nothing in
+  the batch moved the reference card.
+- `flag tile_pool_mb = 1024 (int32, was 1024) [DeviceAllocator.cpp, late]` at 13:08:22.769, the
+  second write H-06 added, which had never existed before.
+- `auto sizes: the game renders on 'NVIDIA GeForce RTX 3060 Laptop GPU', the card the sizes were
+  picked from` at 13:08:23.174, F-02's check running and agreeing.
+
+The game's own log re-measures both margins the batch is built on. `[Tile Pool] sized to 1024 MB`
+at 13:08:23.085, which is 316 ms after the late pass and 68 ms before the swap chain hooks at
+13:08:23.153. So the fallback's window holds on a second run and the LUID still arrives after the
+pool is made. The margins are not fixed, 7 ms against 68 ms for the swap chain gap across the two
+sessions, which is worth remembering before anything else is moved later on the strength of them.

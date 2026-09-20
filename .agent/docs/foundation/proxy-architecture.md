@@ -44,16 +44,18 @@ string. Every header includes it, every source includes its own header first.
    timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
    `FactoryProxy`. Just before the late pass, `ResolveAutoSizesFallback` reads the card off a
    factory of its own when step 4 has not happened yet, which covers an exe with no factory import
-   to patch and any launch order that puts DirectStorage first. On 0.9.1 step 4 runs 1.9 seconds
-   earlier, so it finds the work already done and returns.
+   to patch and any launch order that puts DirectStorage first. On 0.9.1 step 4 runs about two
+   seconds earlier, so it finds the work already done and returns. The pass itself lands 361 ms
+   (2026-09-18) or 316 ms (2026-09-20) before the engine sizes its tile pool.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
    capacity, wraps the result in a `QueueProxy` when statistics are on.
 4. Game creates its DXGI factory: `HookFactoryVtable` hooks `CreateSwapChainForHwnd` and
    `CreateSwapChain`, and `ResolveAutoSizes` reads the render adapter's memory off that factory
    and writes every ini value set to `auto` (the tile pool flag, the staging buffer size). This
    happens before the game's device and pools exist, which is why the values cannot wait for
-   step 2's late pass on a second launch order. On 2026-09-18 the engine sized its tile pool 7 ms
-   before it created the swap chain, so the margin is real but small. When the swap chain is
+   step 2's late pass on a second launch order. The engine sizes its tile pool before it creates
+   the swap chain, 7 ms before on 2026-09-18 and 68 ms before on 2026-09-20, so the margin is real
+   but it is not fixed and nothing should be moved later on the strength of it. When the swap chain is
    created, `HookSwapChain` hooks `Present` and `Present1` on its vtable for frame timing,
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
    renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.

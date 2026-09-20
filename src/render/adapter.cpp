@@ -33,9 +33,9 @@ int AutoStagingMb(uint64_t vramMb)
 }
 
 // The LUID of the adapter the sizes were picked from, kept so the real one can be checked
-// against it once the game's device exists. The sizes cannot wait for that: on 2026-09-18 the
-// engine sized its tile pool 7 ms before it created the swap chain, and the swap chain is the
-// first place the render adapter's LUID can be read at all.
+// against it once the game's device exists. The sizes cannot wait for that: the engine sizes its
+// tile pool before it creates the swap chain, 7 ms before on 2026-09-18 and 68 ms before on
+// 2026-09-20, and the swap chain is the first place the render adapter's LUID can be read at all.
 static LUID g_sizedFromLuid = {};
 static bool g_sizedFromKnown = false;
 static wchar_t g_sizedFromName[128] = {};
@@ -101,8 +101,8 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
 }
 
 // The other chance to read the card, taken from the late flag pass inside DStorageGetFactory.
-// That runs on the game's own thread rather than under the loader lock, and on 2026-09-18 it
-// ran 361 ms before the engine sized its tile pool. It does nothing when the game's own factory
+// That runs on the game's own thread rather than under the loader lock, and it beat the engine's
+// tile pool sizing by 361 ms on 2026-09-18 and by 316 ms on 2026-09-20. It does nothing when the game's own factory
 // has already been through here, which on 0.9.1 is always, since that arrives 1.9 seconds
 // earlier. It covers the exe with no import to patch and any launch order that puts
 // DirectStorage first, and creates a factory of its own the same way reflex and timeline do.
