@@ -28,7 +28,7 @@ one bug, two debt, one nit.
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
-| 4 | the moved work thread and its stop flag | pending | |
+| 4 | the moved work thread and its stop flag | fixed and verified, runtime gate open | 2026-09-20, ack |
 | 5 | what the page fixes script costs, and saying when it is not there | pending | |
 
 ## Findings
@@ -147,8 +147,8 @@ guard and returns silently, so the half built page stays on screen instead of be
 - severity: bug
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 7657e7c, 2026-09-20, `OnLibrary` clears the flag under the lock and reuses the one thread and semaphore instead of making a second pair
 
 `Hook_StopWorkers` or `Hook_Uninitialize` calls `StopMovingWork`, which latches `g_movingStopped` at
 `src/ui/responsive_ui.cpp:319`. If the game initialises Cohtml again, `Hook_LibraryInitialize` calls
@@ -162,8 +162,8 @@ exists to remove, and the log line still reports the move as installed.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 7657e7c then d10cb26, 2026-09-20, the wait is bounded against a real deadline and a call given up on is not waited for again
 
 `src/ui/responsive_ui.cpp:321` sleeps the frame thread on `g_movedIdle` until `g_movedRunning` reaches
 0. The comment at line 225 records that the game runs queued jobs on the frame thread.
@@ -176,8 +176,14 @@ never exits.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
+- status: deferred to fix/review-shutdown
 - fix:
+
+Deferred rather than fixed here. The fix is a stop at DLL detach, and the detach path belongs to
+`fix/review-shutdown`, which already owns the identical hazard in `log.cpp`, `timeline.cpp`,
+`load_sampler.cpp` and `streamer.cpp`. Doing it in this branch would put two branches on the same
+teardown, and the shutdown branch has to decide the order of that teardown as a whole rather than one
+thread at a time. Its F-01 is the same defect from the other end.
 
 `StopMovingWork` runs only from `Hook_StopWorkers` and `Hook_Uninitialize`.
 
@@ -752,6 +758,197 @@ observable is a counter in the script and belongs with the rest of batch 5.
 
 Batch 3 is done.
 
+### H-16: the stop was set by two hooks and cleared by one restart trigger
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, `Hook_StopWorkers` clears the flag after the original returns
+
+F-05's fix attached the clear to `Library::Initialize` alone, while `StopMovingWork` is called from both
+`Hook_StopWorkers` and `Hook_Uninitialize`. A `StopWorkers` the game does not follow with an
+`Initialize`, because the library object survives, left the flag latched and the move refusing every call
+for the rest of the process, with the install line still standing from start-up and nothing contradicting
+it. That is F-05's exact failure on the sibling path its own fix did not cover.
+
+### H-17: a call that was given up on made every later stop pay the full timeout, twice over at shutdown
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, the give up is remembered and no later stop waits again
+
+`g_movedRunning` is decremented only when the moved call returns, and the case the bound exists for is
+precisely the one where it never does, because the frame thread it is waiting on has left for
+`StopWorkers`. So the counter stayed at one for the life of the process. `Hook_StopWorkers` paid 5000 ms,
+then `Hook_Uninitialize` paid another 5000 ms on the same stuck counter, freezing the frame thread for
+ten seconds at every exit. The bound added to keep a player out of a hang would have produced one.
+
+### H-18: after the timeout the caller tore down the library the moved thread was still inside
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed, contained rather than removed
+- fix: d10cb26, 2026-09-20, the call is guarded and says so in the log if it faults
+
+The comment written with F-06's fix named the trade as risking "tearing Cohtml down under its own worker"
+without naming what that is. `g_origStopWorkers` joins and destroys the worker pool and its queues while
+the mod thread is executing an item out of one, then `g_origUninitialize` frees the library, and the mod
+thread's return path or its next vtable read lands in freed memory and makes an indirect call through it.
+On a thread the game knows nothing about, with no handler, that is an unhandled access violation.
+
+Contained, not removed. The fault is now caught and logged. What removes it is not giving up while a call
+is live, which is what V-12 restored.
+
+### H-19: the wait was documented as bounded and was not
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, the bound is a deadline from `GetTickCount64` and the sleep gets the remaining time
+
+A spurious wake, which `SleepConditionVariableSRW` is documented to allow, restarted the whole five
+seconds because nothing tracked elapsed time across iterations. With one worker thread `g_movedRunning`
+is only ever zero or one, so a genuine wake always means zero and every restart of the timer was a
+spurious one.
+
+### H-20: the drain removed entries without taking back their semaphore counts
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, each drained entry consumes its count with a zero timeout wait
+
+Left behind, those counts wake the thread once per drained entry after the next restart, each wake taking
+the lock the frame thread wants. Worse at the ceiling: a full queue drained puts the count at
+`kMaxMoved`, so the first `ReleaseSemaphore` after the restart fails, its return is unchecked, and that
+entry sits queued while `Hook_ExecuteWork` has already returned 0 claiming the work is handled.
+
+### H-21: the install line was printed whatever the three hooks actually did
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, the line is printed only once `g_origExecuteWork` is set
+
+`HookVtableSlot` returns silently when `VirtualProtect` fails, which is what a page protection product
+would produce, leaving nothing hooked and nothing moved while the log still said the move was installed.
+F-01 and H-01's theme one layer down.
+
+### H-22: the frame thread is a recyclable id that was never cleared
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: d10cb26, 2026-09-20, `StopMovingWork` zeroes it and the next frame end learns it again
+
+Windows reuses a thread id once the game's UI frame thread exits, and `Hook_ExecuteWork` would then match
+the new owner of that id and move its work. The same identity by token class as F-02 and H-09.
+
+### H-23: Cohtml slots 2 and 3 have no recorded provenance and have never been seen firing
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: open, made observable rather than settled
+- fix:
+
+The research that established this vtable records slot 1 as `CreateSystem` and slot 5 as `ExecuteWork`
+and names slots 2 and 3 nowhere. `responsive-ui.md` asserts them, and both are written on every player's
+machine. If slot 2 is not `StopWorkers`, the mod replaces some other virtual with a `void(void*)` that
+runs the drain and then calls the original with clobbered argument registers. That is F-01's failure shape
+with the build check passing rather than failing.
+
+Twelve recorded sessions show all three slots hooking and none shows either firing, because nothing
+logged the drain. d10cb26 adds a line on every stop, so the next session that stops Cohtml will say so.
+Settling it properly needs the disassembly, which is not this branch's work, and the log line is what
+makes the next report actionable.
+
+### V-12: giving up on a call was permanent, so every later teardown destroyed the library under a live one
+- severity: bug
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: eb1c6f4, 2026-09-20, the flag clears when the abandoned call comes back
+
+H-17's fix set `g_movedAbandoned` and never cleared it. The batch's own reasoning says the wedge is
+temporary, since the timeout is what frees the frame thread to go run the job the moved call is waiting
+on, so the normal outcome is that the call returns a moment later and the thread is healthy again. With
+the flag latched, every stop after that first timeout skipped the wait entirely, tore the library down
+under a live call, and made H-18's guard the normal path instead of the last resort. A Cohtml lock held by
+the mod thread when it faults is never released either, which can wedge the very `StopWorkers` that
+follows.
+
+Clearing it when `g_movedRunning` reaches zero keeps H-17 closed, because a thread that is genuinely
+wedged never reaches that line.
+
+### V-13: the queue accepted work while the only thread that drains it was still out
+- severity: bug
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: eb1c6f4, 2026-09-20, `MoveWork` refuses while a call has been given up on
+
+`MoveWork` tested only the stop flag and the queue depth. After a restart cleared the stop, it would
+accept sixty four consecutive calls and return 0 for each, claiming work that nothing could run, until the
+queue filled and the engine's own inline path resumed. Impossible before this batch, because the latch
+kept everything inline.
+
+### V-14: the semaphore was signalled outside the lock, so the drain could miss a count
+- severity: debt
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: eb1c6f4, 2026-09-20, the release moves inside the lock
+
+A stop landing between the push and the release drained the entry and found no count to take, and the
+release then landed on an empty queue. Harmless on its own, and it is exactly the ceiling case H-20's fix
+claims to prevent.
+
+### V-15: the fault guard caught every exception code, not only the access violation
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: eb1c6f4, 2026-09-20, the filter tests `EXCEPTION_ACCESS_VIOLATION` and lets everything else through
+
+Catching everything would swallow a stack overflow, and the log call in the handler would then fault again
+on the unreset guard page.
+
+### V-16: on a restart with a different vtable the install line can still claim the move is on
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: wontfix, recorded
+- fix:
+
+`HookVtableSlot` returns early when its own original is already set, so if a restart ever handed
+`OnLibrary` a library whose vtable had moved, nothing would be hooked and H-21's guard would still see a
+non null `g_origExecuteWork` from the first library and print the line. It needs a relocated or different
+vtable, which the UI engine check in `cohtml_hooks.cpp` already refuses at the module level, and the state
+stays self consistent because the two stop hooks are equally unhooked. Not worth a flag to track per
+library when the module check above it is the real guard.
+
+## The batch 4 verifier's verdict
+
+Not clean on the first pass, on V-12 above, which was introduced by the fix for H-17.
+
+What it proved gone: F-05's restart path, walked global by global through stop, uninitialise, initialise
+and `OnLibrary`. H-16's window, where the clear now sits before a teardown, turns out to be safe because
+`Hook_ExecuteWork` also demands the current thread be the frame thread and `StopMovingWork` zeroes that,
+so the window only opens if the game runs another frame end, which is the case the fix exists for, and
+`Hook_Uninitialize`'s own drain catches anything queued in it. H-19's arithmetic holds, with the remaining
+time always between 1 and 5000 so the cast cannot produce `INFINITE`. H-20's takeback cannot block under
+the lock and cannot steal another entry's count. H-22 cannot suppress a legitimate move for longer than
+one frame.
+
+It also confirmed the fault guard is safe: no mod lock is held when `RunMovedWork` is called, and `Log`
+takes only its own lock with no call out while holding it, so neither new log line creates a cycle.
+
+One process finding of its own, and a fair one. The ledger had no rows for any batch 4 hunter find and
+still read `status: open` on F-05 and F-06 while both were fixed, because this batch ran the verifier
+before writing the paper, where batches 2 and 3 wrote it first. Recorded here as the fifth instance of the
+same upkeep habit on this branch.
+
 ## Deferred to batch 5, the page fixes script's costs
 
 Four hunter finds that are real and are not about this batch's error paths. Grouped rather than forced in,
@@ -771,6 +968,10 @@ because each changes what the script costs rather than how it recovers.
   owner's own note records that the UI view pauses when the window loses activation. While frames are
   stopped every call folds into a callback that cannot run, and if the chain ever stops for good,
   `makeFocusable` is dead for the life of the document with no timer, no count and no upper bound.
+- `responsive_ui.cpp:310` | nit | the moved work counter counts calls queued, never calls completed, and
+  nothing counts the calls `MoveWork` refuses when the queue is full, so the probe's line reads the same
+  whether the work ran or the thread is wedged, and the one condition that puts the stall back on the
+  frame thread mid session is invisible.
 - `responsive_ui.cpp:161` | debt | the controls throttle spaces refresh starts rather than the gaps
   between them, because the stamp is taken before the refresh runs. A rebuild costing more than the
   100 ms window makes the next arrival run at once, so refreshes go back to back with no idle frame and
