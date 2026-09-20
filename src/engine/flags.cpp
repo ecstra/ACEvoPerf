@@ -168,10 +168,18 @@ static void WriteFlag(const std::string& name, const std::string& val, const cha
     for (BYTE* st : fi->storages) {
         if (!Writable(st)) continue;
         if (fi->type == 0) {
+            // The same rule the ini reader uses: a word that is in neither list is a typo, not a
+            // no. Answering it with false here writes false into the engine, and for the three
+            // bool flags the mod ships on that is the fix simply not landing.
             std::string v = val; for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
-            bool b = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
-            bool old = *(bool*)st; *(bool*)st = b;
-            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), b ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
+            bool yes = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
+            bool no = (v == "0" || v == "false" || v == "no" || v == "off" || v == "f");
+            if (!yes && !no) {
+                Log("flag %s: '%s' is not one of 1, 0, true, false, yes, no, on or off, left alone", name.c_str(), val.c_str());
+                continue;
+            }
+            bool old = *(bool*)st; *(bool*)st = yes;
+            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), yes ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
         } else if (fi->type == 1) {
             int v = atoi(val.c_str()); int old = *(int*)st; *(int*)st = v;
             Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);

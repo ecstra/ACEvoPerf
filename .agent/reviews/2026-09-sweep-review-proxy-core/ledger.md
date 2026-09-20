@@ -402,7 +402,11 @@ ever to use that setting, and the one that used to break the override layer.
 - All three queues created and wrapped, including `GpuUpload Memory Queue`, which the overlay can
   never use but which feeds the counters the CSVs read.
 
-### H-07: a yes or no value the list did not know came back as no, for thirty one keys
+There is no H-07. The block that held it was the verifier's, not the hunter's, and became V-04 when
+the ids were made unique on 2026-09-20. Ids are handles, so the gap stays rather than six blocks
+shifting under any commit that already names them.
+
+### V-04: a yes or no value the list did not know came back as no, for thirty one keys
 - severity: bug
 - found-by: verifier
 - batch: 2
@@ -492,7 +496,7 @@ asked to lower it, and any typo in `gpu_priority` set the scheduling class high.
 is the same as before in both cases, since the fall through already landed on the default. What was
 missing was anything telling the player their word was not understood.
 
-### V-01: the folder guard listed the bad inputs and missed one
+### V-05: the folder guard listed the bad inputs and missed one
 - severity: bug
 - found-by: verifier
 - batch: 2
@@ -503,18 +507,49 @@ missing was anything telling the player their word was not understood.
 inside, no colon, and not starting with a slash. They resolve to the game folder, which is F-02's
 exact failure. Two rounds of listing what is wrong, and the third round states what is right.
 
-### V-02: three statements this batch made about its own ranges
+### V-06: three statements this batch made about its own ranges
 - severity: nit
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: eb7c6d7, 2026-09-20.
+- fix: 683f2fd for the two ini hints, eb7c6d7 for the rest, 2026-09-20.
 
 The two remaining ini hints named a floor and no ceiling while the code enforced both. The staging
 hint did not mention that 0 is still accepted. And the comment justified the 1024 ceiling by the
 overflow, which happens at 4096, so 1025 to 4095 are refused for a reason the comment did not give.
 The real reason is that this is video memory taken from rendering and 1024 is already the size the
 mod exists to override.
+
+### V-07: a second yes or no reader in another file still answered a typo with no
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch. `WriteFlag` knows both lists and leaves the flag alone on anything else, saying so.
+
+V-04 fixed the ini reader. The `[flags]` section does not go through it, it is walked raw and
+written by `WriteFlag`, which had the same list and the same answer. Three bool flags ship in that
+section and all three ship on, so `force_canonical_pool_sizes=ture` wrote false into the engine and
+put back the blurry textures after a race load that the changelog claims are fixed. Not quite
+silent, the log said `= false (bool, was true)`, but nothing said the word was not understood.
+
+Two readers of the same kind of value in one program with opposite answers to a typo is the thing
+worth remembering here, not either one of them.
+
+### V-08: the ledger broke three rules of its own spec
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-20.
+
+Batch 2's blocks reused `V-01` and `V-02`, which batch 1 already held, so neither id named one
+finding any more. One verifier finding carried an `H-` prefix. And six blocks used
+`found-by: verifier`, which the spec's own enum did not list.
+
+The spec was the thing that was wrong on the last of those, since the house rules have run a
+verifier on every batch of this review, so it gained the value and a sentence saying ids are unique
+across the file rather than per batch. The other two were the ledger's.
 
 ## Checked and clean
 
