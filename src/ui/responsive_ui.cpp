@@ -32,20 +32,24 @@ static const char kPageFixesScript[] = R"js(
         controls: { refreshes: 0, held: 0 }
     };
 
-    // Only the navigation fold reads the frame number, so the counter starts when that fold installs
-    // rather than when this script runs. The same view carries the menus and the HUD, so this script is
-    // evaluated again for hud.html at every session load, where no page here can apply and a permanent
-    // callback per frame would be pure cost on the page the driving frame rate is measured on.
+    // The same view carries the menus and the driving HUD, so this script is evaluated again for
+    // hud.html at every session load. Nothing below can apply there. Neither page element exists, and the
+    // navigation fold sees one call in a whole session, while the frame counter it needs would be a
+    // permanent callback per frame on the page the driving frame rate is measured on. So nothing
+    // installs here at all. Gating on the fold installing instead was tried and was useless, because
+    // hud.html sets SpatialNavigation like every other page.
+    if ((String(location.pathname || '').split('/').pop() || '') === 'hud.html') return;
+
+    // Registered before any page script, so it runs first in every animation frame and the page's
+    // callbacks see the number of the frame they run in. It has to stay at the top level to keep that:
+    // animation frame callbacks run in the order they were registered and this one re-registers itself
+    // as it runs, so wherever it first lands it stays, and anything that registered before it would then
+    // read the previous frame's number.
     var frame = 0;
-    var counting = false;
-    function startFrameCounter() {
-        if (counting) return;
-        counting = true;
-        (function countFrames() {
-            frame++;
-            requestAnimationFrame(countFrames);
-        })();
-    }
+    (function countFrames() {
+        frame++;
+        requestAnimationFrame(countFrames);
+    })();
 
     // BUG-025. Every navigable element's setupNavigation calls makeFocusable() with no section,
     // which scans the whole page once per section. A group of the controls page makes a hundred
@@ -54,7 +58,6 @@ static const char kPageFixesScript[] = R"js(
     // next frame, which also catches elements added later in that frame.
     function patchNavigation(navigation) {
         if (!navigation || navigation.__acevoPatched || typeof navigation.makeFocusable !== 'function') return;
-        startFrameCounter();
         var stock = navigation.makeFocusable;
         var scannedFrame = -1;
         var trailing = false;
@@ -71,14 +74,19 @@ static const char kPageFixesScript[] = R"js(
             if (trailing) return;
             trailing = true;
             var self = this;
-            var ran = false;
-            var trailingScan = function () {
-                if (ran) return;
-                ran = true;
+            // A frame and nothing else. A timer alongside it was tried and taken out: Cohtml dispatches
+            // timers out of the same view advance that drives frame callbacks, so when the view's clock
+            // stands still, which is what happens when the window loses activation, a timer deadline
+            // never comes due either. It could not fire in the one case it was added for, and on any
+            // frame longer than its delay it fired first and claimed a frame number that had not been
+            // incremented yet, which cost that frame the second whole page scan this fold exists to
+            // remove. What actually recovers a frozen view is the first input event, which resumes the
+            // frame callbacks too.
+            requestAnimationFrame(function () {
                 trailing = false;
                 // Claim the frame this lands in. Without it a call arriving later in the same frame
                 // sees the previous frame's number and takes the whole page scan path, so the frame
-                // pays two scans, which is the cost this fold exists to remove.
+                // pays two scans.
                 scannedFrame = frame;
                 try {
                     fixes.navigation.scans++;
@@ -86,13 +94,7 @@ static const char kPageFixesScript[] = R"js(
                 } catch (e) {
                     console.error('[ACEvoPerf] responsive ui trailing navigation scan failed', e);
                 }
-            };
-            // A timer as well as a frame, because the frame is the only way out of the folded state and
-            // this view stops producing frames when the game's window loses activation. While they are
-            // stopped every later call folds into a callback that cannot run, so navigation would stay
-            // unbuilt with nothing to recover it if the frames never came back.
-            requestAnimationFrame(trailingScan);
-            setTimeout(trailingScan, 100);
+            });
         };
         navigation.__acevoPatched = true;
     }
@@ -393,6 +395,10 @@ static DWORD WINAPI MovedWorkThread(void*)
         MovedWork work = g_moved[g_movedHead];
         g_movedHead = (g_movedHead + 1) % kMaxMoved;
         g_movedCount--;
+        // Arm the full queue line again once the burst has drained. Latched for the process it would
+        // have reported the first fill and hidden every later one, which is the blindness it was added
+        // to close.
+        if (!g_movedCount) g_movedQueueFullSaid.store(false, std::memory_order_relaxed);
         g_movedRunning++;
         ReleaseSRWLockExclusive(&g_movedLock);
 
@@ -510,8 +516,11 @@ static void OnLibrary(void* library)
     HookVtableSlot(vtable, cohtml_slot::kLibraryExecuteWork, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
     // HookVtableSlot is quiet when it cannot make the page writable, which is what a page protection
     // product would produce, so claim the move only once the one hook that does the work is really in.
-    if (!g_origExecuteWork) {
-        Log("[responsive ui] the UI engine's work call could not be wrapped, the game runs its resource work as it does");
+    // All three, not just the one that moves the work. With the two stop hooks missing there is nothing
+    // to drain the queue at teardown and a moved call can reach a library that has already gone, which
+    // is worse than not moving at all.
+    if (!g_origExecuteWork || !g_origStopWorkers || !g_origUninitialize) {
+        Log("[responsive ui] the UI engine's work calls could not all be wrapped, the game runs its resource work as it does");
         return;
     }
     Log("[responsive ui] resource work the game's frame thread picks up runs on the mod's thread");
