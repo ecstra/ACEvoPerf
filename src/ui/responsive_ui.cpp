@@ -114,8 +114,12 @@ static const char kPageFixesScript[] = R"js(
             var self = this;
             self.__acevoInitPendingSince = now;
             client.request = function (name, callback) {
-                client.request = stockRequest;
+                // Step aside only once the Init this is waiting for has actually come past. Stepping
+                // aside on the first request of any name let an unrelated one that init sends first
+                // take the wrapper off, after which the real Init reached the stock request, its answer
+                // was never wrapped, and the mark stayed set for the full three seconds.
                 if (name !== 'Init' || typeof callback !== 'function') return stockRequest.apply(client, arguments);
+                client.request = stockRequest;
                 return stockRequest.call(client, name, function () {
                     self.__acevoInitPendingSince = 0;
                     return callback.apply(this, arguments);
@@ -124,7 +128,14 @@ static const char kPageFixesScript[] = R"js(
             try {
                 return stockInit.apply(this, arguments);
             } finally {
-                if (client.request !== stockRequest) client.request = stockRequest;
+                // The wrapper is still in place only when no Init went out, because init threw before it
+                // sent one or never sent one, so nothing will ever arrive to clear the mark. Leaving it
+                // set would make the page's own second init, the one this exists to fold away, be ignored
+                // for three seconds and a half built page stay on screen.
+                if (client.request !== stockRequest) {
+                    client.request = stockRequest;
+                    self.__acevoInitPendingSince = 0;
+                }
             }
         };
         proto.__acevoPatched = true;
