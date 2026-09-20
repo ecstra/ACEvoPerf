@@ -60,7 +60,11 @@ static HRESULT WINAPI Hook_CreateDXGIFactory2(UINT flags, REFIID riid, void** pp
 
 void InstallDxgiHooks()
 {
-    if (!g_cfg.dxgiEnabled) return;
+    if (!g_cfg.dxgiEnabled) {
+        Log("DXGI: [dxgi] enabled=0, so nothing here is hooked. Frame times, Reflex, the display owner check, the write tracing and the check that the auto sizes came from the card the game renders on are all off for this run. The auto sizes themselves are not, they are read at the first DirectStorage call instead.");
+        if (g_cfg.reflex) Log("DXGI: WARNING: [latency] reflex=1 can do nothing while [dxgi] enabled=0, because Reflex is driven from the swap chain this section hooks.");
+        return;
+    }
     HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
     if (!dxgi) {
         Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
