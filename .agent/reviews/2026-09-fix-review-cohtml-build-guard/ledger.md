@@ -29,7 +29,7 @@ one bug, two debt, one nit.
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
 | 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
-| 5 | what the page fixes script costs, and saying when it is not there | pending | |
+| 5 | what the page fixes script costs, and saying when it is not there | fixed, hunter closed, verifier out | 2026-09-20, ack |
 
 ## Findings
 
@@ -1000,33 +1000,166 @@ running, log it first and weigh it second.
 
 Batch 4 is done.
 
-## Deferred to batch 5, the page fixes script's costs
+### F-08: the script installs its machinery on hud.html, where none of its patches can apply
+- severity: debt
+- found-by: hunter, batch 3
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the script returns at once on hud.html and installs nothing there
 
-Four hunter finds that are real and are not about this batch's error paths. Grouped rather than forced in,
-because each changes what the script costs rather than how it recovers.
+The same view carries the menus and the driving HUD, so the script is evaluated again at every session
+load. Neither page element exists on the HUD and the navigation fold sees one call in a whole session,
+while the frame counter it needs is a callback every frame for the rest of the session, on the page
+BUG-009 ties to the one percent lows.
 
-- `responsive_ui.cpp:36` | debt | the script installs its frame counter, its SpatialNavigation accessor
-  and its customElements wrapper on hud.html, where none of its three patches can ever apply. The same
-  view carries the menus and the HUD, so this is re-evaluated at every session load and leaves a permanent
-  one callback per frame chain on the driving page, the one BUG-009 ties to the one percent lows. The
-  probe's sibling script already gates its heavy work off hud.html by pathname and this one has the same
-  information and does not use it.
-- `responsive_ui.cpp:226` | debt | the log says the page fixes are in the moment `AddInitialScript`
-  returns, and nothing ever reports whether the script ran or whether any of its three patches installed.
-  The counters and the frame chain sit outside every try, so one missing API there takes all three fixes
-  out at once while the line is still written. This is F-01 and H-01's theme one layer further down.
-- `responsive_ui.cpp:64` | debt | the navigation fold's only recovery is a future animation frame, and the
-  owner's own note records that the UI view pauses when the window loses activation. While frames are
-  stopped every call folds into a callback that cannot run, and if the chain ever stops for good,
-  `makeFocusable` is dead for the life of the document with no timer, no count and no upper bound.
-- `responsive_ui.cpp:310` | nit | the moved work counter counts calls queued, never calls completed, and
-  nothing counts the calls `MoveWork` refuses when the queue is full, so the probe's line reads the same
-  whether the work ran or the thread is wedged, and the one condition that puts the stall back on the
-  frame thread mid session is invisible.
-- `responsive_ui.cpp:161` | debt | the controls throttle spaces refresh starts rather than the gaps
-  between them, because the stamp is taken before the refresh runs. A rebuild costing more than the
-  100 ms window makes the next arrival run at once, so refreshes go back to back with no idle frame and
-  the held counter reads zero exactly when the page is slowest.
+Fixed twice. The first attempt (0d907f7) started the counter lazily from the navigation fold instead of
+gating on the page, on the assumption that the fold would not install on the HUD. H-24 showed from the
+repo's own logs that it does.
+
+### F-09: the log claimed the page fixes were in, and the marker proved only that the script started
+- severity: debt
+- found-by: hunter, batch 3
+- batch: 5
+- status: fixed
+- fix: 0d907f7, 2026-09-20, the marker is published last and the log line says the script was given to the view
+
+`window.__acevoUiFixes` was assigned at the top of the script, so its presence meant the script had begun.
+It is now the last statement, so it means the script ran to the end. The mod's own side cannot see that at
+all, so its line now claims only what it knows.
+
+### F-10: the navigation fold's only way out of the folded state is a future frame
+- severity: debt
+- found-by: hunter, batch 3
+- batch: 5
+- status: wontfix, no timer can close it
+- fix:
+
+Tried and removed. A `setTimeout` alongside the frame looked like the obvious fallback and cannot work:
+`ui-lag-hunt-2026-09-06.md:68` records that when the window loses activation the UI's clock stands still,
+and Cohtml dispatches timers out of the same view advance that runs frame callbacks, so a timer deadline
+in a frozen view never comes due either. It could not fire in the one case it was added for, and it made
+things worse on the way (H-26 and H-27).
+
+What actually recovers a frozen view is its first input event, which resumes frame callbacks too. So the
+folded state is never stuck for longer than the view itself is, and there is nothing left to fix.
+
+### F-11: the controls throttle spaced refresh starts rather than the gaps between them
+- severity: debt
+- found-by: hunter, batch 3
+- batch: 5
+- status: fixed
+- fix: 0d907f7, 2026-09-20, the stamp moved into a finally after the refresh
+
+The window was consumed by the refresh itself, so a rebuild costing more than 100 ms made the next arrival
+due the moment it returned. Refreshes then ran back to back with no idle frame between them and the held
+counter read zero exactly when the page was slowest.
+
+### F-12: the moved work counter counts calls taken and never calls refused
+- severity: nit
+- found-by: hunter, batch 3
+- batch: 5
+- status: fixed in part
+- fix: 0d907f7 then 3586169, 2026-09-20, a full queue says so once per burst
+
+The queue filling is the one condition that hands the stall back to the frame thread mid session and it
+was invisible. It now logs, and re-arms when the burst drains so a second fill is not swallowed. Counting
+completions as well as queued calls would need the probe's line to change and is not worth that on its
+own, so it stays unfixed with this written down.
+
+### H-24: the lazy frame counter starts on hud.html too, so the first fix removed nothing
+- severity: bug
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the whole script returns on hud.html by pathname, as the probe's sibling script does
+
+The gate chosen was that the navigation fold had installed. `hud.html` sets `SpatialNavigation` with a
+`makeFocusable` like every other page, so the fold installs there and starts the counter anyway.
+
+The evidence was already in the repo and I did not look. `logs/ui-probe-a-20260914/game_log.txt` records
+the probe patching navigation on hud.html three times, from a guard identical to this one, and four
+2026-09-15 logs show this script's own counter reading `navigation calls 1 scans 1 skipped 0` on hud.html
+at every session load, which can only increment inside our own wrapper. Over 1,188 recorded hud.html
+seconds the fold is installed on every one of them.
+
+### H-25: moving the counter out of the top level dropped the invariant H-14's fix rests on
+- severity: bug
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the counter is back at the top level and the comment saying why is back with it
+
+The comment deleted in the same edit read "Registered before any page script, so it runs first in every
+animation frame and the page's callbacks see the number of the frame they run in." That was load bearing.
+Frame callbacks run in registration order and this one re-registers itself as it runs, so wherever it
+first lands it stays. Registered by the initial script it is first by construction. Registered from the
+`SpatialNavigation` setter it lands behind every callback the document registered before that assignment,
+and a `makeFocusable` call made from one of those reads the previous frame's number. Worse, a trailing
+scan registered from such a callback is queued ahead of the counter for the next frame, so it claims the
+old frame number and the next fresh call takes the full scan path. That is H-14 exactly, the finding batch
+3 fixed and whose runtime gate counted 52 such frames in one lap.
+
+Deleting a comment that records why something is where it is, in the commit that moves it, is the clearest
+instance on this branch of the thing section 2.1 of the project's own rules exists to prevent.
+
+### H-26: the timer fallback cannot fire in the case it was added for
+- severity: bug
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the timer is gone and F-10 is closed as wontfix with the reason
+
+See F-10. The research doc says the view's clock stands still when the window loses activation, and Cohtml
+dispatches timers from the same advance, so the timer is dead in exactly the frozen case. What it did buy
+was a real cost: one allocation and one dead dispatch per fold episode, about ten a second on the controls
+page during a drag, on the page the fold exists to speed up.
+
+### H-27: on a frame longer than the timer's delay the timer won and claimed a stale frame number
+- severity: bug
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the timer is gone
+
+Both callbacks come due at the same advance once the frame interval passes 100 ms, and a due timer runs
+before that turn's frame callbacks, so the trailing scan fired before the counter incremented, claimed the
+outgoing frame, and the first fresh call of the new frame took a full scan. That frame then paid two whole
+page scans. Frames over 100 ms are not exotic on these pages: the deep dive measures controls group
+switches at 197 to 494 ms and the vehicle setup open at 237.8 ms, which are precisely the frames BUG-025
+is about.
+
+### H-28: the fix changed three documented behaviours and moved no paper
+- severity: debt
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 50d7719, 2026-09-20
+
+Sixth instance on this branch, after V-03, H-07, V-07, V-10 and the ledger's own status lines, and it came
+one batch after the rule was widened to cover exactly this. Noting it here rather than widening the rule
+again, because the rule is not the problem.
+
+### H-29: the queue full line was latched for the life of the process
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, the flag re-arms when the queue drains
+
+The condition it reports is a burst that drains and recurs, so a permanent latch would have reported the
+first fill and hidden every later one. The same latch shape as F-05 and H-16, on the line added to close
+that kind of blindness.
+
+### H-30: the install line was gated on one of the three hooks it claims
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: 3586169, 2026-09-20, all three originals are checked
+
+With the two stop hooks missing there is nothing to drain the queue at teardown and a moved call can reach
+a library that has already gone, which is worse than not moving at all. Thin, since the three slots share
+a vtable and almost certainly a page, and the same one hook asymmetry H-21 was raised over.
 
 ## Hunter and verifier finds outside this batch's scope
 
