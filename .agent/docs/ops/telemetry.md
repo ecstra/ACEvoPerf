@@ -20,9 +20,9 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
-picked from it or the reason none were picked, an `auto sizes: WARNING` line when the game turns
-out to render on a different adapter than the sizes came from, every DirectStorage factory, queue
-and file event, per queue statistics every
+picked from it or the reason none were picked, a second `auto sizes` line at the swap chain naming
+the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
+every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
 with the streaming activity since the previous hitch, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not

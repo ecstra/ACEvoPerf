@@ -153,7 +153,10 @@ void CheckAutoSizeAdapter(IDXGIFactory1* factory, IUnknown* device)
     LUID renderLuid = {};
     if (!RenderAdapterLuid(device, &renderLuid)) return;
     g_sizedFromKnown = false;   // the answer cannot change, so say it once
-    if (renderLuid.LowPart == g_sizedFromLuid.LowPart && renderLuid.HighPart == g_sizedFromLuid.HighPart) return;
+    if (renderLuid.LowPart == g_sizedFromLuid.LowPart && renderLuid.HighPart == g_sizedFromLuid.HighPart) {
+        Log("auto sizes: the game renders on '%ls', the card the sizes were picked from", g_sizedFromName);
+        return;
+    }
 
     for (UINT i = 0;; ++i) {
         IDXGIAdapter1* adapter = nullptr;
