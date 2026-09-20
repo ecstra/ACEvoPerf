@@ -69,4 +69,6 @@ void InstallDxgiHooks()
     int a = PatchIatByAddress(exe, (void*)g_realCDF1, (void*)&Hook_CreateDXGIFactory1);
     int b = PatchIatByAddress(exe, (void*)g_realCDF2, (void*)&Hook_CreateDXGIFactory2);
     Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d)", a, b, g_cfg.frameStats);
+    if (!a && !b)
+        Log("DXGI: WARNING: the exe imports neither factory entry point, so nothing here is hooked. Frame times, Reflex and the write tracing are off for this run. The auto sizes are read off a factory of our own at the first DirectStorage call instead.");
 }

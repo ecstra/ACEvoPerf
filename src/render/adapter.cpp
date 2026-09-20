@@ -1,4 +1,5 @@
 #include "acevo/render/adapter.h"
+#include "acevo/render/dxgi_hooks.h"   // PFN_CreateDXGIFactory1
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
 #include "acevo/engine/flags.h"
@@ -60,14 +61,20 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
     return found;
 }
 
+static bool g_resolveDone = false;
+
+static bool WantsAutoSizes()
+{
+    if (g_cfg.stagingAuto) return true;
+    for (auto& f : g_cfg.flags) if (f.find(L"=auto") != std::wstring::npos) return true;
+    return false;
+}
+
 void ResolveAutoSizes(IDXGIFactory1* factory)
 {
-    static bool done = false;
-    if (done || !factory) return;
-    done = true;
-    bool wantsAuto = g_cfg.stagingAuto;
-    for (auto& f : g_cfg.flags) if (f.find(L"=auto") != std::wstring::npos) wantsAuto = true;
-    if (!wantsAuto) return;
+    if (g_resolveDone || !factory) return;
+    g_resolveDone = true;
+    if (!WantsAutoSizes()) return;
 
     DXGI_ADAPTER_DESC1 d = {};
     if (!DiscreteAdapter(factory, &d)) {
@@ -88,6 +95,31 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB, staging buffer %d MB", d.Description, (unsigned long long)vramMb, tilePool, staging);
     if (g_cfg.stagingAuto) g_cfg.stagingMb = staging;
     ApplyAutoFlags(tilePool);
+}
+
+// The other chance to read the card, taken from the late flag pass inside DStorageGetFactory.
+// That runs on the game's own thread rather than under the loader lock, and on 2026-09-18 it
+// ran 361 ms before the engine sized its tile pool. It does nothing when the game's own factory
+// has already been through here, which on 0.9.1 is always, since that arrives 1.9 seconds
+// earlier. It covers the exe with no import to patch and any launch order that puts
+// DirectStorage first, and creates a factory of its own the same way reflex and timeline do.
+void ResolveAutoSizesFallback()
+{
+    if (g_resolveDone || !WantsAutoSizes()) return;
+    HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
+    PFN_CreateDXGIFactory1 create = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
+    if (!create) {
+        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, the game's own values stay");
+        return;
+    }
+    IDXGIFactory1* own = nullptr;
+    if (FAILED(create(__uuidof(IDXGIFactory1), (void**)&own)) || !own) {
+        Log("auto sizes: no DXGI factory has reached us and our own could not be created, the game's own values stay");
+        return;
+    }
+    Log("auto sizes: no DXGI factory has reached us by the first DirectStorage call, reading the card off our own instead");
+    ResolveAutoSizes(own);
+    own->Release();
 }
 
 // The swap chain's device parameter is the command queue on D3D12, which is the only path the

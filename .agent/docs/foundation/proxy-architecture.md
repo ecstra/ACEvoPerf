@@ -41,7 +41,10 @@ string. Every header includes it, every source includes its own header first.
    log the version of the runtime that really loaded, read off the module itself,
    write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one), start the
    timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
-   `FactoryProxy`.
+   `FactoryProxy`. Just before the late pass, `ResolveAutoSizesFallback` reads the card off a
+   factory of its own when step 4 has not happened yet, which covers an exe with no factory import
+   to patch and any launch order that puts DirectStorage first. On 0.9.1 step 4 runs 1.9 seconds
+   earlier, so it finds the work already done and returns.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
    capacity, wraps the result in a `QueueProxy` when statistics are on.
 4. Game creates its DXGI factory: `HookFactoryVtable` hooks `CreateSwapChainForHwnd` and
@@ -83,6 +86,7 @@ string. Every header includes it, every source includes its own header first.
   the swap chain to `HookSwapChain`.
 - `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
   memory, `ResolveAutoSizes` applies them once and stands down below 2 GB,
+  `ResolveAutoSizesFallback` does the same off its own factory when no game factory arrives,
   `CheckAutoSizeAdapter` checks the adapter they came from against the one the game renders on,
   `LogDisplayOwner` compares the monitor's adapter with the D3D12 device's adapter LUID.
 - `telemetry/timeline`: `TimelineThread` wakes every second, refills the hitch log budget and
