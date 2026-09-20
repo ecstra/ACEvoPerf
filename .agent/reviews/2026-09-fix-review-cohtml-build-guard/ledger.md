@@ -116,8 +116,8 @@ the log. `g_mainView` in the probe keeps pointing at the freed view.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: ffbe6b9, 2026-09-20, the wrapper steps aside only once the Init it is waiting for has come past, confirmed by `setup init 2 ignored 1` on a probe run
 
 In the page fixes script, line 115 sets `__acevoInitPendingSince` and the wrapper at 116 restores
 `client.request` at line 117 before it looks at the request name at line 118.
@@ -132,8 +132,8 @@ and reopening vehicle setup inside that window shows the previous build.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: ffbe6b9 then 29d4edf, 2026-09-20, the mark is cleared when no Init of ours went out, tracked in a flag rather than inferred from the wrapper
 
 The `finally` at lines 126 and 127 puts `client.request` back but leaves `__acevoInitPendingSince` at
 the value set on line 115, because only the response callback at line 120 clears it.
@@ -946,8 +946,13 @@ takes only its own lock with no call out while holding it, so neither new log li
 
 One process finding of its own, and a fair one. The ledger had no rows for any batch 4 hunter find and
 still read `status: open` on F-05 and F-06 while both were fixed, because this batch ran the verifier
-before writing the paper, where batches 2 and 3 wrote it first. Recorded here as the fifth instance of the
-same upkeep habit on this branch.
+before writing the paper, where batches 2 and 3 wrote it first.
+
+Closing that out surfaced two more of the same: F-03 and F-04 also still read open, fixed in batch 3 and
+confirmed on a probe run two batches earlier. So the count on this branch is V-03, H-07, V-07, V-10 and
+these, which is six instances of one habit across four batches. The rule written after V-10, that a commit
+moves its own paper, only ever covered the tracker indexes. It now covers the ledger's own status lines
+too: a finding's status and fix field move in the commit that fixes it, not when its batch closes.
 
 ## Deferred to batch 5, the page fixes script's costs
 
