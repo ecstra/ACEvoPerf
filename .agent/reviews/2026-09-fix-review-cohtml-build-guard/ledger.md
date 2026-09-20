@@ -29,7 +29,7 @@ one bug, two debt, one nit.
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
 | 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
-| 5 | what the page fixes script costs, and saying when it is not there | fixed, hunter closed, verifier out | 2026-09-20, ack |
+| 5 | what the page fixes script costs, and saying when it is not there | fixed and verified, runtime gate open | 2026-09-20, ack |
 
 ## Findings
 
@@ -1160,6 +1160,95 @@ that kind of blindness.
 With the two stop hooks missing there is nothing to drain the queue at teardown and a moved call can reach
 a library that has already gone, which is worse than not moving at all. Thin, since the three slots share
 a vtable and almost certainly a page, and the same one hook asymmetry H-21 was raised over.
+
+### V-17: the three hook guard declined to claim the move without actually turning it off
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 1069800, 2026-09-20, the refusal latches the stop flag as well as logging
+
+H-30's guard returns when any of the three originals is null, and its comment says leaving the stop hooks
+off is worse than not moving at all. The early return did not make that true. `Hook_ExecuteWork` can
+already be in the vtable, the stop flag was cleared eight lines above, the worker is up and the frame
+thread is known, so the move would have kept running with nothing to drain it at teardown while the line
+said it was out. Before H-30 the log and the behaviour agreed, because a null work hook really did mean
+the move was off. The guard now latches the stop, so the words are true again.
+
+Reachability is near zero, since the three slots share a vtable page. It is filed at its real weight and
+fixed anyway, because a comment claiming a protection the code does not deliver is the fault this branch
+exists to remove.
+
+### V-18: the queue full line never re-arms on the stop path
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 1069800, 2026-09-20, the flag clears beside the stop flag in `Hook_StopWorkers`
+
+H-29 re-arms the line when the worker drains the queue to empty. `StopMovingWork` drains it in its own
+loop and never touches the flag, then `Hook_StopWorkers` clears the stop and the move resumes, so a queue
+that was full when the engine stopped stayed silent for the rest of the process. The same latch shape as
+F-05, H-16 and H-29 again, on the line added to close that blindness, for the third time.
+
+### V-19: the parts table still quoted the log string the batch renamed
+- severity: debt
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 1069800, 2026-09-20
+
+`responsive-ui.md:29` held `[responsive ui] page fixes added` while the code logs `page fixes script given
+to the menu and HUD view`, so the doc contradicted its own prose forty lines down and grepping the
+documented string returned nothing. That Log column is how a session is verified.
+
+Seventh instance of this class on the branch, and it is in 50d7719, the commit filed as closing the sixth.
+Worth stating plainly rather than widening the rule an third time: the rule was already right, the failure
+is that I check the prose I am writing and not the tables and strings around it.
+
+### V-20: the probe reported the intended HUD state in the same word it uses for failure
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 1069800, 2026-09-20, the HUD gets its own wording
+
+With F-08 the script installs nothing on hud.html by design, so the probe's line started reading
+`responsive ui page fixes off` there, which is the same word it prints when the script failed, and every
+recorded HUD line before this read `on`. A log reader would take the intended state for a regression. The
+probe already computed `onHud` on the line above and was not using it.
+
+### V-21: the controls throttle's description no longer matched its mechanism
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 1069800, 2026-09-20, both the doc bullet and the source comment say what F-11 made it do
+
+"At most once every 100 ms" survives as a true upper bound and stopped being what the code does. With a
+50 ms rebuild it now allows one refresh per 150 ms, because the window is measured from the end of a
+refresh rather than its start. Both now say that.
+
+## The batch 5 verifier's verdict
+
+Not clean, on V-17 to V-21. All six defects proved gone.
+
+Its evidence on F-08 is worth keeping. The pathname expression matches `ui_probe.cpp:38` character for
+character, `location.pathname` excludes a query and a fragment by spec, and across every recorded session
+that same expression yields only lowercase page names with no query, fragment or trailing slash, so it can
+neither miss nor match a menu page. Every side effect in the script is textually after the gate, so the
+HUD document gets no callbacks, no property redefinition and no marker. And the counter cannot leak in
+from the previous document, because ten `ui probe ... loaded` lines in one recorded session behind a
+same shaped guard prove every document load gets a fresh context.
+
+It also measured what the gate gives up: over 1,188 recorded hud.html seconds the fold logged `calls 0`
+1,181 times and `calls 1 scans 1 skipped 0` seven times, never once folding anything, while `ingame.html`
+still installs and does real work. So the gate is narrow in the right direction.
+
+One caveat it raised and I am leaving alone: the old stamp ordering incidentally protected against a
+synchronous re-entrant `onDevicesChanged`, and the new one would run such a call immediately. It needs the
+page's own rebuild to dispatch another refresh synchronously, and the Cohtml binding path is asynchronous,
+so it is not reachable. Recorded rather than guarded.
 
 ## Hunter and verifier finds outside this batch's scope
 
