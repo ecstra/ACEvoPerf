@@ -29,7 +29,7 @@ left standing.
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | closed, runtime confirmed | 2026-09-20 |
-| 4 | the leftovers | closed, nothing runs in a default run | 2026-09-20 |
+| 4 | the leftovers | closed, runtime confirmed | 2026-09-20 |
 
 ## Findings
 
@@ -883,3 +883,21 @@ That makes H-14's fix insurance against a case this engine has not been seen to 
 saying plainly, and it is not angle one's batch 4 over again: that spent five commits and two
 sub agent rounds on a path a single log line then proved dead, this cost one condition and one
 log line, and the alternative was Reflex going silent while still reporting itself on.
+
+Batch 4 needed a fourth run, session `logs/render-b4-20260920`, because `streaming_trace` ships at
+0 and nothing the batch touches executes without it. Set to 1 for that one launch and put back
+afterwards.
+
+- `[writes] ... copies into them by DirectStorage 9295, by the game 0, by anything else 0`. That
+  first number being non zero is F-10 and H-20 settled end to end: the core ranges resolved, so
+  `FromDirectStorage` answers true and 9,295 copies are attributed to DirectStorage. Had the
+  resolution failed, every one of them would have been counted as a write by something else,
+  which is the figure DEC-017 rests on being zero. The other two being zero is that figure.
+- `4 of 4 copy calls hooked` on the direct, compute and copy vtables, so all twelve slots went in
+  with the install flag taken after the queue check rather than before it.
+- The reworded line is in the log, `those last two by call: region 0, resource 0, tiles 0,
+  resolve 0`, attached to the two counters that actually feed it.
+- The two rates in V-14, measured a third time and independently on this run: 1,314 calls a second
+  into `NoteWrite` and 346 of those a second reaching `FromDirectStorage`, over the ten seconds
+  between the last two `[writes]` lines. The comment says thousands and a few hundred, which is
+  what the run shows.
