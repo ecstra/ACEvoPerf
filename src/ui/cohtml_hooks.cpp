@@ -75,8 +75,11 @@ void AddUiFrameEndListener(UiFrameEndListener listener)
 // view, the car displays come after it and are created again at every session load.
 static void* Hook_CreateView(void* system, const void* settings)
 {
-    unsigned width = *(const unsigned*)((const BYTE*)settings + 0x10);
-    unsigned height = *(const unsigned*)((const BYTE*)settings + 0x14);
+    // Read before the original runs, so that a view the engine refuses can still be named in the log. That
+    // puts it ahead of the engine's own argument checking, which is the one read in this file that nothing
+    // has validated, so a null the engine would have rejected is tolerated here instead of faulted on.
+    unsigned width = settings ? *(const unsigned*)((const BYTE*)settings + 0x10) : 0;
+    unsigned height = settings ? *(const unsigned*)((const BYTE*)settings + 0x14) : 0;
     void* view = g_origCreateView(system, settings);
     if (!view) {
         Log("[cohtml] view %ux%u was not created", width, height);
