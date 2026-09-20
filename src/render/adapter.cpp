@@ -72,7 +72,11 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
     return found;
 }
 
-static bool g_resolveDone = false;
+// An exchange, because the two callers are on different threads and one of them now runs under the
+// proxy's lock while the other takes nothing. In every captured run they are 1.7 seconds apart and
+// the loser has no use for the result, it only needs the work not to happen twice, so run once is
+// enough here where it was not enough for the one time init in DStorageGetFactory.
+static std::atomic<bool> g_resolveDone{false};
 
 static bool WantsAutoSizes()
 {
@@ -87,8 +91,7 @@ static bool WantsAutoSizes()
 
 void ResolveAutoSizes(IDXGIFactory1* factory)
 {
-    if (g_resolveDone || !factory) return;
-    g_resolveDone = true;
+    if (!factory || g_resolveDone.exchange(true)) return;
     if (!WantsAutoSizes()) return;
 
     DXGI_ADAPTER_DESC1 d = {};

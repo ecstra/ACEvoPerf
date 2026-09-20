@@ -21,8 +21,13 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit. Batch 1 added nine more and batch 2
-another nine, three of those bugs the batch's own fixes caused or left standing.
+Fifteen findings, one breaks, six bug, four debt, four nit. Batches 1 to 3 added nine, nine and six
+more, seven of those bugs the batches' own fixes caused or left standing.
+
+Batch 3 is the one with no runtime gate. Both of its findings need a race or a reference count
+fault the game has never produced, and 113 captured runs create exactly one factory each, so there
+is nothing a launch can show. It is closed on reading rather than on evidence, which is worth
+knowing when reading it back.
 
 ## Batches
 
@@ -30,7 +35,7 @@ another nine, three of those bugs the batch's own fixes caused or left standing.
 |---|---|---|---|
 | 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
 | 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
-| 3 | one time init happens once, and a freed object is not left addressable | pending | |
+| 3 | one time init happens once, and a freed object is not left addressable | closed, no run can show it | 2026-09-20 |
 | 4 | the log does not carry the player's machine into a public post | pending | |
 | 5 | the leftovers | pending | |
 
@@ -144,8 +149,8 @@ Found independently by three reviewers.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: a1e82ec then 26e69a4, 2026-09-20, both pieces of one time work run under `g_realCs`, which is what the title asked for. An atomic exchange was tried first and gave exclusion without ordering.
 
 `src/dstorage/proxy.cpp:443`. `g_configApplied` and the plain `static bool lateApplied` carry no guard.
 
@@ -176,8 +181,8 @@ keeps the diagnostic value.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: a1e82ec then 26e69a4, 2026-09-20, the global is cleared under the lock before the object goes, and the factory is handed out as a counted reference rather than a bare pointer so the caller cannot be left holding a freed one.
 
 `src/dstorage/proxy.cpp:327`. Latent today, because the constructor's own reference means a well
 behaved game never drives the count to zero.
@@ -580,6 +585,95 @@ is. V-07 is worth having for the visibility and for the two readers no longer di
 a changed number on this ini.
 
 The override layer still worked throughout, `overlay: redirected request #1` at 16:58:12.
+
+### V-09: the lock guarded the read of the pointer and not the use of it
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 26e69a4, 2026-09-20, `RealDStorageFactory` hands out a reference and the overlay keeps one for the run.
+
+F-08's first fix took the lock, read `g_factory->real`, released the lock and returned the bare
+pointer. The caller then used it with the lock gone, and the last `Release` can land in that
+window, free the real factory, and have `OpenFile` called on it. F-08's own failure, one
+instruction later, with the ledger about to say fixed and a comment asserting the hole was closed.
+
+### V-10: clearing the global made a live no factory state in which the layer sends reads off the end of the package
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 26e69a4, 2026-09-20, the overlay's own reference means the factory cannot go while the layer needs it.
+
+The old state was a dangling global, the new one was a null global with the package table still
+rebased and three queues still live. `OverlayRedirect` returns false on a null factory and
+`EnqueueRequest` then passes the request through unchanged, still carrying a virtual offset that
+sits past the end of `content.kspkg` by construction. That is F-01's confirmed failure, reached
+from the fix for F-08.
+
+### V-11: the atomic gave run once, not wait until done, and the finding's own title named the lock
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 26e69a4, 2026-09-20, both pieces of one time work happen under `g_realCs`, for both branches of the export.
+
+F-06's first fix made the two guards `std::atomic` and used `exchange(true)`. That stops the block
+running twice and does nothing about ordering. The loser no longer ran the work and no longer
+waited for it either, so it fell through to the factory creation while the winner was still inside
+`DStorageSetConfiguration1`, and the runtime refuses the configuration once a factory exists. On
+the fallback path it also read a staging size that had not been filled in yet.
+
+F-06's title is "the one time late init block sits outside the lock the same function takes eight
+lines later". The lock gives exclusion and ordering in one move. The atomic gave one of the two.
+
+### V-12: the export lost the configuration on the one path that can also create a factory
+- severity: bug
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 26e69a4, 2026-09-20, the unimplemented interface branch runs under the same lock and after the same one time work.
+
+Caused while fixing V-11. Moving the one time work inside the lock left it below the early return
+that forwards an interface the proxy does not implement, and that return calls the real
+`DStorageGetFactory`, which creates a real factory. So a first call asking for anything unusual
+would have built a factory with no configuration applied at all.
+
+Also found on the same reading, and fixed with it: the old code returned the runtime's `S_OK` when
+the call succeeded but handed back a null factory, leaving the caller's out parameter never
+written. Nobody filed that.
+
+### V-13: four statements about the new locking, three of them in this batch's own commits
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch.
+
+The header still described `RealDStorageFactory` as handing back a pointer, with the ownership rule
+only in the source, so the next caller would leak a reference per call. A comment said the function
+runs once per override file when the same commit's cache made it once per process. The lock order
+comment stated a rule the batch itself broke twice, since the overlay now reaches `g_realCs` from
+its own lock and the runtime report reaches the loader lock from inside `g_realCs`. What keeps the
+process alive is that the long hold and the waiter cannot overlap in time, because no thread can be
+in a redirect until a factory has been handed out, and that is the thing worth writing down.
+
+And `proxy-architecture.md` had a current date over five wrong statements: the order of step 2 was
+backwards, the fallback's position relative to the factory had moved, `StartLoadSampler` was never
+mentioned, the lock that serialises the whole step was absent from a doc whose job is load order,
+and the timing figure was measured before the threads moved. Eighth instance on this review.
+
+### V-14: the same one time flag one call out
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20, an exchange, with the reason it is enough there written beside it.
+
+`g_resolveDone` in `adapter.cpp` is the batch's own theme one file over, a read then a write with
+two callers, and this batch put one of them under a lock the other does not take. An exchange is
+enough for that one, unlike the export's, because the loser has no use for the result and only
+needs the work not to happen twice. Saying which of the two shapes applies and why is the point.
 
 ## Checked and clean
 

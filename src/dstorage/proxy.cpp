@@ -431,8 +431,8 @@ static bool g_lateApplied = false;
 
 // Hands out a reference, not a bare pointer, and the caller owns it. Reading the pointer under the
 // lock is not enough on its own: the caller then uses it after the lock is gone, and in that window
-// the last Release can free the real factory underneath it. Called once per override file rather
-// than once per redirect, so the reference is cheap and the overlay keeps it for the run.
+// the last Release can free the real factory underneath it. Called once for the whole process, the
+// overlay caches what it gets, so the reference costs nothing and keeps the layer alive.
 IDStorageFactory* RealDStorageFactory()
 {
     EnterCriticalSection(&g_realCs);

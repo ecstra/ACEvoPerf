@@ -36,17 +36,33 @@ string. Every header includes it, every source includes its own header first.
    `acevo_dstoragecore.dll` and resolve its `DStorageGetFactoryCore`,
    `DStorageSetConfigurationCore` and `DStorageCreateCompressionCodecCore`
    (`LoadBundledCore`, DEC-015), falling back to `dstorage_orig.dll` when any of that fails
-   (`EnsureReal`), call
-   `DStorageSetConfiguration1` with the `[directstorage]` values (`ApplyDStorageConfiguration`),
-   log the version of the runtime that really loaded, read off the module itself,
-   write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one, and that
-   includes the auto tile pool once it has been resolved), start the
-   timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
-   `FactoryProxy`. Just before the late pass, `ResolveAutoSizesFallback` reads the card off a
-   factory of its own when step 4 has not happened yet, which covers an exe with no factory import
-   to patch and any launch order that puts DirectStorage first. On 0.9.1 step 4 runs about two
-   seconds earlier, so it finds the work already done and returns. The pass itself lands 361 ms
-   (2026-09-18) or 316 ms (2026-09-20) before the engine sizes its tile pool.
+   (`EnsureReal`). Everything after that happens under `g_realCs`, held for the whole step, which
+   is what makes the order below an order rather than a race: a second thread asking for the
+   factory at the same moment waits and then finds the work done, instead of skipping it and
+   creating a factory ahead of it.
+   Under the lock, in this order: call `DStorageSetConfiguration1` with the `[directstorage]`
+   values (`ApplyDStorageConfiguration`), which also logs the version of the runtime that really
+   loaded, read off the module itself. Then `ResolveAutoSizesFallback` reads the card off a factory
+   of its own, on the first call only, which covers an exe with no factory import to patch and any
+   launch order that puts DirectStorage first. Both have to land before any factory exists, the
+   configuration because the runtime refuses it once one does, and the fallback because it is what
+   fills in the staging size the next line reads. Then get the real factory, apply
+   `SetStagingBufferSize`, and return a `FactoryProxy`.
+   Once the lock is released: write the flags again (`ApplyFlags("late")`, in case a static
+   initialiser reset one, and that includes the auto tile pool once it has been resolved), start
+   the timeline thread (`StartTimeline`) and the load sampler (`StartLoadSampler`). These are after
+   the factory rather than before it, so the lock is not held across a `CreateThread`.
+   On 0.9.1 step 4 runs about two seconds earlier than any of this, so the fallback finds the work
+   already done and returns at its first line, which is what all 113 captured runs show. The late
+   pass lands 361 ms (2026-09-18) or 316 ms (2026-09-20) before the engine sizes its tile pool,
+   measured before it moved after the factory creation, so take about 6 ms off both.
+
+   The lock order on this path is `g_realCs` and then the loader lock, through the `LoadLibraryW`
+   in `EnsureReal` and the module lookups in the runtime report. The overlay takes `g_realCs` from
+   inside its own `g_cs` when it asks for the real factory. Nothing closes a cycle out of those
+   two facts today, because no thread can be inside `OverlayRedirect` until a factory has been
+   handed out, which is to say until this step has finished. Anything that makes the redirect
+   reachable earlier, or takes `g_realCs` from a thread holding the loader lock, breaks that.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
    capacity, wraps the result in a `QueueProxy` when any of its seven consumers wants one
    (`QueueProxyWanted`). The wrapper is the only writer of the process wide request counters and
@@ -88,7 +104,11 @@ string. Every header includes it, every source includes its own header first.
   per constructor (the `known` table). `ApplyFlags` writes the ini values.
 - `dstorage/proxy`: `FactoryProxy` implements `IDStorageFactory`, `QueueProxy` implements
   `IDStorageQueue2` and answers `QueryInterface` for the three queue interfaces.
-  `RealDStorageFactory()` hands the unwrapped factory to the overlay.
+  `RealDStorageFactory()` hands the overlay a counted reference on the unwrapped factory, which
+  the overlay holds for the process. That reference is what keeps the layer working if the game
+  ever drops its own last one, because `FactoryProxy::Release` clears the global at that point and
+  a redirect with nowhere to send a read would let the request through still carrying the virtual
+  offset it was rebased to, which is past the end of the package.
 - `dstorage/stats`: every request is counted per destination type into `g_reqByDest` and
   `g_bytesByDest`, read by the timeline and the hitch logger.
 - `render/frame_stats`: `HookSwapChain` runs `reflex::OnSwapChain` first, then patches `Present`
