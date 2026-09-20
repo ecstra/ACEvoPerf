@@ -4,6 +4,15 @@ Every version of ACEvoPerf and what changed in it, newest first.
 
 ## 0.4 (unreleased)
 
+### Fixed
+
+- NVIDIA Reflex switching off when you turned off frame time measuring in `acevo_perf.ini`, which are two separate settings.
+- NVIDIA Reflex sometimes not turning on at all, and stopping for the rest of the session once the graphics driver resets.
+
+### Changed
+
+- Cards smaller than 6 GB now have less video memory set aside for textures, sized to the card rather than to a 6 GB one.
+
 ## 0.3.2 (2026-09-18)
 
 ### Fixed

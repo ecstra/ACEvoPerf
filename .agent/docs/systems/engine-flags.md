@@ -2,8 +2,8 @@
 name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
-updated: 2026-09-15
-links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
+updated: 2026-09-20
+links: [DEC-002-flags-by-memory-write, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
 ---
 
 # Engine flags
@@ -24,7 +24,7 @@ Any bool, int32 or double name from the table works in the `[flags]` section of 
 | `enable_pso_cache` | true | pipeline state cache on disk, fewer shader stalls | shipped on until 0.3.1, off from 2026-09-12 for BUG-015, on again since 2026-09-15 on the owner's word |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
 | `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget, each at the `texturePoolSize` define (1433, 2048, 3072 or 6144 MB for Low to Ultra), and with `tile_pool_mb` set it only sets the mesh budget | on by default, DEC-005 |
-| `tile_pool_mb` | 0 | tile pool size in MB, honoured with or without the canonical flag (`0x1C80EC4` returns before the flag is read), created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |
+| `tile_pool_mb` | 0 | tile pool size in MB, honoured with or without the canonical flag (`0x1C80EC4` returns before the flag is read), created once at start | `auto` by default, 256, 512, 1024, 1536, 2048 or 3072 by the card's memory, written for any adapter at all including one reporting no dedicated memory, since the canonical flag takes the whole define when it is not written, DEC-005 and DEC-022 |
 | `texture_tier0` | false | "Force Texture Tier 0" pins every texture to its lowest tier, tile streaming stops | never enable |
 | `ui_force_resource_preloading` | false | preloads 1037 interface files (181 MB) at start, no measurable effect | measured, off |
 | `no_gi` | false | disable global illumination | **measured 2026-09-12: 3.2% of frame time and 416 MB of VRAM, and not shippable** |

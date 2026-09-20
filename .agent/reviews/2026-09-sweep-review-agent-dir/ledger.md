@@ -159,8 +159,9 @@ freeze paragraph) and `.agent/docs/systems/session-leak-fix.md` (a rewritten cov
 - fix:
 
 `.agent/docs/ops/telemetry.md:85` lists kick, tex, want, drop, drop0, req and reread. A `write` kind goes
-into the same file from `src/render/texture_writes.cpp:134` for every copy into a streamed texture that
-did not come from DirectStorage, and the `[writes]` log lines at 246 and 272 are undocumented too. A
+into the same file from `NoteWrite` in `src/render/texture_writes.cpp` for every copy into a streamed
+texture that did not come from DirectStorage, and the `[writes]` log line in `TextureWritesTick` is
+undocumented too. A
 reader parsing the CSV from this doc meets a row kind the doc denies exists.
 
 ### F-10: the load sampler has no section and its CSV is never named
@@ -186,7 +187,8 @@ fifteen second reset.
 `.agent/docs/foundation/proxy-architecture.md:102` says the mod never hooks anything on the render thread
 beyond Present and the UI frame post and end. With `streaming_trace=1` it patches four
 `ID3D12GraphicsCommandList` vtable slots on the direct, compute and copy list vtables
-(`texture_writes.cpp:242` to 245, installed from `dxgi_hooks.cpp:24`). The third bullet at line 103
+(the `PatchSlot` calls in `TextureWritesOnSwapChain`, which both swap chain hooks in
+`dxgi_hooks.cpp` call). The third bullet at line 103
 saves the default case, and the sentence as written is false.
 
 ### F-12: two open bugs carry no Verification section while the other ten do

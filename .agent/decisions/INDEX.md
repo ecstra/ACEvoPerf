@@ -8,6 +8,7 @@ links: [agent-index, spec-decisions]
 
 # Decisions Index
 
+- [DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after](DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after.md), 2026-09-20, the auto tile pool reaches down to 256 MB instead of standing down on a small card, because writing nothing hands the canonical flag the whole define, and the adapter the sizes came from is checked against the one the game renders on once the device exists, superseding DEC-009
 - [DEC-021-a-version-branch-collects-work-and-main-holds-the-release](DEC-021-a-version-branch-collects-work-and-main-holds-the-release.md), 2026-09-20, work merges into a long lived branch named for the version being built, `0.4` today, and main moves only when that version ships, so the newest commit on main is always the newest published zip, and the next version is 0.4 rather than 0.3.3 because the review lands far more than a patch
 - [DEC-020-responsive-ui-is-one-switch-on-by-default](DEC-020-responsive-ui-is-one-switch-on-by-default.md), 2026-09-15, every UI fix ships under `responsive_ui`, on by default, with the page fixes out of the developer probe, rather than a switch per fix or fixes that run only with the probe
 - [DEC-019-ui-lag-work-reopened](DEC-019-ui-lag-work-reopened.md), 2026-09-14, the UI lag is the one lane worked after the five deep dives on the owner's pick, UI diagnostics in developer builds off by default and UI fixes shipped once verified in game, superseding DEC-010
@@ -20,7 +21,7 @@ links: [agent-index, spec-decisions]
 - [DEC-012-no-ghost-car-mod](DEC-012-no-ghost-car-mod.md), 2026-09-06, the ghost car flag does not ship and its branch is gone, the game records and loads a ghost but nothing shows it
 - [DEC-011-no-free-roam-mod](DEC-011-no-free-roam-mod.md), 2026-09-06, the Free Roam unlock does not ship and its branch is gone, the package stops at the Nürburgring complex, the recipe stays in the research record
 - [DEC-010-no-ui-changes-ship](DEC-010-no-ui-changes-ship.md), 2026-09-06, superseded by DEC-019, no UI change shipped after the lag hunt and everything UI related was removed
-- [DEC-009-pool-and-staging-sizes-by-card](DEC-009-pool-and-staging-sizes-by-card.md), 2026-09-06, tile pool and staging buffer picked from the card's memory at the game's first DXGI factory
+- [DEC-009-pool-and-staging-sizes-by-card](DEC-009-pool-and-staging-sizes-by-card.md), 2026-09-06, superseded by DEC-022, tile pool and staging buffer picked from the card's memory at the game's first DXGI factory
 - [DEC-008-frame-latency-left-to-the-game](DEC-008-frame-latency-left-to-the-game.md), 2026-09-05, the game's swap chain latency stays, the proxy logs the calls
 - [DEC-007-drag-and-drop-install-with-bundled-runtime](DEC-007-drag-and-drop-install-with-bundled-runtime.md), 2026-09-05, zip bundles the Microsoft runtime, no install scripts
 - [DEC-006-frame-latency-cap-default](DEC-006-frame-latency-cap-default.md), 2026-09-05, superseded by DEC-008, the cap never took effect

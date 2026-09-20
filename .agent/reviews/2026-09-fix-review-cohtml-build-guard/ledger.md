@@ -5,7 +5,7 @@ description: the Cohtml angle of the full review of main, the vtable calls that 
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: fix/review-cohtml-build-guard
-status: open
+status: closed
 ---
 
 # Review of the Cohtml hooks and the responsive UI

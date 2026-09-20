@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-16
+updated: 2026-09-20
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -19,8 +19,12 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 ## acevo_perf.log
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
-value, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
-picked from it, every DirectStorage factory, queue and file event, per queue statistics every
+value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what
+`frame_stats=0` silences, since the hitch lines have no switch of their own and the two frame CSVs
+stay empty despite having one, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
+picked from it or the reason none were picked, a second `auto sizes` line at the swap chain naming
+the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
+every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
 with the streaming activity since the previous hitch, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not

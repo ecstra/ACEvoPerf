@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-telemetry
 kind: review
-description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings
+description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and one the render angle's verifier added
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-telemetry
@@ -23,7 +23,8 @@ session and produces nothing. And the load sampler's thread picking is wrong aft
 which means the per thread numbers the project has been reading were measuring lifetime CPU rather than
 what was hot during the load.
 
-Ten findings, one breaks, five bug, three debt, one nit.
+Ten findings, one breaks, five bug, three debt, one nit. F-11 was added on 2026-09-20 by the verifier
+of `sweep/review-render`, which met the same shape in the render layer's adapter pick.
 
 ## Batches
 
@@ -196,6 +197,25 @@ streamer and kick structs plus `GateSpace(frame)` before calling a function that
 is small, and those are raw offset reads into engine memory on a code path that is supposed to be
 entirely off, which is the fault surface BUG-022 came from. The other call sites guard properly with
 `TraceOn()` at streamer.cpp:550, 596 and 652, or at install time in texture_writes.cpp:216.
+
+### F-11: the timeline's adapter pick skips an adapter reporting no dedicated memory, so the video memory columns stay empty on those machines
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: open
+- fix:
+
+`src/telemetry/timeline.cpp:38` keeps an adapter only on `d.DedicatedVideoMemory > bestMem` with
+`bestMem` starting at zero, so an adapter reporting none can never be selected and `best` stays null.
+
+Failure: the same empty `vram_used_mb`, `vram_budget_mb` and `vram_reservable_mb` columns as F-09,
+reached by a different cause, on any machine whose only GPU reports zero dedicated memory and keeps
+everything in shared. Plenty of integrated parts do. `QueryVideoMemoryInfo` would answer for such an
+adapter, the pick never gets that far.
+
+Raised by the verifier on batch 1 of `sweep/review-render`, which fixed the same shape in
+`DiscreteAdapter` (V-01 of that ledger, commit 0f35015). Left here because the file belongs to this
+angle. Fixing it alongside F-09 is natural, they share the symptom and the function.
 
 ## Checked and clean
 

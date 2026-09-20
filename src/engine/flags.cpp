@@ -180,6 +180,11 @@ static void WriteFlag(const std::string& name, const std::string& val, const cha
     if (!written) Log("flag %s: no writable storage found (ignored)", name.c_str());
 }
 
+// What ApplyAutoFlags resolved. Kept so a later pass can write it again like every other flag:
+// the auto value lands when the game creates its DXGI factory, and on 2026-09-18 the engine did
+// not size its tile pool until 2.3 seconds after that, with the late pass in between.
+static int g_autoTilePoolMb = 0;
+
 void ApplyFlags(const char* phase)
 {
     if (g_cfg.flags.empty()) return;
@@ -189,6 +194,7 @@ void ApplyFlags(const char* phase)
         SplitFlag(f, name, val);
         if (val == "auto") {
             if (strcmp(phase, "early") == 0) Log("flag %s: auto, written once the game creates its DXGI factory and the card is known", name.c_str());
+            else if (name == "tile_pool_mb" && g_autoTilePoolMb > 0) WriteFlag(name, std::to_string(g_autoTilePoolMb), phase);
             continue;
         }
         WriteFlag(name, val, phase);
@@ -203,7 +209,7 @@ void ApplyAutoFlags(int tilePoolMb)
         std::string name, val;
         SplitFlag(f, name, val);
         if (val != "auto") continue;
-        if (name == "tile_pool_mb") WriteFlag(name, std::to_string(tilePoolMb), "auto");
+        if (name == "tile_pool_mb") { g_autoTilePoolMb = tilePoolMb; WriteFlag(name, std::to_string(tilePoolMb), "auto"); }
         else Log("flag %s: auto has no rule for this flag (ignored)", name.c_str());
     }
 }

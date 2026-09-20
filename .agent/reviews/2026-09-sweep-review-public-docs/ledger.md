@@ -31,7 +31,7 @@ Sixteen findings, one breaks, four bug, nine debt, two nit.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the uninstall cannot leave a broken game | pending | |
-| 2 | every setting comment names what turning it off costs | pending | |
+| 2 | every setting comment names what turning it off costs | pending, F-03 and F-04 already closed by sweep/review-render | |
 | 3 | the readme and the changelog agree with each other and with the trackers | pending | |
 | 4 | what we redistribute carries what it has to carry | pending | |
 | 5 | tone and the leftovers | pending | |
@@ -78,24 +78,36 @@ Found independently by three reviewers.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2b5a3aa, 2026-09-20, on `sweep/review-render` with the code half of it.
 
 `dist/acevo_perf.ini:52` reads "leave at 1, needed to measure frame times". Setting it to 0 also removes
 the automatic staging buffer, the automatic tile pool and Reflex, which is the render branch's F-04. The
 comment has to name the memory sizing and Reflex, not only frame timing.
 
+Closed by the render branch, which owns the file this finding is about, so nothing is left here to do.
+The comment now names Reflex and the frame times, and the log says what the setting takes down. The
+memory sizing half of this finding stopped being true in between: `ResolveAutoSizesFallback`, added on
+that branch, reads the card at the first DirectStorage call and never consults `dxgiEnabled`, so
+`enabled=0` no longer costs the staging buffer or the tile pool at all. A comment naming the memory
+sizing would now be wrong.
+
 ### F-04: frame_stats=0 silently turns off NVIDIA Reflex and the comment does not say so
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 4982e86 then the batch 2 hunter round, 2026-09-20, on `sweep/review-render`.
 
 `dist/acevo_perf.ini:53` reads "1 measures how long each frame takes", while `[latency] reflex=1` two
 sections away reads as if Reflex is independent. It is not, which is the render branch's F-05. Either
 the comment names the dependency or the Reflex install moves out from behind it, and the doc change
 follows whichever the code does.
+
+The render branch took the second option, so Reflex is independent now and the comment says which
+things still are not. The hunter on that batch found the rest of the same shape: `[log] hitch_ms` and
+the two developer CSVs have no switch of their own and go quiet with `frame_stats=0`, which the comment
+and a new log line now both name.
 
 ### F-05: a default two users reported as breaking night lighting ships on with nothing said anywhere
 - severity: bug

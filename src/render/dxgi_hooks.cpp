@@ -16,20 +16,36 @@ static PFN_CreateSwapChain g_origCSC = nullptr;
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self, IUnknown* device, HWND hwnd,
     const DXGI_SWAP_CHAIN_DESC1* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fs, IDXGIOutput* out, IDXGISwapChain1** pp)
 {
-    Log("CreateSwapChainForHwnd %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X", desc->Width, desc->Height, (unsigned)desc->Format, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
+    if (desc)
+        Log("CreateSwapChainForHwnd %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X", desc->Width, desc->Height, (unsigned)desc->Format, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
     HRESULT hr = g_origCSCFH(self, device, hwnd, desc, fs, out, pp);
     if (SUCCEEDED(hr) && pp && *pp) {
         HookSwapChain(*pp);
+        CheckAutoSizeAdapter(self, device);
         LogDisplayOwner(self, device, hwnd);
         TextureWritesOnSwapChain(device);
     }
     return hr;
 }
+// Never seen to fire. The game is D3D12, which requires the ForHwnd path with a command queue,
+// and this format string appears in no recorded log line while its sibling has one per run. It
+// stays because it is the only way a legacy swap chain would be visible at all, and it does the
+// same work as its sibling so that if it ever does fire, nothing quietly does not happen.
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChain(IDXGIFactory* self, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** pp)
 {
-    Log("CreateSwapChain (legacy) %ux%u buffers=%u swapEffect=%u flags=0x%X", desc->BufferDesc.Width, desc->BufferDesc.Height, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
+    if (desc)
+        Log("CreateSwapChain (legacy) %ux%u buffers=%u swapEffect=%u flags=0x%X", desc->BufferDesc.Width, desc->BufferDesc.Height, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
     HRESULT hr = g_origCSC(self, device, desc, pp);
-    if (SUCCEEDED(hr) && pp && *pp) HookSwapChain(*pp);
+    if (SUCCEEDED(hr) && pp && *pp) {
+        HookSwapChain(*pp);
+        IDXGIFactory1* f1 = nullptr;
+        if (SUCCEEDED(self->QueryInterface(__uuidof(IDXGIFactory1), (void**)&f1)) && f1) {
+            CheckAutoSizeAdapter(f1, device);
+            if (desc) LogDisplayOwner(f1, device, desc->OutputWindow);
+            f1->Release();
+        }
+        TextureWritesOnSwapChain(device);
+    }
     return hr;
 }
 
@@ -59,13 +75,24 @@ static HRESULT WINAPI Hook_CreateDXGIFactory2(UINT flags, REFIID riid, void** pp
 
 void InstallDxgiHooks()
 {
-    if (!g_cfg.dxgiEnabled) return;
+    if (!g_cfg.dxgiEnabled) {
+        Log("DXGI: [dxgi] enabled=0, so nothing here is hooked. Frame times, Reflex, the display owner check, the write tracing's copy counters and the check that the auto sizes came from the card the game renders on are all off for this run, and so are the [log] hitch_ms lines and both developer CSVs' frame columns, which ride on the frame times. The auto sizes themselves are not, they are read at the first DirectStorage call instead.");
+        if (g_cfg.reflex) Log("DXGI: WARNING: [latency] reflex=1 can do nothing while [dxgi] enabled=0, because Reflex is driven from the swap chain this section hooks.");
+        return;
+    }
     HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
-    if (!dxgi) { Log("DXGI: dxgi.dll not loaded at attach time; hook skipped"); return; }
+    if (!dxgi) {
+        Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing's copy counters, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
+        return;
+    }
     g_realCDF1 = (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1");
     g_realCDF2 = (PFN_CreateDXGIFactory2)GetProcAddress(dxgi, "CreateDXGIFactory2");
     HMODULE exe = GetModuleHandleW(nullptr);
     int a = PatchIatByAddress(exe, (void*)g_realCDF1, (void*)&Hook_CreateDXGIFactory1);
     int b = PatchIatByAddress(exe, (void*)g_realCDF2, (void*)&Hook_CreateDXGIFactory2);
-    Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d)", a, b, g_cfg.frameStats);
+    Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d reflex=%d)", a, b, g_cfg.frameStats, g_cfg.reflex);
+    if (!g_cfg.frameStats)
+        Log("DXGI: [dxgi] frame_stats=0, so no frame is timed. That also silences the [log] hitch_ms lines and the Present sync interval line, and leaves the frames CSV and the timeline CSV's frame columns empty even with their own [developer] switch on. Reflex is not affected by it.");
+    if (!a && !b)
+        Log("DXGI: WARNING: neither factory entry point could be patched in the exe, so nothing here is hooked. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing's copy counters, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
 }
