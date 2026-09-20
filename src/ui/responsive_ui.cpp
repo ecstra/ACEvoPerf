@@ -278,6 +278,9 @@ static PFN_StopWorkers g_origStopWorkers = nullptr;
 static PFN_Uninitialize g_origUninitialize = nullptr;
 static std::atomic<DWORD> g_frameThread{0};
 static HANDLE g_movedSignal = nullptr;
+// One thread and one semaphore for the process, not one per Cohtml library. Only ever written from
+// OnLibrary, which runs on the thread that initialises the library, one library at a time.
+static bool g_movedThreadUp = false;
 
 static SRWLOCK g_movedLock = SRWLOCK_INIT;   // guards the queue, the stop flag and the running count
 static MovedWork g_moved[kMaxMoved];
@@ -343,15 +346,27 @@ static DWORD WINAPI MovedWorkThread(void*)
     }
 }
 
+static const DWORD kStopWaitMs = 5000;
+
 static void StopMovingWork()
 {
     MovedWork pending[kMaxMoved];
     int pendingCount = 0;
+    bool abandoned = false;
     AcquireSRWLockExclusive(&g_movedLock);
     g_movingStopped = true;
     for (; g_movedCount; g_movedCount--, g_movedHead = (g_movedHead + 1) % kMaxMoved) pending[pendingCount++] = g_moved[g_movedHead];
-    while (g_movedRunning) SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, INFINITE, 0);
+    // Bounded rather than forever. This runs on the thread that is stopping Cohtml, which is the game's
+    // frame thread, and the moved call can be inside Cohtml waiting on a job that only the frame thread
+    // runs, so waiting without a limit is a deadlock neither side can break. Going on instead risks
+    // tearing Cohtml down under its own worker, which is bad, and a hang is the one of the two the player
+    // cannot get out of without killing the process.
+    while (g_movedRunning) {
+        if (!SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, kStopWaitMs, 0)) { abandoned = true; break; }
+    }
     ReleaseSRWLockExclusive(&g_movedLock);
+    if (abandoned)
+        Log("[responsive ui] the moved resource work did not finish within %u ms, going on without it", kStopWaitMs);
     for (int i = 0; i < pendingCount; ++i) g_origExecuteWork(pending[i].library, kResourceWork, pending[i].mode, pending[i].family);
 }
 
@@ -377,13 +392,25 @@ static void OnLibrary(void* library)
         Log("[responsive ui] the game UI's frame end is not followed on this build, so the frame thread is unknown and the resource work move stays out");
         return;
     }
-    g_movedSignal = CreateSemaphoreW(nullptr, 0, kMaxMoved, nullptr);
-    HANDLE thread = g_movedSignal ? CreateThread(nullptr, 0, &MovedWorkThread, nullptr, 0, nullptr) : nullptr;
-    if (!thread) {
-        Log("[responsive ui] could not start the resource work thread, the game runs its resource work as it does");
-        return;
+    // Cohtml can be stopped and initialised again, and stopping latches the move off. Clear that here,
+    // and reuse the thread and the semaphore already running. Making a second pair leaked both and left
+    // MoveWork refusing every call for the rest of the process, while this function's last line still
+    // reported the move as installed.
+    AcquireSRWLockExclusive(&g_movedLock);
+    g_movingStopped = false;
+    ReleaseSRWLockExclusive(&g_movedLock);
+
+    if (!g_movedThreadUp) {
+        g_movedSignal = CreateSemaphoreW(nullptr, 0, kMaxMoved, nullptr);
+        HANDLE thread = g_movedSignal ? CreateThread(nullptr, 0, &MovedWorkThread, nullptr, 0, nullptr) : nullptr;
+        if (!thread) {
+            if (g_movedSignal) { CloseHandle(g_movedSignal); g_movedSignal = nullptr; }
+            Log("[responsive ui] could not start the resource work thread, the game runs its resource work as it does");
+            return;
+        }
+        CloseHandle(thread);
+        g_movedThreadUp = true;
     }
-    CloseHandle(thread);
     void** vtable = *(void***)library;
     HookVtableSlot(vtable, cohtml_slot::kLibraryStopWorkers, (void*)&Hook_StopWorkers, (void**)&g_origStopWorkers, "Cohtml Library::StopWorkers");
     HookVtableSlot(vtable, cohtml_slot::kLibraryUninitialize, (void*)&Hook_Uninitialize, (void**)&g_origUninitialize, "Cohtml Library::Uninitialize");
