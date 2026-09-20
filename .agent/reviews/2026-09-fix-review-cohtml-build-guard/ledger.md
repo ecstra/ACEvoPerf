@@ -548,7 +548,7 @@ everything above is source and build only.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 3ab0b2b, 2026-09-20, `.agent/INDEX.md` reads 13 open, checked against the files rather than by eye
+- fix: 95c5c96, 2026-09-20, `.agent/INDEX.md` reads 13 open, checked against the files rather than by eye
 
 `spec/conventions.md` says an index that disagrees with its folder is a bug, and CLAUDE.md 8.1 asks for
 the index line in the same commit as the change. 853fae7 added a bug file and touched the bugs index and
@@ -568,7 +568,7 @@ that touches `.agent/`.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 3ab0b2b, 2026-09-20
+- fix: 95c5c96, 2026-09-20
 
 The test is `size == 0`, which is true both when the settings pointer could not be read and when readable
 settings say zero by zero. The line said "could not be read" and the header comment made the same
