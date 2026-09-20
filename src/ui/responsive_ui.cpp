@@ -23,20 +23,29 @@ static const char kPageFixesScript[] = R"js(
     'use strict';
     if (window.__acevoUiFixes) return;
 
-    // What the fixes did, read and reset once a second by the developer UI probe when it runs.
-    var fixes = window.__acevoUiFixes = {
+    // What the fixes did, read and reset once a second by the developer UI probe when it runs. Published
+    // on window at the very end of this script, so that its presence means the whole script ran rather
+    // than only that it started.
+    var fixes = {
         navigation: { calls: 0, scans: 0, skipped: 0 },
         setup: { inits: 0, ignored: 0 },
         controls: { refreshes: 0, held: 0 }
     };
 
-    // Registered before any page script, so it runs first in every animation frame and the page's
-    // callbacks see the number of the frame they run in.
+    // Only the navigation fold reads the frame number, so the counter starts when that fold installs
+    // rather than when this script runs. The same view carries the menus and the HUD, so this script is
+    // evaluated again for hud.html at every session load, where no page here can apply and a permanent
+    // callback per frame would be pure cost on the page the driving frame rate is measured on.
     var frame = 0;
-    (function countFrames() {
-        frame++;
-        requestAnimationFrame(countFrames);
-    })();
+    var counting = false;
+    function startFrameCounter() {
+        if (counting) return;
+        counting = true;
+        (function countFrames() {
+            frame++;
+            requestAnimationFrame(countFrames);
+        })();
+    }
 
     // BUG-025. Every navigable element's setupNavigation calls makeFocusable() with no section,
     // which scans the whole page once per section. A group of the controls page makes a hundred
@@ -45,6 +54,7 @@ static const char kPageFixesScript[] = R"js(
     // next frame, which also catches elements added later in that frame.
     function patchNavigation(navigation) {
         if (!navigation || navigation.__acevoPatched || typeof navigation.makeFocusable !== 'function') return;
+        startFrameCounter();
         var stock = navigation.makeFocusable;
         var scannedFrame = -1;
         var trailing = false;
@@ -61,7 +71,10 @@ static const char kPageFixesScript[] = R"js(
             if (trailing) return;
             trailing = true;
             var self = this;
-            requestAnimationFrame(function () {
+            var ran = false;
+            var trailingScan = function () {
+                if (ran) return;
+                ran = true;
                 trailing = false;
                 // Claim the frame this lands in. Without it a call arriving later in the same frame
                 // sees the previous frame's number and takes the whole page scan path, so the frame
@@ -73,7 +86,13 @@ static const char kPageFixesScript[] = R"js(
                 } catch (e) {
                     console.error('[ACEvoPerf] responsive ui trailing navigation scan failed', e);
                 }
-            });
+            };
+            // A timer as well as a frame, because the frame is the only way out of the folded state and
+            // this view stops producing frames when the game's window loses activation. While they are
+            // stopped every later call folds into a callback that cannot run, so navigation would stay
+            // unbuilt with nothing to recover it if the frames never came back.
+            requestAnimationFrame(trailingScan);
+            setTimeout(trailingScan, 100);
         };
         navigation.__acevoPatched = true;
     }
@@ -175,9 +194,16 @@ static const char kPageFixesScript[] = R"js(
         }
 
         function run(self, data) {
-            self.__acevoRefreshAt = Date.now();
             fixes.controls.refreshes++;
-            return stockRefresh.call(self, data);
+            try {
+                return stockRefresh.call(self, data);
+            } finally {
+                // Stamped after, so the window is the gap between refreshes rather than the gap between
+                // their starts. Stamped before, a rebuild costing more than the window made the next
+                // arrival due the moment it returned, so refreshes ran back to back with no idle frame
+                // and the held count read zero exactly when the page was slowest.
+                self.__acevoRefreshAt = Date.now();
+            }
         }
 
         proto.onDevicesChanged = function (data) {
@@ -234,6 +260,9 @@ static const char kPageFixesScript[] = R"js(
     } catch (e) {
         console.error('[ACEvoPerf] responsive ui could not watch custom elements', e);
     }
+
+    // Last, so that anything reading this knows the script finished rather than merely started.
+    window.__acevoUiFixes = fixes;
 })();
 )js";
 
@@ -244,7 +273,9 @@ static void OnView(void* view, int, unsigned, unsigned, bool mainView)
     if (!mainView) return;
     auto addInitialScript = (PFN_AddInitialScript)(*(void***)view)[cohtml_slot::kViewAddInitialScript];
     addInitialScript(view, kPageFixesScript);
-    Log("[responsive ui] page fixes added to the menu and HUD view");
+    // What is known here is that the script was handed to the view, not that it ran. Whether it ran to
+    // the end is the presence of window.__acevoUiFixes, which only the developer probe can see.
+    Log("[responsive ui] page fixes script given to the menu and HUD view");
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +314,7 @@ static HANDLE g_movedSignal = nullptr;
 static bool g_movedThreadUp = false;
 // A moved call was given up on and the thread is still inside it. Guarded by g_movedLock.
 static bool g_movedAbandoned = false;
+static std::atomic<bool> g_movedQueueFullSaid{false};
 
 static SRWLOCK g_movedLock = SRWLOCK_INIT;   // guards the queue, the stop flag and the running count
 static MovedWork g_moved[kMaxMoved];
@@ -305,6 +337,7 @@ static bool MoveWork(void* library, uint64_t mode, uint64_t family)
     // inside it. Accepting would return 0 for up to sixty four calls, each claiming work that nothing can
     // run, until the queue fills and the engine's own inline path takes over again.
     bool moved = !g_movingStopped && !g_movedAbandoned && g_movedCount < kMaxMoved;
+    bool full = !g_movingStopped && !g_movedAbandoned && g_movedCount >= kMaxMoved;
     if (moved) {
         g_moved[(g_movedHead + g_movedCount) % kMaxMoved] = { library, mode, family };
         g_movedCount++;
@@ -315,6 +348,12 @@ static bool MoveWork(void* library, uint64_t mode, uint64_t family)
     }
     ReleaseSRWLockExclusive(&g_movedLock);
     if (moved) g_movedCalls.fetch_add(1, std::memory_order_relaxed);
+    // A full queue is the one condition that hands the stall back to the frame thread mid session, and it
+    // was invisible: the counter behind the probe's line counts calls taken, never calls refused. Said
+    // once, because the frame thread is producing faster than the one consumer drains and saying it per
+    // call would be its own cost.
+    if (full && !g_movedQueueFullSaid.exchange(true, std::memory_order_relaxed))
+        Log("[responsive ui] the moved resource work queue filled at %d, the game's frame thread runs its own resource work again until it drains", kMaxMoved);
     return moved;
 }
 
