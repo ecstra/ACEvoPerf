@@ -16,7 +16,8 @@ static PFN_CreateSwapChain g_origCSC = nullptr;
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self, IUnknown* device, HWND hwnd,
     const DXGI_SWAP_CHAIN_DESC1* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fs, IDXGIOutput* out, IDXGISwapChain1** pp)
 {
-    Log("CreateSwapChainForHwnd %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X", desc->Width, desc->Height, (unsigned)desc->Format, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
+    if (desc)
+        Log("CreateSwapChainForHwnd %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X", desc->Width, desc->Height, (unsigned)desc->Format, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
     HRESULT hr = g_origCSCFH(self, device, hwnd, desc, fs, out, pp);
     if (SUCCEEDED(hr) && pp && *pp) {
         HookSwapChain(*pp);
@@ -26,11 +27,25 @@ static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self
     }
     return hr;
 }
+// Never seen to fire. The game is D3D12, which requires the ForHwnd path with a command queue,
+// and this format string appears in no recorded log line while its sibling has one per run. It
+// stays because it is the only way a legacy swap chain would be visible at all, and it does the
+// same work as its sibling so that if it ever does fire, nothing quietly does not happen.
 static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChain(IDXGIFactory* self, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** pp)
 {
-    Log("CreateSwapChain (legacy) %ux%u buffers=%u swapEffect=%u flags=0x%X", desc->BufferDesc.Width, desc->BufferDesc.Height, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
+    if (desc)
+        Log("CreateSwapChain (legacy) %ux%u buffers=%u swapEffect=%u flags=0x%X", desc->BufferDesc.Width, desc->BufferDesc.Height, desc->BufferCount, (unsigned)desc->SwapEffect, desc->Flags);
     HRESULT hr = g_origCSC(self, device, desc, pp);
-    if (SUCCEEDED(hr) && pp && *pp) HookSwapChain(*pp);
+    if (SUCCEEDED(hr) && pp && *pp) {
+        HookSwapChain(*pp);
+        IDXGIFactory1* f1 = nullptr;
+        if (SUCCEEDED(self->QueryInterface(__uuidof(IDXGIFactory1), (void**)&f1)) && f1) {
+            CheckAutoSizeAdapter(f1, device);
+            if (desc) LogDisplayOwner(f1, device, desc->OutputWindow);
+            f1->Release();
+        }
+        TextureWritesOnSwapChain(device);
+    }
     return hr;
 }
 
