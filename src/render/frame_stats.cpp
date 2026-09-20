@@ -32,6 +32,7 @@ double NowSec()
 
 static void OnPresent(UINT syncInterval)
 {
+    if (!g_cfg.frameStats) return;   // the hooks are also installed for Reflex alone
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
     int64_t last = g_lastPresentQpc;
     g_lastPresentQpc = now.QuadPart;
@@ -102,9 +103,12 @@ static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync,
     return hr;
 }
 
+// Two settings in two different ini sections want these hooks, so either one installs them and
+// each consumer checks for itself. Reflex used to hang off frame_stats, which meant turning the
+// frame times off removed it with no vendor check and no line in the log to say so.
 void HookSwapChain(IUnknown* sc)
 {
-    if (!sc || !g_cfg.frameStats) return;
+    if (!sc || (!g_cfg.frameStats && !g_cfg.reflex)) return;
     IDXGISwapChain1* sc1 = nullptr;
     if (FAILED(sc->QueryInterface(__uuidof(IDXGISwapChain1), (void**)&sc1)) || !sc1) return;
     void** vt = *(void***)sc1;
