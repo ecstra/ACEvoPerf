@@ -28,7 +28,7 @@ one bug, two debt, one nit.
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
-| 4 | the moved work thread and its stop flag | fixed and verified, runtime gate open | 2026-09-20, ack |
+| 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
 | 5 | what the page fixes script costs, and saying when it is not there | pending | |
 
 ## Findings
@@ -863,6 +863,16 @@ logged the drain. d10cb26 adds a line on every stop, so the next session that st
 Settling it properly needs the disassembly, which is not this branch's work, and the log line is what
 makes the next report actionable.
 
+**Answered in part on 2026-09-20.** An owner driven launch and a clean quit through the game's own exit,
+with the drain line in place, produced no drain line at all. The session ends `[streamer] at exit` then
+`detached`, so the mod's own teardown ran and the game simply never calls either hook.
+
+That does not prove slot 2 is `StopWorkers`, and it removes most of the reason to care. The danger in a
+wrong slot number is replacing a virtual the game actually calls, and if slot 2 or 3 were some other live
+method the drain line would have appeared. Whatever those two slots are, nothing in a normal session calls
+them. The finding stays open because the numbers are still unproven, at a severity the evidence no longer
+supports treating as urgent.
+
 ### V-12: giving up on a call was permanent, so every later teardown destroyed the library under a live one
 - severity: bug
 - found-by: verifier
@@ -953,6 +963,42 @@ confirmed on a probe run two batches earlier. So the count on this branch is V-0
 these, which is six instances of one habit across four batches. The rule written after V-10, that a commit
 moves its own paper, only ever covered the tracker indexes. It now covers the ledger's own status lines
 too: a finding's status and fix field move in the commit that fixes it, not when its batch closes.
+
+## The runtime gate for batch 4, 2026-09-20
+
+Owner driven launch to the main menu and a quit through the game's own exit, probe off.
+
+```
+[11:17:30.817] [cohtml] UI engine 1.61.0.3 (stamp 0x675439C7), the build its objects were read from
+[11:17:36.433] [responsive ui] resource work the game's frame thread picks up runs on the mod's thread
+[11:17:36.458] [responsive ui] page fixes added to the menu and HUD view
+[11:17:58.164] [streamer] at exit: ...
+[11:17:58.164] detached
+```
+
+Two things settled, one of them uncomfortable.
+
+The install path is right. The line still prints, which means `g_origExecuteWork` really was set, so the
+guard added for H-21 is not refusing a working install, and the `g_movedThreadUp` gate did not break the
+first time through.
+
+And the stop path never runs. No drain line anywhere in the session, on an exit clean enough to reach
+`detached`. So the game does not call `Library::StopWorkers` or `Library::Uninitialize` on the way out at
+all, and with no Cohtml restart in any recorded session either, the whole of `StopMovingWork`, the bounded
+wait, the drain, the abandonment flag and the fault guard is code that has never executed and has no known
+path that would execute it.
+
+Worth saying plainly rather than burying: batch 4 spent two rounds of hunter and verifier, five commits
+and three of my own regressions on a path that does not run. The fixes are correct and their cost at
+runtime is nothing, so there is no case for taking them out, and F-05's defect was real in the sense that
+the code was wrong. But the effort was out of proportion to the risk, and the reason nobody could tell is
+the same reason H-23 was unfalsifiable: there was no log line. The one line added here answered in a
+single launch a question twelve recorded sessions could not.
+
+The lesson for the batches that follow: when a fix's whole surface is a path with no evidence of ever
+running, log it first and weigh it second.
+
+Batch 4 is done.
 
 ## Deferred to batch 5, the page fixes script's costs
 
