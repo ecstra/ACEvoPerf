@@ -7,6 +7,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 ### Fixed
 
 - NVIDIA Reflex switching off when you turned off frame time measuring in `acevo_perf.ini`, which are two separate settings.
+- NVIDIA Reflex never starting when something else on your PC drew to the screen before the game did, and quietly stopping after a driver reset or a resolution change.
 
 ### Changed
 

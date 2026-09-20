@@ -31,17 +31,30 @@ double NowSec()
 }
 
 // The Present hooks live in the vtable inside dxgi.dll, which the whole process shares, so they
-// fire for any swap chain anyone makes. The frame times belong to one of them. This is the one
-// hooked first, held as an address to compare and never dereferenced, for the reasons in reflex.
-static IUnknown* g_timedChain = nullptr;
+// fire for any swap chain anyone makes. The frame times belong to one of them, and it is the
+// most recent one that carries a D3D12 device, since the game's renderer is D3D12 and a splash
+// screen or an overlay is not. Most recent rather than first, because the game replaces its swap
+// chain on a resolution or window mode change and on a device reset, and a first come rule would
+// leave the frame times counting a chain that no longer exists. Held as an address to compare
+// and never dereferenced, for the reasons in reflex.
+static std::atomic<IUnknown*> g_timedChain{nullptr};
 static std::atomic<bool> g_otherChainLogged{false};
+
+// Whether this swap chain belongs to the game's D3D12 renderer.
+static bool HasD3D12Device(IDXGISwapChain1* sc1)
+{
+    ID3D12Device* device = nullptr;
+    if (FAILED(sc1->GetDevice(__uuidof(ID3D12Device), (void**)&device)) || !device) return false;
+    device->Release();
+    return true;
+}
 
 static void OnPresent(UINT syncInterval, IUnknown* swapChain)
 {
     if (!g_cfg.frameStats) return;   // the hooks are also installed for Reflex alone
-    if (swapChain != g_timedChain) {
+    if (swapChain != g_timedChain.load()) {
         if (!g_otherChainLogged.exchange(true))
-            Log("frame times: a second swap chain is presenting in this process, its frames are not counted. The numbers below are the one hooked first.");
+            Log("frame times: a swap chain other than the game's renderer is presenting in this process, its frames are not counted.");
         return;
     }
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
@@ -131,7 +144,13 @@ void HookSwapChain(IUnknown* sc)
     // so they do not go in for a layer that turned out to be idle on a card that is not NVIDIA.
     reflex::OnSwapChain(sc1);
     if (g_cfg.frameStats || reflex::Active()) {
-        if (!g_timedChain) g_timedChain = sc1;
+        if (HasD3D12Device(sc1)) {
+            if (g_timedChain.load() && g_timedChain.load() != (IUnknown*)sc1) {
+                Log("frame times: the game has a new swap chain, counting that one from here. What is in the CSV so far belongs to the one before it.");
+                g_lastPresentQpc = 0;
+            }
+            g_timedChain.store((IUnknown*)sc1);
+        }
         void** vt = *(void***)sc1;
         HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
         HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");

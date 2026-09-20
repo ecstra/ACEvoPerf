@@ -56,8 +56,11 @@ string. Every header includes it, every source includes its own header first.
    step 2's late pass on a second launch order. The engine sizes its tile pool before it creates
    the swap chain, 7 ms before on 2026-09-18 and 68 ms before on 2026-09-20, so the margin is real
    but it is not fixed and nothing should be moved later on the strength of it. When the swap chain is
-   created, `HookSwapChain` runs `reflex::OnSwapChain` and hooks `Present` and `Present1` on its
-   vtable for the frame timing and for Reflex, whichever of the two asked for them,
+   created, `HookSwapChain` runs `reflex::OnSwapChain` and hooks `Present` and `Present1` for the
+   frame timing and for Reflex, whichever of the two asked for them. Those slots live in the
+   vtable inside dxgi.dll, which the whole process shares, so both hooks fire for every swap
+   chain anyone makes and each one follows only the swap chain it was set up from. Reflex binds
+   to the D3D12 device behind a swap chain and rebinds when the game builds a new one,
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
    renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of

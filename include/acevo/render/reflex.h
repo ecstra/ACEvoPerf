@@ -14,11 +14,12 @@
 // NVIDIA adapter, or on a driver too old for the entry points, none of this runs.
 namespace reflex {
 
-// Called when the swap chain is hooked. Finds nvapi, resolves the entry points and
-// tells the driver what mode to run in. Called for every swap chain the process makes,
-// and it is the D3D12 device behind one that decides: none means ignore it, the device
-// already bound means nothing to do, a different one means the game was reset and the
-// layer rebinds to it.
+// Called when a swap chain is hooked, which is every swap chain made after the factory
+// hooks went in, on the runs where they went in at all. Finds nvapi, resolves the entry
+// points and tells the driver what mode to run in. The D3D12 device behind the swap chain
+// decides what happens: no device at all means ignore that swap chain, a device already
+// bound means pace whichever of its swap chains is newest, a different device means the
+// game was reset or rebuilt and the layer binds to that one instead.
 void OnSwapChain(IUnknown* swapChain);
 
 // Called from the present hook once the real Present has returned, which is the

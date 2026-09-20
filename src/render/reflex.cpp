@@ -59,18 +59,23 @@ static PFN_GetSleepStatus g_getSleepStatus = nullptr;
 // which a splash or overlay swap chain could spend before the game's own ever arrived, and which
 // also meant a device reset was never noticed. A device that is already this one is nothing new,
 // a different one is a rebind, and no device at all is a swap chain worth ignoring.
-static IUnknown*        g_device = nullptr;
+static std::atomic<IUnknown*> g_device{nullptr};
+static IUnknown*        g_retiredDevice = nullptr;   // the previous one, freed at the next rebind
+static IUnknown*        g_refusedDevice = nullptr;   // one we already said no to, compared only
 // The swap chain the layer was set up from, held as an address to compare and nothing else. It
 // is never dereferenced, called or released, so there is no object here to outlive. The one risk
 // a bare address carries is that this swap chain dies and a later one is allocated at the same
 // place, and that later one would be the game's replacement main swap chain, which is the one we
 // would want to pace anyway. Keeping a reference instead would pin a dead swap chain alive,
 // which is the fault F-07 was about.
-static IUnknown*        g_swapChain = nullptr;
-static bool             g_resolved = false;    // nvapi found and its entry points in hand
-static bool             g_giveUp = false;      // the adapter is not NVIDIA, or nvapi will not answer
+//
+// These are read once per present from the game's own thread and written from whichever thread
+// creates a swap chain, which is not always the same one, so they are atomic.
+static std::atomic<IUnknown*> g_swapChain{nullptr};
+static bool             g_resolved = false;      // nvapi found and its entry points in hand
+static bool             g_resolveFailed = false; // and it is not coming, which is a process wide answer
 static bool             g_noDeviceLogged = false;
-static bool             g_active = false;
+static std::atomic<bool> g_active{false};
 static std::atomic<uint64_t> g_sleepCalls{0};
 static std::atomic<uint64_t> g_sleepFailures{0};
 
@@ -90,7 +95,10 @@ static bool RenderAdapterIsNvidia(ID3D12Device* device)
     auto createFactory = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
     if (!createFactory) { Log("[reflex] cannot reach dxgi to identify the render adapter, layer idle"); return false; }
     IDXGIFactory1* factory = nullptr;
-    if (FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) return false;
+    if (FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) {
+        Log("[reflex] a DXGI factory of our own could not be created to identify the render adapter, layer idle");
+        return false;
+    }
 
     bool nvidia = false;
     for (UINT i = 0;; ++i) {
@@ -103,11 +111,13 @@ static bool RenderAdapterIsNvidia(ID3D12Device* device)
             nvidia = (d.VendorId == kNvidiaVendorId);
             Log("[reflex] the game renders on '%ls' (vendor 0x%04X), %s", d.Description, d.VendorId,
                 nvidia ? "NVIDIA, Reflex is available" : "not NVIDIA, Reflex stays off and nvapi is never loaded");
-            break;
+            factory->Release();
+            return nvidia;
         }
     }
     factory->Release();
-    return nvidia;
+    Log("[reflex] the device's adapter is not in the factory's list, so its vendor is unknown, layer idle");
+    return false;
 }
 
 static bool Resolve()
@@ -158,29 +168,52 @@ void OnSwapChain(IUnknown* swapChain)
         return;
     }
 
-    if ((IUnknown*)device == g_device) { device->Release(); return; }   // the one already bound
-    if (g_giveUp) { device->Release(); return; }
+    // A device we have already turned away. Both reasons for turning one away, the wrong vendor
+    // and a driver that refused the mode, are answers about that device and not about the
+    // process, so this is a pointer and not a flag.
+    if ((IUnknown*)device == g_refusedDevice) { device->Release(); return; }
 
-    // The vendor check comes before nvapi is touched at all. Both it and the nvapi lookup answer
-    // for the process rather than for this device, so a refusal from either one is final.
-    if (!RenderAdapterIsNvidia(device)) { g_giveUp = true; device->Release(); return; }
+    // The same device with a different swap chain is a swap chain the game replaced, which a
+    // resolution or window mode change does without touching the device. Pace the new one. Left
+    // alone, the layer would go on believing it was active while pacing a chain that is gone.
+    if ((IUnknown*)device == g_device) {
+        device->Release();
+        if (swapChain != g_swapChain) {
+            g_swapChain.store(swapChain);
+            Log("[reflex] the game replaced its swap chain on the same device, following it");
+        }
+        return;
+    }
+
+    // The vendor check comes before nvapi is touched at all, and it answers for this device's
+    // adapter. Only the nvapi lookup answers for the whole process, so only it latches.
+    if (g_resolveFailed) { device->Release(); return; }
+    if (!RenderAdapterIsNvidia(device)) { g_refusedDevice = (IUnknown*)device; device->Release(); return; }
     if (!g_resolved) {
-        if (!Resolve()) { g_giveUp = true; device->Release(); return; }
+        if (!Resolve()) { g_resolveFailed = true; device->Release(); return; }
         g_resolved = true;
     }
 
     // A reset, a driver update or a mode change builds a new device and leaves the old one dead.
-    // Holding a reference on it keeps its heaps alive and every Sleep call goes to a corpse.
+    // Stop pacing before letting go of it, in that order, because a present already running on
+    // another thread reads the flag first and the device second.
+    //
+    // The dead device is not released here. A present that passed the flag check a moment ago is
+    // still going to reach NvAPI_D3D_Sleep with the pointer it already read, and dropping the
+    // last reference under it would hand the driver freed memory. It is released at the next
+    // rebind instead, so at most one dead device is ever held rather than one per reset, which
+    // is what F-07 was about.
     if (g_device) {
         Log("[reflex] the game is on a new D3D12 device, rebinding. The one before it paced %llu frames and was refused %llu times.",
             (unsigned long long)g_sleepCalls.load(), (unsigned long long)g_sleepFailures.load());
-        g_device->Release();
-        g_active = false;
+        g_active.store(false);
+        if (g_retiredDevice) g_retiredDevice->Release();
+        g_retiredDevice = g_device;
         g_sleepCalls = 0;
         g_sleepFailures = 0;
     }
-    g_device = device;
-    g_swapChain = swapChain;
+    g_device.store((IUnknown*)device);
+    g_swapChain.store(swapChain);
 
     NV_SET_SLEEP_MODE_PARAMS p = {};
     p.version = kSleepModeVersion;
@@ -189,14 +222,16 @@ void OnSwapChain(IUnknown* swapChain)
     p.minimumIntervalUs = 0;     // never a frame rate cap, the mod does not limit
     p.bUseMarkersToOptimize = 0; // a proxy cannot place simulation markers honestly
 
-    int status = g_setSleepMode(g_device, &p);
+    int status = g_setSleepMode(g_device.load(), &p);
     if (status != 0) {
         Log("[reflex] NvAPI_D3D_SetSleepMode refused (%d), layer idle. This is normal on a non NVIDIA render adapter.", status);
-        g_device->Release();
-        g_device = nullptr;
+        g_refusedDevice = g_device.load();   // do not ask this one again on its next swap chain
+        g_device.load()->Release();
+        g_device.store(nullptr);
+        g_swapChain.store(nullptr);
         return;
     }
-    g_active = true;
+    g_active.store(true);
     Log("[reflex] on: low latency mode %s, no frame rate cap. The frame rate stays unlocked, this only stops the CPU queueing frames further ahead than it can use.",
         g_cfg.reflexBoost ? "+ boost" : "(boost off)");
     ReportStatus("right after enabling it");
@@ -208,7 +243,7 @@ static void ReportStatus(const char* when)
     if (!g_active || !g_getSleepStatus) return;
     NV_GET_SLEEP_STATUS_PARAMS s = {};
     s.version = kSleepStatusVersion;
-    int status = g_getSleepStatus(g_device, &s);
+    int status = g_getSleepStatus(g_device.load(), &s);
     if (status != 0) { Log("[reflex] the driver would not report its sleep status (%d)", status); return; }
     Log("[reflex] the driver reports %s: low latency mode %s, fullscreen VRR %s, control panel forcing vsync %s",
         when, s.bLowLatencyMode ? "ON" : "off", s.bFsVrr ? "on" : "off", s.bCplVsyncOn ? "on" : "off");
@@ -218,8 +253,10 @@ bool Active() { return g_active; }
 
 void OnFrameBegin(IUnknown* swapChain)
 {
-    if (!g_active || swapChain != g_swapChain) return;
-    int status = g_sleep(g_device);
+    if (!g_active.load() || swapChain != g_swapChain.load()) return;
+    IUnknown* device = g_device.load();
+    if (!device) return;
+    int status = g_sleep(device);
     uint64_t n = ++g_sleepCalls;
     if (status != 0) {
         uint64_t bad = ++g_sleepFailures;
