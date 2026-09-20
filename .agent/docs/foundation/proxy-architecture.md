@@ -39,7 +39,8 @@ string. Every header includes it, every source includes its own header first.
    (`EnsureReal`), call
    `DStorageSetConfiguration1` with the `[directstorage]` values (`ApplyDStorageConfiguration`),
    log the version of the runtime that really loaded, read off the module itself,
-   write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one), start the
+   write the flags again (`ApplyFlags("late")`, in case a static initialiser reset one, and that
+   includes the auto tile pool once it has been resolved), start the
    timeline thread (`StartTimeline`), get the real factory, apply `SetStagingBufferSize`, return a
    `FactoryProxy`. Just before the late pass, `ResolveAutoSizesFallback` reads the card off a
    factory of its own when step 4 has not happened yet, which covers an exe with no factory import
