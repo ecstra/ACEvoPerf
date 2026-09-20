@@ -132,6 +132,11 @@ that makes the same call through the vtable, and runs any handed over work on th
 Cohtml's `StopWorkers` (slot 2) or `Uninitialize` (slot 3). Style and layout work (type 1) stays, the frame
 waits for its result.
 
+This part needs both checks to have passed, not only the UI engine one, because the frame thread it moves
+work away from is learned from the frame end wrapper. On a build where the frame slots stood down it
+installs nothing and says so, which is the one part that can be out while the rest of the responsive UI is
+in.
+
 ## Shared Cohtml hooks
 
 `src/ui/cohtml_hooks.cpp` patches the exe's import of `Library::Initialize` and follows it to
@@ -140,12 +145,19 @@ and 8, vtable `0x3173D58`, checked against the exe's stamp). The responsive UI a
 listeners from `DllMain`, in that order, and `InstallCohtmlHooks` installs once after both. Slot numbers
 are in `include/acevo/ui/cohtml_hooks.h`.
 
-The Cohtml side carries its own check, against the UI engine's stamp, because Kunos ships Coherent
-Gameface as its own binary and can update it without the exe changing, so the exe's stamp says nothing
-about it. On any other build nothing that reaches a Cohtml vtable is hooked at all, which takes the page
-fixes and the resource work move out with it, and the log names the version it found beside the one the
-slots were read from. Without that check the slot numbers would be used on a build they do not belong to,
-which is an indirect call through the wrong method rather than a part quietly staying out.
+The Cohtml side carries its own check, against the UI engine's stamp and image size, because Kunos ships
+Coherent Gameface as its own binary and can update it without the exe changing, so the exe's stamp says
+nothing about it. On a UI engine that is not the one the slots were read from, nothing that reaches a
+Cohtml vtable is hooked at all, which takes the page fixes and the resource work move out together, and
+the log names the version it found beside the one it wanted. Without that check the slot numbers would be
+used on a build they do not belong to, which is an indirect call through the wrong method rather than a
+part quietly staying out.
+
+The two checks are independent, so a game update that leaves Cohtml alone fails the exe half and passes
+the UI engine half. The page fixes still go in, because a view only needs the engine. The resource work
+move does not, because it only ever takes work off the frame thread and the frame end wrapper is where
+that thread is learned, so `OnLibrary` asks `UiFrameEndHooked()` first and stays out with its own log line
+rather than starting a thread that would wait forever for work that can never be handed to it.
 
 ## Limits
 
