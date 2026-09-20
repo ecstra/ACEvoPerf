@@ -27,7 +27,7 @@ one bug, two debt, one nit.
 |---|---|---|---|
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
-| 3 | the page fixes script survives its own error paths | fixed and verified, runtime gate needs the probe | 2026-09-20, ack |
+| 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
 | 4 | the moved work thread and its stop flag | pending | |
 | 5 | what the page fixes script costs, and saying when it is not there | pending | |
 
@@ -709,6 +709,48 @@ One residual it names, which predates the batch. In the chained wrapper case the
 goes out unwrapped, so its mark is cleared by the inner element's answer or by the three second timeout
 rather than by its own. It degrades to no suppression, never to a stranded mark, and it is structural to
 the chained design rather than something this batch created.
+
+## The runtime gate for batch 3, 2026-09-20
+
+Owner driven menu session with `[developer] ui_probe=1`, which is the only way these counters reach a
+log, read from the game's own log because the page script reports through Cohtml's console. The probe was
+switched back off afterwards.
+
+Vehicle setup, opened and reopened:
+
+```
+navigation calls 19 scans 3 skipped 17  | setup init 2 ignored 1
+navigation calls 38 scans 4 skipped 35  | setup init 2 ignored 1
+navigation calls 55 scans 3 skipped 53  | setup init 2 ignored 1
+```
+
+`setup init 2 ignored 1` on all three opens. The page asks twice, the wrapper catches the second, and the
+suppression BUG-026 rests on is live under the rewritten wrapper. That is the line the verifier named as
+the one that would read `ignored 0` if the wrapper had stopped catching the Init, which is the silent
+failure the batch was most at risk of.
+
+The controls page under a slider drag:
+
+```
+navigation calls 30 scans 26 skipped 14  | controls refreshes 11 held 23
+navigation calls 33 scans 31 skipped 14  | controls refreshes 11 held 23
+navigation calls 19 scans 19 skipped 5   | controls refreshes 5 held 7
+```
+
+Thirty four soft refreshes a second arriving, eleven run and twenty three held, so the throttle is doing
+its job. The navigation fold shows its two regimes plainly: 154 of 159 calls folded on an ordinary menu
+page, and a much weaker ratio during the drag, which is expected rather than a regression, because each
+refresh rebuilds its rows in its own frame and each of those frames legitimately earns one scan.
+
+No `responsive ui ... failed` line anywhere in the session, and every page reports `responsive ui page
+fixes on`, so the script itself installed and none of its patches threw.
+
+What this run cannot show. H-11's guard has no counter, since the drop path returns silently, so a refresh
+skipped because its page had gone is indistinguishable in the log from one that never arrived. The run
+proves nothing went wrong after leaving the page mid drag and does not prove the guard fired. Making that
+observable is a counter in the script and belongs with the rest of batch 5.
+
+Batch 3 is done.
 
 ## Deferred to batch 5, the page fixes script's costs
 
