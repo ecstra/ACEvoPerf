@@ -103,7 +103,10 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
 void ResolveAutoSizesFallback()
 {
     if (g_resolveDone || !WantsAutoSizes()) return;
-    HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
+    // Loaded rather than looked up, because one of the ways to get here is dxgi.dll not being
+    // loaded yet. This runs on the game's own thread, so a load is safe, and from System32 only,
+    // since the game folder is searched first for a bare name and we ship files into it.
+    HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     PFN_CreateDXGIFactory1 create = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
     if (!create) {
         Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, the game's own values stay");
