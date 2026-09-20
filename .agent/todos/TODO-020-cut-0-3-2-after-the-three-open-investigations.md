@@ -2,7 +2,7 @@
 name: TODO-020-cut-0-3-2-after-the-three-open-investigations
 kind: todo
 description: 0.3.2 is not cut until the streaming layer, the 1 percent lows and the VRAM overhead have each had their round, because the release is meant to be final rather than a staging post
-updated: 2026-09-18
+updated: 2026-09-20
 links: [public-docs, TODO-018-look-properly-at-the-streaming-layer, TODO-019-tile-upload-dedupe-done-properly, BUG-009-one-percent-lows-far-below-average, BUG-016-vram-overhead-grows-across-scene-loads, build-and-release, one-percent-lows-2026-09-14, memory-creep-2026-09-14, DEC-019-ui-lag-work-reopened, BUG-014-ui-pages-lag-on-open-switch-and-interaction]
 status: open
 by: owner
@@ -60,6 +60,10 @@ The release was cut the same day. The changelog's 0.3.2 heading carries the date
 `release/ACEvoPerf-0.3.2.0.zip` with its five files, main is tagged `v0.3.2`, and 0.3.3 is open with the
 version files bumped. What is left is the publishing, the GitHub release and the Overtake update, both on
 the owner's word.
+
+That last sentence describes 2026-09-18 and stopped being true on 2026-09-20. DEC-021 moved the next
+version onto its own branch and renamed it 0.4, so the version files were bumped there rather than on
+main, and main sits at 0.3.2 until 0.4 ships.
 
 ## Done when
 
