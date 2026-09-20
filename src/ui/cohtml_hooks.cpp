@@ -139,10 +139,17 @@ static void ModuleFileVersion(HMODULE module, uint16_t out[4])
     const BYTE* data = loaded ? (const BYTE*)LockResource(loaded) : nullptr;
     if (!data) return;
 
+    // The size is the resource directory's own claim and the loader never checks it against the image, so
+    // cap the scan instead of letting a packed build aim it at the rest of the address space. The fixed
+    // block sits within the first few dozen bytes of every version resource, after the VS_VERSION_INFO key
+    // and its padding, so this ceiling loses nothing, and it also keeps the bound below from wrapping.
+    if (size > 1024) size = 1024;
+    if (size < 16) return;
+
     // VS_VERSIONINFO puts a variable length key and its alignment padding in front of the fixed block, so
     // find that block by its own signature rather than walking the layout. The four dwords from there are
     // dwSignature, dwStrucVersion, dwFileVersionMS and dwFileVersionLS.
-    for (DWORD at = 0; at + 16 <= size; at += 4) {
+    for (DWORD at = 0; at <= size - 16; at += 4) {
         const uint32_t* fixed = (const uint32_t*)(data + at);
         if (fixed[0] != 0xFEEF04BD) continue;
         out[0] = (uint16_t)(fixed[2] >> 16);
@@ -213,8 +220,12 @@ void InstallCohtmlHooks()
     }
     DWORD stamp = 0, image = 0;
     uint16_t version[4] = {};
-    bool read = ReadModuleBuild(cohtml, &stamp, &image, version);
-    if (!read || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
+    if (!ReadModuleBuild(cohtml, &stamp, &image, version)) {
+        // Saying nothing about the numbers beats printing a half read set that can happen to match.
+        Log("[cohtml] the UI engine here could not be read, nothing that uses its vtables runs");
+        return;
+    }
+    if (stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[cohtml] the UI engine here is %u.%u.%u.%u (stamp 0x%08X image 0x%08X) and the objects were read from %s (stamp 0x%08X image 0x%08X), nothing that uses its vtables runs",
             (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3],
             stamp, image, kCohtmlVersionName, kCohtmlTimeDateStamp, kCohtmlSizeOfImage);
