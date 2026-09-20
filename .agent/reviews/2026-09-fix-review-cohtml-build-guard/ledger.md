@@ -260,7 +260,66 @@ The fix held under attack. What was tried and why each failed:
 - **`g_installed` set before the check.** One call site, no retry wanted, and the early exit leaves
   nothing half installed.
 
-## Hunter finds outside this batch's scope
+### V-01: the version scan trusted a size the loader never checks, and its bound could wrap
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 8af4fad, 2026-09-20, the scan is capped at 1024 bytes and the bound is written so it cannot wrap
+
+H-03 turned this read from a crash into a handled fault and did not stop the read itself. `SizeofResource`
+returns the resource directory's own claim and nothing clamps it to the module's image, so a packed build
+claiming a large size had the loop scan the rest of the image and stop only by taking an access violation
+into the `__except`. With a size near the top of the range, `at + 16` wrapped in DWORD arithmetic, so
+termination depended entirely on hitting an unmapped page. The fixed block sits in the first few dozen
+bytes of every version resource, so a small ceiling costs nothing and removes both.
+
+### V-02: the refusal line could print numbers that contradict it
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 8af4fad, 2026-09-20, a failed read gets its own line and prints no numbers
+
+`ReadModuleBuild` writes the stamp and the image size before it reads the version, so a fault in the
+resource walk returned false with both already correct, and the refusal line then printed a matching stamp
+and image beside the words "nothing that uses its vtables runs". Only reachable on a malformed version
+resource, and it is the line somebody reads when they are already confused.
+
+### V-03: the doc missed the second way the resource work move stands down
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 5e1a521, 2026-09-20, both the shared hooks section and the resource work move section say which half of the check each part needs
+
+The paragraph written with 6578fb4 said the page fixes and the move go out together, which stopped being
+true when 1dae423 landed an hour later. A new exe with the same Cohtml now takes the move out and leaves
+the page fixes in. The upkeep rule wanted that doc moving in the same round as the code.
+
+## The verifier's verdict
+
+Clean. All five defects gone, no correctness regression, three nits of its own listed above.
+
+The one it was asked to be hardest on was H-01's second direction, since standing the move down on a
+machine where it used to work would be worse than the bug. It walked the real order and the edge holds:
+`InstallResponsiveUi` registers `OnFrameEnd` before `InstallCohtmlHooks` runs, `InstallUiFrameHooks` sets
+`g_origEndFrame` twenty lines before the exe import is patched, and that import is the only way
+`OnLibrary` can ever be entered, so `UiFrameEndHooked()` is already true by then. `HookVtableSlot` writes
+`*orig` only after `VirtualProtect` succeeds, so a non null value really does mean the slot carries the
+wrapper. No false negative and no false positive. It also noted that in the one case where the new guard
+does stand the move down, an exe stamp or thunk mismatch, `g_frameThread` would have stayed 0 anyway, so
+the move was already dead and nothing is lost.
+
+## Still to do before this branch merges
+
+The runtime half of the project gate has not run. Everything here is proven from the source and from a
+clean build, not observed. The owner launches the game, so the decisive launch is theirs. Two lines settle
+it. `[cohtml] UI engine 1.61.0.3 (stamp 0x675439C7), the build its objects were read from` says the guard
+accepts the supported build, and `[responsive ui] resource work the game's frame thread picks up runs on
+the mod's thread` still being present beside it settles H-01's non regression empirically.
+
+## Hunter and verifier finds outside this batch's scope
 
 Two, both already filed against other branches, recorded here so the extra detail is not lost.
 
@@ -274,6 +333,13 @@ shared lock, turning a hot throw site into a repeating multi hundred millisecond
 recorded logs already read "DXGI: hooked Cohtml Library::CreateSystem" and five more like it, and those
 are the lines that prove which Cohtml slots were taken, which is exactly what a launch verifying this
 branch has to read.
+
+The verifier added a third, and it is the one that most limits what this batch achieved. H-03 hardened the
+PE walk in `cohtml_hooks.cpp`, and the five sibling files walk the same headers with no `__try` and no
+magic checks, `restyle_fix.cpp:78` and `:88` being the clearest. They run from `dllmain.cpp:69`, before
+`InstallCohtmlHooks` at `:71`. So the DLL_PROCESS_ATTACH crash on a foreign build that H-03 describes is
+still reachable, just from `restyle_fix` rather than from here, and this branch cannot close it without
+taking files that belong to `sweep/review-ui-fixes`. It should be the first thing that branch does.
 
 ## Not filed
 
