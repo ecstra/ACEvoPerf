@@ -24,7 +24,7 @@ Seven findings, one breaks, four bug, two debt.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the vtable calls honour the build check the byte patches already do | pending | |
+| 1 | the vtable calls honour the build check the byte patches already do | fixed, owner to verify | 2026-09-20, ack |
 | 2 | the menu view is found by identity rather than by a counter | pending | |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
@@ -35,8 +35,8 @@ Seven findings, one breaks, four bug, two debt.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 6578fb4, 2026-09-20, `InstallCohtmlHooks` checks the loaded UI engine's own stamp and hooks nothing that reaches a Cohtml vtable on any other build
 
 `InstallResponsiveUi` at `src/ui/responsive_ui.cpp:354` calls `InstallRestyleFix`,
 `InstallMenuRefreshFix`, `InstallStyleMatchFix` and `InstallChildRemovalFix`, each of which compares
@@ -70,7 +70,24 @@ with the wrong signature before a menu has ever drawn. `src/ui/ui_probe.cpp:1186
 and is developer only, `responsive_ui.cpp:213` is on by default and reaches everybody.
 
 `.agent/docs/systems/responsive-ui.md:13` states that every part checks the build it was read from
-before it changes anything. That sentence is false for these two and has to change with the fix.
+before it changes anything. That sentence was false for these two.
+
+**The fix, 6578fb4.** `InstallCohtmlHooks` now reads the loaded `cohtml.WindowsDesktop.dll` PE
+`TimeDateStamp` and compares it with `0x675439C7`, the stamp of 1.61.0.3 that the slot numbers were read
+from, which `responsive-ui.md` already recorded in its Limits section. On any other stamp it logs the
+version it found beside the one it wanted and returns before `g_origInitialize` is set and before the
+import is patched, so `Library::CreateSystem`, `System::CreateView` and every registered listener are
+unreachable and no slot index is ever used. The frame hooks above it are unaffected, since those are exe
+vtable slots already guarded by the exe stamp.
+
+The version is read from the module's own version resource through `FindResourceW` and `LockResource`,
+kernel32 only, so the build gains no new import and no new library. It is cosmetic, used only to make the
+log line readable, and a module carrying no version resource logs zeros rather than failing.
+
+One thing still to confirm before this merges: `0x675439C7` comes from the repo's own documentation rather
+than from a fresh read of the binary, because `ACEVO_GAME_DIR` is not set on this machine and the project
+rule allows no other way to reach the game folder. If that constant is stale the guard will refuse on a
+build it should accept, and the log line will say so in as many words on the first launch.
 
 ### F-02: the menu and HUD view is identified by a process wide creation counter, so a recreated view is never recognised again
 - severity: bug
