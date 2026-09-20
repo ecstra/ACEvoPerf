@@ -350,9 +350,10 @@ struct FactoryProxy : IDStorageFactory {
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)++ref; }
     // Under the same lock the creation uses, and g_factory is cleared before the object goes.
-    // Without that, one extra Release from the game leaves the global pointing at freed memory,
-    // RealDStorageFactory reads it on every overlay redirect and hands it to OpenFile, and the
-    // next DStorageGetFactory returns the same dead pointer.
+    // Without that, one extra Release from the game left the global pointing at freed memory, so
+    // the next DStorageGetFactory handed back the same dead pointer and the overlay read it when
+    // opening an override file. The overlay holds its own reference on the real factory as well,
+    // which is what keeps it usable if the game ever does drop its last one.
     ULONG STDMETHODCALLTYPE Release() override
     {
         EnterCriticalSection(&g_realCs);
@@ -419,20 +420,24 @@ struct FactoryProxy : IDStorageFactory {
     }
 };
 
-// Both one time guards are exchanges rather than a read then a write. Two engine subsystems asking
-// for the factory on their own threads during start up could each read false and each run the
-// whole block, which meant the flags written twice, the load sampler started twice, and
-// StartTimeline's own check losing its race so two timeline threads came up, the second failing to
-// open the CSV with a sharing violation and running its per second tick with nowhere to write.
-static std::atomic<bool> g_configApplied{false};
-static std::atomic<bool> g_lateApplied{false};
+// Both one time guards are read and written only under g_realCs, in DStorageGetFactory. Two engine
+// subsystems asking for the factory on their own threads during start up could each read false and
+// each run the whole block, which meant the flags written twice, the load sampler started twice,
+// and StartTimeline's own check losing its race so two timeline threads came up, the second
+// failing to open the CSV with a sharing violation and running its per second tick with nowhere to
+// write. The lock is what gives the second caller the finished work rather than only skipping it.
+static bool g_configApplied = false;
+static bool g_lateApplied = false;
 
-// Read under the lock, because Release can clear g_factory and free the object from another thread
-// and the overlay calls this on every redirect.
+// Hands out a reference, not a bare pointer, and the caller owns it. Reading the pointer under the
+// lock is not enough on its own: the caller then uses it after the lock is gone, and in that window
+// the last Release can free the real factory underneath it. Called once per override file rather
+// than once per redirect, so the reference is cheap and the overlay keeps it for the run.
 IDStorageFactory* RealDStorageFactory()
 {
     EnterCriticalSection(&g_realCs);
     IDStorageFactory* real = g_factory ? g_factory->real : nullptr;
+    if (real) real->AddRef();
     LeaveCriticalSection(&g_realCs);
     return real;
 }
@@ -461,7 +466,8 @@ static void ReportRuntimeInUse()
 
 static void ApplyDStorageConfiguration()
 {
-    if (g_configApplied.exchange(true)) return;
+    if (g_configApplied) return;   // caller holds g_realCs
+    g_configApplied = true;
     DSTORAGE_CONFIGURATION1 c = {};
     c.NumSubmitThreads = (UINT32)(g_cfg.submitThreads > 0 ? g_cfg.submitThreads : 0);
     c.NumBuiltInCpuDecompressionThreads = g_cfg.cpuDecompThreads;
@@ -485,33 +491,59 @@ static void ApplyDStorageConfiguration()
 extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
 {
     if (!EnsureReal() || !g_realGetFactory) return E_FAIL;
-    ApplyDStorageConfiguration();
-    if (!g_lateApplied.exchange(true)) { ResolveAutoSizesFallback(); ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
+    if (!ppv) return E_POINTER;
+
     // IUnknown is answered with the proxy, the same way QueueProxy::QueryInterface answers it.
     // Handing the real factory to a caller asking for the base interface would let every queue it
     // creates past the staging override, the capacity raise and the overlay redirect, which is the
     // hole the queue declines IDStorageQueue3 to avoid one level down.
-    if (riid != __uuidof(IDStorageFactory) && riid != __uuidof(IUnknown)) {
-        HRESULT hr = g_realGetFactory(riid, ppv);
-        Log("DStorageGetFactory: an interface the proxy does not implement was asked for, handing over the real factory -> hr=0x%08X", (unsigned)hr);
-        return hr;
-    }
+    bool ours = (riid == __uuidof(IDStorageFactory) || riid == __uuidof(IUnknown));
+
+    // The one time work is inside the lock, not merely guarded against running twice, and it is
+    // inside it for both branches below. Both pieces have to land before any factory exists at
+    // all: the configuration is refused once one does, and the auto size fallback is what fills in
+    // the g_cfg.stagingMb that the cap reads. An atomic exchange was tried and gives run once
+    // without wait until done, so a second thread arriving in the same window skipped both and
+    // then created the factory itself, ahead of either.
+    //
+    // The two threads are started after the lock is released, so it is not held across a
+    // CreateThread. It is still held across the LoadLibraryExW inside the fallback, which is the
+    // order EnsureReal already takes above, this lock and then the loader lock. So nothing may
+    // take this lock while holding the loader lock, or the two orders meet.
     EnterCriticalSection(&g_realCs);
-    if (!g_factory) {
-        IDStorageFactory* f = nullptr;
-        HRESULT hr = g_realGetFactory(__uuidof(IDStorageFactory), (void**)&f);
-        Log("DStorageGetFactory -> hr=0x%08X factory=%p", (unsigned)hr, f);
-        if (FAILED(hr) || !f) { LeaveCriticalSection(&g_realCs); return hr; }
-        if (g_cfg.stagingMb > 0) {
-            HRESULT h2 = f->SetStagingBufferSize((UINT32)g_cfg.stagingMb * 1048576u);
-            Log("SetStagingBufferSize(%d MB) at factory creation -> hr=0x%08X", g_cfg.stagingMb, (unsigned)h2);
+    ApplyDStorageConfiguration();
+    bool late = !g_lateApplied;
+    if (late) { g_lateApplied = true; ResolveAutoSizesFallback(); }
+
+    HRESULT hr = S_OK;
+    if (!ours) {
+        hr = g_realGetFactory(riid, ppv);
+        Log("DStorageGetFactory: an interface the proxy does not implement was asked for, handing over the real factory -> hr=0x%08X", (unsigned)hr);
+    } else {
+        if (!g_factory) {
+            IDStorageFactory* f = nullptr;
+            hr = g_realGetFactory(__uuidof(IDStorageFactory), (void**)&f);
+            Log("DStorageGetFactory -> hr=0x%08X factory=%p", (unsigned)hr, f);
+            if (SUCCEEDED(hr) && f) {
+                if (g_cfg.stagingMb > 0) {
+                    HRESULT h2 = f->SetStagingBufferSize((UINT32)g_cfg.stagingMb * 1048576u);
+                    Log("SetStagingBufferSize(%d MB) at factory creation -> hr=0x%08X", g_cfg.stagingMb, (unsigned)h2);
+                }
+                g_factory = new FactoryProxy(f);
+            }
         }
-        g_factory = new FactoryProxy(f);
+        if (g_factory) {
+            g_factory->AddRef();
+            *ppv = static_cast<IDStorageFactory*>(g_factory);
+            hr = S_OK;
+        } else if (SUCCEEDED(hr)) {
+            hr = E_FAIL;
+        }
     }
-    g_factory->AddRef();
-    *ppv = static_cast<IDStorageFactory*>(g_factory);
     LeaveCriticalSection(&g_realCs);
-    return S_OK;
+
+    if (late) { ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
+    return hr;
 }
 
 extern "C" HRESULT WINAPI DStorageSetConfiguration(DSTORAGE_CONFIGURATION const* configuration)

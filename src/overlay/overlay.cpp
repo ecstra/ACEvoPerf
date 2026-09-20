@@ -37,8 +37,16 @@ static std::vector<Override> g_files;
 static std::vector<BYTE> g_toc;          // modified table, XOR encoded like the original
 static uint64_t g_pkgSize = 0, g_tocStart = 0, g_tocSize = 0, g_virtBase = 0, g_virtEnd = 0;
 static bool g_tocBuilt = false, g_tocFailed = false, g_active = false;
+// A reference of our own on the real DirectStorage factory, taken the first time a redirect needs
+// one and held for the process, like the IDStorageFile handles beside it. See OverlayRedirect.
+static IDStorageFactory* g_dsFactory = nullptr;
 static CRITICAL_SECTION g_cs;
 static std::vector<HANDLE> g_pkgHandles;
+// The count, so the two file hooks can skip the whole thing without touching the vector. They ran
+// `g_pkgHandles.empty()` outside the lock, which reads the vector's own pointers while another
+// thread's push_back or erase is rewriting them. That window is start up, when the package is
+// opened while other threads are already reading files.
+static std::atomic<size_t> g_pkgHandleCount{0};
 static std::atomic<uint64_t> g_redirected{0};
 static int g_traceLines = 0;
 
@@ -99,6 +107,7 @@ static void TrackHandle(HANDLE h, const wchar_t* path, void* caller)
 {
     EnterCriticalSection(&g_cs);
     g_pkgHandles.push_back(h);
+    g_pkgHandleCount.store(g_pkgHandles.size());
     if (g_pkgSize == 0) {
         LARGE_INTEGER sz = {};
         if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0x4000000) {
@@ -523,9 +532,10 @@ static HANDLE WINAPI Hook_CreateFileA(LPCSTR name, DWORD access, DWORD share, LP
 }
 static BOOL WINAPI Hook_CloseHandle(HANDLE h)
 {
-    if (!g_pkgHandles.empty() && IsPackageHandle(h)) {
+    if (g_pkgHandleCount.load() && IsPackageHandle(h)) {
         EnterCriticalSection(&g_cs);
         for (size_t i = 0; i < g_pkgHandles.size(); ++i) if (g_pkgHandles[i] == h) { g_pkgHandles.erase(g_pkgHandles.begin() + i); break; }
+        g_pkgHandleCount.store(g_pkgHandles.size());
         LeaveCriticalSection(&g_cs);
         Log("overlay: package handle %p closed", h);
     }
@@ -533,7 +543,7 @@ static BOOL WINAPI Hook_CloseHandle(HANDLE h)
 }
 static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LPOVERLAPPED ov)
 {
-    if (g_pkgHandles.empty() || !IsPackageHandle(h)) return g_origReadFile(h, buf, n, read, ov);
+    if (!g_pkgHandleCount.load() || !IsPackageHandle(h)) return g_origReadFile(h, buf, n, read, ov);
     uint64_t off = 0;
     if (ov) off = ((uint64_t)ov->OffsetHigh << 32) | ov->Offset;
     else { LARGE_INTEGER cur = {}, zero = {}; g_origSetFilePointerEx(h, zero, &cur, FILE_CURRENT); off = (uint64_t)cur.QuadPart; }
@@ -614,9 +624,13 @@ bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirect
     if (!o) return false;
     if (!o->dsFile) {
         EnterCriticalSection(&g_cs);
-        IDStorageFactory* factory = RealDStorageFactory();
-        if (!o->dsFile && factory) {
-            HRESULT hr = factory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&o->dsFile);
+        // Kept for the run once we have it. The layer cannot serve a redirect without a factory,
+        // and if the game ever drops its own last reference this is what stops the proxy's real
+        // factory going with it. Without that the layer would go quiet while the package table
+        // still points every one of these reads past the end of the file it was rebased against.
+        if (!g_dsFactory) g_dsFactory = RealDStorageFactory();
+        if (!o->dsFile && g_dsFactory) {
+            HRESULT hr = g_dsFactory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&o->dsFile);
             Log("overlay: DirectStorage open %ls -> hr=0x%08X", o->loosePath.c_str(), (unsigned)hr);
         }
         LeaveCriticalSection(&g_cs);
