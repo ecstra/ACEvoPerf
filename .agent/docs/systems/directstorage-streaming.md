@@ -101,7 +101,8 @@ or 3072 MB of tiles for cards under 3, 5, 7, 11 and 15 GB and above, and 128, 19
 staging on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets.
 
 Every card gets a figure, including an integrated GPU whose reported dedicated memory is a carve
-out of a few hundred MB. Writing nothing there is not the safe option it looks like: the shipped
+out of a few hundred MB, or none at all, which plenty of them report while keeping everything in
+shared memory. Writing nothing there is not the safe option it looks like: the shipped
 ini sets `force_canonical_pool_sizes` at the early flag pass, long before the card is known, and
 with that on and `tile_pool_mb` unwritten the engine takes the whole `texturePoolSize` define,
 1433 MB at Low and 6144 at Ultra, while the game's own 1024 MB staging request goes through

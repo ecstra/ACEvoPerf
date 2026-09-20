@@ -6,7 +6,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 
 ### Changed
 
-- Cards with less than 5 GB of video memory, and built in graphics, now get a smaller share set aside for textures instead of the amount a 6 GB card gets.
+- Cards smaller than 6 GB now have less video memory set aside for textures, sized to the card rather than to a 6 GB one.
 
 ## 0.3.2 (2026-09-18)
 

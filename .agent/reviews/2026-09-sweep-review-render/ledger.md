@@ -26,7 +26,7 @@ left standing.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the auto sizes land on the card the game actually renders on | fixed, hunter done, verifying | 2026-09-20 |
+| 1 | the auto sizes land on the card the game actually renders on | closed, awaiting the owner's run | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | pending | |
 | 3 | Reflex survives the session it is installed in | pending | |
 | 4 | the leftovers | pending | |
@@ -374,6 +374,22 @@ when `GetProcAddress` failed or the imports are delay loaded.
 "Crashes and missing icons on cards with less than 5 GB" states an outcome. No card under 5 GB
 appears in any session on disk, so the outcome is an inference from the mechanism.
 
+### V-07: four statements left over after the second verify pass
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch.
+
+The second pass came back clean on all fifteen claims and named four sentences that were thinner
+than the code. The no adapter log line said "set both by hand" while naming one key. The two
+fallback lines said the size is left to the canonical flag without the condition, and with that
+flag off it falls to the engine's own formula instead. `engine-flags.md` said `tile_pool_mb` is
+"always written", which the no adapter case makes false. `directstorage-streaming.md` described
+only the integrated case that reports a few hundred MB and not the one that reports none, which
+DEC-022 does name. The changelog line was also true of cards under 5 GB but not of an 8 GB UMA
+carve out, so it now speaks of cards smaller than 6 GB.
+
 ### V-06: three cosmetic effects of the batch, accepted
 - severity: nit
 - found-by: verifier
@@ -392,3 +408,18 @@ allows only skips the second write of a value the first write already landed.
 
 The NVAPI struct layouts and version constants match NVIDIA's headers field for field, with a
 `static_assert` behind them.
+
+From batch 1's two verify passes, so none of this is walked again. COM reference counting on every
+new path, including each early return. The `IDXGIFactory2` passed where an `IDXGIFactory1` is taken,
+which is an upcast and not a QueryInterface. Re entrancy of the fallback's own factory, which
+resolves through `GetProcAddress` rather than the exe's import table and never hooks itself. Every
+ordering of the game's factory against the first `DStorageGetFactory`, including repeat calls of
+each. `wcsncpy_s` into the 128 wide buffer. The vtable slot numbers 10 and 15. The reference
+laptop's numbers, 1024 and 128, unchanged by the whole batch in every enumeration order. The five
+new log strings against the 4096 byte log buffer and against what the code actually does. Flags that
+are not `auto`, untouched by the change in `ApplyFlags`.
+
+Two things nobody can check here. No card other than the 5994 MB RTX 3060 Laptop appears in any
+session on disk, so the 256 and 512 brackets, the zero dedicated path, the UMA carve out and the
+mismatch warning have never run anywhere. And no run of this build exists at all, so not one of the
+new log lines has been printed by the game.

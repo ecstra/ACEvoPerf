@@ -85,7 +85,7 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
 
     DXGI_ADAPTER_DESC1 d = {};
     if (!DiscreteAdapter(factory, &d)) {
-        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set both by hand if this run is not headless.");
+        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set tile_pool_mb and staging_buffer_mb by hand if this run is not headless.");
         return;
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
@@ -115,12 +115,12 @@ void ResolveAutoSizesFallback()
     HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     PFN_CreateDXGIFactory1 create = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
     if (!create) {
-        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, so nothing is sized and tile_pool_mb is left to the canonical flag. Set it and staging_buffer_mb by hand.");
+        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, so nothing is sized and tile_pool_mb goes unwritten, which hands the size to force_canonical_pool_sizes if it is on and to the engine's own formula if it is not. Set tile_pool_mb and staging_buffer_mb by hand.");
         return;
     }
     IDXGIFactory1* own = nullptr;
     if (FAILED(create(__uuidof(IDXGIFactory1), (void**)&own)) || !own) {
-        Log("auto sizes: no DXGI factory has reached us and our own could not be created, so nothing is sized and tile_pool_mb is left to the canonical flag. Set it and staging_buffer_mb by hand.");
+        Log("auto sizes: no DXGI factory has reached us and our own could not be created, so nothing is sized and tile_pool_mb goes unwritten, which hands the size to force_canonical_pool_sizes if it is on and to the engine's own formula if it is not. Set tile_pool_mb and staging_buffer_mb by hand.");
         return;
     }
     Log("auto sizes: no DXGI factory has reached us by the first DirectStorage call, reading the card off our own instead");
