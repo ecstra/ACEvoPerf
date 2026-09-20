@@ -21,15 +21,15 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit. Batch 1 added nine more, six from the
-hunter and three from the verifier, one of them a bug the batch's own first fix caused.
+Fifteen findings, one breaks, six bug, four debt, four nit. Batch 1 added nine more and batch 2
+another nine, three of those bugs the batch's own fixes caused or left standing.
 
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
-| 2 | every value that crosses the ini boundary is validated | pending | |
+| 2 | every value that crosses the ini boundary is validated | closed, awaiting the owner's run | 2026-09-20 |
 | 3 | one time init happens once, and a freed object is not left addressable | pending | |
 | 4 | the log does not carry the player's machine into a public post | pending | |
 | 5 | the leftovers | pending | |
@@ -67,8 +67,8 @@ site.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8c3ccb1 then 683f2fd then eb7c6d7, 2026-09-20, the value has to be one plain folder name with no slash, colon or leading dot, and `CollectFiles` stops at sixteen deep. Three attempts, because listing the bad inputs missed `..`, then `.`, then `.\`.
 
 `src/core/config.cpp:105`. `GetPrivateProfileStringW` returns the default only when the key is absent,
 not when it is present and empty, so `folder=` yields an empty string. `overlay.cpp:574` then builds
@@ -84,8 +84,8 @@ until the stack ends.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8c3ccb1 then 683f2fd, 2026-09-20, an explicit size is 128 to 1024 or the documented 0, and anything else falls back to auto rather than to the nearest bound.
 
 `src/dstorage/proxy.cpp:377`, and the same expression again at line 457. A player with a 24 GB card
 writes `staging_buffer_mb=4096`, and `(UINT32)4096 * 1048576u` wraps to 0. dstorage.h defines
@@ -99,8 +99,8 @@ the call returns S_OK, so nothing reads as an error. Nothing clamps `stagingMb` 
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8c3ccb1 then 683f2fd, 2026-09-20, lowercased, empty treated as auto, and a value that is neither a number nor auto says so instead of becoming zero. The same compare in `flags.cpp` and `adapter.cpp` went with it.
 
 `src/core/config.cpp:44`. `tile_queue_priority`, `priority` and `gpu_priority` all lowercase their value
 first. This one does not.
@@ -115,8 +115,8 @@ says nothing else.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8c3ccb1, 2026-09-20, `IniIntInRange` reads both, 1 to 3600 and 100 to 1000000, and writes a line saying what it corrected.
 
 `src/core/config.cpp:55` and `:117`. `IniInt` returns `_wtoi` unfiltered.
 
@@ -401,6 +401,120 @@ ever to use that setting, and the one that used to break the override layer.
   That is the half the first fix got wrong once already.
 - All three queues created and wrapped, including `GpuUpload Memory Queue`, which the overlay can
   never use but which feeds the counters the CSVs read.
+
+### H-07: a yes or no value the list did not know came back as no, for thirty one keys
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: eb7c6d7, 2026-09-20, `IniBool` knows both spellings of both answers and a word outside them keeps the shipped value and says so.
+
+The batch's whole theme, in the reader that handles most of the file. Any word `IniBool` did not
+recognise returned false, so `reflex=ture` turned Reflex off, `[dxgi] enabled=ture` took the frame
+times and Reflex with it, and `[overlay] enabled=ture` killed the override layer, all in silence.
+A word we do not know is a typo and not a no.
+
+Found because the changelog line this batch wrote claimed settings typed wrong no longer break the
+game quietly, which was true for about six keys out of forty.
+
+### H-08: the staging floor was set below the size that works, and its own ini hint advertised it
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 683f2fd, 2026-09-20, the floor is 128, and the comment that put the game's largest request at 32 MB is corrected.
+
+A request larger than the staging buffer fails outright. The first clamp accepted 1 to 1024 and the
+shipped ini was edited to say so, which advertises sizes where every large request fails. That is
+F-03's symptom at the other end of its own range.
+
+The floor rests on a number the tree had wrong. `AutoStagingMb`'s comment said the game's largest
+request is 32 MB. Across all 7,848 `max req` values on disk the largest is 98,541 KB, 96.2 MB, and
+32 MB is only the ninetieth percentile. So 128 MB holds the largest request with a little room,
+rather than four of them as the comment claimed, and it is the floor for that reason.
+
+### H-09: clamping to the nearest bound landed on the value three filed bugs name as the cause
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 683f2fd, 2026-09-20, out of range falls back to auto.
+
+4096 clamped to 1024. 1024 is what the game asks for by itself, it is what the mod exists to
+override, and BUG-003, BUG-004 and BUG-005 all trace to it. So the correction answered a bad value
+with a known bad one and wrote a note saying it had fixed it. Auto already knows the card.
+
+### H-10: the same unlowercased auto compare stood in two more files
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 683f2fd, 2026-09-20, `SplitFlag` lowercases the value and `WantsAutoSizes` compares case insensitively.
+
+F-04 was about one compare. There were three. `tile_pool_mb=Auto`, written against a shipped line
+whose own note says "auto picks it for your card", missed the auto branch, reached `WriteFlag`, and
+`atoi` turned it into a literal 0 written into the engine's tile pool size at both storage slots.
+Zero there hands the canonical flag the whole `texturePoolSize` define, which is the video memory
+exhaustion of BUG-003 to BUG-005.
+
+### H-11: an empty log file name turned the log off for the whole run
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: eb7c6d7, 2026-09-20, empty falls back to the default name, and a path that cannot be opened falls back to the shipped one and says why in it.
+
+`file=` present and empty made `DllMain` prepend the game folder to nothing and open a directory,
+which fails, and every `Log` in the process then returned for the rest of the session. The player
+gets no file at all and reads it as the mod not loading. Nothing could report it, because the report
+goes through `Log`. The verifier then pointed out the empty value was only one way in, so the open
+itself now has a fallback.
+
+### H-12: a word other than auto still meant no staging cap, silently
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 683f2fd, 2026-09-20.
+
+`staging_buffer_mb=default`, `=off`, `=none` all reached `_wtoi`, came back 0, and left the cap off
+with the log saying only `staging=0MB`, which is verbatim the failure F-04 describes.
+
+### H-13: an unknown word in priority or gpu_priority landed on an active setting
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 683f2fd, 2026-09-20, both say so and keep the default, and `tile_queue_priority` says so too.
+
+Both ended in a bare else. `priority=low` gave above normal, raising the process when the player
+asked to lower it, and any typo in `gpu_priority` set the scheduling class high. The resolved value
+is the same as before in both cases, since the fall through already landed on the default. What was
+missing was anything telling the player their word was not understood.
+
+### V-01: the folder guard listed the bad inputs and missed one
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: eb7c6d7, 2026-09-20, the value must be one plain name, which is the rule rather than a list of exceptions to it.
+
+`folder=.\` and `folder=./` passed every term of the guard: not empty, not `.`, not `..`, no `..`
+inside, no colon, and not starting with a slash. They resolve to the game folder, which is F-02's
+exact failure. Two rounds of listing what is wrong, and the third round states what is right.
+
+### V-02: three statements this batch made about its own ranges
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: eb7c6d7, 2026-09-20.
+
+The two remaining ini hints named a floor and no ceiling while the code enforced both. The staging
+hint did not mention that 0 is still accepted. And the comment justified the 1024 ceiling by the
+overflow, which happens at 4096, so 1025 to 4095 are refused for a reason the comment did not give.
+The real reason is that this is video memory taken from rendering and 1024 is already the size the
+mod exists to override.
 
 ## Checked and clean
 
