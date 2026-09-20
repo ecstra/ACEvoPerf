@@ -26,7 +26,7 @@ one bug, two debt, one nit.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
-| 2 | the menu view is found by identity rather than by a counter | fixed, owner's launch outstanding | 2026-09-20, ack |
+| 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
 
@@ -511,6 +511,33 @@ gone missing if `UiFrameEndHooked()` had been wrong. All four byte patches still
 5 of 5 and 8 of 8.
 
 Batch 1 is done. Gates green, review, hunter and verifier all closed, runtime confirmed.
+
+## The runtime gate for batch 2, 2026-09-20
+
+A second owner driven launch, with both batches installed, over two session loads:
+
+```
+[10:04:12.583] [cohtml] UI engine 1.61.0.3 (stamp 0x675439C7), the build its objects were read from
+[10:04:19.064] [responsive ui] resource work the game's frame thread picks up runs on the mod's thread
+[10:04:19.091] [cohtml] view #1 1920x1080 created, the menu and HUD view
+[10:04:19.091] [responsive ui] page fixes added to the menu and HUD view
+[10:04:24.341] [cohtml] view #2 1024x1024 created
+[10:04:24.342] [cohtml] view #3 512x128 created
+[10:04:24.344] [cohtml] view #4 512x512 created
+[10:04:35.494] [cohtml] view #5 512x2048 created
+```
+
+Eight views over the session, exactly one carrying the menu and HUD marker, one page fixes install, no
+size warning, no engine refusal and no work move stand down. Both 1024x1024 displays and both 512x128
+displays arrive unmarked, which is the collision of V-09 not happening, and the second session load makes
+its displays again without any of them claiming the identity.
+
+That is the identification working end to end: the menu view recognised, every car display correctly
+passed over, and the page fixes landing exactly once. What it does not exercise is the case the batch
+exists for, a teardown and a remake, which no recorded session has ever produced. BUG-033 holds the part
+that remains unproven.
+
+Batch 2 is done.
 
 A second verifier pass then ran over the two commits made after the first clean verdict, since those were
 unverified by definition. It proved the bound arithmetic exactly, the largest `at` is 1008 and the last
