@@ -101,8 +101,8 @@ static bool EnsureReal()
             Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", path.c_str(), err);
             MessageBoxW(nullptr,
                 L"ACEvoPerf: dstorage_orig.dll was not found next to the game executable.\n\n"
-                L"Copy all three files from the mod zip (dstorage.dll, dstorage_orig.dll,\n"
-                L"acevo_perf.ini) into the game folder, then start the game again.",
+                L"Copy all the files from the mod zip into the game folder, then start the\n"
+                L"game again. Copying only some of them leaves the mod half installed.",
                 L"ACEvoPerf", MB_ICONERROR | MB_OK);
         } else {
             g_realGetFactory = (PFN_DStorageGetFactory)GetProcAddress(g_real, "DStorageGetFactory");
@@ -200,23 +200,23 @@ struct QueueProxy : IDStorageQueue2 {
     }
     void Report(bool final)
     {
-        // The queue is wrapped for the overlay as well now, and a player who set stats=0 asked
-        // for these lines to stop. The counters still run, they cost nothing and the final line
-        // is the only thing that reads them.
-        if (!g_cfg.stats) return;
         uint64_t now = GetTickCount64();
         uint64_t dt = now - st.lastReportTick;
         if (!final && dt < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
         uint64_t r = st.requests.load(), b = st.bytes.load();
         uint64_t dr = r - st.lastRequests, db = b - st.lastBytes;
         double secs = dt / 1000.0; if (secs <= 0) secs = 1;
-        Log("[stats] queue '%s'%s: total %llu req / %.1f MB (max req %llu KB) | last %.0fs: %llu req, %.1f MB/s | dest MEM=%llu BUF=%llu TEX=%llu MULTI=%llu TILES=%llu | fromMem=%llu compressed=%llu gdeflate=%llu submits=%llu",
-            name.c_str(), final ? " (final)" : "", (unsigned long long)r, b / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
-            secs, (unsigned long long)dr, (db / 1048576.0) / secs,
-            (unsigned long long)st.byDest[0].load(), (unsigned long long)st.byDest[1].load(), (unsigned long long)st.byDest[2].load(),
-            (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
-            (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
-            (unsigned long long)st.submits.load());
+        // Each line checks the setting that asks for it. The queue is wrapped for several
+        // reasons now, so reaching here says nothing about which of them is on.
+        if (g_cfg.stats) {
+            Log("[stats] queue '%s'%s: total %llu req / %.1f MB (max req %llu KB) | last %.0fs: %llu req, %.1f MB/s | dest MEM=%llu BUF=%llu TEX=%llu MULTI=%llu TILES=%llu | fromMem=%llu compressed=%llu gdeflate=%llu submits=%llu",
+                name.c_str(), final ? " (final)" : "", (unsigned long long)r, b / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
+                secs, (unsigned long long)dr, (db / 1048576.0) / secs,
+                (unsigned long long)st.byDest[0].load(), (unsigned long long)st.byDest[1].load(), (unsigned long long)st.byDest[2].load(),
+                (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
+                (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
+                (unsigned long long)st.submits.load());
+        }
         if (g_cfg.streamingTrace && st.byDest[DSTORAGE_REQUEST_DESTINATION_MEMORY].load())
             Log("[stats] queue '%s': %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
                 name.c_str(), (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
@@ -317,6 +317,22 @@ struct QueueProxy : IDStorageQueue2 {
 // ---------------------------------------------------------------------------
 // IDStorageFactory proxy
 // ---------------------------------------------------------------------------
+
+// Everything that needs a queue wrapped, named by the consumer that needs it rather than rolled
+// into one condition. QueueProxy is the only writer of the process wide request counters and the
+// only place OverlayRedirect is reached from, so a consumer left off this list does not fail, it
+// goes quietly empty while its own switch still reads as on.
+static bool QueueProxyWanted()
+{
+    return g_cfg.stats              // the per queue [stats] line
+        || g_cfg.logRequests        // the [req] line per request
+        || g_cfg.streamingTrace     // the streaming CSV rows and the repeated read total
+        || g_cfg.timeline           // nine request columns of acevo_perf_timeline.csv
+        || g_cfg.frames             // the request columns of acevo_perf_frames.csv
+        || g_cfg.frameStats         // the streaming counts on every [hitch] line
+        || overlay::Active();       // the package override layer, whose redirect lives in the wrapper
+}
+
 struct FactoryProxy : IDStorageFactory {
     IDStorageFactory* real;
     std::atomic<LONG> ref{1};
@@ -353,11 +369,7 @@ struct FactoryProxy : IDStorageFactory {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
         }
-        // The overlay is in this list because QueueProxy::EnqueueRequest is the only place
-        // OverlayRedirect is called from. Without it, stats=0 alone would take the trackside
-        // screen fix, the UI stylesheet override and every loose file in the mods folder with it,
-        // while the overlay's own install lines still printed as though all of it were working.
-        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace || overlay::Active()) &&
+        if (SUCCEEDED(hr) && ppv && *ppv && QueueProxyWanted() &&
             (riid == __uuidof(IDStorageQueue) || riid == __uuidof(IDStorageQueue1) || riid == __uuidof(IDStorageQueue2))) {
             IDStorageQueue* q = nullptr;
             if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(IDStorageQueue), (void**)&q))) {
@@ -451,9 +463,13 @@ extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
     ApplyDStorageConfiguration();
     static bool lateApplied = false;
     if (!lateApplied) { lateApplied = true; ResolveAutoSizesFallback(); ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
-    if (riid != __uuidof(IDStorageFactory)) {
+    // IUnknown is answered with the proxy, the same way QueueProxy::QueryInterface answers it.
+    // Handing the real factory to a caller asking for the base interface would let every queue it
+    // creates past the staging override, the capacity raise and the overlay redirect, which is the
+    // hole the queue declines IDStorageQueue3 to avoid one level down.
+    if (riid != __uuidof(IDStorageFactory) && riid != __uuidof(IUnknown)) {
         HRESULT hr = g_realGetFactory(riid, ppv);
-        Log("DStorageGetFactory(non-IDStorageFactory riid) -> hr=0x%08X", (unsigned)hr);
+        Log("DStorageGetFactory: an interface the proxy does not implement was asked for, handing over the real factory -> hr=0x%08X", (unsigned)hr);
         return hr;
     }
     EnterCriticalSection(&g_realCs);

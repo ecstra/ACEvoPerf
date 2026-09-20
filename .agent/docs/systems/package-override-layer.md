@@ -2,7 +2,7 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-15
+updated: 2026-09-20
 links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
 ---
 
