@@ -113,11 +113,27 @@ A script added with View slot 61 (`AddInitialScript`) to the menu and HUD view, 
 own scripts. That view is the first one the game makes, and it also claims its own size, so a menu view
 torn down and remade is recognised again instead of arriving as just another number. The ordinal is tried
 before the size, which keeps a view whose settings could not be read from handing the identity to the
-first car display. It keeps an animation frame counter and publishes its counts on
-`window.__acevoUiFixes` for the UI probe.
+first car display.
+
+It returns at once on `hud.html` and installs nothing there. The same view carries the menus and the
+driving HUD, so the script is evaluated again at every session load, and none of the three patches below
+can apply on the HUD: neither page element exists there and the navigation fold sees one call in a whole
+session. What it would leave behind is the animation frame counter, a callback every frame for the rest of
+the session on the page the driving frame rate is measured on. Gating on the navigation fold installing
+instead was tried and removed, because `hud.html` sets `SpatialNavigation` like every other page, so that
+gate was true everywhere.
+
+On a menu page it keeps an animation frame counter, which has to be registered at the top level of the
+script so that it runs before any callback the page registers and each of them reads the number of the
+frame it is in. It publishes its counts on `window.__acevoUiFixes` for the UI probe, as the last thing it
+does, so the presence of that object means the script ran to the end rather than merely started. Nothing
+on the mod's side can see that, so the log line only claims the script was given to the view.
 
 - `SpatialNavigation.makeFocusable()` with no section runs once per frame, later calls in the frame fold
-  into one scan on the next frame (BUG-025)
+  into one scan on the next frame, which claims that frame as scanned so it is not paid for twice
+  (BUG-025). The fold's only way out is a frame, and a timer alongside it was tried and taken out,
+  because Cohtml dispatches timers from the same view advance that runs frame callbacks, so a frozen
+  view stops both. A frozen view recovers on its first input event.
 - `init` of `ks-page-vehiclesetup` is ignored on the same element while its own `Init` request is out
   (BUG-026)
 - `onDevicesChanged` of `ks-page-settings-controls` runs a soft refresh at most once every 100 ms, the
