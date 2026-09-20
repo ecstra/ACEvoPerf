@@ -28,7 +28,7 @@ left standing.
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
-| 3 | Reflex survives the session it is installed in | pending | |
+| 3 | Reflex survives the session it is installed in | fixed, hunter done, verifying | 2026-09-20 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -131,8 +131,8 @@ Found independently by four reviewers. Verified by me against the source on 2026
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: e9f6b4b then 03b4468, 2026-09-20, `g_tried` is gone. A swap chain with no D3D12 device costs nothing and is logged once, and the layer waits for one that has it.
 
 `src/render/reflex.cpp:129` sets `g_tried` before anything is validated. The legacy
 `IDXGIFactory::CreateSwapChain` path at `dxgi_hooks.cpp:32` can only produce a D3D11 or older swap
@@ -148,8 +148,8 @@ flag on the equivalent failure, this one does not.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: e9f6b4b then 03b4468, 2026-09-20, the binding is the device itself, so a different one rebinds, resets the counters and lets the old one go at the rebind after it.
 
 `src/render/reflex.cpp:141` keeps the device for the life of the process.
 
@@ -162,8 +162,8 @@ of the run. The reference on the removed device is never released, which keeps i
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 0e387a0 then 03b4468, 2026-09-20, both hooks compare the presenting swap chain against the one they follow, and both follow the newest one that carries a D3D12 device.
 
 `HookVtableSlot` patches the vtable inside dxgi.dll, so `Hook_Present` fires for any swap chain the
 process owns.
@@ -177,8 +177,8 @@ frame and paces to the wrong rate.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: cd0e7fb, 2026-09-20, `LoadLibraryExW` with `LOAD_LIBRARY_SEARCH_SYSTEM32`, the same call batch 1 gave the dxgi.dll fallback.
 
 `src/render/reflex.cpp:102` calls `LoadLibraryW(L"nvapi64.dll")`, which searches the game folder before
 System32. This is the only bare name load in the tree, every other load builds an absolute path from
@@ -515,6 +515,106 @@ updated, the other half left. That is the third time on this branch.
 `InstallDxgiHooks` returns on `!dxgiEnabled` before reaching the `frameStats` check, so a run with
 `enabled=0` lost the hitch lines and both CSVs' frame columns with nothing naming them.
 
+### H-13: the frame times latched the first swap chain and never let go, which is F-06 and F-07 put into the sibling file
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20, the frame times follow the newest swap chain that carries a D3D12 device, and say so when they move.
+
+F-08's fix gave Reflex a device keyed binding with a rebind and gave the frame times a first come
+latch with neither. With the shipped `frame_stats=1` the latch is taken by any swap chain at all,
+so a splash or an overlay making one before the game's would have owned the timing for the run,
+and every game present after it would have been discarded. Before the fix those presents were at
+least counted, interleaved with the other chain's. After it they were counted nowhere.
+
+The same latch also survived F-07's own scenario. A device reset builds a new swap chain, Reflex
+rebinds, and the frame times stay pointed at the address of a destroyed one for the rest of the
+run.
+
+### H-14: a second swap chain on the same device left Reflex pacing one that was gone, silently
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20, the same device with a different swap chain follows the new one and logs it.
+
+`OnSwapChain` returned on `device == g_device` before it reached `g_swapChain = swapChain`. A
+resolution or window mode change replaces the swap chain without touching the device, so
+`g_swapChain` kept the dead one's address, `OnFrameBegin` failed its comparison on every present
+and `NvAPI_D3D_Sleep` was never called again. `g_active` stayed true, `Active()` kept returning
+true, and the last word in the log was still `[reflex] on`. Before F-08's fix Reflex survived a
+swap chain swap, because it paced every present. The fix moved the bug into the silent direction.
+
+### H-15: the rebind let go of the dead device before it stopped pacing
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20, the flag is cleared first and the dead device is held to the next rebind rather than released under a present in flight.
+
+`g_device->Release()` came before `g_active = false`, and between the two a present on another
+thread reads a true flag and a pointer whose last reference may have just gone, then hands it to
+the display driver. A TDR tearing down the old device is exactly when our reference is likely to
+be the last one, and a TDR is the scenario F-07 was written for.
+
+Holding it to the next rebind means at most one dead device is kept rather than one per reset,
+which is the part of F-07 that mattered. The flags themselves are atomic now, because the batch's
+own premise is that presents and swap chain creation are not on the same thread.
+
+### H-16: the give up flag latched a per device answer for the whole process
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20, the vendor answer is remembered per device, only the nvapi lookup latches for the process.
+
+`RenderAdapterIsNvidia` reads the device's own adapter LUID, so it answers for that device. The
+fix latched it as final. On a hybrid machine, which is the machine this mod is developed on, a
+D3D12 swap chain on the integrated adapter arriving first would have turned the game's NVIDIA
+device away for the rest of the run. That is F-06 reached through the flag that replaced
+`g_tried`.
+
+Two smaller ones came with it. `RenderAdapterIsNvidia` returned false with no log at all on a
+factory failure and on a LUID that matches nothing, both of which now latched something. And the
+one refusal that genuinely is per device, `SetSleepMode`, was the one not remembered, so every
+later swap chain re-enumerated every adapter and reprinted the refusal.
+
+### H-17: both halves of the load order doc still taught the wiring the batch replaced, and no changelog line was written
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20.
+
+Step 4 said the hooks go on "its vtable", the swap chain's, and that it is dxgi's and shared by
+the process is the single fact F-08 exists to act on. The entry 28 lines below already said the
+right thing, put there by batch 2, so the file contradicted itself and the stale half was the one
+batch 3 had to correct. Fourth time on this branch that one half of a file moved and the other
+did not. Nothing in `.agent/docs/` recorded any of the three fixes, and the three commits carried
+no changelog line although two of them are player visible in the same sense batch 2's was.
+
+### H-18: the header's new contract paragraph stated two things the code does not do
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20.
+
+"Called for every swap chain the process makes" is false with `[dxgi] enabled=0`, for a chain from
+a factory created before the vtable was patched, and when `HookSwapChain` returns early. "The
+device already bound means nothing to do" was H-14 written down as if it were intended.
+
+### H-19: the second swap chain line told the reader the numbers survive when they do not
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 03b4468, 2026-09-20.
+
+"The numbers below are the one hooked first" read as reassurance in the one case where the whole
+measurement had gone dead. V-08's shape again.
+
 ## Checked and clean
 
 The NVAPI struct layouts and version constants match NVIDIA's headers field for field, with a
@@ -529,6 +629,17 @@ each. `wcsncpy_s` into the 128 wide buffer. The vtable slot numbers 10 and 15. T
 laptop's numbers, 1024 and 128, unchanged by the whole batch in every enumeration order. The five
 new log strings against the 4096 byte log buffer and against what the code actually does. Flags that
 are not `auto`, untouched by the change in `ApplyFlags`.
+
+From batch 3's hunter. The COM pointer identity the swap chain comparisons rest on: DXGI declares
+`IDXGISwapChain1` and `IDXGISwapChain` as a single inheritance chain, so every upcast to
+`IUnknown` is a no op and all four pointers to one object carry the same value. The code already
+leaned on it before the batch, since `HookSwapChain` takes one vtable off `sc1` and patches slot 8
+of `IDXGISwapChain::Present` and slot 22 of `IDXGISwapChain1::Present1` in it, which is only right
+if the two share a vtable. Reference counting on every path through the new `OnSwapChain`,
+including the rebind and all four refusals. `LOAD_LIBRARY_SEARCH_SYSTEM32` being unavailable,
+which would already have broken batch 1's dxgi fallback if it were. And the asymmetric `g_hooked`
+reset in `TextureWritesOnSwapChain` that this session raised, which is real but unreachable: the
+path that fires on a non D3D12 swap chain is the QueryInterface one, and that one does reset.
 
 One thing nobody can check here. No card other than the 5994 MB RTX 3060 Laptop appears in any
 session on disk, so the 256 and 512 brackets, the zero dedicated path, the UMA carve out and the
