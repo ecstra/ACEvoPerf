@@ -18,7 +18,8 @@ tree with no branch under review. This angle covers `src/ui/responsive_ui.cpp` a
 independent reviewers and a check of my own all landed on the same defect, which is the most serious
 thing the review found and the only one that ships on by default to every player.
 
-Seven findings, one breaks, four bug, two debt.
+Seven findings from the review, one breaks, four bug, two debt, plus four the hunter added in batch 1,
+one bug, two debt, one nit.
 
 ## Batches
 
@@ -84,10 +85,14 @@ The version is read from the module's own version resource through `FindResource
 kernel32 only, so the build gains no new import and no new library. It is cosmetic, used only to make the
 log line readable, and a module carrying no version resource logs zeros rather than failing.
 
-One thing still to confirm before this merges: `0x675439C7` comes from the repo's own documentation rather
-than from a fresh read of the binary, because `ACEVO_GAME_DIR` is not set on this machine and the project
-rule allows no other way to reach the game folder. If that constant is stale the guard will refuse on a
-build it should accept, and the log line will say so in as many words on the first launch.
+The constant was open for a few minutes and is now settled. `0x675439C7` came from this repo's own
+documentation rather than from the binary, because `ACEVO_GAME_DIR` is not set on this machine and the
+project rule allows no other route to the game folder. It was confirmed two ways. The owner had the game
+running, so the loaded module was read out of the live process: stamp `0x675439C7`, image `0x0070F000`,
+version 1.61.0.3. The hunter then found the same pair already hardcoded in five other files
+(`restyle_fix.cpp:89`, `style_match_fix.cpp:230`, `menu_refresh_fix.cpp:224`,
+`child_removal_fix.cpp:386`, `ui_probe.cpp:1015`), and no refusal line from any of them appears in any
+recorded log. The guard will not turn away a build it should accept.
 
 ### F-02: the menu and HUD view is identified by a process wide creation counter, so a recreated view is never recognised again
 - severity: bug
@@ -180,6 +185,95 @@ Failure: the game exits without reaching either, on a crash path or a shutdown t
 stylesheet parse or image decode holding a heap or Cohtml lock, and then `DllMain`'s
 DLL_PROCESS_DETACH runs `LogClose` on the exiting thread. That is the same exit hang the shutdown
 branch covers, and it is BUG-022's shape.
+
+### H-01: the resource work move installs and parks forever when the game UI's frame end is not hooked
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 1dae423, 2026-09-20, `OnLibrary` asks `UiFrameEndHooked()` first and stays out with a log line when it is false
+
+The exe and the UI engine are checked separately, which is the whole point of F-01, and that separation
+has a second edge nobody had looked at. Kunos ships a new exe and leaves Cohtml alone, which is the likely
+shape of the next update since Cohtml is a third party binary. `InstallUiFrameHooks` fails the exe stamp,
+logs that the UI frame is not followed and returns, so `Hook_EndFrame` never installs and
+`responsive_ui`'s `OnFrameEnd` never runs. The Cohtml guard below it passes, so `OnLibrary` creates the
+semaphore, starts `MovedWorkThread`, hooks library slots 2, 3 and 5 and logs "resource work the game's
+frame thread picks up runs on the mod's thread".
+
+`g_frameThread` stays 0 for the whole session, so the compare at `responsive_ui.cpp:282` never matches,
+nothing is ever moved, and `MovedWorkThread` blocks on a semaphore nobody signals until the process dies.
+The owner reads the log, sees the move installed, and measures the stalls it was supposed to have removed.
+
+### H-02: the new guard tested the stamp alone while five other files test the stamp and the image size
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 8a0c786, 2026-09-20, the guard requires both, using the constants the byte patch files already carry
+
+A Cohtml that keeps its stamp and changes its image size, which is a relink, a repack, or a redistribution
+wrapped by DRM or anti cheat, would have passed the vtable guard and failed all five byte patch guards. The
+mod would then reach Cohtml vtables on exactly the binary its own patches had just refused, which is the
+inverse of the asymmetry F-01 exists to close.
+
+### H-03: the read added to survive an unknown build could fault on one
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 8a0c786, 2026-09-20, `ReadModuleBuild` checks the DOS, NT and optional header magics and wraps the whole read in `__try`
+
+Two holes in the fix itself. `SizeofResource` returns the size the resource directory claims and the loader
+never validates it against the image, so a packed or obfuscated build can claim a size past the end of its
+own mapping and `ModuleFileVersion`'s walk reads unmapped memory. And the DOS and NT headers were walked
+with no `e_magic` or `Signature` check, while `PatchIatByAddress` forty lines away checks both and wraps
+its walk in `__try`. This runs at DLL_PROCESS_ATTACH before the game's entry point, so either one is a
+startup crash on a foreign build, inside the code added to make foreign builds safe.
+
+### H-04: the view hook read its settings before anything had validated them
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 3f56c8e, 2026-09-20, the two reads tolerate a null
+
+`Hook_CreateView` reads settings+0x10 and +0x14 before calling the original, so a `CreateView` with a null
+settings pointer faults in the mod rather than being refused by Cohtml. The engine's own API requires the
+pointer, so this is a hardening gap rather than a live defect, and it was the one read in the file that
+happened ahead of any validation.
+
+## The hunter's verdict on the fix
+
+The fix held under attack. What was tried and why each failed:
+
+- **another path to a slot.** All six uses of a `cohtml_slot::` constant sit inside `Hook_CreateSystem`,
+  `Hook_LibraryInitialize` or a listener, every listener is only ever reached from those two hooks, and
+  `MovedWorkThread`, the one that re-reads slot 5 live, is only created inside `OnLibrary`. The single
+  entry to the whole graph is the patched exe import, and that patch now happens after the compare.
+- **a cached slot derived pointer.** `g_origInitialize` is set after the check, every other original is
+  filled inside a hook, and the byte patch files cache Cohtml addresses only after their own checks.
+- **a null handle at install with the library loaded later.** Real in theory, not here, because
+  `child_removal_fix` and `style_match_fix` patch Cohtml bytes in the same DllMain pass and the logs show
+  them installing. If it ever were not loaded, `GetProcAddress` returns null and the function returns
+  before anything is hooked, which fails safe.
+- **`g_installed` set before the check.** One call site, no retry wanted, and the early exit leaves
+  nothing half installed.
+
+## Hunter finds outside this batch's scope
+
+Two, both already filed against other branches, recorded here so the extra detail is not lost.
+
+`src/engine/exceptions.cpp:50`, filed as `sweep/review-engine` F-02. The hunter adds two things the review
+did not have. A `throw new SomeError` throws a pointer, so `*(void***)object` reads the object address
+itself as a vtable pointer. And because `Message` returns an empty string on failure, the guard at line 73
+stays false, so the same wild call is repeated on every later throw from that site, each one inside the
+shared lock, turning a hot throw site into a repeating multi hundred millisecond stall.
+
+`src/core/iat.cpp:71`, filed as `sweep/review-proxy-core` F-14. Worth doing early rather than late: the
+recorded logs already read "DXGI: hooked Cohtml Library::CreateSystem" and five more like it, and those
+are the lines that prove which Cohtml slots were taken, which is exactly what a launch verifying this
+branch has to read.
 
 ## Not filed
 
