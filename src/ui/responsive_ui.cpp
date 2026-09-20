@@ -337,6 +337,14 @@ static void Hook_Uninitialize(void* library, uint64_t arg)
 
 static void OnLibrary(void* library)
 {
+    // The move only ever takes work off the frame thread, and OnFrameEnd is where that thread is learned,
+    // so without the frame end hook g_frameThread stays 0, nothing is ever moved and the thread waits on a
+    // semaphore nobody signals. The exe and the UI engine are checked separately, so a game update that
+    // leaves Cohtml alone lands exactly here.
+    if (!UiFrameEndHooked()) {
+        Log("[responsive ui] the game UI's frame end is not followed on this build, so the frame thread is unknown and the resource work move stays out");
+        return;
+    }
     g_movedSignal = CreateSemaphoreW(nullptr, 0, kMaxMoved, nullptr);
     HANDLE thread = g_movedSignal ? CreateThread(nullptr, 0, &MovedWorkThread, nullptr, 0, nullptr) : nullptr;
     if (!thread) {

@@ -189,6 +189,11 @@ static void InstallUiFrameHooks()
     if (g_endListenerCount) HookVtableSlot(vtable, kEndFrameSlot, (void*)&Hook_EndFrame, (void**)&g_origEndFrame, "the game UI frame end");
 }
 
+bool UiFrameEndHooked()
+{
+    return g_origEndFrame != nullptr;
+}
+
 void InstallCohtmlHooks()
 {
     if (g_installed) return;

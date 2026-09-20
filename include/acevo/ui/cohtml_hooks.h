@@ -24,6 +24,13 @@ void AddUiFrameEndListener(UiFrameEndListener listener);
 // slots below were read from, so a listener only ever runs on the build its slot numbers belong to.
 void InstallCohtmlHooks();
 
+// True once the game UI's frame end slot is actually wrapped, so the frame end listeners run. The two
+// checks are independent, the frame slots are the exe's and the rest is the UI engine's, so a build that
+// moves one and not the other leaves this false while the Cohtml hooks install. Anything that needs what
+// a frame end listener learns has to ask before it starts. Call it from a listener, not from DllMain,
+// because InstallCohtmlHooks runs after the listeners register.
+bool UiFrameEndHooked();
+
 // Cohtml vtable slots read from cohtml.WindowsDesktop.dll 1.61.0.3. InstallCohtmlHooks checks the loaded
 // engine is that version before any of these is used, because a slot that moved would be an indirect call
 // through the wrong method with the wrong signature.
