@@ -37,7 +37,10 @@ static const char kPageScript[] = R"js(
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
     var onHud = page === 'hud.html';
-    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' + (window.__acevoUiFixes ? 'on' : 'off'));
+    // On the HUD the page fixes install nothing on purpose, so say that rather than 'off', which is the
+    // same word this line uses when the script failed.
+    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' +
+        (onHud ? 'stay out of this page by design' : (window.__acevoUiFixes ? 'on' : 'off')));
 
     var framesThisSecond = 0;
     var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };
@@ -1157,7 +1160,7 @@ static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, ui
     return result;
 }
 
-static void OnView(void* view, int number, unsigned width, unsigned height)
+static void OnView(void* view, int number, unsigned width, unsigned height, bool mainView)
 {
     AcquireSRWLockExclusive(&g_statsLock);
     // Car displays are created again at every session load, so a full table gives up its oldest display.
@@ -1166,7 +1169,7 @@ static void OnView(void* view, int number, unsigned width, unsigned height)
     if (slot < 0 && g_stats.viewCount < kMaxViews) slot = g_stats.viewCount++;
     if (slot < 0) {
         for (int i = 0; i < g_stats.viewCount; ++i)
-            if (g_stats.views[i].number > 1 && (slot < 0 || g_stats.views[i].number < g_stats.views[slot].number)) slot = i;
+            if (g_stats.views[i].view != g_mainView && (slot < 0 || g_stats.views[i].number < g_stats.views[slot].number)) slot = i;
     }
     if (slot >= 0) {
         g_stats.views[slot] = {};
@@ -1175,17 +1178,17 @@ static void OnView(void* view, int number, unsigned width, unsigned height)
         g_stats.views[slot].width = width;
         g_stats.views[slot].height = height;
     }
-    if (number == 1) g_mainView = view;
+    if (mainView) g_mainView = view;
     ReleaseSRWLockExclusive(&g_statsLock);
 
     void** vtable = *(void***)view;
     HookVtableSlot(vtable, cohtml_slot::kViewAdvance, (void*)&Hook_Advance, (void**)&g_origAdvance, "Cohtml View::Advance");
 
-    // The first view is the menu and HUD view, the car displays come after it and keep their scripts.
-    if (number == 1) {
+    // The menu and HUD view gets the page script, the car displays keep their own.
+    if (mainView) {
         auto addInitialScript = (PFN_AddInitialScript)vtable[cohtml_slot::kViewAddInitialScript];
         addInitialScript(view, kPageScript);
-        Log("[ui] page script added to view #1, it counts page changes and what the page fixes do");
+        Log("[ui] page script added to view #%d, it counts page changes and what the page fixes do", number);
     }
 }
 
@@ -1399,7 +1402,7 @@ void UiProbeTick()
     uint32_t moved = ResponsiveUiTakeMovedWork();
     if (moved && length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | resource work moved off the render thread %u", moved);
     length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
-    AppendClock(line, length, sizeof line, "view #1 clock", second.advanceClock);
+    AppendClock(line, length, sizeof line, "main view clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);
 
     ReportRestyles(restyles);

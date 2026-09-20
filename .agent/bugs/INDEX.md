@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-16
+updated: 2026-09-20
 links: [agent-index, spec-bugs]
 ---
 
@@ -13,6 +13,7 @@ links: [agent-index, spec-bugs]
 bug
 
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
+- [BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised](BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised.md), the menu and HUD view is told by being first or by matching the first view's size, so one remade at a different size, which a fullscreen to windowed change does, loses the page fixes for the rest of the session, the accepted residue of F-02 of the cohtml build guard review
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap

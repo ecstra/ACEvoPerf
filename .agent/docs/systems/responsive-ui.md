@@ -2,8 +2,8 @@
 name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth and the HUD from uneven driving frame times, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
-updated: 2026-09-15
-links: [responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
+updated: 2026-09-20
+links: [review-2026-09-fix-review-cohtml-build-guard, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
 # Responsive UI
@@ -26,7 +26,7 @@ then registers with the shared Cohtml hooks. The stylesheet part runs from the o
 | Menu refresh fix | `src/ui/menu_refresh_fix.cpp` | `[menus]` | a menu page and the HUD in a session update every frame, the car displays take turns |
 | Style matching fix | `src/ui/style_match_fix.cpp` | `[styles]` | elements skip rules they cannot match, custom element names are compared in place |
 | Child removal fix | `src/ui/child_removal_fix.cpp` | `[children]` | removing a child restyles only the children whose rules look at their position |
-| Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes added` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
+| Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes script given to` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
 | Resource work move | `src/ui/responsive_ui.cpp` | `[responsive ui] resource work` | resource work the frame thread picks up runs on a mod thread |
 
 ### Narrowed stylesheet
@@ -109,15 +109,36 @@ counts both paths.
 
 ### Page fixes
 
-A script added with View slot 61 (`AddInitialScript`) to the first view, the menu and HUD view, runs before
-every page's own scripts. It keeps an animation frame counter and publishes its counts on
-`window.__acevoUiFixes` for the UI probe.
+A script added with View slot 61 (`AddInitialScript`) to the menu and HUD view, runs before every page's
+own scripts. That view is the first one the game makes, and it also claims its own size, so a menu view
+torn down and remade is recognised again instead of arriving as just another number. The ordinal is tried
+before the size, which keeps a view whose settings could not be read from handing the identity to the
+first car display.
+
+It returns at once on `hud.html` and installs nothing there. The same view carries the menus and the
+driving HUD, so the script is evaluated again at every session load, and none of the three patches below
+can apply on the HUD: neither page element exists there and the navigation fold sees one call in a whole
+session. What it would leave behind is the animation frame counter, a callback every frame for the rest of
+the session on the page the driving frame rate is measured on. Gating on the navigation fold installing
+instead was tried and removed, because `hud.html` sets `SpatialNavigation` like every other page, so that
+gate was true everywhere.
+
+On a menu page it keeps an animation frame counter, which has to be registered at the top level of the
+script so that it runs before any callback the page registers and each of them reads the number of the
+frame it is in. It publishes its counts on `window.__acevoUiFixes` for the UI probe, as the last thing it
+does, so the presence of that object means the script ran to the end rather than merely started. Nothing
+on the mod's side can see that, so the log line only claims the script was given to the view.
 
 - `SpatialNavigation.makeFocusable()` with no section runs once per frame, later calls in the frame fold
-  into one scan on the next frame (BUG-025)
+  into one scan on the next frame, which claims that frame as scanned so it is not paid for twice
+  (BUG-025). The fold's only way out is a frame, and a timer alongside it was tried and taken out,
+  because Cohtml dispatches timers from the same view advance that runs frame callbacks, so a frozen
+  view stops both. A frozen view recovers on its first input event.
 - `init` of `ks-page-vehiclesetup` is ignored on the same element while its own `Init` request is out
   (BUG-026)
-- `onDevicesChanged` of `ks-page-settings-controls` runs a soft refresh at most once every 100 ms, the
+- `onDevicesChanged` of `ks-page-settings-controls` leaves at least 100 ms between the end of one soft
+  refresh and the start of the next, so a rebuild that costs more than the window does not make the next
+  arrival due the moment it returns, the
   newest waiting one running when the time is up and replaced ones merging their settings
 
 Every patch wraps the stock method and falls back to it.
@@ -132,6 +153,16 @@ that makes the same call through the vtable, and runs any handed over work on th
 Cohtml's `StopWorkers` (slot 2) or `Uninitialize` (slot 3). Style and layout work (type 1) stays, the frame
 waits for its result.
 
+This part needs both checks to have passed, not only the UI engine one, because the frame thread it moves
+work away from is learned from the frame end wrapper. On a build where the frame slots stood down it
+installs nothing and says so.
+
+That makes a new exe with the UI engine unchanged the interesting case, because the parts split three
+ways. The restyle fix and the menu refresh fix patch the exe and stand down on its stamp. The resource
+work move stands down too, not on a stamp of its own but because the frame end it needs is one of the
+slots that just stood down. The style matching fix, the child removal fix, the narrowed stylesheet and the
+page fixes all carry on, because they only ever needed the UI engine.
+
 ## Shared Cohtml hooks
 
 `src/ui/cohtml_hooks.cpp` patches the exe's import of `Library::Initialize` and follows it to
@@ -140,10 +171,27 @@ and 8, vtable `0x3173D58`, checked against the exe's stamp). The responsive UI a
 listeners from `DllMain`, in that order, and `InstallCohtmlHooks` installs once after both. Slot numbers
 are in `include/acevo/ui/cohtml_hooks.h`.
 
+The Cohtml side carries its own check, against the UI engine's stamp and image size, because Kunos ships
+Coherent Gameface as its own binary and can update it without the exe changing, so the exe's stamp says
+nothing about it. On a UI engine that is not the one the slots were read from, nothing that reaches a
+Cohtml vtable is hooked at all, which takes the page fixes and the resource work move out together. The
+log names the engine it found beside the one it wanted, or says plainly that it could not read the engine
+at all, which is the other way that check refuses. Without it the slot numbers would be
+used on a build they do not belong to, which is an indirect call through the wrong method rather than a
+part quietly staying out.
+
+The two checks are independent, so a game update that leaves Cohtml alone fails the exe half and passes
+the UI engine half. The page fixes still go in, because a view only needs the engine. The resource work
+move does not, because it only ever takes work off the frame thread and the frame end wrapper is where
+that thread is learned, so `OnLibrary` asks `UiFrameEndHooked()` first and stays out with its own log line
+rather than starting a thread that would wait forever for work that can never be handed to it.
+
 ## Limits
 
 - Each part is written for game 0.9.1 (exe stamp `0x6A9EC72A`) and Cohtml 1.61.0.3 (stamp `0x675439C7`).
 - A page's own script still builds the page in the frame it appears, and pages built over several frames
   still restyle much of the page each frame (BUG-028).
 - The stylesheets are still read and parsed at every document load (BUG-027).
+- A menu and HUD view torn down and remade at a different size is not recognised, so the page fixes stop
+  reaching it for the rest of the session (BUG-033).
 - `responsive_ui=0` turns every part off, there is no switch per part.

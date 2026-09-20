@@ -35,14 +35,16 @@ line in the same commit.
 
 ## The trackers
 
-- [todos/INDEX.md](todos/INDEX.md), the work tracker: 12 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026), 12 done, 3 dropped
-- [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 12 open, 14 fixed, 4 won't fix
+- [todos/INDEX.md](todos/INDEX.md), the work tracker: 13 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026, TODO-029), 12 done, 3 dropped
+- [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 13 open, 14 fixed, 4 won't fix
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 18 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009, DEC-011 to DEC-021), 3 superseded
-- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 1 closed (fix/streamer-feedback-churn)
+- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 13 open, the full review of main of
+  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 1 closed
+  (fix/streamer-feedback-churn)
 
 ## Memory and handovers
 
-- [memory/INDEX.md](memory/INDEX.md), project facts: 12 (8 project, 1 reference, 3 feedback)
+- [memory/INDEX.md](memory/INDEX.md), project facts: 13 (9 project, 1 reference, 3 feedback)
 - [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed
 - [handover/2026-09-13-frame-time-mesh-budget.md](handover/2026-09-13-frame-time-mesh-budget.md), the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1, superseded by the mesh deep dive

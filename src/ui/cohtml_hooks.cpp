@@ -16,6 +16,16 @@ static const int kEndFrameSlot = 8;
 static const uint32_t kRvaPostFrameThunk = 0x0126E58;
 static const uint32_t kRvaEndFrameThunk = 0x00EB461;
 
+// The slot numbers in cohtml_slot belong to the UI engine build they were read from, and Kunos ships
+// Coherent Gameface as its own binary that can move without the exe changing, so the exe stamp above does
+// not cover them. A slot that moved is an indirect call through the wrong method with the wrong signature,
+// which is a crash before a menu is ever drawn, so a build that is not this one refuses rather than tries.
+// The stamp and the image size are the test, the version name is for the log line. Both constants are the
+// ones the five byte patch files already require, so a build that passes here is one they can patch.
+static const DWORD kCohtmlTimeDateStamp = 0x675439C7;
+static const DWORD kCohtmlSizeOfImage = 0x0070F000;
+static const char* kCohtmlVersionName = "1.61.0.3";
+
 typedef void* (*PFN_LibraryInitialize)(const char* licenseKey, const void* params);
 typedef void* (*PFN_CreateSystem)(void* library, const void* settings);
 typedef void* (*PFN_CreateView)(void* system, const void* settings);
@@ -40,6 +50,9 @@ static PFN_CreateView g_origCreateView = nullptr;
 static PFN_PostFrame g_origPostFrame = nullptr;
 static PFN_EndFrame g_origEndFrame = nullptr;
 static std::atomic<int> g_viewsCreated{0};
+// The menu and HUD view's width and height packed into one word, so the claim and the match are a single
+// atomic rather than a pair that can be read half written. Zero until the first view arrives.
+static std::atomic<uint64_t> g_mainViewSize{0};
 
 void AddCohtmlLibraryListener(CohtmlLibraryListener listener)
 {
@@ -65,16 +78,41 @@ void AddUiFrameEndListener(UiFrameEndListener listener)
 // view, the car displays come after it and are created again at every session load.
 static void* Hook_CreateView(void* system, const void* settings)
 {
-    unsigned width = *(const unsigned*)((const BYTE*)settings + 0x10);
-    unsigned height = *(const unsigned*)((const BYTE*)settings + 0x14);
+    // Read before the original runs, so that a view the engine refuses can still be named in the log. That
+    // puts it ahead of the engine's own argument checking, which is the one read in this file that nothing
+    // has validated, so a null the engine would have rejected is tolerated here instead of faulted on.
+    unsigned width = settings ? *(const unsigned*)((const BYTE*)settings + 0x10) : 0;
+    unsigned height = settings ? *(const unsigned*)((const BYTE*)settings + 0x14) : 0;
     void* view = g_origCreateView(system, settings);
     if (!view) {
         Log("[cohtml] view %ux%u was not created", width, height);
         return view;
     }
     int number = ++g_viewsCreated;
-    Log("[cohtml] view #%d %ux%u created", number, width, height);
-    for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height);
+
+    // The menu and HUD view is the first one the game makes, and the car displays that follow are smaller
+    // and made again at every session load. The ordinal alone stopped recognising it the moment something
+    // tore it down and remade it, because the replacement arrives with a higher number, so the first view
+    // also claims its size and any later view of that size is the menu view again.
+    //
+    // The ordinal stays as the first test rather than being replaced by the size. A view whose settings
+    // could not be read has a size of zero, and on the size test alone the first readable view would claim
+    // the identity instead, which puts the page fixes in a car display and leaves the menu without them.
+    // That is a worse failure than the one this exists to fix, and the ordinal is immune to it.
+    uint64_t size = ((uint64_t)width << 32) | height;
+    bool firstView = number == 1;
+    if (firstView) g_mainViewSize.store(size);
+    uint64_t claimed = firstView ? size : g_mainViewSize.load();
+    bool mainView = firstView || (size != 0 && size == claimed);
+
+    Log("[cohtml] view #%d %ux%u created%s", number, width, height, mainView ? ", the menu and HUD view" : "");
+
+    // With no size on the first view there is nothing to match later views against, so the ordinal is all
+    // there is for the rest of the session and a remade menu view cannot be recognised at all. Say so
+    // once, because a silently degraded mode is what this whole finding was about.
+    if (firstView && size == 0)
+        Log("[cohtml] the menu and HUD view has no size, so only the first view is recognised as it");
+    for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height, mainView);
     return view;
 }
 
@@ -114,6 +152,59 @@ static void Hook_EndFrame(void* evoUi, void* renderer, void* arg3, void* arg4)
     for (int i = g_endListenerCount - 1; i >= 0; --i) g_endListeners[i](true);
 }
 
+// A loaded module's file version, read out of its own version resource and left at zero if it carries
+// none. Only the log line reads this, the stamp is what decides anything, so a module with no version
+// resource is not a failure here. kernel32 only, so it needs no import the proxy does not already carry.
+static void ModuleFileVersion(HMODULE module, uint16_t out[4])
+{
+    HRSRC found = FindResourceW(module, MAKEINTRESOURCEW(1), MAKEINTRESOURCEW(16));
+    if (!found) return;
+    DWORD size = SizeofResource(module, found);
+    HGLOBAL loaded = LoadResource(module, found);
+    const BYTE* data = loaded ? (const BYTE*)LockResource(loaded) : nullptr;
+    if (!data) return;
+
+    // The size is the resource directory's own claim and the loader never checks it against the image, so
+    // cap the scan instead of letting a packed build aim it at the rest of the address space. The fixed
+    // block sits within the first few dozen bytes of every version resource, after the VS_VERSION_INFO key
+    // and its padding, so this ceiling loses nothing, and it also keeps the bound below from wrapping.
+    if (size > 1024) size = 1024;
+    if (size < 16) return;
+
+    // VS_VERSIONINFO puts a variable length key and its alignment padding in front of the fixed block, so
+    // find that block by its own signature rather than walking the layout. The four dwords from there are
+    // dwSignature, dwStrucVersion, dwFileVersionMS and dwFileVersionLS.
+    for (DWORD at = 0; at <= size - 16; at += 4) {
+        const uint32_t* fixed = (const uint32_t*)(data + at);
+        if (fixed[0] != 0xFEEF04BD) continue;
+        out[0] = (uint16_t)(fixed[2] >> 16);
+        out[1] = (uint16_t)(fixed[2] & 0xFFFF);
+        out[2] = (uint16_t)(fixed[3] >> 16);
+        out[3] = (uint16_t)(fixed[3] & 0xFFFF);
+        return;
+    }
+}
+
+// Whatever is loaded under the UI engine's name is untrusted until it has been read. A packed, wrapped or
+// simply different build can carry a header this does not expect or claim a resource size past the end of
+// its own image, and this is the one read whose whole job is to survive a build the mod does not know, so
+// it refuses on a fault rather than taking one.
+static bool ReadModuleBuild(HMODULE module, DWORD* stamp, DWORD* image, uint16_t version[4])
+{
+    __try {
+        auto dos = (IMAGE_DOS_HEADER*)module;
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+        auto nt = (IMAGE_NT_HEADERS64*)((BYTE*)module + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+        *stamp = nt->FileHeader.TimeDateStamp;
+        *image = nt->OptionalHeader.SizeOfImage;
+        ModuleFileVersion(module, version);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 static void InstallUiFrameHooks()
 {
     if (!g_postListenerCount && !g_endListenerCount) return;
@@ -133,6 +224,11 @@ static void InstallUiFrameHooks()
     if (g_endListenerCount) HookVtableSlot(vtable, kEndFrameSlot, (void*)&Hook_EndFrame, (void**)&g_origEndFrame, "the game UI frame end");
 }
 
+bool UiFrameEndHooked()
+{
+    return g_origEndFrame != nullptr;
+}
+
 void InstallCohtmlHooks()
 {
     if (g_installed) return;
@@ -147,6 +243,21 @@ void InstallCohtmlHooks()
         Log("[cohtml] Library::Initialize not found, nothing that needs the UI engine's objects runs");
         return;
     }
+    DWORD stamp = 0, image = 0;
+    uint16_t version[4] = {};
+    if (!ReadModuleBuild(cohtml, &stamp, &image, version)) {
+        // Saying nothing about the numbers beats printing a half read set that can happen to match.
+        Log("[cohtml] the UI engine here could not be read, nothing that uses its vtables runs");
+        return;
+    }
+    if (stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
+        Log("[cohtml] the UI engine here is %u.%u.%u.%u (stamp 0x%08X image 0x%08X) and the objects were read from %s (stamp 0x%08X image 0x%08X), nothing that uses its vtables runs",
+            (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3],
+            stamp, image, kCohtmlVersionName, kCohtmlTimeDateStamp, kCohtmlSizeOfImage);
+        return;
+    }
+    Log("[cohtml] UI engine %u.%u.%u.%u (stamp 0x%08X), the build its objects were read from",
+        (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3], stamp);
     g_origInitialize = (PFN_LibraryInitialize)initialize;
     int patched = PatchIatByAddress(GetModuleHandleW(nullptr), initialize, (void*)&Hook_LibraryInitialize);
     Log("[cohtml] Library::Initialize, %d import slot(s) of the exe patched", patched);

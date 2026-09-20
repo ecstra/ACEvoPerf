@@ -23,15 +23,28 @@ static const char kPageFixesScript[] = R"js(
     'use strict';
     if (window.__acevoUiFixes) return;
 
-    // What the fixes did, read and reset once a second by the developer UI probe when it runs.
-    var fixes = window.__acevoUiFixes = {
+    // What the fixes did, read and reset once a second by the developer UI probe when it runs. Published
+    // on window at the very end of this script, so that its presence means the whole script ran rather
+    // than only that it started.
+    var fixes = {
         navigation: { calls: 0, scans: 0, skipped: 0 },
         setup: { inits: 0, ignored: 0 },
         controls: { refreshes: 0, held: 0 }
     };
 
+    // The same view carries the menus and the driving HUD, so this script is evaluated again for
+    // hud.html at every session load. Nothing below can apply there. Neither page element exists, and the
+    // navigation fold sees one call in a whole session, while the frame counter it needs would be a
+    // permanent callback per frame on the page the driving frame rate is measured on. So nothing
+    // installs here at all. Gating on the fold installing instead was tried and was useless, because
+    // hud.html sets SpatialNavigation like every other page.
+    if ((String(location.pathname || '').split('/').pop() || '') === 'hud.html') return;
+
     // Registered before any page script, so it runs first in every animation frame and the page's
-    // callbacks see the number of the frame they run in.
+    // callbacks see the number of the frame they run in. It has to stay at the top level to keep that:
+    // animation frame callbacks run in the order they were registered and this one re-registers itself
+    // as it runs, so wherever it first lands it stays, and anything that registered before it would then
+    // read the previous frame's number.
     var frame = 0;
     (function countFrames() {
         frame++;
@@ -61,8 +74,20 @@ static const char kPageFixesScript[] = R"js(
             if (trailing) return;
             trailing = true;
             var self = this;
+            // A frame and nothing else. A timer alongside it was tried and taken out: Cohtml dispatches
+            // timers out of the same view advance that drives frame callbacks, so when the view's clock
+            // stands still, which is what happens when the window loses activation, a timer deadline
+            // never comes due either. It could not fire in the one case it was added for, and on any
+            // frame longer than its delay it fired first and claimed a frame number that had not been
+            // incremented yet, which cost that frame the second whole page scan this fold exists to
+            // remove. What actually recovers a frozen view is the first input event, which resumes the
+            // frame callbacks too.
             requestAnimationFrame(function () {
                 trailing = false;
+                // Claim the frame this lands in. Without it a call arriving later in the same frame
+                // sees the previous frame's number and takes the whole page scan path, so the frame
+                // pays two scans.
+                scannedFrame = frame;
                 try {
                     fixes.navigation.scans++;
                     stock.call(self);
@@ -112,19 +137,43 @@ static const char kPageFixesScript[] = R"js(
             if (typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
 
             var self = this;
-            self.__acevoInitPendingSince = now;
-            client.request = function (name, callback) {
-                client.request = stockRequest;
+            var sentInit = false;
+            var wrapper = function (name, callback) {
+                // Step aside only once the Init this is waiting for has actually come past. Stepping
+                // aside on the first request of any name let an unrelated one that init sends first
+                // take the wrapper off, after which the real Init reached the stock request, its answer
+                // was never wrapped, and the mark stayed set for the full three seconds.
                 if (name !== 'Init' || typeof callback !== 'function') return stockRequest.apply(client, arguments);
+                sentInit = true;
+                client.request = stockRequest;
                 return stockRequest.call(client, name, function () {
                     self.__acevoInitPendingSince = 0;
                     return callback.apply(this, arguments);
                 });
             };
+            // The client belongs to the page, so it is entitled to refuse the write. Falling back beats
+            // taking the page's own init down with us, and this is the one assignment here that reaches
+            // an object the mod does not own.
+            try {
+                client.request = wrapper;
+            } catch (e) {
+                return stockInit.apply(this, arguments);
+            }
+            self.__acevoInitPendingSince = now;
             try {
                 return stockInit.apply(this, arguments);
             } finally {
-                if (client.request !== stockRequest) client.request = stockRequest;
+                // Take back only our own wrapper. Another element sharing this Client can have put its
+                // own over ours in between, and restoring by comparing against the stock request would
+                // reinstate a stale one.
+                if (client.request === wrapper) client.request = stockRequest;
+                // Track whether our Init went out rather than inferring it from the wrapper still being
+                // installed. With a wrapper nested inside another those are different questions, and the
+                // inference cleared a mark whose request was genuinely in flight. When no Init of ours
+                // went out nothing will ever arrive to clear the mark, and leaving it set would make the
+                // page's own second init, the one this exists to fold away, be ignored for three seconds
+                // and a half built page stay on screen.
+                if (!sentInit) self.__acevoInitPendingSince = 0;
             }
         };
         proto.__acevoPatched = true;
@@ -132,10 +181,12 @@ static const char kPageFixesScript[] = R"js(
 
     // The controls page. While one of its sliders is dragged the game answers every step with a full
     // refresh (InputConfigurationResponseRefresh with is_soft_set) 24 to 34 times a second, and each
-    // one rebuilds the binding rows and resyncs every slider on the page. A soft refresh now runs at
-    // most once every 100 ms, the newest one waiting in between and running when the time is up, so
-    // the last step of a drag always lands. A refresh that is replaced still merges its settings the
-    // way the page's handler starts, so the page ends where it would have. Other refreshes run at once.
+    // one rebuilds the binding rows and resyncs every slider on the page. There are now at least 100 ms
+    // between the end of one soft refresh and the start of the next, the newest one waiting in between
+    // and running when the time is up, so the last step of a drag always lands. Measured from the end
+    // rather than the start, so a rebuild costing more than the window does not make the next arrival
+    // due the moment it returns. A refresh that is replaced still merges its settings the way the page's
+    // handler starts, so the page ends where it would have. Other refreshes run at once.
     var kControlsRefreshMs = 100;
 
     function patchControlsRefresh(proto) {
@@ -147,9 +198,16 @@ static const char kPageFixesScript[] = R"js(
         }
 
         function run(self, data) {
-            self.__acevoRefreshAt = Date.now();
             fixes.controls.refreshes++;
-            return stockRefresh.call(self, data);
+            try {
+                return stockRefresh.call(self, data);
+            } finally {
+                // Stamped after, so the window is the gap between refreshes rather than the gap between
+                // their starts. Stamped before, a rebuild costing more than the window made the next
+                // arrival due the moment it returned, so refreshes ran back to back with no idle frame
+                // and the held count read zero exactly when the page was slowest.
+                self.__acevoRefreshAt = Date.now();
+            }
         }
 
         proto.onDevicesChanged = function (data) {
@@ -170,6 +228,10 @@ static const char kPageFixesScript[] = R"js(
                 var waiting = self.__acevoRefreshWaiting;
                 self.__acevoRefreshWaiting = null;
                 if (!waiting) return;
+                // A drag almost always ends with one refresh still held, and the player can leave the
+                // page inside that window. Rebuilding every binding row then costs a frame on whatever
+                // page they opened instead, and the stall reads as that page's rather than this one's.
+                if (self.isConnected === false) return;
                 try {
                     run(self, waiting);
                 } catch (e) {
@@ -202,17 +264,22 @@ static const char kPageFixesScript[] = R"js(
     } catch (e) {
         console.error('[ACEvoPerf] responsive ui could not watch custom elements', e);
     }
+
+    // Last, so that anything reading this knows the script finished rather than merely started.
+    window.__acevoUiFixes = fixes;
 })();
 )js";
 
 typedef void (*PFN_AddInitialScript)(void* view, const char* script);
 
-static void OnView(void* view, int number, unsigned, unsigned)
+static void OnView(void* view, int, unsigned, unsigned, bool mainView)
 {
-    if (number != 1) return;
+    if (!mainView) return;
     auto addInitialScript = (PFN_AddInitialScript)(*(void***)view)[cohtml_slot::kViewAddInitialScript];
     addInitialScript(view, kPageFixesScript);
-    Log("[responsive ui] page fixes added to the menu and HUD view");
+    // What is known here is that the script was handed to the view, not that it ran. Whether it ran to
+    // the end is the presence of window.__acevoUiFixes, which only the developer probe can see.
+    Log("[responsive ui] page fixes script given to the menu and HUD view");
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +313,12 @@ static PFN_StopWorkers g_origStopWorkers = nullptr;
 static PFN_Uninitialize g_origUninitialize = nullptr;
 static std::atomic<DWORD> g_frameThread{0};
 static HANDLE g_movedSignal = nullptr;
+// One thread and one semaphore for the process, not one per Cohtml library. Only ever written from
+// OnLibrary, which runs on the thread that initialises the library, one library at a time.
+static bool g_movedThreadUp = false;
+// A moved call was given up on and the thread is still inside it. Guarded by g_movedLock.
+static bool g_movedAbandoned = false;
+static std::atomic<bool> g_movedQueueFullSaid{false};
 
 static SRWLOCK g_movedLock = SRWLOCK_INIT;   // guards the queue, the stop flag and the running count
 static MovedWork g_moved[kMaxMoved];
@@ -264,16 +337,27 @@ static void OnFrameEnd(bool after)
 static bool MoveWork(void* library, uint64_t mode, uint64_t family)
 {
     AcquireSRWLockExclusive(&g_movedLock);
-    bool moved = !g_movingStopped && g_movedCount < kMaxMoved;
+    // Refuse while a call has been given up on, because the one thread that drains this queue is still
+    // inside it. Accepting would return 0 for up to sixty four calls, each claiming work that nothing can
+    // run, until the queue fills and the engine's own inline path takes over again.
+    bool moved = !g_movingStopped && !g_movedAbandoned && g_movedCount < kMaxMoved;
+    bool full = !g_movingStopped && !g_movedAbandoned && g_movedCount >= kMaxMoved;
     if (moved) {
         g_moved[(g_movedHead + g_movedCount) % kMaxMoved] = { library, mode, family };
         g_movedCount++;
+        // Signalled under the lock so that a stop draining this entry always finds the count to take
+        // back. Outside it, a stop landing between the push and the release drains the entry and leaves
+        // its count behind.
+        ReleaseSemaphore(g_movedSignal, 1, nullptr);
     }
     ReleaseSRWLockExclusive(&g_movedLock);
-    if (moved) {
-        ReleaseSemaphore(g_movedSignal, 1, nullptr);
-        g_movedCalls.fetch_add(1, std::memory_order_relaxed);
-    }
+    if (moved) g_movedCalls.fetch_add(1, std::memory_order_relaxed);
+    // A full queue is the one condition that hands the stall back to the frame thread mid session, and it
+    // was invisible: the counter behind the probe's line counts calls taken, never calls refused. Said
+    // once, because the frame thread is producing faster than the one consumer drains and saying it per
+    // call would be its own cost.
+    if (full && !g_movedQueueFullSaid.exchange(true, std::memory_order_relaxed))
+        Log("[responsive ui] the moved resource work queue filled at %d, the game's frame thread runs its own resource work again until it drains", kMaxMoved);
     return moved;
 }
 
@@ -284,7 +368,22 @@ static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, ui
     return g_origExecuteWork(library, type, mode, family);
 }
 
-// Calls through the library's vtable, so the developer probe's timing sees the work run here.
+// Calls through the library's vtable, so the developer probe's timing sees the work run here. Guarded
+// because a stop that gave up waiting lets the game tear the library down while this call is still in it,
+// after which the vtable read or the call itself lands in freed memory. That fault belongs to a thread
+// the game knows nothing about, so catching it here beats letting it take the process down.
+static void RunMovedWork(const MovedWork& work)
+{
+    __try {
+        auto executeWork = (PFN_ExecuteWork)(*(void***)work.library)[cohtml_slot::kLibraryExecuteWork];
+        executeWork(work.library, kResourceWork, work.mode, work.family);
+    } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        // Only the access violation, which is the freed library. Catching everything would swallow a
+        // stack overflow too, and the logging below would then fault again on the unreset guard page.
+        Log("[responsive ui] a moved resource work call faulted, the UI engine was most likely torn down while it was still in it");
+    }
+}
+
 static DWORD WINAPI MovedWorkThread(void*)
 {
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf UI resource work");
@@ -298,28 +397,71 @@ static DWORD WINAPI MovedWorkThread(void*)
         MovedWork work = g_moved[g_movedHead];
         g_movedHead = (g_movedHead + 1) % kMaxMoved;
         g_movedCount--;
+        // Arm the full queue line again once the burst has drained. Latched for the process it would
+        // have reported the first fill and hidden every later one, which is the blindness it was added
+        // to close.
+        if (!g_movedCount) g_movedQueueFullSaid.store(false, std::memory_order_relaxed);
         g_movedRunning++;
         ReleaseSRWLockExclusive(&g_movedLock);
 
-        auto executeWork = (PFN_ExecuteWork)(*(void***)work.library)[cohtml_slot::kLibraryExecuteWork];
-        executeWork(work.library, kResourceWork, work.mode, work.family);
+        RunMovedWork(work);
 
         AcquireSRWLockExclusive(&g_movedLock);
         g_movedRunning--;
+        // A call that was given up on has come back, so this thread is healthy and later stops can wait
+        // for it again. Leaving the flag set made one timeout permanent: every teardown after it would
+        // skip the wait, destroy the library under a live call, and lean on the guard in RunMovedWork as
+        // the normal path rather than the last resort. A thread that is genuinely wedged never reaches
+        // this line, so the protection against paying the timeout twice at shutdown still holds.
+        if (!g_movedRunning) g_movedAbandoned = false;
         ReleaseSRWLockExclusive(&g_movedLock);
         WakeAllConditionVariable(&g_movedIdle);
     }
 }
 
+static const DWORD kStopWaitMs = 5000;
+
 static void StopMovingWork()
 {
     MovedWork pending[kMaxMoved];
     int pendingCount = 0;
+    bool gaveUpNow = false;
     AcquireSRWLockExclusive(&g_movedLock);
     g_movingStopped = true;
-    for (; g_movedCount; g_movedCount--, g_movedHead = (g_movedHead + 1) % kMaxMoved) pending[pendingCount++] = g_moved[g_movedHead];
-    while (g_movedRunning) SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, INFINITE, 0);
+    for (; g_movedCount; g_movedCount--, g_movedHead = (g_movedHead + 1) % kMaxMoved) {
+        pending[pendingCount++] = g_moved[g_movedHead];
+        // Take back the count this entry put on the semaphore. Left behind, they wake the thread once per
+        // drained entry after the next restart, and a full queue drained puts the semaphore on its
+        // ceiling so the first release after that fails and an entry sits unsignalled.
+        WaitForSingleObject(g_movedSignal, 0);
+    }
+
+    // Bounded rather than forever. This runs on the thread that is stopping Cohtml, which is the game's
+    // frame thread, and the moved call can be inside Cohtml waiting on a job that only the frame thread
+    // runs, so waiting without a limit is a deadlock neither side can break. The bound is measured against
+    // a deadline rather than per sleep, because a spurious wake would otherwise start the five seconds
+    // again and there would be no bound at all. Once a call has been given up on it is never waited for
+    // again, since the thread is wedged and every later stop would pay the full time for nothing, which at
+    // shutdown means paying it twice over.
+    if (!g_movedAbandoned) {
+        ULONGLONG deadline = GetTickCount64() + kStopWaitMs;
+        while (g_movedRunning) {
+            ULONGLONG now = GetTickCount64();
+            if (now >= deadline) { gaveUpNow = true; g_movedAbandoned = true; break; }
+            SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, (DWORD)(deadline - now), 0);
+        }
+    }
+    bool stillOut = g_movedAbandoned;
     ReleaseSRWLockExclusive(&g_movedLock);
+
+    // The frame thread is learned again at the next frame end. Holding the old id across a stop would
+    // match a thread that merely inherited it once the game's own frame thread had gone.
+    g_frameThread.store(0, std::memory_order_relaxed);
+
+    if (gaveUpNow)
+        Log("[responsive ui] a moved resource work call did not finish within %u ms, going on without it", kStopWaitMs);
+    if (pendingCount || stillOut)
+        Log("[responsive ui] the UI engine stopped, %d moved job(s) run here%s", pendingCount, stillOut ? ", one never came back" : "");
     for (int i = 0; i < pendingCount; ++i) g_origExecuteWork(pending[i].library, kResourceWork, pending[i].mode, pending[i].family);
 }
 
@@ -327,6 +469,15 @@ static void Hook_StopWorkers(void* library)
 {
     StopMovingWork();
     g_origStopWorkers(library);
+    // Stopping the workers is not the end of the library, Uninitialize is, and that runs its own stop
+    // first. Latching the move off here left it off for the rest of the process whenever the game stopped
+    // the workers and carried on using the library, which is F-05's fault on the sibling path.
+    AcquireSRWLockExclusive(&g_movedLock);
+    g_movingStopped = false;
+    ReleaseSRWLockExclusive(&g_movedLock);
+    // The stop drains the queue in its own loop, so the full queue line never re-arms on this path. A
+    // queue that was full when the engine stopped would then stay silent for the rest of the process.
+    g_movedQueueFullSaid.store(false, std::memory_order_relaxed);
 }
 
 static void Hook_Uninitialize(void* library, uint64_t arg)
@@ -337,17 +488,53 @@ static void Hook_Uninitialize(void* library, uint64_t arg)
 
 static void OnLibrary(void* library)
 {
-    g_movedSignal = CreateSemaphoreW(nullptr, 0, kMaxMoved, nullptr);
-    HANDLE thread = g_movedSignal ? CreateThread(nullptr, 0, &MovedWorkThread, nullptr, 0, nullptr) : nullptr;
-    if (!thread) {
-        Log("[responsive ui] could not start the resource work thread, the game runs its resource work as it does");
+    // The move only ever takes work off the frame thread, and OnFrameEnd is where that thread is learned,
+    // so without the frame end hook g_frameThread stays 0, nothing is ever moved and the thread waits on a
+    // semaphore nobody signals. The exe and the UI engine are checked separately, so a game update that
+    // leaves Cohtml alone lands exactly here.
+    if (!UiFrameEndHooked()) {
+        Log("[responsive ui] the game UI's frame end is not followed on this build, so the frame thread is unknown and the resource work move stays out");
         return;
     }
-    CloseHandle(thread);
+    // Cohtml can be stopped and initialised again, and stopping latches the move off. Clear that here,
+    // and reuse the thread and the semaphore already running. Making a second pair leaked both and left
+    // MoveWork refusing every call for the rest of the process, while this function's last line still
+    // reported the move as installed.
+    AcquireSRWLockExclusive(&g_movedLock);
+    g_movingStopped = false;
+    ReleaseSRWLockExclusive(&g_movedLock);
+
+    if (!g_movedThreadUp) {
+        g_movedSignal = CreateSemaphoreW(nullptr, 0, kMaxMoved, nullptr);
+        HANDLE thread = g_movedSignal ? CreateThread(nullptr, 0, &MovedWorkThread, nullptr, 0, nullptr) : nullptr;
+        if (!thread) {
+            if (g_movedSignal) { CloseHandle(g_movedSignal); g_movedSignal = nullptr; }
+            Log("[responsive ui] could not start the resource work thread, the game runs its resource work as it does");
+            return;
+        }
+        CloseHandle(thread);
+        g_movedThreadUp = true;
+    }
     void** vtable = *(void***)library;
     HookVtableSlot(vtable, cohtml_slot::kLibraryStopWorkers, (void*)&Hook_StopWorkers, (void**)&g_origStopWorkers, "Cohtml Library::StopWorkers");
     HookVtableSlot(vtable, cohtml_slot::kLibraryUninitialize, (void*)&Hook_Uninitialize, (void**)&g_origUninitialize, "Cohtml Library::Uninitialize");
     HookVtableSlot(vtable, cohtml_slot::kLibraryExecuteWork, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
+    // HookVtableSlot is quiet when it cannot make the page writable, which is what a page protection
+    // product would produce, so claim the move only once the one hook that does the work is really in.
+    // All three, not just the one that moves the work. With the two stop hooks missing there is nothing
+    // to drain the queue at teardown and a moved call can reach a library that has already gone, which
+    // is worse than not moving at all.
+    if (!g_origExecuteWork || !g_origStopWorkers || !g_origUninitialize) {
+        // Latch the move off rather than only declining to claim it. The work hook may already be in the
+        // vtable, and returning here would leave it moving work with nothing to drain the queue at
+        // teardown, while this line says the move is out. Saying one thing and doing another is the
+        // fault this whole branch keeps finding, so make the words true instead.
+        AcquireSRWLockExclusive(&g_movedLock);
+        g_movingStopped = true;
+        ReleaseSRWLockExclusive(&g_movedLock);
+        Log("[responsive ui] the UI engine's work calls could not all be wrapped, the game runs its resource work as it does");
+        return;
+    }
     Log("[responsive ui] resource work the game's frame thread picks up runs on the mod's thread");
 }
 

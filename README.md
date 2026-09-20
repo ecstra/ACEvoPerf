@@ -20,7 +20,7 @@
 
 A performance mod for Assetto Corsa EVO 0.9 and newer. You copy a few files into the game folder and that's it, no installer. The only game file it replaces is `dstorage.dll`.
 
-Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working on RTX 2060, 3060 Ti, 3070 Ti, 4050 and 4060 cards.
+Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working on RTX 2060, 3060 Ti, 3070 Ti, 3080, 4050 and 4060 cards, on a Radeon RX 6600, and on Linux through Proton.
 
 ## What it fixes
 
