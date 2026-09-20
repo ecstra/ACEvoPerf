@@ -29,7 +29,7 @@ left standing.
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | closed, runtime confirmed | 2026-09-20 |
-| 4 | the leftovers | pending | |
+| 4 | the leftovers | fixed, hunter done, verifying | 2026-09-20 |
 
 ## Findings
 
@@ -189,8 +189,8 @@ what keeps this at debt. `LoadLibraryExW` with `LOAD_LIBRARY_SEARCH_SYSTEM32` cl
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: dd2e5a1 then 2b12091, 2026-09-20, the ranges are resolved where the hooks are installed and retried from the once a second tick, so the hook itself never takes the loader lock and a core that loads late is still picked up.
 
 `src/render/texture_writes.cpp:87` caches the module base, but a base of zero is indistinguishable
 from "not looked up yet", so the lookup repeats forever when the module is absent.
@@ -205,8 +205,8 @@ being trusted.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: a0bd5e3, 2026-09-20, the legacy body does the same four things its sibling does, reaching the factory through a QueryInterface and the window through `desc->OutputWindow`. It has still never fired.
 
 The format string at `src/render/dxgi_hooks.cpp:28` appears in the DLL binaries and in not one
 recorded log line, while `CreateSwapChainForHwnd` has 107 hits across the sessions on disk. The D3D12
@@ -221,8 +221,8 @@ in the `ForHwnd` hook, so the legacy path skips that as well.
 - severity: nit
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: e4f24f8, 2026-09-20, the constant is gone and a comment says why there is no unload, which is that NVIDIA says not to call it from DllMain and DllMain is the only place the mod could.
 
 `src/render/reflex.cpp:16` defines it and nothing passes it to `query()`. `NvAPI_Initialize` is called
 at line 112 and there is no matching unload anywhere, so the constant names a cleanup step the mod
@@ -473,8 +473,8 @@ thing in the way.
 - severity: nit
 - found-by: hunter
 - batch: 4
-- status: deferred
-- fix:
+- status: fixed
+- fix: a0bd5e3, 2026-09-20, both hooks check the descriptor before logging it.
 
 `dxgi_hooks.cpp:19` and `:31` log `desc->Width` before calling the original, so a null descriptor faults
 inside our hook instead of returning `E_INVALIDARG`. No real caller passes null, the batch 1 hunter
@@ -673,6 +673,87 @@ nothing about which chain is counted. Fifth time on this branch, in the file the
 The header said "every swap chain made after the factory hooks went in". Only the exe's import
 table is patched, so a swap chain from another module's own factory presents through the patched
 vtable and never reaches the layer at all.
+
+### H-20: resolving the core ranges once removed the old loop's one virtue
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20, the once a second tick retries while either range is missing, on the timeline thread.
+
+F-10's fix resolved both DirectStorage core ranges at hook install time and never again. If a swap
+chain beats the first DirectStorage call, which is the same ordering `ResolveAutoSizesFallback`
+exists for, both bases stay zero for the run and every DirectStorage copy falls through to "by
+anything else", with a trace row and an exclusive lock per copy on the very hook the fix was
+clearing work off. That number being zero is what DEC-017 rests on. The old loop was expensive and
+self healing, the fix made it cheap and permanently wrong in that case.
+
+### H-21: the [writes] breakdown was attached to the wrong number
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20.
+
+`region`, `resource`, `tiles` and `resolve` are incremented for game copies and for other copies
+alike, and DirectStorage copies return before reaching them, so the four are a breakdown of the
+two preceding counters together. The parenthetical sat straight after `by anything else`, reading
+as a breakdown of that one. Every captured line has zeros in both fields, so it has never been
+visible, and it is the line DEC-017 and `texture-streamer-flip-2026-09-13` both quote.
+
+### H-22: a comment credited an exclusion the code does not perform
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20.
+
+`NoteWrite` said a resource freed and reallocated at the same address is excluded "by the texture
+having started streaming before the copy". Nothing compares that stamp. The only filter is the
+layout test, which catches a reused address only when the new resource is not tiled, and
+`g_reusedAddress` reached 12 in a real session so the case is live. V-11's shape, in a comment
+someone would later delete as redundant.
+
+### H-23: the legacy hook could spend the write tracing's install flag and hand it back
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20, the queue check comes before the flag is taken, so a failure never holds it.
+
+Created by F-11's own fix. A legacy D3D11 swap chain on one thread takes `g_hooked`, the game's
+D3D12 one on another sees it taken and walks away, the first then fails its QueryInterface and
+puts the flag back. Nothing is hooked for the run.
+
+### H-24: proxy-architecture had no entry for two of the five files in its own render folder
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20, `reflex` and `texture_writes` are in the folder table and the pieces list, and `dxgi_hooks` says what both hooks now do.
+
+The folder table listed three of five, the pieces list had entries for three of five, and
+`render/dxgi_hooks` still said the hooks "log the swap chain description and hand the swap chain to
+`HookSwapChain`", which has been incomplete since batch 1. Sixth time on this branch, in the file
+whose own description is where each piece lives in the source, and its `updated` date was already
+today.
+
+### H-25: two measurements in the fix's own comment were wrong
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2b12091, 2026-09-20.
+
+"Thousands of times a second during a load" is about 290 a second in the captures, because
+`FromDirectStorage` is reached only after the streamed and tiled checks. "320 to 800 ms before the
+first swap chain" is 302 to 846 ms across seven sessions, wrong at both ends and quoting a floor
+above the smallest margin recorded. Both inherited from the finding's own wording, which is how a
+number nobody re-derives travels.
+
+Also fixed, from the same round: the agent directory ledger's F-09 and F-11 cited line numbers in
+these two files that this batch moved. They cite function names now, which is what stops it
+happening a third time.
 
 ## Checked and clean
 
