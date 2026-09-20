@@ -20,8 +20,10 @@ static const uint32_t kRvaEndFrameThunk = 0x00EB461;
 // Coherent Gameface as its own binary that can move without the exe changing, so the exe stamp above does
 // not cover them. A slot that moved is an indirect call through the wrong method with the wrong signature,
 // which is a crash before a menu is ever drawn, so a build that is not this one refuses rather than tries.
-// The stamp is the test, the version name is for the log line.
+// The stamp and the image size are the test, the version name is for the log line. Both constants are the
+// ones the five byte patch files already require, so a build that passes here is one they can patch.
 static const DWORD kCohtmlTimeDateStamp = 0x675439C7;
+static const DWORD kCohtmlSizeOfImage = 0x0070F000;
 static const char* kCohtmlVersionName = "1.61.0.3";
 
 typedef void* (*PFN_LibraryInitialize)(const char* licenseKey, const void* params);
@@ -148,6 +150,26 @@ static void ModuleFileVersion(HMODULE module, uint16_t out[4])
     }
 }
 
+// Whatever is loaded under the UI engine's name is untrusted until it has been read. A packed, wrapped or
+// simply different build can carry a header this does not expect or claim a resource size past the end of
+// its own image, and this is the one read whose whole job is to survive a build the mod does not know, so
+// it refuses on a fault rather than taking one.
+static bool ReadModuleBuild(HMODULE module, DWORD* stamp, DWORD* image, uint16_t version[4])
+{
+    __try {
+        auto dos = (IMAGE_DOS_HEADER*)module;
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+        auto nt = (IMAGE_NT_HEADERS64*)((BYTE*)module + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+        *stamp = nt->FileHeader.TimeDateStamp;
+        *image = nt->OptionalHeader.SizeOfImage;
+        ModuleFileVersion(module, version);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 static void InstallUiFrameHooks()
 {
     if (!g_postListenerCount && !g_endListenerCount) return;
@@ -181,14 +203,13 @@ void InstallCohtmlHooks()
         Log("[cohtml] Library::Initialize not found, nothing that needs the UI engine's objects runs");
         return;
     }
-    auto cohtmlNt = (IMAGE_NT_HEADERS64*)((BYTE*)cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    DWORD stamp = cohtmlNt->FileHeader.TimeDateStamp;
+    DWORD stamp = 0, image = 0;
     uint16_t version[4] = {};
-    ModuleFileVersion(cohtml, version);
-    if (stamp != kCohtmlTimeDateStamp) {
-        Log("[cohtml] the UI engine here is %u.%u.%u.%u (stamp 0x%08X) and the objects were read from %s (stamp 0x%08X), nothing that uses its vtables runs",
+    bool read = ReadModuleBuild(cohtml, &stamp, &image, version);
+    if (!read || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
+        Log("[cohtml] the UI engine here is %u.%u.%u.%u (stamp 0x%08X image 0x%08X) and the objects were read from %s (stamp 0x%08X image 0x%08X), nothing that uses its vtables runs",
             (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3],
-            stamp, kCohtmlVersionName, kCohtmlTimeDateStamp);
+            stamp, image, kCohtmlVersionName, kCohtmlTimeDateStamp, kCohtmlSizeOfImage);
         return;
     }
     Log("[cohtml] UI engine %u.%u.%u.%u (stamp 0x%08X), the build its objects were read from",
