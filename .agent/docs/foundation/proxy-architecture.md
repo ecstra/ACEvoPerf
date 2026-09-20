@@ -17,7 +17,7 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | `core/` | `log`, `config`, `iat` | log file, ini reading into `g_cfg`, import table and vtable patching |
 | `dstorage/` | `proxy`, `stats` | the four exports, `FactoryProxy`, `QueueProxy`, process wide request counters |
 | `engine/` | `flags`, `process`, `streamer`, `session_leak_fix`, `exceptions` | gflags scan and write, priority class, power throttling, timer resolution, the texture streamer's hooks and fixes, the finished sessions the game keeps (see `session-leak-fix`), the throw log |
-| `render/` | `dxgi_hooks`, `frame_stats`, `adapter` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check |
+| `render/` | `dxgi_hooks`, `frame_stats`, `adapter`, `reflex`, `texture_writes` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check, NVIDIA Reflex, and the command list copy tracing (developer only) |
 | `telemetry/` | `timeline`, `streaming_trace`, `load_sampler`, `memory_census` | the per second CSV thread and the frame CSV flush, the streaming trace rows, the loading sampler, the memory census (all three developer only) |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
 | `ui/` | `responsive_ui`, `restyle_fix`, `menu_refresh_fix`, `style_match_fix`, `child_removal_fix`, `cohtml_hooks`, `ui_probe` | the responsive UI and its parts, the shared Cohtml and UI frame hooks, the developer UI probe (see `responsive-ui`) |
@@ -62,7 +62,8 @@ string. Every header includes it, every source includes its own header first.
    chain anyone makes and each one counts only the newest that carries a D3D12 device. Reflex
    binds to the D3D12 device behind a swap chain and rebinds when the game builds a new one,
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
-   renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.
+   renders on, `LogDisplayOwner` names the adapter that owns the window's monitor, and
+   `TextureWritesOnSwapChain` installs the copy tracing when `streaming_trace` is on.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
    every loaded module (`PatchEverywhere`) so the package table read at startup can be rewritten.
 6. Also at attach: `InstallResponsiveUi` patches Cohtml's and the exe's UI code in memory and registers
@@ -94,8 +95,20 @@ string. Every header includes it, every source includes its own header first.
   one carrying a D3D12 device, which is the game's renderer rather than a splash or an overlay,
   then records the time since the previous present, counts hitches
   and buffers per frame samples with the streaming requests since the previous frame.
-- `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
-  the swap chain to `HookSwapChain`.
+- `render/dxgi_hooks`: the two factory creation hooks. Each logs the swap chain description, hands
+  the swap chain to `HookSwapChain`, and then runs `CheckAutoSizeAdapter`, `LogDisplayOwner` and
+  `TextureWritesOnSwapChain`. The legacy `CreateSwapChain` one has never been seen to fire, since
+  D3D12 requires the `ForHwnd` path, and it does the same work anyway so that nothing would
+  quietly not happen if it ever did.
+- `render/reflex`: NVIDIA Reflex on a game that has none. `OnSwapChain` binds to the D3D12 device
+  behind a swap chain, checks the adapter's vendor before nvapi is loaded at all, and rebinds when
+  the game builds a new device. `OnFrameBegin` sleeps once per present of the swap chain it
+  follows, after the real `Present` has returned.
+- `render/texture_writes`: with `[developer] streaming_trace=1`, hooks the copy calls on all three
+  command list types and counts writes into textures the tile queue streams, split by who made
+  them. `TextureWritesOnSwapChain` resolves the DirectStorage cores' module ranges so the hook
+  itself never takes the loader lock, and `TextureWritesTick` retries that while either is
+  missing and writes the `[writes]` line.
 - `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
   memory, `ResolveAutoSizes` applies them once,
   `ResolveAutoSizesFallback` does the same off its own factory when no game factory arrives,

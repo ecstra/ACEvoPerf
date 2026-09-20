@@ -78,13 +78,18 @@ ModuleRange RangeOf(HMODULE module)
     return range;
 }
 
-// Resolved once, where the copy hooks are installed, because both calls in here take the loader
-// lock and the caller is a D3D12 command list hook that runs thousands of times a second during a
-// load. It used to look them up on every call until it found them, on the reasoning that the
-// cores load after the hooks go in. They do not: across the sessions on disk the core loads 320
-// to 800 ms before the first swap chain, and with bundled_runtime=0 the bundled one never loads
-// at all, so a base of zero was indistinguishable from not looked up yet and the lookup repeated
-// for the life of the run.
+// Never resolved from the copy hook, because both calls in here take the loader lock and that
+// hook runs about 290 times a second during a load. It used to look them up on every call until
+// it found them, on the reasoning that the cores load after the hooks go in. They do not: across
+// the sessions on disk the core loads 302 to 846 ms before the first swap chain, and with
+// bundled_runtime=0 the bundled one never loads at all, so a base of zero was indistinguishable
+// from not looked up yet and the lookup repeated for the life of the run.
+//
+// Called where the hooks are installed and again from the once a second tick while either range
+// is still missing. The tick is what keeps the old loop's one virtue: a core that loads after the
+// hooks, which no session shows but nothing guarantees, is still picked up. Without it every
+// DirectStorage copy for the rest of the run would be counted as a write by something else, which
+// is the number DEC-017 rests on being zero.
 static void ResolveCoreRanges()
 {
     static const wchar_t* kCores[2] = { L"acevo_dstoragecore.dll", L"dstoragecore.dll" };
@@ -104,7 +109,8 @@ bool FromDirectStorage(uintptr_t address)
 
 // Counts the write and reports it when it lands on a texture the tile queue streams from anywhere
 // but DirectStorage. A resource freed and a new one allocated at the same address is excluded by
-// the texture having started streaming before the copy.
+// the layout test below and by nothing else. The `since` stamp is carried into the row for the
+// reader, never compared, so a new reserved tiled texture at a freed one's address still passes.
 void NoteWrite(ID3D12Resource* target, const char* how, std::atomic<uint64_t>& hits, uintptr_t caller)
 {
     if (!target) return;
@@ -222,15 +228,18 @@ void NoteStreamedResource(ID3D12Resource* resource)
 
 void TextureWritesOnSwapChain(IUnknown* deviceOrQueue)
 {
-    if (!g_cfg.streamingTrace || !deviceOrQueue || g_hooked.exchange(true)) return;
+    if (!g_cfg.streamingTrace || !deviceOrQueue) return;
 
+    // The queue check comes before the flag is taken. Taking it first and handing it back on a
+    // failure lets a D3D11 swap chain on one thread hold it long enough for the game's D3D12 one
+    // on another to see it taken and walk away, leaving nothing hooked at all.
     ID3D12CommandQueue* queue = nullptr;
-    if (FAILED(deviceOrQueue->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) || !queue) {
-        g_hooked = false;
-        return;
-    }
+    if (FAILED(deviceOrQueue->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) || !queue) return;
+    if (g_hooked.exchange(true)) { queue->Release(); return; }
+
     ID3D12Device* device = nullptr;
     if (FAILED(queue->GetDevice(IID_PPV_ARGS(&device))) || !device) {
+        g_hooked = false;
         queue->Release();
         return;
     }
@@ -270,6 +279,9 @@ void TextureWritesTick()
 {
     if (!g_cfg.streamingTrace) return;
 
+    // On the timeline thread, so the loader lock is nowhere near the command list hook.
+    if (!g_dsBase[0].load() || !g_dsBase[1].load()) ResolveCoreRanges();
+
     static uint64_t lastReport = GetTickCount64();
     uint64_t now = GetTickCount64();
     if (now - lastReport < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
@@ -280,7 +292,7 @@ void TextureWritesTick()
     ReleaseSRWLockShared(&g_lock);
 
     Log("[writes] streamed textures %zu (tiled %llu, created writable by shaders %llu unordered access, %llu render target) | "
-        "copies into them by DirectStorage %llu, by the game %llu, by anything else %llu (region %llu, resource %llu, tiles %llu, resolve %llu) | "
+        "copies into them by DirectStorage %llu, by the game %llu, by anything else %llu, those last two by call: region %llu, resource %llu, tiles %llu, resolve %llu | "
         "copies into other resources %llu, into a new resource at a streamed texture's old address %llu",
         streamed, (unsigned long long)g_streamedTiled.load(), (unsigned long long)g_streamedUav.load(), (unsigned long long)g_streamedRtv.load(),
         (unsigned long long)g_byDirectStorage.load(), (unsigned long long)g_byGame.load(), (unsigned long long)g_byOther.load(),
