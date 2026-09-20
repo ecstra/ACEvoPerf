@@ -9,8 +9,8 @@ typedef void (*CohtmlLibraryListener)(void* library);
 // `mainView` marks the menu and HUD view. The first view the game makes is it, and that view also claims
 // its own size so that a later view of the same size is recognised as it again, which is what a menu view
 // torn down and remade looks like. The ordinal is tried first and the size is the fallback, never the
-// other way round, because a view whose settings could not be read has a size of zero and on the size
-// alone the identity would fall to the first car display instead. A remake at a different size is not
+// other way round, because a view that arrives with no size, whether its settings could not be read or
+// they genuinely say zero, would on the size alone hand the identity to the first car display instead. A remake at a different size is not
 // recognised, see BUG-033.
 typedef void (*CohtmlViewListener)(void* view, int number, unsigned width, unsigned height, bool mainView);
 // The game's UI frame post, with the UI clock it hands Cohtml, on the thread that posts it.

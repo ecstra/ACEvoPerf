@@ -107,11 +107,11 @@ static void* Hook_CreateView(void* system, const void* settings)
 
     Log("[cohtml] view #%d %ux%u created%s", number, width, height, mainView ? ", the menu and HUD view" : "");
 
-    // When the first view's settings could not be read there is no size to match later views against, so
-    // the ordinal is all there is for the rest of the session and a remade menu view cannot be recognised
-    // at all. Say so once, because a silently degraded mode is what this whole finding was about.
+    // With no size on the first view there is nothing to match later views against, so the ordinal is all
+    // there is for the rest of the session and a remade menu view cannot be recognised at all. Say so
+    // once, because a silently degraded mode is what this whole finding was about.
     if (firstView && size == 0)
-        Log("[cohtml] the menu and HUD view's size could not be read, so only the first view is recognised as it");
+        Log("[cohtml] the menu and HUD view has no size, so only the first view is recognised as it");
     for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height, mainView);
     return view;
 }

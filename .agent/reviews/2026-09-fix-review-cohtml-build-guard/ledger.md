@@ -26,7 +26,7 @@ one bug, two debt, one nit.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
-| 2 | the menu view is found by identity rather than by a counter | fixing, hunter out | 2026-09-20, ack |
+| 2 | the menu view is found by identity rather than by a counter | fixed, owner's launch outstanding | 2026-09-20, ack |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
 
@@ -542,6 +542,37 @@ Two things it raised are the owner's rather than mine. `CHANGELOG.md` has an emp
 heading while this branch restores menu fixes after a device change, which is player visible, and that
 wants a line before any release. And nothing here has been run: no launch has exercised batch 2, so
 everything above is source and build only.
+
+### V-10: filing BUG-033 left the spine's bug count stale
+- severity: debt
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 3ab0b2b, 2026-09-20, `.agent/INDEX.md` reads 13 open, checked against the files rather than by eye
+
+`spec/conventions.md` says an index that disagrees with its folder is a bug, and CLAUDE.md 8.1 asks for
+the index line in the same commit as the change. 853fae7 added a bug file and touched the bugs index and
+not the spine.
+
+This is the fourth miss of this exact class on one branch, after V-03, H-07 and V-07, and it came out of
+the commit that was fixing the third one. That is not four slips, it is a working method that treats the
+paper as cleanup after the code rather than as part of the change.
+
+What changes for the rest of the review: a commit that adds, removes or reclassifies a tracker file moves
+its folder index and the spine in the same commit, and the counts are checked by counting the files, not
+by reading them off the previous line. The check is two shell commands and it now runs before any commit
+that touches `.agent/`.
+
+### V-11: the zero size log named one of the two ways a view can have no size
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 3ab0b2b, 2026-09-20
+
+The test is `size == 0`, which is true both when the settings pointer could not be read and when readable
+settings say zero by zero. The line said "could not be read" and the header comment made the same
+conflation. Both now say the view has no size, which is what is actually known.
 
 ## Hunter and verifier finds outside this batch's scope
 
