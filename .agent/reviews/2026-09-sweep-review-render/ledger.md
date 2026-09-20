@@ -27,7 +27,7 @@ left standing.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
-| 2 | a setting that is off does not take unrelated fixes with it | pending | |
+| 2 | a setting that is off does not take unrelated fixes with it | fixed, hunter done, verifying | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | pending | |
 | 4 | the leftovers | pending | |
 
@@ -91,8 +91,8 @@ only signal is one log line printing a pair of zeros, which reads as routine.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: batch 1's fallback took the memory sizing out from under it, then 2b5a3aa, 2026-09-20, made the ini say what the setting carries and the log name what it takes down, including a `reflex=1` that cannot work beside it.
 
 `src/render/dxgi_hooks.cpp:61` returns on `!g_cfg.dxgiEnabled` before anything is hooked, and
 `ResolveAutoSizes` is called at line 44 inside `HookFactoryVtable`, which only ever runs from the two
@@ -114,8 +114,8 @@ a measuring switch.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 4982e86, 2026-09-20, the swap chain hooks go in for either setting alone and each consumer checks its own, so `frame_stats=0` stops timing frames and nothing else.
 
 `HookSwapChain` at `src/render/frame_stats.cpp:106` returns on `!g_cfg.frameStats`, and
 `reflex::OnSwapChain(sc1)` sits at line 116 below it, the only call to it in the tree. The Present
@@ -403,6 +403,83 @@ phase and again microseconds later at the late pass, four log lines for two stor
 not exist "not found in this game build" now logs twice. `lateApplied` in `DStorageGetFactory` is
 an unsynchronised read then write, which is older than this batch, and the narrowest interleave it
 allows only skips the second write of a value the first write already landed.
+
+### H-07: frame_stats=0 also silences hitch_ms and both developer CSVs, and two log lines say otherwise
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, in the batch 2 hunter round. The install line says what `frame_stats=0` takes down and the ini note names them.
+
+F-05's shape again, one setting reaching into another section, and the fix's new ini note implied
+Reflex was the only casualty. `g_cfg.hitchMs` has exactly one consumer in the tree,
+`frame_stats.cpp:53`, which sits below the guard the fix added, so `[log] hitch_ms` produces not one
+line with `frame_stats=0`. The frames CSV gets its header and never a row, and the timeline CSV's
+frame columns are all zero. Meanwhile `dllmain.cpp:57` and `timeline.cpp:147` both still print
+`hitch_ms=33`, so the log positively states a logger that is dead.
+
+Pre-existing rather than introduced, like V-01 was. No session on disk has ever run with
+`frame_stats=0`, so it has never been seen.
+
+### H-08: the load order half of the doc still taught the old wiring, 27 lines above the line the fix corrected
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, in the batch 2 hunter round.
+
+`4982e86` rewrote the `render/frame_stats` entry in `proxy-architecture.md` and left step 4 of the load
+order in the same file saying the hooks go in "for frame timing", with no mention of Reflex, although
+`reflex::OnSwapChain` fires at exactly that point. Same file, same commit, missed.
+
+### H-09: two findings in the public docs ledger were falsified by this batch and left open
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, both closed in place with what actually happened.
+
+`sweep/review-public-docs` F-03 and F-04 quote the two ini lines this batch rewrote. F-04 is this
+branch's F-05 seen from the docs side. F-03 asks for a comment naming the memory sizing, which batch 1
+made untrue when the fallback stopped consulting `dxgiEnabled`. Left open, whoever picks up that branch
+would have re-fixed a fixed line and written a sentence that is now wrong.
+
+### H-10: the install line reported frame_stats as if it still decided whether the swap chain is hooked
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, the line carries both settings, and the config summary carries `[latency]` too.
+
+Three lines below the fix, `DXGI: IAT hooks ... (frame_stats=%d)` was the one place the two settings
+could have been shown together. With `frame_stats=0 reflex=1` a reader would have concluded the swap
+chain path was dead. The config summary at `dllmain.cpp:57` also never carried `reflex` or
+`reflex_boost` at all, so `logs/reflex-C-off-20260912` cannot be read to tell a deliberate `reflex=0`
+from a layer that failed on its way in.
+
+### H-11: with frame_stats=0 on a card that is not NVIDIA the present hooks went in for nothing
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, `reflex::Active()` is asked first, so the hooks go in only if one of the two consumers really wants them.
+
+`reflex=1` ships on, so an AMD or Intel player who sets `frame_stats=0` to shed the hook kept it. These
+patch the vtable inside dxgi.dll, which the whole process shares and nothing unhooks, so it is for the
+life of the run. `OnSwapChain` runs the vendor check at the same moment, so the order was the only
+thing in the way.
+
+### H-12: both swap chain hooks read the caller's descriptor before the runtime validates it
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: deferred
+- fix:
+
+`dxgi_hooks.cpp:19` and `:31` log `desc->Width` before calling the original, so a null descriptor faults
+inside our hook instead of returning `E_INVALIDARG`. No real caller passes null, the batch 1 hunter
+judged it below the bar and this one filed it. Left for batch 4, which owns the legacy hook the second
+of the two lines belongs to.
 
 ## Checked and clean
 

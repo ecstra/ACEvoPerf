@@ -111,12 +111,18 @@ void HookSwapChain(IUnknown* sc)
     if (!sc || (!g_cfg.frameStats && !g_cfg.reflex)) return;
     IDXGISwapChain1* sc1 = nullptr;
     if (FAILED(sc->QueryInterface(__uuidof(IDXGISwapChain1), (void**)&sc1)) || !sc1) return;
-    void** vt = *(void***)sc1;
-    HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
-    HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
     DXGI_SWAP_CHAIN_DESC1 d = {};
     if (SUCCEEDED(sc1->GetDesc1(&d)))
         Log("swap chain: %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X scaling=%u", d.Width, d.Height, (unsigned)d.Format, d.BufferCount, (unsigned)d.SwapEffect, d.Flags, (unsigned)d.Scaling);
+
+    // Reflex first, because its vendor check is what decides whether it needs the hooks at all.
+    // These patch the vtable inside dxgi.dll, which the whole process shares and nothing unhooks,
+    // so they do not go in for a layer that turned out to be idle on a card that is not NVIDIA.
     reflex::OnSwapChain(sc1);
+    if (g_cfg.frameStats || reflex::Active()) {
+        void** vt = *(void***)sc1;
+        HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
+        HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
+    }
     sc1->Release();
 }

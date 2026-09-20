@@ -56,7 +56,8 @@ string. Every header includes it, every source includes its own header first.
    step 2's late pass on a second launch order. The engine sizes its tile pool before it creates
    the swap chain, 7 ms before on 2026-09-18 and 68 ms before on 2026-09-20, so the margin is real
    but it is not fixed and nothing should be moved later on the strength of it. When the swap chain is
-   created, `HookSwapChain` hooks `Present` and `Present1` on its vtable for frame timing,
+   created, `HookSwapChain` runs `reflex::OnSwapChain` and hooks `Present` and `Present1` on its
+   vtable for the frame timing and for Reflex, whichever of the two asked for them,
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
    renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of

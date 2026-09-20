@@ -172,6 +172,8 @@ static void ReportStatus(const char* when)
         when, s.bLowLatencyMode ? "ON" : "off", s.bFsVrr ? "on" : "off", s.bCplVsyncOn ? "on" : "off");
 }
 
+bool Active() { return g_active; }
+
 void OnFrameBegin()
 {
     if (!g_active) return;

@@ -22,4 +22,8 @@ void OnSwapChain(IUnknown* swapChain);
 // boundary between one frame and the next and the only frame start a proxy can see.
 void OnFrameBegin();
 
+// Whether the layer took, which is only known after OnSwapChain has run the vendor
+// check. The present hooks ask so they are not installed for a layer that is idle.
+bool Active();
+
 } // namespace reflex

@@ -75,7 +75,9 @@ void InstallDxgiHooks()
     HMODULE exe = GetModuleHandleW(nullptr);
     int a = PatchIatByAddress(exe, (void*)g_realCDF1, (void*)&Hook_CreateDXGIFactory1);
     int b = PatchIatByAddress(exe, (void*)g_realCDF2, (void*)&Hook_CreateDXGIFactory2);
-    Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d)", a, b, g_cfg.frameStats);
+    Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d reflex=%d)", a, b, g_cfg.frameStats, g_cfg.reflex);
+    if (!g_cfg.frameStats)
+        Log("DXGI: [dxgi] frame_stats=0, so no frame is timed. That also silences the [log] hitch_ms lines, the frames CSV and the frame columns of the timeline CSV, which have no switch of their own. Reflex is not affected by it.");
     if (!a && !b)
         Log("DXGI: WARNING: neither factory entry point could be patched in the exe, so nothing here is hooked. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
 }
