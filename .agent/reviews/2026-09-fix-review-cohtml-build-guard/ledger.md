@@ -25,7 +25,7 @@ one bug, two debt, one nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the vtable calls honour the build check the byte patches already do | fixed, owner to verify | 2026-09-20, ack |
+| 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | pending | |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
@@ -311,13 +311,30 @@ wrapper. No false negative and no false positive. It also noted that in the one 
 does stand the move down, an exe stamp or thunk mismatch, `g_frameThread` would have stayed 0 anyway, so
 the move was already dead and nothing is lost.
 
-## Still to do before this branch merges
+## The runtime gate, 2026-09-20
 
-The runtime half of the project gate has not run. Everything here is proven from the source and from a
-clean build, not observed. The owner launches the game, so the decisive launch is theirs. Two lines settle
-it. `[cohtml] UI engine 1.61.0.3 (stamp 0x675439C7), the build its objects were read from` says the guard
-accepts the supported build, and `[responsive ui] resource work the game's frame thread picks up runs on
-the mod's thread` still being present beside it settles H-01's non regression empirically.
+Owner driven launch of 0.3.3 with the batch installed, on game 0.9.1 and Cohtml 1.61.0.3:
+
+```
+[09:27:15.003] [restyle] UI restyle fix on, ...
+[09:27:15.003] [menus] menu refresh fix on, ...
+[09:27:15.004] [styles] style matching fix on at 5 of 5 places, ...
+[09:27:15.004] [children] child removal fix on at 8 of 8 places, ...
+[09:27:15.004] [cohtml] UI engine 1.61.0.3 (stamp 0x675439C7), the build its objects were read from
+[09:27:15.004] [cohtml] Library::Initialize, 1 import slot(s) of the exe patched
+[09:27:20.803] [responsive ui] resource work the game's frame thread picks up runs on the mod's thread
+[09:27:20.827] [cohtml] view #1 1920x1080 created
+[09:27:20.827] [responsive ui] page fixes added to the menu and HUD view
+```
+
+That closes the batch on all three counts. The guard recognises the supported build and says so, so the
+constants are right and F-01's fix does not turn away the build it is meant to accept. The import is still
+patched one line later, so nothing downstream broke. And both responsive UI parts still install, which is
+H-01's non regression observed rather than argued, since the resource work move is exactly what would have
+gone missing if `UiFrameEndHooked()` had been wrong. All four byte patches still report their full counts,
+5 of 5 and 8 of 8.
+
+Batch 1 is done. Gates green, review, hunter and verifier all closed, runtime confirmed.
 
 ## Hunter and verifier finds outside this batch's scope
 
