@@ -59,8 +59,8 @@ string. Every header includes it, every source includes its own header first.
    created, `HookSwapChain` runs `reflex::OnSwapChain` and hooks `Present` and `Present1` for the
    frame timing and for Reflex, whichever of the two asked for them. Those slots live in the
    vtable inside dxgi.dll, which the whole process shares, so both hooks fire for every swap
-   chain anyone makes and each one follows only the swap chain it was set up from. Reflex binds
-   to the D3D12 device behind a swap chain and rebinds when the game builds a new one,
+   chain anyone makes and each one counts only the newest that carries a D3D12 device. Reflex
+   binds to the D3D12 device behind a swap chain and rebinds when the game builds a new one,
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
    renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
@@ -90,8 +90,9 @@ string. Every header includes it, every source includes its own header first.
 - `render/frame_stats`: `HookSwapChain` runs `reflex::OnSwapChain` first, then patches `Present`
   and `Present1` if `frame_stats` is on or Reflex actually took, so they do not go into the
   vtable that the whole process shares for a layer the vendor check turned away. Each consumer
-  then checks its own setting inside the hook. `OnPresent` records the time since the previous
-  present, counts hitches
+  then checks its own setting inside the hook. `OnPresent` ignores any swap chain but the newest
+  one carrying a D3D12 device, which is the game's renderer rather than a splash or an overlay,
+  then records the time since the previous present, counts hitches
   and buffers per frame samples with the streaming requests since the previous frame.
 - `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
   the swap chain to `HookSwapChain`.

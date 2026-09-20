@@ -14,8 +14,10 @@
 // NVIDIA adapter, or on a driver too old for the entry points, none of this runs.
 namespace reflex {
 
-// Called when a swap chain is hooked, which is every swap chain made after the factory
-// hooks went in, on the runs where they went in at all. Finds nvapi, resolves the entry
+// Called when a swap chain is hooked, which is every swap chain the game's own exe makes
+// after the factory hooks went in, on the runs where they went in at all. A swap chain from
+// another module's own factory presents through the same patched vtable but never reaches
+// here, because only the exe's import table is patched. Finds nvapi, resolves the entry
 // points and tells the driver what mode to run in. The D3D12 device behind the swap chain
 // decides what happens: no device at all means ignore that swap chain, a device already
 // bound means pace whichever of its swap chains is newest, a different device means the

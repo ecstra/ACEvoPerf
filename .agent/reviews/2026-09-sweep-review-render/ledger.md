@@ -28,7 +28,7 @@ left standing.
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
-| 3 | Reflex survives the session it is installed in | fixed, hunter done, verifying | 2026-09-20 |
+| 3 | Reflex survives the session it is installed in | closed, awaiting the owner's run | 2026-09-20 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -614,6 +614,65 @@ device already bound means nothing to do" was H-14 written down as if it were in
 
 "The numbers below are the one hooked first" read as reassurance in the one case where the whole
 measurement had gone dead. V-08's shape again.
+
+### V-10: the changelog line described a symptom that never reached a player
+- severity: bug
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch.
+
+The line claimed Reflex stopped "after a driver reset or a resolution change". The driver reset
+half is a real 0.3.2 bug. The resolution change half was created by `0e387a0` and fixed by
+`03b4468`, both on this branch and neither released, and `public-docs.md` says work that landed
+and came out again before a release gets no entry. Its other half, "when something else on your PC
+drew to the screen before the game did", pointed at another application when the trigger has to be
+a swap chain made inside the game's own process. Both halves also stated player visible outcomes
+for scenarios that appear in no session on disk, which is V-05's shape.
+
+### V-11: the comment credited the store ordering with closing a window the deferred release closes
+- severity: bug
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20, the comment says which of the two does the work, and the SetSleepMode refusal retires its device the same way.
+
+H-15's fix put `g_active.store(false)` before the device is let go and said that is what keeps a
+present safe. It is not. A present that read the flag a moment earlier has already passed its
+check, so the ordering narrows the window and never closes it. What closes it is that the device
+is retired rather than released, which the same comment's second half said correctly. Getting this
+right in the prose matters here, because the wrong half is the one someone would later delete as
+redundant.
+
+The refusal path still released immediately, safe only because `g_active` is false throughout it.
+It retires now too, so a device that has ever been in `g_device` follows one rule.
+
+### V-12: three log lines asserted things the code has not established
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20.
+
+The frame times retarget line fired with `frame_stats=0`, where nothing is being counted, which is
+V-09's shape in the configuration V-09 was found in. It also spoke of what is "in the CSV", which
+the shipped `frames=0` never writes. And both retarget lines said the game "replaced" its swap
+chain, which is one explanation for a newer chain and not the only one.
+
+### V-13: the load order doc gained the first come rule the hunter had just deleted
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-20, both halves of the file say the same thing, and the header no longer claims every swap chain in the process reaches the layer.
+
+H-17's own fix wrote "each one follows only the swap chain it was set up from" into the load order,
+which is the first come latch H-13 had removed an hour earlier, while the entry further down said
+nothing about which chain is counted. Fifth time on this branch, in the file the finding was about.
+
+The header said "every swap chain made after the factory hooks went in". Only the exe's import
+table is patched, so a swap chain from another module's own factory presents through the patched
+vtable and never reaches the layer at all.
 
 ## Checked and clean
 

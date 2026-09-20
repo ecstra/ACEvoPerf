@@ -146,7 +146,8 @@ void HookSwapChain(IUnknown* sc)
     if (g_cfg.frameStats || reflex::Active()) {
         if (HasD3D12Device(sc1)) {
             if (g_timedChain.load() && g_timedChain.load() != (IUnknown*)sc1) {
-                Log("frame times: the game has a new swap chain, counting that one from here. What is in the CSV so far belongs to the one before it.");
+                if (g_cfg.frameStats)
+                    Log("frame times: a newer D3D12 swap chain, timing that one from here. Anything already counted belongs to the one before it.");
                 g_lastPresentQpc = 0;
             }
             g_timedChain.store((IUnknown*)sc1);

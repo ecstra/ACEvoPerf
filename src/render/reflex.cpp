@@ -171,7 +171,11 @@ void OnSwapChain(IUnknown* swapChain)
     // A device we have already turned away. Both reasons for turning one away, the wrong vendor
     // and a driver that refused the mode, are answers about that device and not about the
     // process, so this is a pointer and not a flag.
-    if ((IUnknown*)device == g_refusedDevice) { device->Release(); return; }
+    if ((IUnknown*)device == g_refusedDevice) {
+        Log("[reflex] another swap chain on the device already turned away, still idle");
+        device->Release();
+        return;
+    }
 
     // The same device with a different swap chain is a swap chain the game replaced, which a
     // resolution or window mode change does without touching the device. Pace the new one. Left
@@ -180,7 +184,7 @@ void OnSwapChain(IUnknown* swapChain)
         device->Release();
         if (swapChain != g_swapChain) {
             g_swapChain.store(swapChain);
-            Log("[reflex] the game replaced its swap chain on the same device, following it");
+            Log("[reflex] a newer swap chain on the same device, pacing that one from here");
         }
         return;
     }
@@ -195,14 +199,13 @@ void OnSwapChain(IUnknown* swapChain)
     }
 
     // A reset, a driver update or a mode change builds a new device and leaves the old one dead.
-    // Stop pacing before letting go of it, in that order, because a present already running on
-    // another thread reads the flag first and the device second.
     //
-    // The dead device is not released here. A present that passed the flag check a moment ago is
-    // still going to reach NvAPI_D3D_Sleep with the pointer it already read, and dropping the
-    // last reference under it would hand the driver freed memory. It is released at the next
-    // rebind instead, so at most one dead device is ever held rather than one per reset, which
-    // is what F-07 was about.
+    // The dead device is not released here, and that, not the order of the two stores, is what
+    // keeps a present on another thread safe. Clearing the flag first only narrows the window: a
+    // present that read the flag a moment ago has already passed its check and is going to reach
+    // NvAPI_D3D_Sleep with the pointer it read. Dropping the last reference under it would hand
+    // the driver freed memory. So it is released at the next rebind instead, which means at most
+    // one dead device is held rather than one per reset, which is what F-07 was about.
     if (g_device) {
         Log("[reflex] the game is on a new D3D12 device, rebinding. The one before it paced %llu frames and was refused %llu times.",
             (unsigned long long)g_sleepCalls.load(), (unsigned long long)g_sleepFailures.load());
@@ -225,8 +228,12 @@ void OnSwapChain(IUnknown* swapChain)
     int status = g_setSleepMode(g_device.load(), &p);
     if (status != 0) {
         Log("[reflex] NvAPI_D3D_SetSleepMode refused (%d), layer idle. This is normal on a non NVIDIA render adapter.", status);
+        // Retired rather than released, for the reason above. A present cannot be pacing this one,
+        // since g_active is false all the way through here, but a device that has ever been in
+        // g_device follows one rule and not two.
         g_refusedDevice = g_device.load();   // do not ask this one again on its next swap chain
-        g_device.load()->Release();
+        if (g_retiredDevice) g_retiredDevice->Release();
+        g_retiredDevice = g_device.load();
         g_device.store(nullptr);
         g_swapChain.store(nullptr);
         return;
