@@ -26,7 +26,7 @@ one bug, two debt, one nit.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
-| 2 | the menu view is found by identity rather than by a counter | pending | |
+| 2 | the menu view is found by identity rather than by a counter | fixing, hunter out | 2026-09-20, ack |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
 
@@ -98,8 +98,8 @@ recorded log. The guard will not turn away a build it should accept.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8145a1a, 2026-09-20, the menu view is told by its size rather than by its ordinal, and the listener carries a `mainView` flag instead of both consumers testing `number == 1`
 
 `Hook_CreateView` at `src/ui/cohtml_hooks.cpp:75` hands listeners `int number = ++g_viewsCreated`, a
 counter that only ever climbs, and both `responsive_ui.cpp:212` and `ui_probe.cpp:1185` return unless
@@ -297,6 +297,31 @@ The paragraph written with 6578fb4 said the page fixes and the move go out toget
 true when 1dae423 landed an hour later. A new exe with the same Cohtml now takes the move out and leaves
 the page fixes in. The upkeep rule wanted that doc moving in the same round as the code.
 
+### V-04: the doc fix for V-03 claimed the resource work move is the only part that can be out, and three parts go out in the case it describes
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 6341a1c, 2026-09-20, the paragraph splits the parts three ways instead
+
+`restyle_fix.cpp:29` and `menu_refresh_fix.cpp:29` carry the same exe stamp and image size that
+`cohtml_hooks.cpp:11` compares, so a new exe with the UI engine unchanged fails all three by the same
+comparison at the same moment. Three of the doc's own seven parts stand down, not one. The sentence was
+only true in the narrower case where the exe stamp matches and the EvoUi vtable thunks do not, which is
+not the case the paragraph is about. Written while fixing V-03 and wrong on the same day, which is the
+argument for the verifier looking at doc commits and not only code ones.
+
+### V-05: the doc named one of the two ways the UI engine check refuses
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 6341a1c, 2026-09-20, the sentence names the unreadable engine path as well
+
+V-02 added a second refusal at `cohtml_hooks.cpp:223` that deliberately prints no version, and the doc
+sentence written in the same round still said the log names the version it found beside the one it
+wanted. True on one path of two.
+
 ## The verifier's verdict
 
 Clean. All five defects gone, no correctness regression, three nits of its own listed above.
@@ -335,6 +360,12 @@ gone missing if `UiFrameEndHooked()` had been wrong. All four byte patches still
 5 of 5 and 8 of 8.
 
 Batch 1 is done. Gates green, review, hunter and verifier all closed, runtime confirmed.
+
+A second verifier pass then ran over the two commits made after the first clean verdict, since those were
+unverified by definition. It proved the bound arithmetic exactly, the largest `at` is 1008 and the last
+byte read is `size - 1`, checked the 1024 cap against seven real Windows PEs where the fixed block always
+sits at offset 40 in a resource of 896 to 940 bytes, and confirmed the log split leaves no path silent. It
+returned not clean, on the documentation rather than the code, which is V-04 and V-05 above.
 
 ## Hunter and verifier finds outside this batch's scope
 
