@@ -29,7 +29,7 @@ one bug, two debt, one nit.
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
 | 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
-| 5 | what the page fixes script costs, and saying when it is not there | fixed and verified, runtime gate open | 2026-09-20, ack |
+| 5 | what the page fixes script costs, and saying when it is not there | done | 2026-09-20, ack, runtime confirmed |
 
 ## Findings
 
@@ -1249,6 +1249,36 @@ One caveat it raised and I am leaving alone: the old stamp ordering incidentally
 synchronous re-entrant `onDevicesChanged`, and the new one would run such a call immediately. It needs the
 page's own rebuild to dispatch another refresh synchronously, and the Cohtml binding path is asynchronous,
 so it is not reachable. Recorded rather than guarded.
+
+## The runtime gate for batch 5, 2026-09-20
+
+Owner driven launch with `ui_probe=1`, menus then a session so the HUD loads, then a quit. The probe was
+switched back off afterwards.
+
+The mod's own log confirms the build under test is the right one, which matters because the first attempt
+at this gate was run against a stale install and proved nothing:
+
+```
+[12:00:11.027] [responsive ui] page fixes script given to the menu and HUD view
+```
+
+The game's log has the gate working page by page:
+
+```
+ui probe intro.html loaded, responsive ui page fixes on
+ui probe menu.html loaded, responsive ui page fixes on
+ui probe settings.html loaded, responsive ui page fixes on
+ui probe singleplayer.html loaded, responsive ui page fixes on
+ui probe ingame.html loaded, responsive ui page fixes on
+ui probe hud.html loaded, responsive ui page fixes stay out of this page by design
+```
+
+Five menu pages install, the HUD does not, and V-20's wording is what makes the last line readable rather
+than looking like a failure. The counters behind it agree: over the session `hud.html` logged 0 navigation
+calls, `ingame.html` 49 and `settings.html` 164. So the script is out of the driving page and doing its
+work everywhere else, which is the whole of F-08.
+
+Batch 5 is done, and with it every batch on this branch.
 
 ## Hunter and verifier finds outside this batch's scope
 
