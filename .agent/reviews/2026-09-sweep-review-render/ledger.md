@@ -27,7 +27,7 @@ left standing.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
-| 2 | a setting that is off does not take unrelated fixes with it | fixed, hunter done, verifying | 2026-09-20 |
+| 2 | a setting that is off does not take unrelated fixes with it | closed, awaiting the owner's run | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | pending | |
 | 4 | the leftovers | pending | |
 
@@ -478,8 +478,42 @@ thing in the way.
 
 `dxgi_hooks.cpp:19` and `:31` log `desc->Width` before calling the original, so a null descriptor faults
 inside our hook instead of returning `E_INVALIDARG`. No real caller passes null, the batch 1 hunter
-judged it below the bar and this one filed it. Left for batch 4, which owns the legacy hook the second
-of the two lines belongs to.
+judged it below the bar and this one filed it. Left for batch 4, which owns the second of the two lines
+through F-11.
+
+The verifier's correction, kept because the scoping was wrong and the reason matters: the line that
+could actually fault on 0.9.1 is `:19`, the `ForHwnd` one, since F-11 records that the legacy hook has
+never fired in any session on disk. So batch 4 carries the live half on the dead half's ticket. It stays
+deferred because the two are one change, not because `:19` is harmless.
+
+### V-08: three statements this batch wrote were thinner than the code, two of them copied from batch 1
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch.
+
+The new `frame_stats=0` line said the frames CSV and the timeline CSV "have no switch of their own",
+and `[developer] frames` and `[developer] timeline` are exactly that. What is true is that their own
+switch is not enough. It also missed the `Present sync interval` line, which goes quiet too. Three log
+lines said "the write tracing" is off, while `NoteStreamedResource` and `TextureWritesTick` keep
+running and only the copy counters stop, and two of those three lines were shipped in batch 1 and
+copied into the third here. And `proxy-architecture.md`'s own `render/frame_stats` entry, plus the
+comment in `frame_stats.h`, still said the hooks go in for either setting alone, which H-11's reorder
+made false on a card the vendor check turns away.
+
+The last of those is H-08's shape happening again inside the batch that fixed H-08: one half of a file
+updated, the other half left. That is the third time on this branch.
+
+### V-09: the frame_stats=0 line cannot fire when the whole section is off
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-20, the `enabled=0` line names them itself.
+
+`InstallDxgiHooks` returns on `!dxgiEnabled` before reaching the `frameStats` check, so a run with
+`enabled=0` lost the hitch lines and both CSVs' frame columns with nothing naming them.
 
 ## Checked and clean
 

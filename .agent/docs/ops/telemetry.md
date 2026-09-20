@@ -20,8 +20,8 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what
-`frame_stats=0` silences, since the hitch lines and the frame CSVs have no switch of their own,
-the `auto sizes` line with the render adapter's memory and the pool and staging sizes
+`frame_stats=0` silences, since the hitch lines have no switch of their own and the two frame CSVs
+stay empty despite having one, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
 picked from it or the reason none were picked, a second `auto sizes` line at the swap chain naming
 the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
 every DirectStorage factory, queue and file event, per queue statistics every

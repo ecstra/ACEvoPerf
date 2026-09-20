@@ -61,13 +61,13 @@ static HRESULT WINAPI Hook_CreateDXGIFactory2(UINT flags, REFIID riid, void** pp
 void InstallDxgiHooks()
 {
     if (!g_cfg.dxgiEnabled) {
-        Log("DXGI: [dxgi] enabled=0, so nothing here is hooked. Frame times, Reflex, the display owner check, the write tracing and the check that the auto sizes came from the card the game renders on are all off for this run. The auto sizes themselves are not, they are read at the first DirectStorage call instead.");
+        Log("DXGI: [dxgi] enabled=0, so nothing here is hooked. Frame times, Reflex, the display owner check, the write tracing's copy counters and the check that the auto sizes came from the card the game renders on are all off for this run, and so are the [log] hitch_ms lines and both developer CSVs' frame columns, which ride on the frame times. The auto sizes themselves are not, they are read at the first DirectStorage call instead.");
         if (g_cfg.reflex) Log("DXGI: WARNING: [latency] reflex=1 can do nothing while [dxgi] enabled=0, because Reflex is driven from the swap chain this section hooks.");
         return;
     }
     HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
     if (!dxgi) {
-        Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
+        Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing's copy counters, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
         return;
     }
     g_realCDF1 = (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1");
@@ -77,7 +77,7 @@ void InstallDxgiHooks()
     int b = PatchIatByAddress(exe, (void*)g_realCDF2, (void*)&Hook_CreateDXGIFactory2);
     Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d reflex=%d)", a, b, g_cfg.frameStats, g_cfg.reflex);
     if (!g_cfg.frameStats)
-        Log("DXGI: [dxgi] frame_stats=0, so no frame is timed. That also silences the [log] hitch_ms lines, the frames CSV and the frame columns of the timeline CSV, which have no switch of their own. Reflex is not affected by it.");
+        Log("DXGI: [dxgi] frame_stats=0, so no frame is timed. That also silences the [log] hitch_ms lines and the Present sync interval line, and leaves the frames CSV and the timeline CSV's frame columns empty even with their own [developer] switch on. Reflex is not affected by it.");
     if (!a && !b)
-        Log("DXGI: WARNING: neither factory entry point could be patched in the exe, so nothing here is hooked. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
+        Log("DXGI: WARNING: neither factory entry point could be patched in the exe, so nothing here is hooked. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing's copy counters, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
 }

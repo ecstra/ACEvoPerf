@@ -84,9 +84,11 @@ string. Every header includes it, every source includes its own header first.
   `RealDStorageFactory()` hands the unwrapped factory to the overlay.
 - `dstorage/stats`: every request is counted per destination type into `g_reqByDest` and
   `g_bytesByDest`, read by the timeline and the hitch logger.
-- `render/frame_stats`: `HookSwapChain` patches `Present` and `Present1` when `frame_stats` or
-  `[latency] reflex` is on, either alone, and each consumer checks its own setting inside the
-  hook. `OnPresent` records the time since the previous present, counts hitches
+- `render/frame_stats`: `HookSwapChain` runs `reflex::OnSwapChain` first, then patches `Present`
+  and `Present1` if `frame_stats` is on or Reflex actually took, so they do not go into the
+  vtable that the whole process shares for a layer the vendor check turned away. Each consumer
+  then checks its own setting inside the hook. `OnPresent` records the time since the previous
+  present, counts hitches
   and buffers per frame samples with the streaming requests since the previous frame.
 - `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
   the swap chain to `HookSwapChain`.
