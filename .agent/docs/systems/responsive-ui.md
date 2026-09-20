@@ -2,8 +2,8 @@
 name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth and the HUD from uneven driving frame times, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
-updated: 2026-09-15
-links: [responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
+updated: 2026-09-20
+links: [review-2026-09-fix-review-cohtml-build-guard, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
 # Responsive UI
@@ -139,6 +139,13 @@ waits for its result.
 and 8, vtable `0x3173D58`, checked against the exe's stamp). The responsive UI and the UI probe register
 listeners from `DllMain`, in that order, and `InstallCohtmlHooks` installs once after both. Slot numbers
 are in `include/acevo/ui/cohtml_hooks.h`.
+
+The Cohtml side carries its own check, against the UI engine's stamp, because Kunos ships Coherent
+Gameface as its own binary and can update it without the exe changing, so the exe's stamp says nothing
+about it. On any other build nothing that reaches a Cohtml vtable is hooked at all, which takes the page
+fixes and the resource work move out with it, and the log names the version it found beside the one the
+slots were read from. Without that check the slot numbers would be used on a build they do not belong to,
+which is an indirect call through the wrong method rather than a part quietly staying out.
 
 ## Limits
 

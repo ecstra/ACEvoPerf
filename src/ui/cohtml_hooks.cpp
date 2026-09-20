@@ -16,6 +16,14 @@ static const int kEndFrameSlot = 8;
 static const uint32_t kRvaPostFrameThunk = 0x0126E58;
 static const uint32_t kRvaEndFrameThunk = 0x00EB461;
 
+// The slot numbers in cohtml_slot belong to the UI engine build they were read from, and Kunos ships
+// Coherent Gameface as its own binary that can move without the exe changing, so the exe stamp above does
+// not cover them. A slot that moved is an indirect call through the wrong method with the wrong signature,
+// which is a crash before a menu is ever drawn, so a build that is not this one refuses rather than tries.
+// The stamp is the test, the version name is for the log line.
+static const DWORD kCohtmlTimeDateStamp = 0x675439C7;
+static const char* kCohtmlVersionName = "1.61.0.3";
+
 typedef void* (*PFN_LibraryInitialize)(const char* licenseKey, const void* params);
 typedef void* (*PFN_CreateSystem)(void* library, const void* settings);
 typedef void* (*PFN_CreateView)(void* system, const void* settings);
@@ -114,6 +122,32 @@ static void Hook_EndFrame(void* evoUi, void* renderer, void* arg3, void* arg4)
     for (int i = g_endListenerCount - 1; i >= 0; --i) g_endListeners[i](true);
 }
 
+// A loaded module's file version, read out of its own version resource and left at zero if it carries
+// none. Only the log line reads this, the stamp is what decides anything, so a module with no version
+// resource is not a failure here. kernel32 only, so it needs no import the proxy does not already carry.
+static void ModuleFileVersion(HMODULE module, uint16_t out[4])
+{
+    HRSRC found = FindResourceW(module, MAKEINTRESOURCEW(1), MAKEINTRESOURCEW(16));
+    if (!found) return;
+    DWORD size = SizeofResource(module, found);
+    HGLOBAL loaded = LoadResource(module, found);
+    const BYTE* data = loaded ? (const BYTE*)LockResource(loaded) : nullptr;
+    if (!data) return;
+
+    // VS_VERSIONINFO puts a variable length key and its alignment padding in front of the fixed block, so
+    // find that block by its own signature rather than walking the layout. The four dwords from there are
+    // dwSignature, dwStrucVersion, dwFileVersionMS and dwFileVersionLS.
+    for (DWORD at = 0; at + 16 <= size; at += 4) {
+        const uint32_t* fixed = (const uint32_t*)(data + at);
+        if (fixed[0] != 0xFEEF04BD) continue;
+        out[0] = (uint16_t)(fixed[2] >> 16);
+        out[1] = (uint16_t)(fixed[2] & 0xFFFF);
+        out[2] = (uint16_t)(fixed[3] >> 16);
+        out[3] = (uint16_t)(fixed[3] & 0xFFFF);
+        return;
+    }
+}
+
 static void InstallUiFrameHooks()
 {
     if (!g_postListenerCount && !g_endListenerCount) return;
@@ -147,6 +181,18 @@ void InstallCohtmlHooks()
         Log("[cohtml] Library::Initialize not found, nothing that needs the UI engine's objects runs");
         return;
     }
+    auto cohtmlNt = (IMAGE_NT_HEADERS64*)((BYTE*)cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
+    DWORD stamp = cohtmlNt->FileHeader.TimeDateStamp;
+    uint16_t version[4] = {};
+    ModuleFileVersion(cohtml, version);
+    if (stamp != kCohtmlTimeDateStamp) {
+        Log("[cohtml] the UI engine here is %u.%u.%u.%u (stamp 0x%08X) and the objects were read from %s (stamp 0x%08X), nothing that uses its vtables runs",
+            (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3],
+            stamp, kCohtmlVersionName, kCohtmlTimeDateStamp);
+        return;
+    }
+    Log("[cohtml] UI engine %u.%u.%u.%u (stamp 0x%08X), the build its objects were read from",
+        (unsigned)version[0], (unsigned)version[1], (unsigned)version[2], (unsigned)version[3], stamp);
     g_origInitialize = (PFN_LibraryInitialize)initialize;
     int patched = PatchIatByAddress(GetModuleHandleW(nullptr), initialize, (void*)&Hook_LibraryInitialize);
     Log("[cohtml] Library::Initialize, %d import slot(s) of the exe patched", patched);

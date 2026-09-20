@@ -19,10 +19,14 @@ void AddUiFramePostListener(UiFramePostListener listener);
 void AddUiFrameEndListener(UiFrameEndListener listener);
 
 // Patches the exe's import of Library::Initialize and the game UI's frame slots the first time it is
-// called, later calls do nothing. The frame slots are left alone on a game build they were not read from.
+// called, later calls do nothing. The frame slots are left alone on a game build they were not read from,
+// and nothing that reaches a Cohtml vtable is hooked at all unless the loaded UI engine is the version the
+// slots below were read from, so a listener only ever runs on the build its slot numbers belong to.
 void InstallCohtmlHooks();
 
-// Cohtml vtable slots read from cohtml.WindowsDesktop.dll 1.61.0.3.
+// Cohtml vtable slots read from cohtml.WindowsDesktop.dll 1.61.0.3. InstallCohtmlHooks checks the loaded
+// engine is that version before any of these is used, because a slot that moved would be an indirect call
+// through the wrong method with the wrong signature.
 namespace cohtml_slot {
     static const int kLibraryCreateSystem = 1;
     static const int kLibraryStopWorkers = 2;
