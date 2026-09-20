@@ -60,6 +60,13 @@ static PFN_GetSleepStatus g_getSleepStatus = nullptr;
 // also meant a device reset was never noticed. A device that is already this one is nothing new,
 // a different one is a rebind, and no device at all is a swap chain worth ignoring.
 static IUnknown*        g_device = nullptr;
+// The swap chain the layer was set up from, held as an address to compare and nothing else. It
+// is never dereferenced, called or released, so there is no object here to outlive. The one risk
+// a bare address carries is that this swap chain dies and a later one is allocated at the same
+// place, and that later one would be the game's replacement main swap chain, which is the one we
+// would want to pace anyway. Keeping a reference instead would pin a dead swap chain alive,
+// which is the fault F-07 was about.
+static IUnknown*        g_swapChain = nullptr;
 static bool             g_resolved = false;    // nvapi found and its entry points in hand
 static bool             g_giveUp = false;      // the adapter is not NVIDIA, or nvapi will not answer
 static bool             g_noDeviceLogged = false;
@@ -171,6 +178,7 @@ void OnSwapChain(IUnknown* swapChain)
         g_sleepFailures = 0;
     }
     g_device = device;
+    g_swapChain = swapChain;
 
     NV_SET_SLEEP_MODE_PARAMS p = {};
     p.version = kSleepModeVersion;
@@ -206,9 +214,9 @@ static void ReportStatus(const char* when)
 
 bool Active() { return g_active; }
 
-void OnFrameBegin()
+void OnFrameBegin(IUnknown* swapChain)
 {
-    if (!g_active) return;
+    if (!g_active || swapChain != g_swapChain) return;
     int status = g_sleep(g_device);
     uint64_t n = ++g_sleepCalls;
     if (status != 0) {

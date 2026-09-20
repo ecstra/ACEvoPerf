@@ -23,7 +23,10 @@ void OnSwapChain(IUnknown* swapChain);
 
 // Called from the present hook once the real Present has returned, which is the
 // boundary between one frame and the next and the only frame start a proxy can see.
-void OnFrameBegin();
+// The swap chain that presented is passed because the hooks sit in the vtable inside
+// dxgi.dll, which every swap chain in the process shares, and pacing on someone else's
+// present would sleep twice for one game frame.
+void OnFrameBegin(IUnknown* swapChain);
 
 // Whether the layer took, which is only known after OnSwapChain has run the vendor
 // check. The present hooks ask so they are not installed for a layer that is idle.

@@ -30,9 +30,20 @@ double NowSec()
     return (double)(n.QuadPart - g_qpcStart.QuadPart) / (double)g_qpf.QuadPart;
 }
 
-static void OnPresent(UINT syncInterval)
+// The Present hooks live in the vtable inside dxgi.dll, which the whole process shares, so they
+// fire for any swap chain anyone makes. The frame times belong to one of them. This is the one
+// hooked first, held as an address to compare and never dereferenced, for the reasons in reflex.
+static IUnknown* g_timedChain = nullptr;
+static std::atomic<bool> g_otherChainLogged{false};
+
+static void OnPresent(UINT syncInterval, IUnknown* swapChain)
 {
     if (!g_cfg.frameStats) return;   // the hooks are also installed for Reflex alone
+    if (swapChain != g_timedChain) {
+        if (!g_otherChainLogged.exchange(true))
+            Log("frame times: a second swap chain is presenting in this process, its frames are not counted. The numbers below are the one hooked first.");
+        return;
+    }
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
     int64_t last = g_lastPresentQpc;
     g_lastPresentQpc = now.QuadPart;
@@ -89,17 +100,17 @@ static PFN_Present1 g_origPresent1 = nullptr;
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent(self, sync, flags);
-    OnPresent(sync);
+    OnPresent(sync, self);
     HRESULT hr = g_origPresent(self, sync, flags);
-    reflex::OnFrameBegin();
+    reflex::OnFrameBegin(self);
     return hr;
 }
 static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent1(self, sync, flags, pp);
-    OnPresent(sync);
+    OnPresent(sync, self);
     HRESULT hr = g_origPresent1(self, sync, flags, pp);
-    reflex::OnFrameBegin();
+    reflex::OnFrameBegin(self);
     return hr;
 }
 
@@ -120,6 +131,7 @@ void HookSwapChain(IUnknown* sc)
     // so they do not go in for a layer that turned out to be idle on a card that is not NVIDIA.
     reflex::OnSwapChain(sc1);
     if (g_cfg.frameStats || reflex::Active()) {
+        if (!g_timedChain) g_timedChain = sc1;
         void** vt = *(void***)sc1;
         HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
         HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
