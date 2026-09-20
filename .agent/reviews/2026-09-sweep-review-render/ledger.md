@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-render
 kind: review
-description: the render angle of the full review of main, the auto sizes landing on the wrong card and the settings that silently take other fixes down with them, twelve findings and six the hunter added, two of them breaks
+description: the render angle of the full review of main, the auto sizes landing on the wrong card and the settings that silently take other fixes down with them, twelve findings plus six from the hunter and six from the verifier on batch 1 alone, three of them breaks
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, directstorage-streaming, reviews-index, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size]
 branch: sweep/review-render
@@ -18,8 +18,9 @@ Two themes dominate. The automatic memory sizing picks its numbers from the wron
 bracket below 7 GB, and three settings that read as independent in the ini are wired in series, so
 turning one off silently removes fixes the player never agreed to lose.
 
-Twelve findings, one breaks, five bug, five debt, one nit. Six more from the hunter on batch 1,
-one of them a breaks in the batch's own first fix.
+Twelve findings, one breaks, five bug, five debt, one nit. Six more from the hunter on batch 1 and
+six from the verifier after it, two of those a breaks that the batch's own fixes either created or
+left standing.
 
 ## Batches
 
@@ -309,6 +310,83 @@ under the loader lock, so loading it there is safe.
 never again, while every other flag is written twice. The late pass exists because a static
 initialiser can reset one, and it runs 2.3 seconds after the auto value lands and 361 ms before
 the engine reads it.
+
+### V-01: an adapter reporting no dedicated memory was never picked, so it fell into H-01's configuration
+- severity: breaks
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0f35015, 2026-09-20, the ranking takes the first non software adapter and only then compares, so an adapter reporting zero takes the smallest bracket like any other.
+
+`DiscreteAdapter` started `best` at 0 and skipped on `d.DedicatedVideoMemory <= best`, so an
+adapter reporting none could never win. `found` stayed false, `ResolveAutoSizes` returned before
+`g_cfg.stagingMb` and before `ApplyAutoFlags`, and the machine got the canonical define plus the
+game's uncapped 1024 MB staging request. That is H-01 exactly, reached by a different route, and
+plenty of integrated parts report zero dedicated memory with everything in shared.
+
+Pre-existing rather than introduced by the batch, but it is the same failure the batch set out to
+close and DEC-022 had just claimed nothing stands down.
+
+### V-02: three log lines promised the game's own values stay, which is false for the tile pool
+- severity: bug
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0f35015, 2026-09-20, each line now says that the canonical flag takes the define and names the two keys to set by hand.
+
+Two of the three were written by this batch. With `force_canonical_pool_sizes` on and
+`tile_pool_mb` unwritten the game does not keep its own value, it takes the whole
+`texturePoolSize` define. It is the sentence H-04 had just deleted from the streaming doc, living
+on in the log.
+
+### V-03: the check that the sizes came from the right card cannot fire on the runs the fallback serves
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: wontfix
+- fix: 0f35015, 2026-09-20, recorded as the one gap in DEC-022's consequences.
+
+`CheckAutoSizeAdapter` is called from the `CreateSwapChainForHwnd` hook. Three of the four routes
+into `ResolveAutoSizesFallback` are exactly the runs where that hook was never installed, so a
+machine that took the fallback can never be told it sized from the wrong card. Without the swap
+chain there is no device and no LUID, so there is nothing to check against. The fourth route,
+DirectStorage simply arriving first with the hooks in place, composes fine.
+
+### V-04: the two skip lines named an incomplete list and overstated what they had diagnosed
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0f35015, 2026-09-20.
+
+They named frame times, Reflex and the write tracing, and left out the display owner check and the
+new adapter check, which are off for the same reason. The warning also said the exe imports
+neither entry point, while `PatchIatByAddress` returns 0 on a null target too, so it also prints
+when `GetProcAddress` failed or the imports are delay loaded.
+
+### V-05: the changelog line claimed a fixed symptom on hardware nobody has run
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0f35015, 2026-09-20, moved from Fixed to Changed and reworded to what changed.
+
+"Crashes and missing icons on cards with less than 5 GB" states an outcome. No card under 5 GB
+appears in any session on disk, so the outcome is an inference from the mechanism.
+
+### V-06: three cosmetic effects of the batch, accepted
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: wontfix
+- fix:
+
+Kept here so they are not rediscovered. On the fallback path `tile_pool_mb` is written at the auto
+phase and again microseconds later at the late pass, four log lines for two storages, idempotent.
+`g_autoTilePoolMb` is set before `WriteFlag` reports anything, so on a build where the flag does
+not exist "not found in this game build" now logs twice. `lateApplied` in `DStorageGetFactory` is
+an unsynchronised read then write, which is older than this batch, and the narrowest interleave it
+allows only skips the second write of a value the first write already landed.
 
 ## Checked and clean
 
