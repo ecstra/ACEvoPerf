@@ -109,8 +109,11 @@ counts both paths.
 
 ### Page fixes
 
-A script added with View slot 61 (`AddInitialScript`) to the first view, the menu and HUD view, runs before
-every page's own scripts. It keeps an animation frame counter and publishes its counts on
+A script added with View slot 61 (`AddInitialScript`) to the menu and HUD view, runs before every page's
+own scripts. That view is the first one the game makes, and it also claims its own size, so a menu view
+torn down and remade is recognised again instead of arriving as just another number. The ordinal is tried
+before the size, which keeps a view whose settings could not be read from handing the identity to the
+first car display. It keeps an animation frame counter and publishes its counts on
 `window.__acevoUiFixes` for the UI probe.
 
 - `SpatialNavigation.makeFocusable()` with no section runs once per frame, later calls in the frame fold

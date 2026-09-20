@@ -90,17 +90,29 @@ static void* Hook_CreateView(void* system, const void* settings)
     }
     int number = ++g_viewsCreated;
 
-    // The menu and HUD view is told by its size, not by being first. The game makes it before any session
-    // and makes the car displays after it, smaller and again at every session load, so the first size to
-    // arrive is the one that identifies it. Keying on the ordinal instead meant that a menu view torn down
-    // and made again, which a device change does, came back as just another number and was ignored for the
-    // rest of the session. The first view claims the size and any later view of that size is it again. A
-    // resolution change between the teardown and the remake is the one case this does not catch.
+    // The menu and HUD view is the first one the game makes, and the car displays that follow are smaller
+    // and made again at every session load. The ordinal alone stopped recognising it the moment something
+    // tore it down and remade it, because the replacement arrives with a higher number, so the first view
+    // also claims its size and any later view of that size is the menu view again.
+    //
+    // The ordinal stays as the first test rather than being replaced by the size. A view whose settings
+    // could not be read has a size of zero, and on the size test alone the first readable view would claim
+    // the identity instead, which puts the page fixes in a car display and leaves the menu without them.
+    // That is a worse failure than the one this exists to fix, and the ordinal is immune to it.
     uint64_t size = ((uint64_t)width << 32) | height;
-    uint64_t claimed = 0;
-    bool mainView = size != 0 && (g_mainViewSize.compare_exchange_strong(claimed, size) || claimed == size);
+    bool firstView = number == 1;
+    if (firstView) g_mainViewSize.store(size);
+    uint64_t claimed = firstView ? size : g_mainViewSize.load();
+    bool mainView = firstView || (size != 0 && size == claimed);
 
     Log("[cohtml] view #%d %ux%u created%s", number, width, height, mainView ? ", the menu and HUD view" : "");
+
+    // A later view at least as big as the menu view is the shape a remake after a resolution change takes,
+    // and this cannot tell that from a genuinely new large view. Say so rather than let it pass unremarked,
+    // because being quiet about exactly this case is what the ordinal on its own got wrong.
+    if (!mainView && claimed != 0 && size >= claimed)
+        Log("[cohtml] view #%d is at least as big as the menu and HUD view claimed at %ux%u, and is not being treated as it, so the page fixes are not going to it",
+            number, (unsigned)(claimed >> 32), (unsigned)(claimed & 0xFFFFFFFF));
     for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height, mainView);
     return view;
 }

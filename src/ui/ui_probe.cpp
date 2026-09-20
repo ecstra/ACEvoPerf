@@ -1399,7 +1399,7 @@ void UiProbeTick()
     uint32_t moved = ResponsiveUiTakeMovedWork();
     if (moved && length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | resource work moved off the render thread %u", moved);
     length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
-    AppendClock(line, length, sizeof line, "view #1 clock", second.advanceClock);
+    AppendClock(line, length, sizeof line, "main view clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);
 
     ReportRestyles(restyles);
