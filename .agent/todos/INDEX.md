@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-16
+updated: 2026-09-20
 links: [agent-index, spec-todos]
 ---
 
@@ -12,6 +12,7 @@ links: [agent-index, spec-todos]
 
 release
 
+- [TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core](TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core.md), drop the forwarder from the zip and call the game's own core directly, which gives up nothing because that core has no `DStorageSetConfiguration1Core` for the forwarder to reach either, after the review of main is finished
 - [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post, all three done, the zip built and main tagged `v0.3.2`, waiting on the GitHub release and the Overtake update
 
 streaming
