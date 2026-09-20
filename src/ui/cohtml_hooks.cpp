@@ -50,6 +50,9 @@ static PFN_CreateView g_origCreateView = nullptr;
 static PFN_PostFrame g_origPostFrame = nullptr;
 static PFN_EndFrame g_origEndFrame = nullptr;
 static std::atomic<int> g_viewsCreated{0};
+// The menu and HUD view's width and height packed into one word, so the claim and the match are a single
+// atomic rather than a pair that can be read half written. Zero until the first view arrives.
+static std::atomic<uint64_t> g_mainViewSize{0};
 
 void AddCohtmlLibraryListener(CohtmlLibraryListener listener)
 {
@@ -86,8 +89,19 @@ static void* Hook_CreateView(void* system, const void* settings)
         return view;
     }
     int number = ++g_viewsCreated;
-    Log("[cohtml] view #%d %ux%u created", number, width, height);
-    for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height);
+
+    // The menu and HUD view is told by its size, not by being first. The game makes it before any session
+    // and makes the car displays after it, smaller and again at every session load, so the first size to
+    // arrive is the one that identifies it. Keying on the ordinal instead meant that a menu view torn down
+    // and made again, which a device change does, came back as just another number and was ignored for the
+    // rest of the session. The first view claims the size and any later view of that size is it again. A
+    // resolution change between the teardown and the remake is the one case this does not catch.
+    uint64_t size = ((uint64_t)width << 32) | height;
+    uint64_t claimed = 0;
+    bool mainView = size != 0 && (g_mainViewSize.compare_exchange_strong(claimed, size) || claimed == size);
+
+    Log("[cohtml] view #%d %ux%u created%s", number, width, height, mainView ? ", the menu and HUD view" : "");
+    for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height, mainView);
     return view;
 }
 

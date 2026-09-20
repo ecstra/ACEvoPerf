@@ -6,7 +6,10 @@
 // The responsive UI and the developer UI probe both need those, so the hooks live here once and call
 // whoever registered, in the order they registered. Register from DllMain, before the game starts its UI.
 typedef void (*CohtmlLibraryListener)(void* library);
-typedef void (*CohtmlViewListener)(void* view, int number, unsigned width, unsigned height);
+// `mainView` marks the menu and HUD view. It is told by size rather than by being first, because the game
+// makes the car displays again at every session load and can tear the menu view down and make it again,
+// after which an ordinal would never point at it a second time.
+typedef void (*CohtmlViewListener)(void* view, int number, unsigned width, unsigned height, bool mainView);
 // The game's UI frame post, with the UI clock it hands Cohtml, on the thread that posts it.
 typedef void (*UiFramePostListener)(float uiClock);
 // The game's UI frame end, which waits for the frame's UI job, called just before and just after it on

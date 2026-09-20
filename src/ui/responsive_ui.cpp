@@ -207,9 +207,9 @@ static const char kPageFixesScript[] = R"js(
 
 typedef void (*PFN_AddInitialScript)(void* view, const char* script);
 
-static void OnView(void* view, int number, unsigned, unsigned)
+static void OnView(void* view, int, unsigned, unsigned, bool mainView)
 {
-    if (number != 1) return;
+    if (!mainView) return;
     auto addInitialScript = (PFN_AddInitialScript)(*(void***)view)[cohtml_slot::kViewAddInitialScript];
     addInitialScript(view, kPageFixesScript);
     Log("[responsive ui] page fixes added to the menu and HUD view");
