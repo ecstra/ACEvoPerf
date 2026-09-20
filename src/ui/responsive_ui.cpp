@@ -281,6 +281,8 @@ static HANDLE g_movedSignal = nullptr;
 // One thread and one semaphore for the process, not one per Cohtml library. Only ever written from
 // OnLibrary, which runs on the thread that initialises the library, one library at a time.
 static bool g_movedThreadUp = false;
+// A moved call was given up on and the thread is still inside it. Guarded by g_movedLock.
+static bool g_movedAbandoned = false;
 
 static SRWLOCK g_movedLock = SRWLOCK_INIT;   // guards the queue, the stop flag and the running count
 static MovedWork g_moved[kMaxMoved];
@@ -319,7 +321,20 @@ static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, ui
     return g_origExecuteWork(library, type, mode, family);
 }
 
-// Calls through the library's vtable, so the developer probe's timing sees the work run here.
+// Calls through the library's vtable, so the developer probe's timing sees the work run here. Guarded
+// because a stop that gave up waiting lets the game tear the library down while this call is still in it,
+// after which the vtable read or the call itself lands in freed memory. That fault belongs to a thread
+// the game knows nothing about, so catching it here beats letting it take the process down.
+static void RunMovedWork(const MovedWork& work)
+{
+    __try {
+        auto executeWork = (PFN_ExecuteWork)(*(void***)work.library)[cohtml_slot::kLibraryExecuteWork];
+        executeWork(work.library, kResourceWork, work.mode, work.family);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        Log("[responsive ui] a moved resource work call faulted, the UI engine was most likely torn down while it was still in it");
+    }
+}
+
 static DWORD WINAPI MovedWorkThread(void*)
 {
     SetThreadDescription(GetCurrentThread(), L"ACEvoPerf UI resource work");
@@ -336,8 +351,7 @@ static DWORD WINAPI MovedWorkThread(void*)
         g_movedRunning++;
         ReleaseSRWLockExclusive(&g_movedLock);
 
-        auto executeWork = (PFN_ExecuteWork)(*(void***)work.library)[cohtml_slot::kLibraryExecuteWork];
-        executeWork(work.library, kResourceWork, work.mode, work.family);
+        RunMovedWork(work);
 
         AcquireSRWLockExclusive(&g_movedLock);
         g_movedRunning--;
@@ -352,21 +366,43 @@ static void StopMovingWork()
 {
     MovedWork pending[kMaxMoved];
     int pendingCount = 0;
-    bool abandoned = false;
+    bool gaveUpNow = false;
     AcquireSRWLockExclusive(&g_movedLock);
     g_movingStopped = true;
-    for (; g_movedCount; g_movedCount--, g_movedHead = (g_movedHead + 1) % kMaxMoved) pending[pendingCount++] = g_moved[g_movedHead];
+    for (; g_movedCount; g_movedCount--, g_movedHead = (g_movedHead + 1) % kMaxMoved) {
+        pending[pendingCount++] = g_moved[g_movedHead];
+        // Take back the count this entry put on the semaphore. Left behind, they wake the thread once per
+        // drained entry after the next restart, and a full queue drained puts the semaphore on its
+        // ceiling so the first release after that fails and an entry sits unsignalled.
+        WaitForSingleObject(g_movedSignal, 0);
+    }
+
     // Bounded rather than forever. This runs on the thread that is stopping Cohtml, which is the game's
     // frame thread, and the moved call can be inside Cohtml waiting on a job that only the frame thread
-    // runs, so waiting without a limit is a deadlock neither side can break. Going on instead risks
-    // tearing Cohtml down under its own worker, which is bad, and a hang is the one of the two the player
-    // cannot get out of without killing the process.
-    while (g_movedRunning) {
-        if (!SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, kStopWaitMs, 0)) { abandoned = true; break; }
+    // runs, so waiting without a limit is a deadlock neither side can break. The bound is measured against
+    // a deadline rather than per sleep, because a spurious wake would otherwise start the five seconds
+    // again and there would be no bound at all. Once a call has been given up on it is never waited for
+    // again, since the thread is wedged and every later stop would pay the full time for nothing, which at
+    // shutdown means paying it twice over.
+    if (!g_movedAbandoned) {
+        ULONGLONG deadline = GetTickCount64() + kStopWaitMs;
+        while (g_movedRunning) {
+            ULONGLONG now = GetTickCount64();
+            if (now >= deadline) { gaveUpNow = true; g_movedAbandoned = true; break; }
+            SleepConditionVariableSRW(&g_movedIdle, &g_movedLock, (DWORD)(deadline - now), 0);
+        }
     }
+    bool stillOut = g_movedAbandoned;
     ReleaseSRWLockExclusive(&g_movedLock);
-    if (abandoned)
-        Log("[responsive ui] the moved resource work did not finish within %u ms, going on without it", kStopWaitMs);
+
+    // The frame thread is learned again at the next frame end. Holding the old id across a stop would
+    // match a thread that merely inherited it once the game's own frame thread had gone.
+    g_frameThread.store(0, std::memory_order_relaxed);
+
+    if (gaveUpNow)
+        Log("[responsive ui] a moved resource work call did not finish within %u ms, going on without it", kStopWaitMs);
+    if (pendingCount || stillOut)
+        Log("[responsive ui] the UI engine stopped, %d moved job(s) run here%s", pendingCount, stillOut ? ", one never came back" : "");
     for (int i = 0; i < pendingCount; ++i) g_origExecuteWork(pending[i].library, kResourceWork, pending[i].mode, pending[i].family);
 }
 
@@ -374,6 +410,12 @@ static void Hook_StopWorkers(void* library)
 {
     StopMovingWork();
     g_origStopWorkers(library);
+    // Stopping the workers is not the end of the library, Uninitialize is, and that runs its own stop
+    // first. Latching the move off here left it off for the rest of the process whenever the game stopped
+    // the workers and carried on using the library, which is F-05's fault on the sibling path.
+    AcquireSRWLockExclusive(&g_movedLock);
+    g_movingStopped = false;
+    ReleaseSRWLockExclusive(&g_movedLock);
 }
 
 static void Hook_Uninitialize(void* library, uint64_t arg)
@@ -415,6 +457,12 @@ static void OnLibrary(void* library)
     HookVtableSlot(vtable, cohtml_slot::kLibraryStopWorkers, (void*)&Hook_StopWorkers, (void**)&g_origStopWorkers, "Cohtml Library::StopWorkers");
     HookVtableSlot(vtable, cohtml_slot::kLibraryUninitialize, (void*)&Hook_Uninitialize, (void**)&g_origUninitialize, "Cohtml Library::Uninitialize");
     HookVtableSlot(vtable, cohtml_slot::kLibraryExecuteWork, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
+    // HookVtableSlot is quiet when it cannot make the page writable, which is what a page protection
+    // product would produce, so claim the move only once the one hook that does the work is really in.
+    if (!g_origExecuteWork) {
+        Log("[responsive ui] the UI engine's work call could not be wrapped, the game runs its resource work as it does");
+        return;
+    }
     Log("[responsive ui] resource work the game's frame thread picks up runs on the mod's thread");
 }
 
