@@ -12,8 +12,11 @@
 namespace reflex {
 
 // nvapi_interface.h
+//
+// NvAPI_Unload is not among these on purpose. The only place the mod could call it is the
+// process detach in DllMain, and NVIDIA's own documentation says not to call it from DllMain.
+// Windows tears the process down either way, so there is nothing to gain by doing it unsafely.
 static const unsigned kId_Initialize      = 0x0150e828;
-static const unsigned kId_Unload          = 0xd22bdd7e;
 static const unsigned kId_D3D_SetSleepMode = 0xac1ca9e0;
 static const unsigned kId_D3D_Sleep       = 0x852cd1d2;
 static const unsigned kId_D3D_GetSleepStatus = 0xaef96ca1;
