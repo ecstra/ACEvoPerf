@@ -6,9 +6,12 @@
 // The responsive UI and the developer UI probe both need those, so the hooks live here once and call
 // whoever registered, in the order they registered. Register from DllMain, before the game starts its UI.
 typedef void (*CohtmlLibraryListener)(void* library);
-// `mainView` marks the menu and HUD view. It is told by size rather than by being first, because the game
-// makes the car displays again at every session load and can tear the menu view down and make it again,
-// after which an ordinal would never point at it a second time.
+// `mainView` marks the menu and HUD view. The first view the game makes is it, and that view also claims
+// its own size so that a later view of the same size is recognised as it again, which is what a menu view
+// torn down and remade looks like. The ordinal is tried first and the size is the fallback, never the
+// other way round, because a view whose settings could not be read has a size of zero and on the size
+// alone the identity would fall to the first car display instead. A remake at a different size is not
+// recognised, see BUG-033.
 typedef void (*CohtmlViewListener)(void* view, int number, unsigned width, unsigned height, bool mainView);
 // The game's UI frame post, with the UI clock it hands Cohtml, on the thread that posts it.
 typedef void (*UiFramePostListener)(float uiClock);

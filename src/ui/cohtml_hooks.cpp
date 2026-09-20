@@ -107,12 +107,11 @@ static void* Hook_CreateView(void* system, const void* settings)
 
     Log("[cohtml] view #%d %ux%u created%s", number, width, height, mainView ? ", the menu and HUD view" : "");
 
-    // A later view at least as big as the menu view is the shape a remake after a resolution change takes,
-    // and this cannot tell that from a genuinely new large view. Say so rather than let it pass unremarked,
-    // because being quiet about exactly this case is what the ordinal on its own got wrong.
-    if (!mainView && claimed != 0 && size >= claimed)
-        Log("[cohtml] view #%d is at least as big as the menu and HUD view claimed at %ux%u, and is not being treated as it, so the page fixes are not going to it",
-            number, (unsigned)(claimed >> 32), (unsigned)(claimed & 0xFFFFFFFF));
+    // When the first view's settings could not be read there is no size to match later views against, so
+    // the ordinal is all there is for the rest of the session and a remade menu view cannot be recognised
+    // at all. Say so once, because a silently degraded mode is what this whole finding was about.
+    if (firstView && size == 0)
+        Log("[cohtml] the menu and HUD view's size could not be read, so only the first view is recognised as it");
     for (int i = 0; i < g_viewListenerCount; ++i) g_viewListeners[i](view, number, width, height, mainView);
     return view;
 }

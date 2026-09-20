@@ -174,4 +174,6 @@ rather than starting a thread that would wait forever for work that can never be
 - A page's own script still builds the page in the frame it appears, and pages built over several frames
   still restyle much of the page each frame (BUG-028).
 - The stylesheets are still read and parsed at every document load (BUG-027).
+- A menu and HUD view torn down and remade at a different size is not recognised, so the page fixes stop
+  reaching it for the rest of the session (BUG-033).
 - `responsive_ui=0` turns every part off, there is no switch per part.
