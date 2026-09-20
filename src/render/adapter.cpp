@@ -44,6 +44,11 @@ static uint64_t g_sizedFromMb = 0;
 // The adapter with the most dedicated memory is the one the game renders on. The engine's own
 // log says it enumerates adapters and names one it is "Using", and on the reference laptop it
 // lists the discrete card only, so the two rules agree wherever a discrete card exists.
+//
+// An adapter reporting none at all is still taken, which is why the ranking is written the long
+// way round. Plenty of integrated parts report zero and keep everything in shared memory, and
+// passing on those would leave the canonical flag holding the whole define, the same failure as
+// writing nothing on a small card (DEC-022).
 static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
 {
     bool found = false;
@@ -54,7 +59,8 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
         DXGI_ADAPTER_DESC1 d = {};
         adapter->GetDesc1(&d);
         adapter->Release();
-        if ((d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) || d.DedicatedVideoMemory <= best) continue;
+        if (d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;
+        if (found && d.DedicatedVideoMemory <= best) continue;
         best = d.DedicatedVideoMemory;
         *out = d;
         found = true;
@@ -79,7 +85,7 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
 
     DXGI_ADAPTER_DESC1 d = {};
     if (!DiscreteAdapter(factory, &d)) {
-        Log("auto sizes: no adapter with dedicated memory found, the game's own values stay");
+        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set both by hand if this run is not headless.");
         return;
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
@@ -109,12 +115,12 @@ void ResolveAutoSizesFallback()
     HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     PFN_CreateDXGIFactory1 create = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
     if (!create) {
-        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, the game's own values stay");
+        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, so nothing is sized and tile_pool_mb is left to the canonical flag. Set it and staging_buffer_mb by hand.");
         return;
     }
     IDXGIFactory1* own = nullptr;
     if (FAILED(create(__uuidof(IDXGIFactory1), (void**)&own)) || !own) {
-        Log("auto sizes: no DXGI factory has reached us and our own could not be created, the game's own values stay");
+        Log("auto sizes: no DXGI factory has reached us and our own could not be created, so nothing is sized and tile_pool_mb is left to the canonical flag. Set it and staging_buffer_mb by hand.");
         return;
     }
     Log("auto sizes: no DXGI factory has reached us by the first DirectStorage call, reading the card off our own instead");

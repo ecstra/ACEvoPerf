@@ -14,7 +14,9 @@ superseded-by:
 
 Every adapter gets a figure. `AutoTilePoolMb` runs 256, 512, 1024, 1536, 2048 and 3072 MB for
 cards under 3, 5, 7, 11 and 15 GB of dedicated memory and above, and `AutoStagingMb` runs 128,
-192 and 256 MB on the 7 and 11 GB steps. Nothing stands down, whatever the card reports.
+192 and 256 MB on the 7 and 11 GB steps. Nothing stands down, whatever the card reports,
+including an adapter that reports no dedicated memory at all, which plenty of integrated parts
+do. That one takes the smallest bracket like any other.
 
 The adapter is still the one with the most dedicated memory, read off the first DXGI factory
 that reaches the mod. Once the game's D3D12 device exists, `CheckAutoSizeAdapter` compares that
@@ -66,6 +68,8 @@ by the time the right answer is knowable the pool is already made.
 - The two numbers below 5 GB were never measured on such a card. They are the 6 GB card's budget
   worked backwards, and they err small on purpose.
 - A hybrid machine where the game does not take the adapter with the most memory gets a log line
-  naming both cards and the two ini keys to set by hand, not a correction.
+  naming both cards and the two ini keys to set by hand, not a correction. That check hangs off
+  the swap chain hook, so a run that took the fallback because no factory hook was installed
+  cannot be told, which is the one gap left in it.
 - The auto tile pool is written twice now, at the auto phase and again at the late pass, like
   every other flag.

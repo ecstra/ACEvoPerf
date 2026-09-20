@@ -63,7 +63,7 @@ void InstallDxgiHooks()
     if (!g_cfg.dxgiEnabled) return;
     HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
     if (!dxgi) {
-        Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Frame times, Reflex and the write tracing are off for this run, and any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
+        Log("DXGI: dxgi.dll not loaded at attach time; hook skipped. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
         return;
     }
     g_realCDF1 = (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1");
@@ -73,5 +73,5 @@ void InstallDxgiHooks()
     int b = PatchIatByAddress(exe, (void*)g_realCDF2, (void*)&Hook_CreateDXGIFactory2);
     Log("DXGI: IAT hooks in game exe: CreateDXGIFactory1=%d CreateDXGIFactory2=%d (frame_stats=%d)", a, b, g_cfg.frameStats);
     if (!a && !b)
-        Log("DXGI: WARNING: the exe imports neither factory entry point, so nothing here is hooked. Frame times, Reflex and the write tracing are off for this run, and any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
+        Log("DXGI: WARNING: neither factory entry point could be patched in the exe, so nothing here is hooked. Everything that hangs off the swap chain is off for this run: frame times, Reflex, the write tracing, the display owner check and the check that the auto sizes came from the card the game renders on. Any ini value left at auto is read off a factory of our own at the first DirectStorage call instead.");
 }

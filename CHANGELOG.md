@@ -4,9 +4,9 @@ Every version of ACEvoPerf and what changed in it, newest first.
 
 ## 0.4 (unreleased)
 
-### Fixed
+### Changed
 
-- Crashes and missing icons on cards with less than 5 GB of video memory and on built in graphics, where the mod set aside as much for textures as it does on a 6 GB card.
+- Cards with less than 5 GB of video memory, and built in graphics, now get a smaller share set aside for textures instead of the amount a 6 GB card gets.
 
 ## 0.3.2 (2026-09-18)
 
