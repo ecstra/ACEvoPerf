@@ -243,6 +243,97 @@ settings pointer faults in the mod rather than being refused by Cohtml. The engi
 pointer, so this is a hardening gap rather than a live defect, and it was the one read in the file that
 happened ahead of any validation.
 
+### H-05: the first fix let an unreadable view hand the menu identity to a car display
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: e79a13d, 2026-09-20, the ordinal is tried before the size, so view number one is the menu view whatever its settings read
+
+The first cut of F-02 replaced the ordinal with the size outright. A view whose settings pointer could not
+be read, the case H-04 hardened, has a width and height of zero, the `size != 0` guard skips it, and the
+next view claims the identity permanently. That next view is a 1024x1024 car display, so every dashboard
+of that size for the rest of the session is handed both the page fixes script and the probe script while
+the menu view gets neither.
+
+That is worse than F-02 itself, which only ever left the scripts unapplied. The ordinal was immune,
+because `number == 1` holds whatever the settings read. Trying it first keeps that immunity and keeps the
+size match for the remake case, so the rule is now strictly better than either half alone.
+
+### H-06: the size claim latches for the session, so a remake at a new resolution is still missed, and silently
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed in part, the silence is closed and the limit stands
+- fix: e79a13d, 2026-09-20, a later view at least as big as the claimed one now logs that it is not being treated as the menu view
+
+A resolution change is the most plausible cause of the teardown this fix exists to survive, and it is
+exactly the case the size match cannot cover, because the remade view comes back at the new size while the
+claim still holds the old one. The hunter's point that stands is the silence: F-02's whole complaint was
+that an unrecognised menu view says nothing, and the first cut reproduced that.
+
+The log line closes the silence. The limit itself is left open deliberately. The signal that would close
+it is the swap chain size, which `dxgi_hooks.cpp:19` already sees five seconds before view number one in
+every recorded log and which tracks a resize. Reaching for it would make the page fixes depend on
+`[dxgi] enabled`, and a setting silently disabling an unrelated fix is the bug class this whole review
+exists to remove, so it is not worth trading one for the other here. If the log line is ever seen in a
+real session, that is the evidence to revisit it with.
+
+### H-07: the page fixes doc still said the script goes to the first view
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: e79a13d, 2026-09-20
+
+Commit 8145a1a changed four source files and no doc, the same upkeep miss as V-03 one commit earlier on
+the same file. Twice in one branch is a pattern rather than a slip.
+
+### H-08: the probe's per second line labelled the main view's clock "view #1 clock"
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: e79a13d, 2026-09-20, the label reads "main view clock"
+
+With the fix working, a remade menu view is correctly recognised as number 54 and its clock is printed
+under a heading naming view 1, next to a view 1 row that has stopped advancing. The one line that proves
+the fix worked read as though it had not.
+
+### H-09: g_mainView is a raw pointer to an object whose death nothing follows
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: deferred to sweep/review-ui-probe
+- fix:
+
+Nothing in the project hooks view destruction. After the menu view is destroyed `g_mainView` keeps its
+value, and a car display allocated on the freed block compares equal, so the advance clock follows the
+dashboard and the eviction loop protects its row until the remade menu view reassigns the pointer. The
+pointer is only ever compared and never dereferenced, so there is no fault, and the probe ships off. The
+ordinal had no equivalent hole, because an ordinal cannot be recycled, so this is a cost of the change and
+is recorded as one. It belongs to the probe's own branch because the fix is the probe's to make.
+
+### H-10: two live views at the claimed size are both told they are the menu view, and the probe's script is not harmless in a car display
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: deferred to sweep/review-ui-probe
+- fix:
+
+The page fixes script is close to harmless in a dashboard, since neither `ks-page-vehiclesetup` nor
+`ks-page-settings-controls` exists there and no patch ever fires. The probe's script is not. Its only
+exclusion is a check for hud.html, so a dashboard falls into `installChangeCounters()`, the path the probe
+deliberately keeps off the HUD because that page makes about twenty thousand writes a second and a
+dashboard is the same shape. Needs a size collision, which does not exist on this hardware, where the
+dashboards are power of two render targets and the menu view matches the swap chain exactly.
+
+## What the hunter established about F-02 itself
+
+F-02 has never fired. Across twelve recorded sessions, including focus switches, pauses, a logged device
+change and about fifty session loads, every one shows exactly one 1920x1080 view created and one script
+install. The fix is preventative, which is worth knowing when weighing how much machinery it deserves.
+
 ## The hunter's verdict on the fix
 
 The fix held under attack. What was tried and why each failed:
