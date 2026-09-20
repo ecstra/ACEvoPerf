@@ -96,12 +96,16 @@ on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-20
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
 Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's
-dedicated memory off the first DXGI factory the game creates and picks 512, 1024, 1536, 2048 or
-3072 MB of tiles for cards under 5, 7, 11 and 15 GB and above, and 128, 192 or 256 MB of staging
-on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets. Under 2 GB
-of dedicated memory nothing is written at all and the game keeps its own sizes, because every
-integrated GPU reports a carve out of 128 to 512 MB and then renders out of system memory, so
-that figure is not a budget to size from.
+dedicated memory off the first DXGI factory the game creates and picks 256, 512, 1024, 1536, 2048
+or 3072 MB of tiles for cards under 3, 5, 7, 11 and 15 GB and above, and 128, 192 or 256 MB of
+staging on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets.
+
+Every card gets a figure, including an integrated GPU whose reported dedicated memory is a carve
+out of a few hundred MB. Writing nothing there is not the safe option it looks like: the shipped
+ini sets `force_canonical_pool_sizes` at the early flag pass, long before the card is known, and
+with that on and `tile_pool_mb` unwritten the engine takes the whole `texturePoolSize` define,
+1433 MB at Low and 6144 at Ultra, while the game's own 1024 MB staging request goes through
+uncapped. The smallest bracket, 256 MB, is where the engine's own dynamic formula bottoms out.
 
 ## Lap behaviour
 

@@ -85,7 +85,7 @@ string. Every header includes it, every source includes its own header first.
 - `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
   the swap chain to `HookSwapChain`.
 - `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
-  memory, `ResolveAutoSizes` applies them once and stands down below 2 GB,
+  memory, `ResolveAutoSizes` applies them once,
   `ResolveAutoSizesFallback` does the same off its own factory when no game factory arrives,
   `CheckAutoSizeAdapter` checks the adapter they came from against the one the game renders on,
   `LogDisplayOwner` compares the monitor's adapter with the D3D12 device's adapter LUID.
