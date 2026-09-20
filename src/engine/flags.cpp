@@ -151,6 +151,10 @@ static void SplitFlag(const std::wstring& f, std::string& name, std::string& val
     std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
     name.assign(wname.begin(), wname.end());
     val.assign(wval.begin(), wval.end());
+    // Lowercased here so the two `auto` comparisons below both see it. Written as `Auto`, the flag
+    // used to miss the auto branch, reach WriteFlag, and have atoi turn it into a literal 0 in the
+    // engine's tile pool size, which then hands the canonical flag the whole define.
+    for (auto& ch : val) ch = (char)tolower((unsigned char)ch);
 }
 
 static void WriteFlag(const std::string& name, const std::string& val, const char* phase)

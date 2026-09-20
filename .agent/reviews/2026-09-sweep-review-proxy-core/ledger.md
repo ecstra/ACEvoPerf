@@ -129,8 +129,11 @@ negative value converts to a huge unsigned and turns stats off in silence instea
 Failure with `sample_us=0`: `load_sampler.cpp:354` computes an interval of 0, the wait loop at 365
 exits immediately, line 373 resets the deadline to now, and a `THREAD_PRIORITY_HIGHEST` thread
 suspends and resumes the game's busiest threads with no delay at all. The only way out is killing the
-process. That key is in neither the shipped ini nor the telemetry doc, so a user who sets it has no
-guidance.
+process. The telemetry doc does not cover it, which is the agent directory angle's F-10.
+
+That last sentence originally read "in neither the shipped ini nor the telemetry doc". The ini half
+is wrong: `dist/acevo_perf.ini:63` has shipped `sample_us=1000` with a note all along, and the
+commit that fixed this finding edited that very line. Corrected on 2026-09-20 by batch 2's hunter.
 
 The codebase already knows these need bounds. `minQueueCapacity` is clamped to the DirectStorage
 minimum and maximum at `proxy.cpp:337` to 340, at the use site rather than at the read.

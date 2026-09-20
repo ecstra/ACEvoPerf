@@ -23,8 +23,12 @@ int AutoTilePoolMb(uint64_t vramMb)
     return 3072;
 }
 
-// The runtime keeps two staging buffers in video memory and the game's largest request is
-// 32 MB, so 128 MB already holds four of them in flight.
+// The runtime keeps two staging buffers in video memory. A request larger than the buffer fails
+// outright, so the floor is the game's largest single request, and that is 96.2 MB, measured as
+// the highest `max req` across all 7,848 stats lines on disk. 32 MB is only the ninetieth
+// percentile, which is what this comment used to claim was the maximum. So 128 MB holds the
+// largest request with room to spare rather than four of them, and it is the smallest step here
+// for that reason.
 int AutoStagingMb(uint64_t vramMb)
 {
     if (vramMb < 7168) return 128;
@@ -73,7 +77,11 @@ static bool g_resolveDone = false;
 static bool WantsAutoSizes()
 {
     if (g_cfg.stagingAuto) return true;
-    for (auto& f : g_cfg.flags) if (f.find(L"=auto") != std::wstring::npos) return true;
+    for (auto& f : g_cfg.flags) {
+        std::wstring lower = f;   // `Auto` has to count, the same way SplitFlag lowercases it
+        for (auto& ch : lower) ch = (wchar_t)towlower(ch);
+        if (lower.find(L"=auto") != std::wstring::npos) return true;
+    }
     return false;
 }
 
