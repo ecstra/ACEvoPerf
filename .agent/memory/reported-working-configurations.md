@@ -1,7 +1,7 @@
 ---
 name: reported-working-configurations
 kind: memory
-description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the two cards whose only report is an unresolved visual one, because the readme claims a list and nothing else in the repo recorded it
+description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports nobody has reproduced and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
 updated: 2026-09-20
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache]
@@ -21,7 +21,9 @@ From the Overtake listing reviews and the r/assettocorsaevo thread, all on 0.3.1
 - RTX 3080 10 GB
 - RTX 4050 6 GB laptop, named VRAM overflow and stuttering as what stopped
 - RTX 4060, twice, one of them 8 GB at 1440p with DLSS Quality
-- Radeon RX 6600, "works great", with Reflex turned off in the ini
+- Radeon RX 6600, "works great". That reporter turned Reflex off in the ini, which is only sensible on an
+  AMD card and says nothing either way about the rest of the mod, since Reflex is one small addition
+  beside the streaming, memory and UI work.
 - One report of a 6 GB card that did not say which
 
 ## Reported working on Linux, 2026-09-20
@@ -40,21 +42,28 @@ Those launch options are the reporter's own for the game and are not something t
 report on one distribution and one Proton build is not a supported platform, which is why the readme says
 "reported working" rather than "supported".
 
-## Running, with an unresolved report
+## Open reports
 
-These are not in the readme list, because the only report for each is a problem rather than a success. The
-mod is clearly running on them.
+Three reports nobody has reproduced. The hardware is written down only because the reporter gave it, and
+not as a grouping. Nothing in any of them points at the card, and the owner's call of 2026-09-19 on the
+first one is the standing reading for all three: the card and the fault are unrelated. A setting, a
+leftover shader cache, a driver, or something else local to that machine is at least as likely as either
+the GPU or the mod.
 
-- RTX 4090, fences take on a glass look. Not reproduced, and not a property of the card: the owner's call
-  on 2026-09-19 was that the card and the fault are unrelated and it does not happen on all such cards.
-- RTX 4070 Ti with a 14700K and 64 GB, cars glowing. Not reproduced.
-- An unnamed Radeon, where single player improved and multiplayer freezes stayed. The one report that
-  suggests a difference by vendor, and there is no Radeon on hand to look into it.
+- Fences take on a glass look. Reported once, by someone on a 4090.
+- Cars glowing. Reported once, by someone on a 4070 Ti with a 14700K and 64 GB. The owner's answer was to
+  restart the game and send the log if it persisted, and no log came back.
+- Single player improved and multiplayer freezes stayed. Reported once, by someone who said only "Radeon
+  here". There is no Radeon on hand to look into it.
+
+These are not in the readme list, because nobody on those machines said the mod worked for them, not
+because the cards are suspect. Reading a list of faults as a list of bad cards is exactly the inference to
+avoid.
 
 ## What this is not
 
 Not a support matrix and not a promise. Nothing here was tested by us, every line is somebody's word, and
-two of the reports above are unexplained. Keep it that way in the readme's wording.
+three of the reports are unexplained. Keep it that way in the readme's wording.
 
 ## How to apply it
 
