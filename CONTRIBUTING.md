@@ -7,7 +7,8 @@ behavior.
 ## The absolutes
 
 - **No commit lands on main directly.** All work rides a branch: one
-  branch, one intent.
+  branch, one intent. Branches merge into the open version branch, `0.4`
+  today, and main only moves when that version is published.
 - **No PR exists before the branch's code review has closed.** The owner
   calls the timing and the agent runs it, its ledger lives under
   `.agent/reviews/`, and every finding is fixed, deferred with a written
@@ -26,7 +27,7 @@ behavior.
 
 ## The short loop
 
-Branch from fresh main, work in small undoable commits, keep the gates
+Branch from the open version branch, work in small undoable commits, keep the gates
 green, ask the owner to run the review, fix it batch by batch, then PR
 and merge on their word. The branch dies after merge, its ledger is the
 record.

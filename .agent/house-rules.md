@@ -2,7 +2,7 @@
 name: house-rules-agent
 kind: doc
 description: the branch contract and code review protocol, the agent's operating version
-updated: 2026-08-14
+updated: 2026-09-20
 links: [spec-reviews, spec-bugs, spec-todos, agent-readme]
 ---
 
@@ -23,11 +23,20 @@ CLAUDE.md section 0 names its exact gates and tooling.
 2. **Sweeps carry the small stuff.** Small bugs and small features group
    into a sweep branch by surface, one screen or one subsystem per sweep.
    A sweep never contains a breaking change.
-3. **Branch from fresh main.** Merge whole, never cherry pick out of an
-   unreviewed branch. A merged branch is deleted, its review ledger is
-   the record.
-4. **Main is reviewed code only.** Gates first, then review, then PR,
-   then merge. No step skips.
+3. **Branch from the open version branch.** Work collects on a long
+   lived branch named for the version being built, `0.4` today, and every
+   branch cuts from it and merges back into it (DEC-021). Merge whole,
+   never cherry pick out of an unreviewed branch. A merged branch is
+   deleted, its review ledger is the record.
+4. **Main is released code only.** The newest commit on main is the
+   newest published zip, and main moves only when a version is cut, by
+   merging the version branch into it and tagging that merge. Gates
+   first, then review, then PR, then merge. No step skips.
+5. **The version branch opens with its own version.** Whoever opens it
+   bumps `src/version.rc`, `include/acevo/common.h` and the
+   `CHANGELOG.md` heading on it, so main never carries a version that
+   was never released. A hotfix to a shipped release branches from main
+   and merges forward into the open version branch as well.
 
 ## The gates
 
@@ -89,7 +98,8 @@ works, reviewers never burn effort on red suites.
 - PRs only on the owner's explicit ask in the current message, through
   the project's PR tooling, base main. Merges only on the owner's
   explicit ask.
-- Never commit to main directly.
+- Never commit to main or to the open version branch directly. Both only
+  ever receive merges.
 - Worktrees are disabled: never create one, and never use a worktree
   isolation mode for sub-agents. If the owner ever explicitly asks, the
   one sanctioned home is `.agent/.worktrees/` (gitignored), nowhere
