@@ -27,7 +27,7 @@ one bug, two debt, one nit.
 |---|---|---|---|
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
-| 3 | the page fixes script survives its own error paths | pending | |
+| 3 | the page fixes script survives its own error paths | fixed and verified, runtime gate needs the probe | 2026-09-20, ack |
 | 4 | the moved work thread and its stop flag | pending | |
 | 5 | what the page fixes script costs, and saying when it is not there | pending | |
 
@@ -681,6 +681,34 @@ property non writable, an accessor without a setter, or sealed the client, the a
 straight out of the patched init, the page's own init would never run and vehicle setup would open blank.
 The system doc says every patch wraps the stock method and falls back to it, and this one did not, over
 the one write that reaches an object the mod does not own.
+
+## The batch 3 verifier's verdict
+
+Clean. It went further than the source and extracted the game's own `uiresources\js\components.js` from
+content.kspkg, which settles three things the ledger had been reasoning about blind.
+
+H-13's assumption is now confirmed rather than assumed. `VehicleSetupPage.init` is nothing but
+`this.Client.request("Init", cb)` as its first statement, so the send really is synchronous, and the name
+and the two argument shape both match what the wrapper tests for. The `name !== 'Init'` check became load
+bearing with the F-04 fix, since before it a wrong name still suppressed by accident through a stranded
+mark and after it a wrong name would clear the mark and put BUG-026 back silently, so having it checked
+against the real call matters.
+
+H-12's premise turns out to be unreachable in this build. `VehicleSetupPage`'s constructor does
+`this.Client = new MessageHandler("CarSetup")`, so every element has its own Client rather than sharing
+one, and the templates contain exactly one `ks-page-vehiclesetup`. The fix is correct and defensive
+rather than load bearing here.
+
+H-11's guard is confirmed as the right one. `data-bind-if` is what puts the controls page on screen, so
+leaving it really does disconnect the element, and the game's own code uses the same `isConnected` test.
+Using `=== false` rather than a falsy test is deliberate and right: where the property is missing the
+refresh still runs, whereas a falsy test would silently drop the last step of every drag, which is the one
+thing the hold exists to preserve.
+
+One residual it names, which predates the batch. In the chained wrapper case the outer element's own Init
+goes out unwrapped, so its mark is cleared by the inner element's answer or by the three second timeout
+rather than by its own. It degrades to no suppression, never to a stranded mark, and it is structural to
+the chained design rather than something this batch created.
 
 ## Deferred to batch 5, the page fixes script's costs
 
