@@ -78,18 +78,27 @@ ModuleRange RangeOf(HMODULE module)
     return range;
 }
 
-// The DirectStorage cores load after the hooks go in, so their ranges are looked up until found.
-bool FromDirectStorage(uintptr_t address)
+// Resolved once, where the copy hooks are installed, because both calls in here take the loader
+// lock and the caller is a D3D12 command list hook that runs thousands of times a second during a
+// load. It used to look them up on every call until it found them, on the reasoning that the
+// cores load after the hooks go in. They do not: across the sessions on disk the core loads 320
+// to 800 ms before the first swap chain, and with bundled_runtime=0 the bundled one never loads
+// at all, so a base of zero was indistinguishable from not looked up yet and the lookup repeated
+// for the life of the run.
+static void ResolveCoreRanges()
 {
     static const wchar_t* kCores[2] = { L"acevo_dstoragecore.dll", L"dstoragecore.dll" };
     for (int i = 0; i < 2; ++i) {
-        if (!g_dsBase[i].load()) {
-            ModuleRange range = RangeOf(GetModuleHandleW(kCores[i]));
-            g_dsEnd[i].store(range.end);
-            g_dsBase[i].store(range.base);
-        }
-        if (address >= g_dsBase[i].load() && address < g_dsEnd[i].load()) return true;
+        ModuleRange range = RangeOf(GetModuleHandleW(kCores[i]));
+        g_dsEnd[i].store(range.end);
+        g_dsBase[i].store(range.base);
     }
+}
+
+bool FromDirectStorage(uintptr_t address)
+{
+    for (int i = 0; i < 2; ++i)
+        if (g_dsBase[i].load() && address >= g_dsBase[i].load() && address < g_dsEnd[i].load()) return true;
     return false;
 }
 
@@ -227,6 +236,7 @@ void TextureWritesOnSwapChain(IUnknown* deviceOrQueue)
     }
 
     g_exe = RangeOf(GetModuleHandleW(nullptr));
+    ResolveCoreRanges();   // before a single hook is in, so no hooked call ever takes the loader lock
 
     // Direct, compute and copy command lists each have their own vtable in this runtime, pointing
     // at the same functions, measured on 2026-09-13. DirectStorage uploads on copy lists, so all
