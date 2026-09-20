@@ -24,10 +24,17 @@ without a single check, and one switch whose name promises far less than it does
 Fifteen findings, one breaks, six bug, four debt, four nit. Batches 1 to 3 added nine, nine and six
 more, seven of those bugs the batches' own fixes caused or left standing.
 
-Batch 3 is the one with no runtime gate. Both of its findings need a race or a reference count
-fault the game has never produced, and 113 captured runs create exactly one factory each, so there
-is nothing a launch can show. It is closed on reading rather than on evidence, which is worth
-knowing when reading it back.
+Batch 3 is the one with no runtime gate for its own findings. Both need a race or a reference count
+fault the game has never produced, and 113 captured runs create exactly one factory each, so no
+launch can show either being fixed. It is closed on reading, which is worth knowing when reading it
+back.
+
+What a launch could show, and did, is that the rewrite of the export every DirectStorage call goes
+through broke nothing. Session `logs/proxycore-b3-20260920`, defaults, one loaded track. The
+configuration, the runtime report, the factory, the staging cap at creation, the cap on the game's
+own 1024 MB request, all three queues wrapped, Reflex on, the adapter check agreeing and eight
+override redirects served. One factory line, as every run has. That is the regression check the
+batch does deserve, rather than proof of the fixes.
 
 ## Batches
 
@@ -35,7 +42,7 @@ knowing when reading it back.
 |---|---|---|---|
 | 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
 | 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
-| 3 | one time init happens once, and a freed object is not left addressable | closed, no run can show it | 2026-09-20 |
+| 3 | one time init happens once, and a freed object is not left addressable | closed, regression checked | 2026-09-20 |
 | 4 | the log does not carry the player's machine into a public post | pending | |
 | 5 | the leftovers | pending | |
 
