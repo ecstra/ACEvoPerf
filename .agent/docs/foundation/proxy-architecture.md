@@ -2,7 +2,7 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-18
+updated: 2026-09-20
 links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry, responsive-ui]
 ---
 
@@ -48,9 +48,11 @@ string. Every header includes it, every source includes its own header first.
    `CreateSwapChain`, and `ResolveAutoSizes` reads the render adapter's memory off that factory
    and writes every ini value set to `auto` (the tile pool flag, the staging buffer size). This
    happens before the game's device and pools exist, which is why the values cannot wait for
-   step 2's late pass on a second launch order. When the swap chain is created, `HookSwapChain`
-   hooks `Present` and `Present1` on its vtable for frame timing and `LogDisplayOwner` names the
-   adapter that owns the window's monitor.
+   step 2's late pass on a second launch order. On 2026-09-18 the engine sized its tile pool 7 ms
+   before it created the swap chain, so the margin is real but small. When the swap chain is
+   created, `HookSwapChain` hooks `Present` and `Present1` on its vtable for frame timing,
+   `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
+   renders on, and `LogDisplayOwner` names the adapter that owns the window's monitor.
 5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
    every loaded module (`PatchEverywhere`) so the package table read at startup can be rewritten.
 6. Also at attach: `InstallResponsiveUi` patches Cohtml's and the exe's UI code in memory and registers
@@ -80,8 +82,9 @@ string. Every header includes it, every source includes its own header first.
 - `render/dxgi_hooks`: the factory creation hooks, they log the swap chain description and hand
   the swap chain to `HookSwapChain`.
 - `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
-  memory, `ResolveAutoSizes` applies them once, `LogDisplayOwner` compares the monitor's
-  adapter with the D3D12 device's adapter LUID.
+  memory, `ResolveAutoSizes` applies them once and stands down below 2 GB,
+  `CheckAutoSizeAdapter` checks the adapter they came from against the one the game renders on,
+  `LogDisplayOwner` compares the monitor's adapter with the D3D12 device's adapter LUID.
 - `telemetry/timeline`: `TimelineThread` wakes every second, refills the hitch log budget and
   ticks the throw log, and while a CSV is on it also resets the counters, queries video memory on
   the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line and

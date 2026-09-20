@@ -20,6 +20,7 @@ static HRESULT STDMETHODCALLTYPE Hook_CreateSwapChainForHwnd(IDXGIFactory2* self
     HRESULT hr = g_origCSCFH(self, device, hwnd, desc, fs, out, pp);
     if (SUCCEEDED(hr) && pp && *pp) {
         HookSwapChain(*pp);
+        CheckAutoSizeAdapter(self, device);
         LogDisplayOwner(self, device, hwnd);
         TextureWritesOnSwapChain(device);
     }

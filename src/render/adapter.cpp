@@ -30,7 +30,18 @@ int AutoStagingMb(uint64_t vramMb)
     return 256;
 }
 
-// The adapter with the most dedicated memory is the one the game renders on.
+// The LUID of the adapter the sizes were picked from, kept so the real one can be checked
+// against it once the game's device exists. The sizes cannot wait for that: on 2026-09-18 the
+// engine sized its tile pool 7 ms before it created the swap chain, and the swap chain is the
+// first place the render adapter's LUID can be read at all.
+static LUID g_sizedFromLuid = {};
+static bool g_sizedFromKnown = false;
+static wchar_t g_sizedFromName[128] = {};
+static uint64_t g_sizedFromMb = 0;
+
+// The adapter with the most dedicated memory is the one the game renders on. The engine's own
+// log says it enumerates adapters and names one it is "Using", and on the reference laptop it
+// lists the discrete card only, so the two rules agree wherever a discrete card exists.
 static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
 {
     bool found = false;
@@ -70,26 +81,62 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     }
     int tilePool = AutoTilePoolMb(vramMb);
     int staging = AutoStagingMb(vramMb);
+    g_sizedFromLuid = d.AdapterLuid;
+    g_sizedFromMb = vramMb;
+    wcsncpy_s(g_sizedFromName, d.Description, _TRUNCATE);
+    g_sizedFromKnown = true;
     Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB, staging buffer %d MB", d.Description, (unsigned long long)vramMb, tilePool, staging);
     if (g_cfg.stagingAuto) g_cfg.stagingMb = staging;
     ApplyAutoFlags(tilePool);
+}
+
+// The swap chain's device parameter is the command queue on D3D12, which is the only path the
+// game takes. Anything else leaves the LUID unknown and every caller stays quiet.
+static bool RenderAdapterLuid(IUnknown* device, LUID* out)
+{
+    if (!device) return false;
+    bool found = false;
+    ID3D12CommandQueue* queue = nullptr;
+    if (SUCCEEDED(device->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) && queue) {
+        ID3D12Device* d3d = nullptr;
+        if (SUCCEEDED(queue->GetDevice(__uuidof(ID3D12Device), (void**)&d3d)) && d3d) {
+            *out = d3d->GetAdapterLuid();
+            found = true;
+            d3d->Release();
+        }
+        queue->Release();
+    }
+    return found;
+}
+
+void CheckAutoSizeAdapter(IDXGIFactory1* factory, IUnknown* device)
+{
+    if (!g_sizedFromKnown || !factory) return;
+    LUID renderLuid = {};
+    if (!RenderAdapterLuid(device, &renderLuid)) return;
+    g_sizedFromKnown = false;   // the answer cannot change, so say it once
+    if (renderLuid.LowPart == g_sizedFromLuid.LowPart && renderLuid.HighPart == g_sizedFromLuid.HighPart) return;
+
+    for (UINT i = 0;; ++i) {
+        IDXGIAdapter1* adapter = nullptr;
+        if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
+        DXGI_ADAPTER_DESC1 ad = {};
+        adapter->GetDesc1(&ad);
+        adapter->Release();
+        if (ad.AdapterLuid.LowPart != renderLuid.LowPart || ad.AdapterLuid.HighPart != renderLuid.HighPart) continue;
+        Log("auto sizes: WARNING: the sizes were picked from '%ls' with %llu MB, but the game renders on '%ls' with %llu MB. The pool is already made by now, so set tile_pool_mb and staging_buffer_mb by hand in acevo_perf.ini for the card the game actually uses.",
+            g_sizedFromName, (unsigned long long)g_sizedFromMb, ad.Description, (unsigned long long)(ad.DedicatedVideoMemory >> 20));
+        return;
+    }
+    Log("auto sizes: WARNING: the sizes were picked from '%ls' with %llu MB, but the game renders on an adapter that is not in the factory's list at all.",
+        g_sizedFromName, (unsigned long long)g_sizedFromMb);
 }
 
 void LogDisplayOwner(IDXGIFactory1* factory, IUnknown* device, HWND hwnd)
 {
     if (!factory || !device || !hwnd) return;
     LUID renderLuid = {};
-    bool haveLuid = false;
-    ID3D12CommandQueue* queue = nullptr;
-    if (SUCCEEDED(device->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) && queue) {
-        ID3D12Device* d3d = nullptr;
-        if (SUCCEEDED(queue->GetDevice(__uuidof(ID3D12Device), (void**)&d3d)) && d3d) {
-            renderLuid = d3d->GetAdapterLuid();
-            haveLuid = true;
-            d3d->Release();
-        }
-        queue->Release();
-    }
+    bool haveLuid = RenderAdapterLuid(device, &renderLuid);
 
     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     for (UINT i = 0;; ++i) {
