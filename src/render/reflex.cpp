@@ -55,8 +55,14 @@ typedef int   (*PFN_GetSleepStatus)(IUnknown* device, NV_GET_SLEEP_STATUS_PARAMS
 static PFN_SetSleepMode   g_setSleepMode = nullptr;
 static PFN_Sleep          g_sleep = nullptr;
 static PFN_GetSleepStatus g_getSleepStatus = nullptr;
+// The D3D12 device the layer is bound to. It stands in for the old "we have tried once" flag,
+// which a splash or overlay swap chain could spend before the game's own ever arrived, and which
+// also meant a device reset was never noticed. A device that is already this one is nothing new,
+// a different one is a rebind, and no device at all is a swap chain worth ignoring.
 static IUnknown*        g_device = nullptr;
-static bool             g_tried = false;
+static bool             g_resolved = false;    // nvapi found and its entry points in hand
+static bool             g_giveUp = false;      // the adapter is not NVIDIA, or nvapi will not answer
+static bool             g_noDeviceLogged = false;
 static bool             g_active = false;
 static std::atomic<uint64_t> g_sleepCalls{0};
 static std::atomic<uint64_t> g_sleepFailures{0};
@@ -124,8 +130,7 @@ static bool Resolve()
 
 void OnSwapChain(IUnknown* swapChain)
 {
-    if (!g_cfg.reflex || g_tried || !swapChain) return;
-    g_tried = true;
+    if (!g_cfg.reflex || !swapChain) return;
 
     // Reflex wants the D3D12 device, which the swap chain can hand over.
     IDXGISwapChain* sc = nullptr;
@@ -133,11 +138,38 @@ void OnSwapChain(IUnknown* swapChain)
     ID3D12Device* device = nullptr;
     HRESULT hr = sc->GetDevice(__uuidof(ID3D12Device), (void**)&device);
     sc->Release();
-    if (FAILED(hr) || !device) { Log("[reflex] the swap chain has no D3D12 device (hr=0x%08X), layer idle", (unsigned)hr); return; }
+    if (FAILED(hr) || !device) {
+        // Not a reason to give up on the run. A splash screen, a video surface or an injected
+        // overlay can make a swap chain of its own before the game's, and D3D12 requires the
+        // ForHwnd path with a command queue, so the one that matters may still be coming.
+        if (!g_noDeviceLogged) {
+            g_noDeviceLogged = true;
+            Log("[reflex] a swap chain with no D3D12 device went past (hr=0x%08X), still waiting for one that has it", (unsigned)hr);
+        }
+        return;
+    }
 
-    // The vendor check comes before nvapi is touched at all.
-    if (!RenderAdapterIsNvidia(device)) { device->Release(); return; }
-    if (!Resolve()) { device->Release(); return; }
+    if ((IUnknown*)device == g_device) { device->Release(); return; }   // the one already bound
+    if (g_giveUp) { device->Release(); return; }
+
+    // The vendor check comes before nvapi is touched at all. Both it and the nvapi lookup answer
+    // for the process rather than for this device, so a refusal from either one is final.
+    if (!RenderAdapterIsNvidia(device)) { g_giveUp = true; device->Release(); return; }
+    if (!g_resolved) {
+        if (!Resolve()) { g_giveUp = true; device->Release(); return; }
+        g_resolved = true;
+    }
+
+    // A reset, a driver update or a mode change builds a new device and leaves the old one dead.
+    // Holding a reference on it keeps its heaps alive and every Sleep call goes to a corpse.
+    if (g_device) {
+        Log("[reflex] the game is on a new D3D12 device, rebinding. The one before it paced %llu frames and was refused %llu times.",
+            (unsigned long long)g_sleepCalls.load(), (unsigned long long)g_sleepFailures.load());
+        g_device->Release();
+        g_active = false;
+        g_sleepCalls = 0;
+        g_sleepFailures = 0;
+    }
     g_device = device;
 
     NV_SET_SLEEP_MODE_PARAMS p = {};

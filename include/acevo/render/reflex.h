@@ -15,7 +15,10 @@
 namespace reflex {
 
 // Called when the swap chain is hooked. Finds nvapi, resolves the entry points and
-// tells the driver what mode to run in. Safe to call more than once.
+// tells the driver what mode to run in. Called for every swap chain the process makes,
+// and it is the D3D12 device behind one that decides: none means ignore it, the device
+// already bound means nothing to do, a different one means the game was reset and the
+// layer rebinds to it.
 void OnSwapChain(IUnknown* swapChain);
 
 // Called from the present hook once the real Present has returned, which is the
