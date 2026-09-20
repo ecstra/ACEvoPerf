@@ -29,6 +29,7 @@ one bug, two debt, one nit.
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | pending | |
 | 4 | the moved work thread and its stop flag | pending | |
+| 5 | what the page fixes script costs, and saying when it is not there | pending | |
 
 ## Findings
 
@@ -600,6 +601,110 @@ that touches `.agent/`.
 The test is `size == 0`, which is true both when the settings pointer could not be read and when readable
 settings say zero by zero. The line said "could not be read" and the header comment made the same
 conflation. Both now say the view has no size, which is what is actually known.
+
+### H-11: a held controls refresh rebuilds a page the player has already left
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 29d4edf, 2026-09-20, the timer drops the refresh when the element is no longer connected
+
+The game answers a slider drag with a soft refresh every 30 to 40 ms, so a drag almost always ends with
+one refresh sitting in the waiting slot and up to 100 ms left on its timer. The player releases the slider
+and presses Escape or opens another settings page inside the same document. Nothing cancels the timer, so
+it fires afterwards and calls the stock refresh on the controls element, rebuilding every binding row and
+resyncing every slider, which BUG-025 measures at 17 to 52 ms plus a whole page navigation scan.
+
+The stall lands a frame into the page the player just opened and is read as that page's cost. If the
+element is detached the rebuild throws instead and the catch sends it to the console only, so the frame
+cost appears with nothing in acevo_perf.log to explain it. Stock had no such window, because its refresh
+ran while the page was still up.
+
+### H-12: the fix for F-04 cleared a mark whose request was genuinely in flight
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 29d4edf, 2026-09-20, whether our own Init went out is tracked in a flag instead of inferred, and only our own wrapper is taken back
+
+ffbe6b9 inferred "no Init went out" from `client.request !== stockRequest`. With two vehicle setup
+elements on a shared Client that inference is wrong in both directions. Element A installs its wrapper and
+has not sent Init yet. Element B inits inside that window, captures A's wrapper as its stock request and
+installs its own. B's init sends Init, which unwinds through both wrappers down to the real request, so by
+the time B's `finally` runs the real request is back in place, B compares it against A's wrapper, concludes
+no Init went out, puts A's wrapper back and zeroes its own mark while its Init is in flight. B's duplicate
+init a few milliseconds later is then no longer suppressed and BUG-026 returns for B.
+
+Created by the F-04 fix, not by F-03. Before it the same interleaving left the marks alone. Unobserved,
+and it needs two of those elements overlapping, which nothing in the repo evidences.
+
+### H-13: the same inference only held while the page sends its request synchronously
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 29d4edf, 2026-09-20
+
+"The wrapper is still installed at return" means "no Init will ever go out" only if the send is
+synchronous. If the page ever deferred it by a microtask or a timeout, the synchronous part of init would
+return with the wrapper still in place, the mark would be cleared, and BUG-026 would be quietly back on
+every open with the ignored counter reading zero.
+
+That is the same shape as the defect this batch is fixing, a lifetime tied to the wrong event, one level
+up. The evidence says the send is synchronous today, since BUG-026 was verified fixed and an async send
+under the old code would have stranded the mark for three seconds on every open, which was never reported.
+Tracking the flag removes the assumption rather than resting on it. With an async send the fix now
+degrades to no suppression at all rather than to suppression that sticks, which is the right direction to
+fail in.
+
+### H-14: the trailing navigation scan did not claim the frame it landed in
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 29d4edf, 2026-09-20, the callback sets the scanned frame
+
+A call arriving later in the same frame found the previous frame's number and took the full scan path, so
+that frame paid two whole page scans at about 3.1 ms each, which is exactly the cost the fold exists to
+remove. The lap of 2026-09-15 counted 1,011 calls, 919 folded and 144 scans, 52 of them trailing, so 52
+frames in one lap each began with a scan that did not protect them.
+
+### H-15: the one assignment that reaches the page's own object sat outside the try
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 29d4edf, 2026-09-20, the install falls back to the stock init if the client refuses the write
+
+`client.request = ...` ran in strict mode outside any guard. If Cohtml's binding layer ever made that
+property non writable, an accessor without a setter, or sealed the client, the assignment would throw
+straight out of the patched init, the page's own init would never run and vehicle setup would open blank.
+The system doc says every patch wraps the stock method and falls back to it, and this one did not, over
+the one write that reaches an object the mod does not own.
+
+## Deferred to batch 5, the page fixes script's costs
+
+Four hunter finds that are real and are not about this batch's error paths. Grouped rather than forced in,
+because each changes what the script costs rather than how it recovers.
+
+- `responsive_ui.cpp:36` | debt | the script installs its frame counter, its SpatialNavigation accessor
+  and its customElements wrapper on hud.html, where none of its three patches can ever apply. The same
+  view carries the menus and the HUD, so this is re-evaluated at every session load and leaves a permanent
+  one callback per frame chain on the driving page, the one BUG-009 ties to the one percent lows. The
+  probe's sibling script already gates its heavy work off hud.html by pathname and this one has the same
+  information and does not use it.
+- `responsive_ui.cpp:226` | debt | the log says the page fixes are in the moment `AddInitialScript`
+  returns, and nothing ever reports whether the script ran or whether any of its three patches installed.
+  The counters and the frame chain sit outside every try, so one missing API there takes all three fixes
+  out at once while the line is still written. This is F-01 and H-01's theme one layer further down.
+- `responsive_ui.cpp:64` | debt | the navigation fold's only recovery is a future animation frame, and the
+  owner's own note records that the UI view pauses when the window loses activation. While frames are
+  stopped every call folds into a callback that cannot run, and if the chain ever stops for good,
+  `makeFocusable` is dead for the life of the document with no timer, no count and no upper bound.
+- `responsive_ui.cpp:161` | debt | the controls throttle spaces refresh starts rather than the gaps
+  between them, because the stamp is taken before the refresh runs. A rebuild costing more than the
+  100 ms window makes the next arrival run at once, so refreshes go back to back with no idle frame and
+  the held counter reads zero exactly when the page is slowest.
 
 ## Hunter and verifier finds outside this batch's scope
 
