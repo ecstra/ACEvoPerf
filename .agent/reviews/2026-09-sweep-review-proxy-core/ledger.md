@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-proxy-core
 kind: review
-description: the proxy and core angle of the full review of main, an off switch that takes the override layer with it and a row of ini values used without validation, fifteen findings, one breaks
+description: the proxy and core angle of the full review of main, an off switch that takes the override layer with it and a row of ini values used without validation, fifteen findings plus nine from batch 1's hunter and verifier, one breaks
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, proxy-architecture, reviews-index]
 branch: sweep/review-proxy-core
@@ -21,13 +21,14 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit.
+Fifteen findings, one breaks, six bug, four debt, four nit. Batch 1 added nine more, six from the
+hunter and three from the verifier, one of them a bug the batch's own first fix caused.
 
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | an off switch turns off only what it names | pending | |
+| 1 | an off switch turns off only what it names | closed, awaiting the owner's run | 2026-09-20 |
 | 2 | every value that crosses the ini boundary is validated | pending | |
 | 3 | one time init happens once, and a freed object is not left addressable | pending | |
 | 4 | the log does not carry the player's machine into a public post | pending | |
@@ -39,8 +40,16 @@ Fifteen findings, one breaks, six bug, four debt, four nit.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 530a0da then aa5a0c5, 2026-09-20, `QueueProxyWanted` names all the consumers that need the wrapper, the overlay among them, and each log line inside the wrapper checks its own setting.
+
+The symptom below is understated and the verifier corrected it on 2026-09-20. The table rebase
+runs through `Hook_ReadFile` and never touched the wrapper, so with `stats=0` the entries were
+still rewritten to point at virtual offsets past the end of the package while the redirect that
+serves them was dead. `logs/render-b4-20260920/acevo_perf.log:32` has the flipbook and the
+stylesheet placed at 69,070,749,696 and beyond against a `content.kspkg` of exactly that many
+bytes. So those two reads ran off the end of the file: the assets were unreadable, not merely
+unfixed. `breaks` was the right severity for the wrong reason.
 
 `src/dstorage/proxy.cpp:350` wraps a queue in `QueueProxy` only when
 `(g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace)`. The two developer flags ship off.
@@ -261,6 +270,120 @@ acevo_perf.log to check a UI fix landed is told it came from the DXGI layer.
 
 `src/dstorage/proxy.cpp:205` and `:260`. `QueueProxy::Report` also uses single letter locals where the
 rest of the codebase names things, and packs two statements per line at 207 and 218.
+
+### H-01: the stats gate silenced a line that carries its own switch
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20, the gate sits on the `[stats]` line, not at the top of the function.
+
+F-01's first fix put `if (!g_cfg.stats) return;` at the top of `QueueProxy::Report` so a player
+who asked for quiet still got it. Eleven lines below sat the repeated read total, guarded by
+`streamingTrace`, which the early return made unreachable. So `streaming_trace=1` with `stats=0`
+lost a line it used to get, and the telemetry doc promises it without mentioning `stats`.
+
+### H-02: the timeline CSV, the frames CSV and the hitch lines were still hostage to stats=0
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20, `QueueProxyWanted` lists every consumer by name.
+
+The wrapper is the only writer of `g_reqByDest`, `g_bytesByDest`, `g_submitsTotal`, `g_tileBatches`
+and `g_tileBatchMax`. The timeline CSV reads nine columns from them, the `[hitch]` line reads three,
+and neither `timeline` nor `frame_stats` was in the wrap condition. With `stats=0`, `enabled=0` and
+`timeline=1` those columns are all zero for the session with nothing saying why. That is this
+batch's own theme reached from a different direction, and it is the shape the render angle already
+fixed once for `frame_stats`.
+
+### H-03: the box a player sees on a broken install told them to copy three files out of five
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20, it says to copy all the files, which is what the readme and the zip readme say.
+
+The message named `dstorage.dll`, `dstorage_orig.dll` and `acevo_perf.ini`. `release.ps1` ships
+five, and the one left out is `acevo_dstoragecore.dll`, the DirectStorage 1.3.0 the mod exists to
+bring. A player who followed it got a game that loads, falls back to the game's own 1.2.3 with one
+log line, and stays that way. It also broke the public docs rule that install text never lists file
+names.
+
+### H-04: the factory handed its real self to anything that was not exactly IDStorageFactory
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20, `IUnknown` is answered with the proxy.
+
+`QueueProxy::QueryInterface` declines `IDStorageQueue3` on purpose, with a comment saying a newer
+runtime must not let the game slip past the proxy. One level up the same hole was open: any riid
+that was not `IDStorageFactory`, `IID_IUnknown` included, got the unwrapped factory, and every
+queue made from it would escape the staging override, the capacity raise and the redirect. Latent,
+the line has never appeared in a log.
+
+### H-05: the comment justifying the early return said something the code contradicts
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20, the comment went with the code it justified.
+
+"The final line is the only thing that reads them" was false: `Submit` reads two of the counters on
+every call to decide whether this is the tile queue, and both feed the timeline CSV.
+
+### H-06: a doc gained a dated paragraph and kept its old date
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: aa5a0c5, 2026-09-20.
+
+`package-override-layer.md` said `updated: 2026-09-15` while the paragraph added to it said "until
+2026-09-20".
+
+### V-01: the ledger was two commits behind its own spec
+- severity: bug
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch.
+
+F-01 still read `status: open` with an empty `fix:` after being fixed twice, none of the six hunter
+findings had a block at all, the batch row said pending and the summary's count was stale. The
+spec's whole point is that the ledger is the record, and a record two commits behind the code is
+the thing the upkeep rule exists to prevent. The render angle got this right by updating the ledger
+once per batch, which is what this now does.
+
+### V-02: one term of the new condition is not needed
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-20, the term is gone and the comment says why.
+
+`g_cfg.frames` was listed as a consumer. The frames CSV's rows come from a buffer filled only
+inside `OnPresent`, which returns early when `frame_stats` is off, so `frames` can never produce a
+row without `frame_stats` being on as well. Harmless, it only over wrapped, but a list whose point
+is to name the consumer that needs each term is worse for carrying one that does not.
+
+### V-03: the error line has no switch of its own and goes with the wrapper
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: wontfix
+- fix:
+
+`RetrieveErrorRecord` is where the mod surfaces a DirectStorage request failure, and it lives in
+the wrapper like everything else. With all seven consumers off it is gone, and that is the one
+configuration where a failure would be least visible. It matters because batch 2's F-03, a staging
+size of 4096 wrapping to zero and every request failing, would be silent there.
+
+Not fixed, because the alternative is wrapping every queue always, and the configuration that
+leaves it unwrapped is the project's own passive control for frame time measurements. Adding eight
+atomics a request to that would corrupt the measurement it exists for. Recorded so the next reader
+knows the gap is deliberate.
 
 ## Checked and clean
 

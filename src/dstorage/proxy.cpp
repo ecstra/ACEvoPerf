@@ -165,7 +165,9 @@ static void TraceFileRequest(const DSTORAGE_REQUEST* request)
 }
 
 // ---------------------------------------------------------------------------
-// IDStorageQueue proxy (statistics + error reporting)
+// IDStorageQueue proxy. Started as statistics and error reporting, and is now also the only
+// writer of the process wide request counters and the only place OverlayRedirect is reached
+// from, so several things that look unrelated to statistics need it. See QueueProxyWanted.
 // ---------------------------------------------------------------------------
 struct QueueStats {
     std::atomic<uint64_t> requests{0}, bytes{0}, submits{0}, maxReq{0}, sinceSubmit{0};
@@ -328,8 +330,8 @@ static bool QueueProxyWanted()
         || g_cfg.logRequests        // the [req] line per request
         || g_cfg.streamingTrace     // the streaming CSV rows and the repeated read total
         || g_cfg.timeline           // nine request columns of acevo_perf_timeline.csv
-        || g_cfg.frames             // the request columns of acevo_perf_frames.csv
-        || g_cfg.frameStats         // the streaming counts on every [hitch] line
+        || g_cfg.frameStats         // the [hitch] lines' streaming counts, and the frames CSV,
+                                    // whose rows only exist when this is on as well
         || overlay::Active();       // the package override layer, whose redirect lives in the wrapper
 }
 
