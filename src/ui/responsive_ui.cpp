@@ -63,6 +63,10 @@ static const char kPageFixesScript[] = R"js(
             var self = this;
             requestAnimationFrame(function () {
                 trailing = false;
+                // Claim the frame this lands in. Without it a call arriving later in the same frame
+                // sees the previous frame's number and takes the whole page scan path, so the frame
+                // pays two scans, which is the cost this fold exists to remove.
+                scannedFrame = frame;
                 try {
                     fixes.navigation.scans++;
                     stock.call(self);
@@ -112,30 +116,43 @@ static const char kPageFixesScript[] = R"js(
             if (typeof stockRequest !== 'function') return stockInit.apply(this, arguments);
 
             var self = this;
-            self.__acevoInitPendingSince = now;
-            client.request = function (name, callback) {
+            var sentInit = false;
+            var wrapper = function (name, callback) {
                 // Step aside only once the Init this is waiting for has actually come past. Stepping
                 // aside on the first request of any name let an unrelated one that init sends first
                 // take the wrapper off, after which the real Init reached the stock request, its answer
                 // was never wrapped, and the mark stayed set for the full three seconds.
                 if (name !== 'Init' || typeof callback !== 'function') return stockRequest.apply(client, arguments);
+                sentInit = true;
                 client.request = stockRequest;
                 return stockRequest.call(client, name, function () {
                     self.__acevoInitPendingSince = 0;
                     return callback.apply(this, arguments);
                 });
             };
+            // The client belongs to the page, so it is entitled to refuse the write. Falling back beats
+            // taking the page's own init down with us, and this is the one assignment here that reaches
+            // an object the mod does not own.
+            try {
+                client.request = wrapper;
+            } catch (e) {
+                return stockInit.apply(this, arguments);
+            }
+            self.__acevoInitPendingSince = now;
             try {
                 return stockInit.apply(this, arguments);
             } finally {
-                // The wrapper is still in place only when no Init went out, because init threw before it
-                // sent one or never sent one, so nothing will ever arrive to clear the mark. Leaving it
-                // set would make the page's own second init, the one this exists to fold away, be ignored
-                // for three seconds and a half built page stay on screen.
-                if (client.request !== stockRequest) {
-                    client.request = stockRequest;
-                    self.__acevoInitPendingSince = 0;
-                }
+                // Take back only our own wrapper. Another element sharing this Client can have put its
+                // own over ours in between, and restoring by comparing against the stock request would
+                // reinstate a stale one.
+                if (client.request === wrapper) client.request = stockRequest;
+                // Track whether our Init went out rather than inferring it from the wrapper still being
+                // installed. With a wrapper nested inside another those are different questions, and the
+                // inference cleared a mark whose request was genuinely in flight. When no Init of ours
+                // went out nothing will ever arrive to clear the mark, and leaving it set would make the
+                // page's own second init, the one this exists to fold away, be ignored for three seconds
+                // and a half built page stay on screen.
+                if (!sentInit) self.__acevoInitPendingSince = 0;
             }
         };
         proto.__acevoPatched = true;
@@ -181,6 +198,10 @@ static const char kPageFixesScript[] = R"js(
                 var waiting = self.__acevoRefreshWaiting;
                 self.__acevoRefreshWaiting = null;
                 if (!waiting) return;
+                // A drag almost always ends with one refresh still held, and the player can leave the
+                // page inside that window. Rebuilding every binding row then costs a frame on whatever
+                // page they opened instead, and the stall reads as that page's rather than this one's.
+                if (self.isConnected === false) return;
                 try {
                     run(self, waiting);
                 } catch (e) {
