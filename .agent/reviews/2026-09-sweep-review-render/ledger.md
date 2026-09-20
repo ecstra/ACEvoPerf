@@ -27,7 +27,7 @@ left standing.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
-| 2 | a setting that is off does not take unrelated fixes with it | closed, awaiting the owner's run | 2026-09-20 |
+| 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | pending | |
 | 4 | the leftovers | pending | |
 
@@ -552,3 +552,19 @@ at 13:08:23.085, which is 316 ms after the late pass and 68 ms before the swap c
 13:08:23.153. So the fallback's window holds on a second run and the LUID still arrives after the
 pool is made. The margins are not fixed, 7 ms against 68 ms for the swap chain gap across the two
 sessions, which is worth remembering before anything else is moved later on the strength of them.
+
+Batch 2 needed a different run, because with the shipped `frame_stats=1` none of its behaviour is
+visible. Session `logs/render-b2-20260920`, the same machine with `[dxgi] frame_stats=0` set for
+that one launch and put back afterwards. It is the first session on disk ever to run with that
+setting, and it is the configuration that used to kill Reflex.
+
+- `[reflex] on: low latency mode (boost off)` at 13:41:05.458, three `[reflex]` lines in all. Before
+  this batch there would have been none, no vendor check and nothing saying why. That is F-05.
+- `DXGI: [dxgi] frame_stats=0, so no frame is timed ...` at 13:41:02.270, naming what does go with
+  it, which is H-07.
+- `DXGI: IAT hooks ... (frame_stats=0 reflex=1)` and `config: ... reflex=1 reflexBoost=0`, so the log
+  now shows both settings that decide this, which is H-10.
+- `DXGI: hooked IDXGISwapChain::Present` at 13:41:05.458, after the three `[reflex]` lines rather
+  than before them, which is H-11's reorder.
+- Not one `Present sync interval = ` line and not one `[hitch]` line in the whole run, which is what
+  the new line claims and the only way to check it.
