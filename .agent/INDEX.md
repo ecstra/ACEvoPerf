@@ -48,3 +48,4 @@ line in the same commit.
 - [handover/2026-09-05-lap-analysed.md](handover/2026-09-05-lap-analysed.md), state after the first telemetry lap
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed
 - [handover/2026-09-13-frame-time-mesh-budget.md](handover/2026-09-13-frame-time-mesh-budget.md), the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1, superseded by the mesh deep dive
+- [handover/2026-09-20-review-of-main-angle-one-done.md](handover/2026-09-20-review-of-main-angle-one-done.md), the full review of main with one of thirteen angles closed and merged into 0.4, what the batch loop caught, and the next angle to branch
