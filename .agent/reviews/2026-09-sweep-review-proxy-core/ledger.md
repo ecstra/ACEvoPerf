@@ -29,7 +29,7 @@ another nine, three of those bugs the batch's own fixes caused or left standing.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
-| 2 | every value that crosses the ini boundary is validated | closed, awaiting the owner's run | 2026-09-20 |
+| 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
 | 3 | one time init happens once, and a freed object is not left addressable | pending | |
 | 4 | the log does not carry the player's machine into a public post | pending | |
 | 5 | the leftovers | pending | |
@@ -550,6 +550,36 @@ finding any more. One verifier finding carried an `H-` prefix. And six blocks us
 The spec was the thing that was wrong on the last of those, since the house rules have run a
 verifier on every batch of this review, so it gained the value and a sentence saying ids are unique
 across the file rather than per batch. The other two were the ledger's.
+
+## The runs
+
+Batch 1: session `logs/proxycore-b1-20260920`, `[directstorage] stats=0` for one launch. Eight
+`overlay: redirected request` lines, the trackside screen flipbook and the UI stylesheet among
+them, and not one `[stats] queue` line. Before the fix the redirect would not have run at all and
+those two reads would have gone past the end of the package.
+
+Batch 2: session `logs/proxycore-b2-20260920`, six values deliberately wrong in one launch. Each
+one used to do damage quietly, and each wrote a line saying what happened instead.
+
+- `staging_buffer_mb=4096` fell back to auto and `SetStagingBufferSize(128 MB)` landed. Before, the
+  conversion gave zero bytes and every request that exceeded it failed.
+- `[overlay] folder=.` became `acevo_mods`, and the log says that folder is not present. Before,
+  the layer would have walked the whole game install from DllMain and offered every file in it.
+- `reflex=ture` left Reflex on, confirmed by `[reflex] on` and by `reflex=1` in the config line.
+  Before, an unrecognised word was a no and Reflex was off with nothing saying so.
+- `stats_interval_s=0` became 1, so 61 stats lines rather than one per submit.
+- `tile_queue_priority=fastest` left the game's own priority and said the word was not known.
+- `force_canonical_pool_sizes=ture` printed `left alone` four times, twice per storage slot across
+  the early and late passes.
+
+One honest qualification on that last one. All three bool flags the mod ships in `[flags]` have an
+engine default of false, so leaving the flag alone lands on the same value the old code wrote when
+it read a typo as a no. For those three the outcome is identical and only the log changed. The
+value differs only for an engine flag whose own default is true, which none of the shipped three
+is. V-07 is worth having for the visibility and for the two readers no longer disagreeing, not for
+a changed number on this ini.
+
+The override layer still worked throughout, `overlay: redirected request #1` at 16:58:12.
 
 ## Checked and clean
 
