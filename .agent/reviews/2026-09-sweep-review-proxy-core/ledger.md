@@ -28,7 +28,7 @@ hunter and three from the verifier, one of them a bug the batch's own first fix 
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | an off switch turns off only what it names | closed, awaiting the owner's run | 2026-09-20 |
+| 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
 | 2 | every value that crosses the ini boundary is validated | pending | |
 | 3 | one time init happens once, and a freed object is not left addressable | pending | |
 | 4 | the log does not carry the player's machine into a public post | pending | |
@@ -384,6 +384,20 @@ Not fixed, because the alternative is wrapping every queue always, and the confi
 leaves it unwrapped is the project's own passive control for frame time measurements. Adding eight
 atomics a request to that would corrupt the measurement it exists for. Recorded so the next reader
 knows the gap is deliberate.
+
+## The run
+
+Session `logs/proxycore-b1-20260920`, the owner's launch to a loaded track on 2026-09-20 with
+`[directstorage] stats=0` set for that one run and put back afterwards. The first session on disk
+ever to use that setting, and the one that used to break the override layer.
+
+- Eight `overlay: redirected request` lines, the flipbook for the trackside screens and the UI
+  stylesheet, both served from the mod's own files. Before the fix none of them would have run and
+  both reads would have gone past the end of `content.kspkg`.
+- Not one `[stats] queue` line in the whole run, so a player who asked for quiet still gets it.
+  That is the half the first fix got wrong once already.
+- All three queues created and wrapped, including `GpuUpload Memory Queue`, which the overlay can
+  never use but which feeds the counters the CSVs read.
 
 ## Checked and clean
 
