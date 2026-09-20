@@ -112,7 +112,9 @@ static bool RenderAdapterIsNvidia(ID3D12Device* device)
 
 static bool Resolve()
 {
-    HMODULE nvapi = LoadLibraryW(L"nvapi64.dll");
+    // System32 only. A bare name searches the game folder first, and the mod ships files into
+    // that folder, so anything dropped there beside them would be loaded in the driver's place.
+    HMODULE nvapi = LoadLibraryExW(L"nvapi64.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!nvapi) {
         Log("[reflex] nvapi64.dll not present, no NVIDIA driver on this machine, layer idle");
         return false;
