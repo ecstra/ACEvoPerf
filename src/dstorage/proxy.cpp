@@ -319,6 +319,8 @@ struct QueueProxy : IDStorageQueue2 {
 // ---------------------------------------------------------------------------
 // IDStorageFactory proxy
 // ---------------------------------------------------------------------------
+struct FactoryProxy;
+static FactoryProxy* g_factory = nullptr;   // the one proxy, cleared when its last reference goes
 
 // Everything that needs a queue wrapped, named by the consumer that needs it rather than rolled
 // into one condition. QueueProxy is the only writer of the process wide request counters and the
@@ -347,7 +349,19 @@ struct FactoryProxy : IDStorageFactory {
         return real->QueryInterface(riid, ppv);
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)++ref; }
-    ULONG STDMETHODCALLTYPE Release() override { LONG r = --ref; if (r == 0) { real->Release(); delete this; } return (ULONG)r; }
+    // Under the same lock the creation uses, and g_factory is cleared before the object goes.
+    // Without that, one extra Release from the game leaves the global pointing at freed memory,
+    // RealDStorageFactory reads it on every overlay redirect and hands it to OpenFile, and the
+    // next DStorageGetFactory returns the same dead pointer.
+    ULONG STDMETHODCALLTYPE Release() override
+    {
+        EnterCriticalSection(&g_realCs);
+        LONG r = --ref;
+        if (r == 0 && g_factory == this) g_factory = nullptr;
+        LeaveCriticalSection(&g_realCs);
+        if (r == 0) { real->Release(); delete this; }
+        return (ULONG)r;
+    }
 
     HRESULT STDMETHODCALLTYPE CreateQueue(const DSTORAGE_QUEUE_DESC* desc, REFIID riid, void** ppv) override
     {
@@ -405,12 +419,22 @@ struct FactoryProxy : IDStorageFactory {
     }
 };
 
-static FactoryProxy* g_factory = nullptr;
-static bool g_configApplied = false;
+// Both one time guards are exchanges rather than a read then a write. Two engine subsystems asking
+// for the factory on their own threads during start up could each read false and each run the
+// whole block, which meant the flags written twice, the load sampler started twice, and
+// StartTimeline's own check losing its race so two timeline threads came up, the second failing to
+// open the CSV with a sharing violation and running its per second tick with nowhere to write.
+static std::atomic<bool> g_configApplied{false};
+static std::atomic<bool> g_lateApplied{false};
 
+// Read under the lock, because Release can clear g_factory and free the object from another thread
+// and the overlay calls this on every redirect.
 IDStorageFactory* RealDStorageFactory()
 {
-    return g_factory ? g_factory->real : nullptr;
+    EnterCriticalSection(&g_realCs);
+    IDStorageFactory* real = g_factory ? g_factory->real : nullptr;
+    LeaveCriticalSection(&g_realCs);
+    return real;
 }
 
 // Which runtime actually came up, for the path that still goes through the Microsoft forwarder.
@@ -437,8 +461,7 @@ static void ReportRuntimeInUse()
 
 static void ApplyDStorageConfiguration()
 {
-    if (g_configApplied) return;
-    g_configApplied = true;
+    if (g_configApplied.exchange(true)) return;
     DSTORAGE_CONFIGURATION1 c = {};
     c.NumSubmitThreads = (UINT32)(g_cfg.submitThreads > 0 ? g_cfg.submitThreads : 0);
     c.NumBuiltInCpuDecompressionThreads = g_cfg.cpuDecompThreads;
@@ -463,8 +486,7 @@ extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
 {
     if (!EnsureReal() || !g_realGetFactory) return E_FAIL;
     ApplyDStorageConfiguration();
-    static bool lateApplied = false;
-    if (!lateApplied) { lateApplied = true; ResolveAutoSizesFallback(); ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
+    if (!g_lateApplied.exchange(true)) { ResolveAutoSizesFallback(); ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
     // IUnknown is answered with the proxy, the same way QueueProxy::QueryInterface answers it.
     // Handing the real factory to a caller asking for the base interface would let every queue it
     // creates past the staging override, the capacity raise and the overlay redirect, which is the
