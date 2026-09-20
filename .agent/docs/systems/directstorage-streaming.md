@@ -3,7 +3,7 @@ name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
 updated: 2026-09-20
-links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
+links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
 # DirectStorage streaming
@@ -95,7 +95,7 @@ once, so with the mod's defaults the canonical flag only sets the mesh budget, a
 on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-2026-09-14.md)). Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
-Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's
+Since 2026-09-06 both sizes default to `auto` (DEC-009, brackets and the rest by DEC-022): the proxy reads the render adapter's
 dedicated memory off the first DXGI factory the game creates and picks 256, 512, 1024, 1536, 2048
 or 3072 MB of tiles for cards under 3, 5, 7, 11 and 15 GB and above, and 128, 192 or 256 MB of
 staging on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets.

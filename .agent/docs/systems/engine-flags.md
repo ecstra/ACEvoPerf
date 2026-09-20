@@ -3,7 +3,7 @@ name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
 updated: 2026-09-20
-links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
+links: [DEC-002-flags-by-memory-write, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
 ---
 
 # Engine flags
