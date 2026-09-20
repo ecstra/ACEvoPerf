@@ -47,12 +47,19 @@ static int IniIntInRange(const wchar_t* sec, const wchar_t* key, int def, int lo
     return clamped;
 }
 
+// Most of the ini is these. Anything the list did not recognise used to come back false, so a
+// player who typed `ture` turned the setting off and nothing said so, which for `reflex` or
+// `[dxgi] enabled` is a fix quietly gone. A word we do not know is not a no, it is a typo, so it
+// keeps the shipped answer and says what happened.
 static bool IniBool(const wchar_t* sec, const wchar_t* key, bool def)
 {
     std::wstring s = IniStr(sec, key, L"");
     if (s.empty()) return def;
     for (auto& ch : s) ch = (wchar_t)towlower(ch);
-    return s == L"1" || s == L"true" || s == L"yes" || s == L"on";
+    if (s == L"1" || s == L"true" || s == L"yes" || s == L"on") return true;
+    if (s == L"0" || s == L"false" || s == L"no" || s == L"off") return false;
+    Note("ini: [%ls] %ls=%ls is not one of 1, 0, true, false, yes, no, on or off, leaving it at %d", sec, key, s.c_str(), def ? 1 : 0);
+    return def;
 }
 
 void LoadConfig()
@@ -86,8 +93,11 @@ void LoadConfig()
     g_cfg.stagingMb = g_cfg.stagingAuto ? 0 : _wtoi(staging.c_str());
     // 0 is the documented "leave the game's own size alone". A real size has to hold the game's
     // largest single request, measured at 96.2 MB across the sessions on disk, or every request
-    // above it fails. And megabytes become bytes in a UINT32 at two call sites, so 4096 lands on
-    // exactly zero, which DirectStorage reads as no staging buffer at all.
+    // above it fails. The ceiling is not the overflow point, which is 4096 exactly, where
+    // megabytes to bytes lands on zero in a UINT32 and DirectStorage reads that as no staging
+    // buffer at all. It is 1024 because this is video memory taken from rendering, the mod's own
+    // largest pick is 256, and 1024 is already what the game asks for by itself and what BUG-003
+    // to BUG-005 trace to. Anything above it is refused rather than clamped, for that reason.
     //
     // Out of range falls back to auto rather than to the nearest bound. The nearest bound above is
     // 1024, and 1024 is the size the game asks for by itself and the one BUG-003, BUG-004 and
@@ -111,6 +121,8 @@ void LoadConfig()
     g_cfg.statsIntervalS = IniIntInRange(L"directstorage", L"stats_interval_s", 10, 1, 3600);
     std::wstring tilePr = IniStr(L"directstorage", L"tile_queue_priority", L"unchanged");
     for (auto& ch : tilePr) ch = (wchar_t)towlower(ch);
+    if (!tilePr.empty() && tilePr != L"unchanged" && tilePr != L"low" && tilePr != L"normal" && tilePr != L"high" && tilePr != L"realtime")
+        Note("ini: [directstorage] tile_queue_priority=%ls is not low, normal, high, realtime or unchanged, leaving the game's own", tilePr.c_str());
     g_cfg.tileQueuePriority = (tilePr == L"low") ? DSTORAGE_PRIORITY_LOW : (tilePr == L"normal") ? DSTORAGE_PRIORITY_NORMAL
                             : (tilePr == L"high") ? DSTORAGE_PRIORITY_HIGH : (tilePr == L"realtime") ? DSTORAGE_PRIORITY_REALTIME : 99;
 
@@ -174,13 +186,13 @@ void LoadConfig()
     // on a Steam install is the whole library, so all three are refused rather than only the empty
     // one. An absolute path is refused too, because the join would build nonsense out of it and
     // the layer would report the folder missing with no hint why.
+    // Required to be one plain name rather than filtered for the ways it can go wrong. Listing
+    // those was tried and missed `.\` and `./`, which land on the game folder like `.` does.
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
-    bool absolute = g_cfg.overlayFolder.find(L':') != std::wstring::npos
-                 || g_cfg.overlayFolder.rfind(L"\\", 0) == 0
-                 || g_cfg.overlayFolder.rfind(L"/", 0) == 0;
-    if (g_cfg.overlayFolder.empty() || g_cfg.overlayFolder == L"." || g_cfg.overlayFolder == L".."
-        || g_cfg.overlayFolder.find(L"..") != std::wstring::npos || absolute) {
-        Note("ini: [overlay] folder must be a plain folder name next to the game, using acevo_mods. It is walked from start up and everything under it is offered as a replacement game file, so the game folder itself is not a valid answer.");
+    if (g_cfg.overlayFolder.empty()
+        || g_cfg.overlayFolder.front() == L'.'
+        || g_cfg.overlayFolder.find_first_of(L"\\/:") != std::wstring::npos) {
+        Note("ini: [overlay] folder must be one plain folder name next to the game, with no slash, colon or leading dot, using acevo_mods. It is walked at start up and everything under it is offered as a replacement game file, so the game folder itself is not a valid answer.");
         g_cfg.overlayFolder = L"acevo_mods";
     }
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);

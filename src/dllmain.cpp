@@ -49,7 +49,7 @@ static void OnAttach(HMODULE h)
     if (g_cfg.logEnabled) {
         std::wstring lp = g_cfg.logFile;
         if (lp.find(L':') == std::wstring::npos && lp.rfind(L"\\\\", 0) != 0) lp = g_dir + lp;
-        LogOpen(lp);
+        LogOpen(lp, g_dir + L"acevo_perf.log");
     }
     Log("ACEvoPerf %s attached (pid %lu). ini=%ls", ACEVO_PERF_VERSION, GetCurrentProcessId(), g_iniPath.c_str());
     // Anything LoadConfig had to correct. It runs before the log file exists, because the log's

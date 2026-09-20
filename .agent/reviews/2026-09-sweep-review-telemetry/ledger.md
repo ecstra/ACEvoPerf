@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-telemetry
 kind: review
-description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and one the render angle's verifier added
+description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and two added by other angles' sub agents
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-telemetry
