@@ -187,7 +187,7 @@ fifteen second reset.
 `.agent/docs/foundation/proxy-architecture.md:102` says the mod never hooks anything on the render thread
 beyond Present and the UI frame post and end. With `streaming_trace=1` it patches four
 `ID3D12GraphicsCommandList` vtable slots on the direct, compute and copy list vtables
-(the `HookVtableSlot` calls in `TextureWritesOnSwapChain`, which both swap chain hooks in
+(the `PatchSlot` calls in `TextureWritesOnSwapChain`, which both swap chain hooks in
 `dxgi_hooks.cpp` call). The third bullet at line 103
 saves the default case, and the sentence as written is false.
 

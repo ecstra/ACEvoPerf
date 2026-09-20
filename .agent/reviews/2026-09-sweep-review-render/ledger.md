@@ -29,7 +29,7 @@ left standing.
 | 1 | the auto sizes land on the card the game actually renders on | closed, runtime confirmed | 2026-09-20 |
 | 2 | a setting that is off does not take unrelated fixes with it | closed, runtime confirmed | 2026-09-20 |
 | 3 | Reflex survives the session it is installed in | closed, runtime confirmed | 2026-09-20 |
-| 4 | the leftovers | fixed, hunter done, verifying | 2026-09-20 |
+| 4 | the leftovers | closed, nothing runs in a default run | 2026-09-20 |
 
 ## Findings
 
@@ -754,6 +754,47 @@ number nobody re-derives travels.
 Also fixed, from the same round: the agent directory ledger's F-09 and F-11 cited line numbers in
 these two files that this batch moved. They cite function names now, which is what stops it
 happening a third time.
+
+### V-14: H-25's replacement numbers were wrong too, and the ledger edit meant to stop that swapped a stale line for a wrong name
+- severity: bug
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-20, in the commit that closed the batch, measured across all 68 sessions rather than seven.
+
+Three passes over the same two numbers and the first two were both wrong.
+
+The rate: "that hook runs about 290 times a second during a load" put the copy hook's rate at the
+rate at which it reaches `FromDirectStorage`. `ai30-A-fix-on` has 690,814 calls into `NoteWrite`
+against 19,750 that got as far as the range test, because a copy into anything but a streamed
+texture returns earlier. The hook is roughly thirty five times busier than the number claimed, and
+H-25's own ledger text had the distinction right before the comment dropped it.
+
+The margin: "302 to 846 ms" came from seven sessions and was then written as "across the sessions
+on disk". Measured across all 68 that record both lines it is 285 ms to 2096 ms, median 331, and
+the core is never second. Wrong at both ends and the quoted floor again sits above the smallest
+margin recorded, which is exactly what H-25 said about the sentence it replaced.
+
+Both now carry the session and the counts they came from, so the next reader can check them
+instead of copying them. This one travelled three hops, into the comment, into the ledger and into
+the brief the next sub agent was given, and a number that nobody re-derives is how that happens.
+
+Separately, H-24's fix rewrote the agent directory ledger's line number citations into function
+names so they would stop rotting, and named `HookVtableSlot`, which is the `core/iat` helper and
+does not appear in that file. The local helper is `PatchSlot`.
+
+### V-15: the install flag's one remaining hand back
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-20.
+
+H-23 moved the queue check ahead of the flag, and left the `GetDevice` failure below it still
+taking the flag and giving it up, which is H-23's shape one step deeper. Unreachable, since
+`GetDevice` on a live command queue does not fail, but the whole finding was about that shape. It
+holds the flag and logs now, because a second caller let in there could patch slots this one has
+already patched.
 
 ## Checked and clean
 

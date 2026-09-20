@@ -78,12 +78,16 @@ ModuleRange RangeOf(HMODULE module)
     return range;
 }
 
-// Never resolved from the copy hook, because both calls in here take the loader lock and that
-// hook runs about 290 times a second during a load. It used to look them up on every call until
-// it found them, on the reasoning that the cores load after the hooks go in. They do not: across
-// the sessions on disk the core loads 302 to 846 ms before the first swap chain, and with
-// bundled_runtime=0 the bundled one never loads at all, so a base of zero was indistinguishable
-// from not looked up yet and the lookup repeated for the life of the run.
+// Never resolved from the copy hook, because both calls in here take the loader lock. That hook
+// runs into the thousands a second during a load and a few hundred of those reach this function,
+// the rest returning earlier: `ai30-A-fix-on` has 690,814 calls into `NoteWrite` against 19,750
+// that got this far.
+//
+// It used to look the ranges up on every call until it found them, on the reasoning that the
+// cores load after the hooks go in. They do not. Of the 68 sessions on disk that record both
+// lines, the core loads between 285 ms and 2096 ms before the first swap chain, median 331, and
+// never after it. With bundled_runtime=0 the bundled one never loads at all, so a base of zero
+// was indistinguishable from not looked up yet and the lookup repeated for the life of the run.
 //
 // Called where the hooks are installed and again from the once a second tick while either range
 // is still missing. The tick is what keeps the old loop's one virtue: a core that loads after the
@@ -237,9 +241,11 @@ void TextureWritesOnSwapChain(IUnknown* deviceOrQueue)
     if (FAILED(deviceOrQueue->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) || !queue) return;
     if (g_hooked.exchange(true)) { queue->Release(); return; }
 
+    // The flag is held, not handed back, for the same reason it is taken late. Giving it up here
+    // would let a second caller in to patch slots this one may already have patched.
     ID3D12Device* device = nullptr;
     if (FAILED(queue->GetDevice(IID_PPV_ARGS(&device))) || !device) {
-        g_hooked = false;
+        Log("[writes] the swap chain's queue has no device, the copy tracing is off for this run");
         queue->Release();
         return;
     }
