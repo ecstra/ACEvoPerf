@@ -301,16 +301,20 @@ static void OnFrameEnd(bool after)
 static bool MoveWork(void* library, uint64_t mode, uint64_t family)
 {
     AcquireSRWLockExclusive(&g_movedLock);
-    bool moved = !g_movingStopped && g_movedCount < kMaxMoved;
+    // Refuse while a call has been given up on, because the one thread that drains this queue is still
+    // inside it. Accepting would return 0 for up to sixty four calls, each claiming work that nothing can
+    // run, until the queue fills and the engine's own inline path takes over again.
+    bool moved = !g_movingStopped && !g_movedAbandoned && g_movedCount < kMaxMoved;
     if (moved) {
         g_moved[(g_movedHead + g_movedCount) % kMaxMoved] = { library, mode, family };
         g_movedCount++;
+        // Signalled under the lock so that a stop draining this entry always finds the count to take
+        // back. Outside it, a stop landing between the push and the release drains the entry and leaves
+        // its count behind.
+        ReleaseSemaphore(g_movedSignal, 1, nullptr);
     }
     ReleaseSRWLockExclusive(&g_movedLock);
-    if (moved) {
-        ReleaseSemaphore(g_movedSignal, 1, nullptr);
-        g_movedCalls.fetch_add(1, std::memory_order_relaxed);
-    }
+    if (moved) g_movedCalls.fetch_add(1, std::memory_order_relaxed);
     return moved;
 }
 
@@ -330,7 +334,9 @@ static void RunMovedWork(const MovedWork& work)
     __try {
         auto executeWork = (PFN_ExecuteWork)(*(void***)work.library)[cohtml_slot::kLibraryExecuteWork];
         executeWork(work.library, kResourceWork, work.mode, work.family);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        // Only the access violation, which is the freed library. Catching everything would swallow a
+        // stack overflow too, and the logging below would then fault again on the unreset guard page.
         Log("[responsive ui] a moved resource work call faulted, the UI engine was most likely torn down while it was still in it");
     }
 }
@@ -355,6 +361,12 @@ static DWORD WINAPI MovedWorkThread(void*)
 
         AcquireSRWLockExclusive(&g_movedLock);
         g_movedRunning--;
+        // A call that was given up on has come back, so this thread is healthy and later stops can wait
+        // for it again. Leaving the flag set made one timeout permanent: every teardown after it would
+        // skip the wait, destroy the library under a live call, and lean on the guard in RunMovedWork as
+        // the normal path rather than the last resort. A thread that is genuinely wedged never reaches
+        // this line, so the protection against paying the timeout twice at shutdown still holds.
+        if (!g_movedRunning) g_movedAbandoned = false;
         ReleaseSRWLockExclusive(&g_movedLock);
         WakeAllConditionVariable(&g_movedIdle);
     }
