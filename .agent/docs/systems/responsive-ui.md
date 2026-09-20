@@ -134,8 +134,13 @@ waits for its result.
 
 This part needs both checks to have passed, not only the UI engine one, because the frame thread it moves
 work away from is learned from the frame end wrapper. On a build where the frame slots stood down it
-installs nothing and says so, which is the one part that can be out while the rest of the responsive UI is
-in.
+installs nothing and says so.
+
+That makes a new exe with the UI engine unchanged the interesting case, because the parts split three
+ways. The restyle fix and the menu refresh fix patch the exe and stand down on its stamp. The resource
+work move stands down too, not on a stamp of its own but because the frame end it needs is one of the
+slots that just stood down. The style matching fix, the child removal fix, the narrowed stylesheet and the
+page fixes all carry on, because they only ever needed the UI engine.
 
 ## Shared Cohtml hooks
 
@@ -148,8 +153,9 @@ are in `include/acevo/ui/cohtml_hooks.h`.
 The Cohtml side carries its own check, against the UI engine's stamp and image size, because Kunos ships
 Coherent Gameface as its own binary and can update it without the exe changing, so the exe's stamp says
 nothing about it. On a UI engine that is not the one the slots were read from, nothing that reaches a
-Cohtml vtable is hooked at all, which takes the page fixes and the resource work move out together, and
-the log names the version it found beside the one it wanted. Without that check the slot numbers would be
+Cohtml vtable is hooked at all, which takes the page fixes and the resource work move out together. The
+log names the engine it found beside the one it wanted, or says plainly that it could not read the engine
+at all, which is the other way that check refuses. Without it the slot numbers would be
 used on a build they do not belong to, which is an indirect call through the wrong method rather than a
 part quietly staying out.
 
