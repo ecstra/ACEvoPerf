@@ -114,8 +114,15 @@ static void TrackHandle(HANDLE h, const wchar_t* path, void* caller)
 }
 
 // Scan the loose folder recursively and collect the files.
-static void CollectFiles(const std::wstring& dir, const std::string& rel)
+// Depth is bounded because a directory junction that points at one of its own ancestors makes this
+// recurse until the stack ends, and it runs from DllMain. Nothing legitimate nests this far: the
+// deepest path in the game's own package is well under it.
+static void CollectFiles(const std::wstring& dir, const std::string& rel, int depth = 0)
 {
+    if (depth > 16) {
+        Log("overlay: %ls is nested deeper than 16 folders, not descending further", dir.c_str());
+        return;
+    }
     WIN32_FIND_DATAW fd;
     HANDLE f = FindFirstFileW((dir + L"\\*").c_str(), &fd);
     if (f == INVALID_HANDLE_VALUE) return;
@@ -124,7 +131,7 @@ static void CollectFiles(const std::wstring& dir, const std::string& rel)
         std::string name;
         for (const wchar_t* p = fd.cFileName; *p; ++p) name.push_back((char)towlower(*p));
         std::string relPath = rel.empty() ? name : rel + "\\" + name;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { CollectFiles(dir + L"\\" + fd.cFileName, relPath); continue; }
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { CollectFiles(dir + L"\\" + fd.cFileName, relPath, depth + 1); continue; }
         Override o;
         o.loosePath = dir + L"\\" + fd.cFileName;
         o.pkgPath = relPath;

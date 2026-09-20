@@ -25,6 +25,28 @@ static int IniInt(const wchar_t* sec, const wchar_t* key, int def)
     if (s.empty()) return def;
     return _wtoi(s.c_str());
 }
+static void Note(const char* fmt, ...)
+{
+    char line[512];
+    va_list args;
+    va_start(args, fmt);
+    _vsnprintf_s(line, sizeof line, _TRUNCATE, fmt, args);
+    va_end(args);
+    g_cfg.iniNotes.push_back(line);
+}
+
+// A value the ini can set that has a range outside of which the mod misbehaves rather than doing
+// what was asked. Corrected here rather than at the use site, because several of these are read
+// from more than one place and a clamp that lives in one of them is a clamp the others do not get.
+static int IniIntInRange(const wchar_t* sec, const wchar_t* key, int def, int lo, int hi)
+{
+    int v = IniInt(sec, key, def);
+    if (v >= lo && v <= hi) return v;
+    int clamped = v < lo ? lo : hi;
+    Note("ini: [%ls] %ls=%d is outside %d to %d, using %d", sec, key, v, lo, hi, clamped);
+    return clamped;
+}
+
 static bool IniBool(const wchar_t* sec, const wchar_t* key, bool def)
 {
     std::wstring s = IniStr(sec, key, L"");
@@ -40,9 +62,22 @@ void LoadConfig()
     g_cfg.hitchMs = IniInt(L"log", L"hitch_ms", 33);
 
     g_cfg.bundledRuntime = IniBool(L"directstorage", L"bundled_runtime", true);
+    // Lowercased like every other word valued key, and an empty value means the key is there with
+    // nothing after it, which GetPrivateProfileStringW does not treat as absent, so it would not
+    // get the default. Both used to fall through to _wtoi, give 0, and leave the staging cap off
+    // with the log saying only "staging=0MB".
     std::wstring staging = IniStr(L"directstorage", L"staging_buffer_mb", L"auto");
+    for (auto& ch : staging) ch = (wchar_t)towlower(ch);
+    if (staging.empty()) staging = L"auto";
     g_cfg.stagingAuto = (staging == L"auto");
     g_cfg.stagingMb = g_cfg.stagingAuto ? 0 : _wtoi(staging.c_str());
+    // Megabytes become bytes in a UINT32 at two call sites, so 4096 lands on exactly zero, which
+    // DirectStorage reads as "no staging buffer" and fails every request against. The cap is four
+    // times the largest size the mod ever picks for itself.
+    if (!g_cfg.stagingAuto && (g_cfg.stagingMb < 0 || g_cfg.stagingMb > 1024)) {
+        Note("ini: [directstorage] staging_buffer_mb=%d is outside 0 to 1024, using %d", g_cfg.stagingMb, g_cfg.stagingMb < 0 ? 0 : 1024);
+        g_cfg.stagingMb = g_cfg.stagingMb < 0 ? 0 : 1024;
+    }
     g_cfg.minQueueCapacity = IniInt(L"directstorage", L"min_queue_capacity", 0);
     g_cfg.submitThreads = IniInt(L"directstorage", L"submit_threads", 0);
     g_cfg.cpuDecompThreads = IniInt(L"directstorage", L"cpu_decompression_threads", 0);
@@ -52,7 +87,9 @@ void LoadConfig()
     g_cfg.disableGpuDecompression = IniBool(L"directstorage", L"disable_gpu_decompression", false);
     g_cfg.disableTelemetry = IniBool(L"directstorage", L"disable_telemetry", true);
     g_cfg.stats = IniBool(L"directstorage", L"stats", true);
-    g_cfg.statsIntervalS = IniInt(L"directstorage", L"stats_interval_s", 10);
+    // At 0 the elapsed test can never pass, so every Submit would write its own report line, which
+    // during a track load is thousands of blocking writes a second on the game's own threads.
+    g_cfg.statsIntervalS = IniIntInRange(L"directstorage", L"stats_interval_s", 10, 1, 3600);
     std::wstring tilePr = IniStr(L"directstorage", L"tile_queue_priority", L"unchanged");
     for (auto& ch : tilePr) ch = (wchar_t)towlower(ch);
     g_cfg.tileQueuePriority = (tilePr == L"low") ? DSTORAGE_PRIORITY_LOW : (tilePr == L"normal") ? DSTORAGE_PRIORITY_NORMAL
@@ -102,7 +139,13 @@ void LoadConfig()
     g_cfg.reflexBoost = IniBool(L"latency", L"reflex_boost", false);
 
     g_cfg.overlayEnabled = IniBool(L"overlay", L"enabled", true);
+    // An empty value would make the folder the game folder itself, and the layer would then walk
+    // the whole install and offer every file in it as an override, from DllMain.
     g_cfg.overlayFolder = IniStr(L"overlay", L"folder", L"acevo_mods");
+    if (g_cfg.overlayFolder.empty()) {
+        Note("ini: [overlay] folder is empty, using acevo_mods. An empty value would have made the game folder itself the mods folder.");
+        g_cfg.overlayFolder = L"acevo_mods";
+    }
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);
     g_cfg.fixBigScreens = IniBool(L"overlay", L"fix_big_screens", true);
 
@@ -114,7 +157,9 @@ void LoadConfig()
     g_cfg.throwLog = IniBool(L"developer", L"throw_log", false);
     g_cfg.traceFileIo = IniBool(L"developer", L"trace_file_io", false);
     g_cfg.loadSampler = IniBool(L"developer", L"load_sampler", false);
-    g_cfg.loadSampleUs = IniInt(L"developer", L"sample_us", 1000);
+    // At 0 the sampler's wait returns at once and a highest priority thread suspends and resumes
+    // the game's busiest threads with no gap, which needs the process killed to get out of.
+    g_cfg.loadSampleUs = IniIntInRange(L"developer", L"sample_us", 1000, 100, 1000000);
     g_cfg.uiProbe = IniBool(L"developer", L"ui_probe", false);
     g_cfg.hudScheduleTest = IniBool(L"developer", L"hud_schedule_test", false);
     g_cfg.memoryCensus = IniBool(L"developer", L"memory_census", false);

@@ -47,6 +47,11 @@ struct Config {
     bool sessionLeakFix = true;      // free the finished sessions the game keeps in memory
     // [flags]
     std::vector<std::wstring> flags; // "name=value" or "name"
+
+    // What LoadConfig had to correct on the way in, printed by DllMain once the log file is open.
+    // LoadConfig runs first, because the log's own path comes out of the ini, so a Log call in
+    // there would be written to a file nobody has opened yet.
+    std::vector<std::string> iniNotes;
     // [dxgi]
     bool dxgiEnabled = true;
     bool frameStats = true;

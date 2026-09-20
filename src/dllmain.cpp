@@ -52,6 +52,9 @@ static void OnAttach(HMODULE h)
         LogOpen(lp);
     }
     Log("ACEvoPerf %s attached (pid %lu). ini=%ls", ACEVO_PERF_VERSION, GetCurrentProcessId(), g_iniPath.c_str());
+    // Anything LoadConfig had to correct. It runs before the log file exists, because the log's
+    // own path comes out of the ini, so it collects these rather than writing them.
+    for (const auto& note : g_cfg.iniNotes) Log("%s", note.c_str());
     char staging[16];
     if (g_cfg.stagingAuto) strcpy_s(staging, "auto"); else _snprintf_s(staging, sizeof staging, _TRUNCATE, "%dMB", g_cfg.stagingMb);
     Log("config: staging=%s minQueueCap=%d submitThreads=%d cpuDecomp=%d bypassIO=%s mappingLayer=%d fileBuffering=%d stats=%d/%ds logRequests=%d | priority=%d powerThrottleOff=%d timer=%dus | flags=%zu | dxgi=%d frameStats=%d timeline=%d frames=%d hitchMs=%d reflex=%d reflexBoost=%d",
