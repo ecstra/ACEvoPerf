@@ -181,10 +181,12 @@ static const char kPageFixesScript[] = R"js(
 
     // The controls page. While one of its sliders is dragged the game answers every step with a full
     // refresh (InputConfigurationResponseRefresh with is_soft_set) 24 to 34 times a second, and each
-    // one rebuilds the binding rows and resyncs every slider on the page. A soft refresh now runs at
-    // most once every 100 ms, the newest one waiting in between and running when the time is up, so
-    // the last step of a drag always lands. A refresh that is replaced still merges its settings the
-    // way the page's handler starts, so the page ends where it would have. Other refreshes run at once.
+    // one rebuilds the binding rows and resyncs every slider on the page. There are now at least 100 ms
+    // between the end of one soft refresh and the start of the next, the newest one waiting in between
+    // and running when the time is up, so the last step of a drag always lands. Measured from the end
+    // rather than the start, so a rebuild costing more than the window does not make the next arrival
+    // due the moment it returns. A refresh that is replaced still merges its settings the way the page's
+    // handler starts, so the page ends where it would have. Other refreshes run at once.
     var kControlsRefreshMs = 100;
 
     function patchControlsRefresh(proto) {
@@ -473,6 +475,9 @@ static void Hook_StopWorkers(void* library)
     AcquireSRWLockExclusive(&g_movedLock);
     g_movingStopped = false;
     ReleaseSRWLockExclusive(&g_movedLock);
+    // The stop drains the queue in its own loop, so the full queue line never re-arms on this path. A
+    // queue that was full when the engine stopped would then stay silent for the rest of the process.
+    g_movedQueueFullSaid.store(false, std::memory_order_relaxed);
 }
 
 static void Hook_Uninitialize(void* library, uint64_t arg)
@@ -520,6 +525,13 @@ static void OnLibrary(void* library)
     // to drain the queue at teardown and a moved call can reach a library that has already gone, which
     // is worse than not moving at all.
     if (!g_origExecuteWork || !g_origStopWorkers || !g_origUninitialize) {
+        // Latch the move off rather than only declining to claim it. The work hook may already be in the
+        // vtable, and returning here would leave it moving work with nothing to drain the queue at
+        // teardown, while this line says the move is out. Saying one thing and doing another is the
+        // fault this whole branch keeps finding, so make the words true instead.
+        AcquireSRWLockExclusive(&g_movedLock);
+        g_movingStopped = true;
+        ReleaseSRWLockExclusive(&g_movedLock);
         Log("[responsive ui] the UI engine's work calls could not all be wrapped, the game runs its resource work as it does");
         return;
     }

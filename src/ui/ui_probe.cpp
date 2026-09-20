@@ -37,7 +37,10 @@ static const char kPageScript[] = R"js(
 
     var page = String(location.pathname || '').split('/').pop() || 'unknown';
     var onHud = page === 'hud.html';
-    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' + (window.__acevoUiFixes ? 'on' : 'off'));
+    // On the HUD the page fixes install nothing on purpose, so say that rather than 'off', which is the
+    // same word this line uses when the script failed.
+    console.log('[ACEvoPerf] ui probe ' + page + ' loaded, responsive ui page fixes ' +
+        (onHud ? 'stay out of this page by design' : (window.__acevoUiFixes ? 'on' : 'off')));
 
     var framesThisSecond = 0;
     var changes = { classOps: 0, styleWrites: 0, attrWrites: 0, inserts: 0, removes: 0, htmlSets: 0, textSets: 0 };

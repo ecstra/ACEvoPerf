@@ -26,7 +26,7 @@ then registers with the shared Cohtml hooks. The stylesheet part runs from the o
 | Menu refresh fix | `src/ui/menu_refresh_fix.cpp` | `[menus]` | a menu page and the HUD in a session update every frame, the car displays take turns |
 | Style matching fix | `src/ui/style_match_fix.cpp` | `[styles]` | elements skip rules they cannot match, custom element names are compared in place |
 | Child removal fix | `src/ui/child_removal_fix.cpp` | `[children]` | removing a child restyles only the children whose rules look at their position |
-| Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes added` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
+| Page fixes | the script in `src/ui/responsive_ui.cpp` | `[responsive ui] page fixes script given to` | the controls page's navigation scans, vehicle setup's double init, the controls page refresh storm |
 | Resource work move | `src/ui/responsive_ui.cpp` | `[responsive ui] resource work` | resource work the frame thread picks up runs on a mod thread |
 
 ### Narrowed stylesheet
@@ -136,7 +136,9 @@ on the mod's side can see that, so the log line only claims the script was given
   view stops both. A frozen view recovers on its first input event.
 - `init` of `ks-page-vehiclesetup` is ignored on the same element while its own `Init` request is out
   (BUG-026)
-- `onDevicesChanged` of `ks-page-settings-controls` runs a soft refresh at most once every 100 ms, the
+- `onDevicesChanged` of `ks-page-settings-controls` leaves at least 100 ms between the end of one soft
+  refresh and the start of the next, so a rebuild that costs more than the window does not make the next
+  arrival due the moment it returns, the
   newest waiting one running when the time is up and replaced ones merging their settings
 
 Every patch wraps the stock method and falls back to it.
