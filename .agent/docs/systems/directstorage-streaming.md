@@ -2,7 +2,7 @@
 name: directstorage-streaming
 kind: doc
 description: how the game streams through DirectStorage, how its texture streamer decides and how VRAM pools are sized
-updated: 2026-09-14
+updated: 2026-09-20
 links: [proxy-architecture, DEC-003-staging-buffer-128mb, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, texture-streamer-overload-2026-09-13, game-requests-1gb-staging-buffer, content-package, memory-creep-2026-09-14, mesh-level-of-detail-2026-09-14, texture-streamer-camera-cuts-2026-09-14]
 ---
 
@@ -96,9 +96,12 @@ on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-20
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
 Since 2026-09-06 both sizes default to `auto` (DEC-009): the proxy reads the render adapter's
-dedicated memory off the first DXGI factory the game creates and picks 1024, 1536, 2048 or
-3072 MB of tiles and 128, 192 or 256 MB of staging for cards under 7, 11 and 15 GB and above,
-so the 6 GB numbers above are what a 6 GB card still gets.
+dedicated memory off the first DXGI factory the game creates and picks 512, 1024, 1536, 2048 or
+3072 MB of tiles for cards under 5, 7, 11 and 15 GB and above, and 128, 192 or 256 MB of staging
+on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets. Under 2 GB
+of dedicated memory nothing is written at all and the game keeps its own sizes, because every
+integrated GPU reports a carve out of 128 to 512 MB and then renders out of system memory, so
+that figure is not a budget to size from.
 
 ## Lap behaviour
 

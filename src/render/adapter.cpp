@@ -3,10 +3,18 @@
 #include "acevo/core/log.h"
 #include "acevo/engine/flags.h"
 
+// Under this, the dedicated figure is a carve out and not a budget. Every integrated GPU
+// reports 128 to 512 MB of it and then renders out of system memory, so a pool sized from
+// that number is sized from something that does not mean what it means on a card.
+static const uint64_t kMinAutoVramMb = 2048;
+
 // Measured on a 6 GB card: 1024 MB of tiles plus the engine's 1433 MB mesh cap leave about
 // 600 MB of budget with everything else. Each step up keeps that margin on the next card size.
+// The 512 below it is the same budget worked backwards for a 4 GB card, never measured on one,
+// so it errs small. Nothing under kMinAutoVramMb reaches here at all, see ResolveAutoSizes.
 int AutoTilePoolMb(uint64_t vramMb)
 {
+    if (vramMb < 5120) return 512;
     if (vramMb < 7168) return 1024;
     if (vramMb < 11264) return 1536;
     if (vramMb < 15360) return 2048;
@@ -56,6 +64,10 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
         return;
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
+    if (vramMb < kMinAutoVramMb) {
+        Log("auto sizes: '%ls' has only %llu MB dedicated, too little to size anything from, the game's own values stay", d.Description, (unsigned long long)vramMb);
+        return;
+    }
     int tilePool = AutoTilePoolMb(vramMb);
     int staging = AutoStagingMb(vramMb);
     Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB, staging buffer %d MB", d.Description, (unsigned long long)vramMb, tilePool, staging);
