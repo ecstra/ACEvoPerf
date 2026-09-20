@@ -592,6 +592,8 @@ void Install()
     Log("overlay: file hooks installed (CreateFileW %d, CreateFileA %d, CreateFile2 %d, ReadFile %d, CloseHandle %d import slots)", a, b, c, d, f);
 }
 
+bool Active() { return g_active; }
+
 } // namespace overlay
 
 bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirected)

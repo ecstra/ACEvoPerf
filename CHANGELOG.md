@@ -8,6 +8,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 
 - NVIDIA Reflex switching off when you turned off frame time measuring in `acevo_perf.ini`, which are two separate settings.
 - NVIDIA Reflex sometimes not turning on at all, and stopping for the rest of the session once the graphics driver resets.
+- Turning off `stats` in `acevo_perf.ini` also turning off the sharp trackside screens, the menu styling and any files you put in the mods folder.
 
 ### Changed
 

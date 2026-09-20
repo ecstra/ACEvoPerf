@@ -42,6 +42,11 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
    that has been requested once cannot be edited while the game runs.
 
+   That one call site is why `overlay::Active()` is in the condition that decides whether a queue
+   is wrapped at all. Until 2026-09-20 the wrapper existed only for the statistics and the two
+   developer traces, so `[directstorage] stats=0` took this whole step with it while the install
+   and table lines still printed as though the layer were running.
+
 ## The mod's own corrections
 
 The layer also serves files the mod generates at the first table read from the player's own package,

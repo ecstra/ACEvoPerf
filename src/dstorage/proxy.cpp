@@ -200,6 +200,10 @@ struct QueueProxy : IDStorageQueue2 {
     }
     void Report(bool final)
     {
+        // The queue is wrapped for the overlay as well now, and a player who set stats=0 asked
+        // for these lines to stop. The counters still run, they cost nothing and the final line
+        // is the only thing that reads them.
+        if (!g_cfg.stats) return;
         uint64_t now = GetTickCount64();
         uint64_t dt = now - st.lastReportTick;
         if (!final && dt < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
@@ -349,7 +353,11 @@ struct FactoryProxy : IDStorageFactory {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
         }
-        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace) &&
+        // The overlay is in this list because QueueProxy::EnqueueRequest is the only place
+        // OverlayRedirect is called from. Without it, stats=0 alone would take the trackside
+        // screen fix, the UI stylesheet override and every loose file in the mods folder with it,
+        // while the overlay's own install lines still printed as though all of it were working.
+        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace || overlay::Active()) &&
             (riid == __uuidof(IDStorageQueue) || riid == __uuidof(IDStorageQueue1) || riid == __uuidof(IDStorageQueue2))) {
             IDStorageQueue* q = nullptr;
             if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(IDStorageQueue), (void**)&q))) {

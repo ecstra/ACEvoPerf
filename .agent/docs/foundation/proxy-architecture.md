@@ -48,7 +48,9 @@ string. Every header includes it, every source includes its own header first.
    seconds earlier, so it finds the work already done and returns. The pass itself lands 361 ms
    (2026-09-18) or 316 ms (2026-09-20) before the engine sizes its tile pool.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
-   capacity, wraps the result in a `QueueProxy` when statistics are on.
+   capacity, wraps the result in a `QueueProxy` when the statistics, the request log, the streaming
+   trace or the override layer wants it. The override layer is in that list because
+   `QueueProxy::EnqueueRequest` is the only place `OverlayRedirect` is reached from.
 4. Game creates its DXGI factory: `HookFactoryVtable` hooks `CreateSwapChainForHwnd` and
    `CreateSwapChain`, and `ResolveAutoSizes` reads the render adapter's memory off that factory
    and writes every ini value set to `auto` (the tile pool flag, the staging buffer size). This
