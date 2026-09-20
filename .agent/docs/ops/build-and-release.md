@@ -2,7 +2,7 @@
 name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
-updated: 2026-09-15
+updated: 2026-09-20
 links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
 ---
 
@@ -55,11 +55,17 @@ from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/c
 and the release folder stay out of git (`.gitignore`), the two committed runtime DLLs are the
 exception because the payload needs them and their license allows it.
 
-To cut a release, swap `(unreleased)` in the version's `CHANGELOG.md` heading for the date, run
-`release.ps1` with the game closed, check the zip lists the five files, commit and tag
-`v<version>`. Then open the next version's changelog section and bump the version files in one
-commit, as [public-docs](public-docs.md) says. The zip name carries the four part file version (`ACEvoPerf-0.3.0.0.zip` for
-0.3.0). The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
+Work does not land on main between releases. It collects on a long lived branch named for the version
+being built, `0.4` today, and main moves only when that version is cut (DEC-021). The version branch
+carries its own version from the day it opens, so `src/version.rc`, `include/acevo/common.h` and the
+`CHANGELOG.md` heading are bumped on it rather than on main after the previous release.
+
+To cut a release, swap `(unreleased)` in the version's `CHANGELOG.md` heading for the date on the version
+branch, merge that branch into main, run `release.ps1` with the game closed, check the zip lists the five
+files, and tag `v<version>` on the merge. Then open the next version's branch and bump the version files
+on it in one commit, as [public-docs](public-docs.md) says. The zip name carries the four part file
+version (`ACEvoPerf-0.3.0.0.zip` for 0.3.0). The newest commit on main is always the newest published zip,
+which is what makes a clone of main mean something. The first release, 0.3.0, was cut on 2026-09-06 with the staging cap, the fixed pools,
 the auto sizes, the flags, the overlay and the telemetry.
 
 The icon for the mod listing is `assets/icon-512.png` (ACE over PERF, Bahnschrift Bold

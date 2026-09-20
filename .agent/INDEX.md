@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-16
+updated: 2026-09-20
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -37,7 +37,7 @@ line in the same commit.
 
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 12 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026), 12 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 12 open, 14 fixed, 4 won't fix
-- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 17 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009, DEC-011 to DEC-020), 3 superseded
+- [decisions/INDEX.md](decisions/INDEX.md), the decision record: 18 standing (DEC-001 to DEC-003, DEC-005, DEC-007 to DEC-009, DEC-011 to DEC-021), 3 superseded
 - [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 1 closed (fix/streamer-feedback-churn)
 
 ## Memory and handovers

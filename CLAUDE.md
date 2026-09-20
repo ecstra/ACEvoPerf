@@ -559,7 +559,7 @@ Defects go to `.agent/bugs/`, work goes to `.agent/todos/`, one file each per th
 
 ## 9. Code Review
 
-**Main contains reviewed code only. The full protocol lives in `.agent/house-rules.md`, these are the hard lines.**
+**Reviewed code merges into the open version branch, `0.4` today, and main holds the released code only (DEC-021). The full protocol lives in `.agent/house-rules.md`, these are the hard lines.**
 
 1. **One branch, one intent** (`feat/`, `fix/`, `sweep/`), sized by intent, never by commit count. A second intent born mid branch forks its own branch immediately. Sweeps group small work by surface and never carry a breaking change.
 2. **Gates first, then review, then PR, then merge.** No step skips, and no PR exists before the branch's review has closed.
@@ -574,7 +574,7 @@ Defects go to `.agent/bugs/`, work goes to `.agent/todos/`, one file each per th
 
 > Temporary rules, or rules that do not fit any category.
 
-1. **Git.** Commits are allowed and expected: one commit per change, so every change is undoable and addressable by hash. Single author, never add yourself (Claude) as a co-author, no AI attribution anywhere. Messages in the user's voice, short. Push after each commit. Never commit to main directly, and PRs and merges only on the user's explicit ask.
+1. **Git.** Commits are allowed and expected: one commit per change, so every change is undoable and addressable by hash. Single author, never add yourself (Claude) as a co-author, no AI attribution anywhere. Messages in the user's voice, short. Push after each commit. Never commit to main or to the open version branch directly, both only receive merges, and PRs and merges only on the user's explicit ask.
 2. **No worktrees.** Git worktrees are disabled: never create one, and never use a worktree isolation mode for sub-agents. In the rare case the user explicitly asks for one, it lives under `.agent/.worktrees/` (gitignored) and nowhere else, and dies when the task does.
 3. **Real tools only for writes.** DO NOT use python, sed, awk, heredocs, or any scripting to create or edit files, code or docs. Every write goes through the proper edit tools: read the file, then edit it exactly. Scripted writes shred text (random line breaks, lines cut mid word, half lost sentences) and bypass reading what you change. And never leave a line broken mid sentence or cut mid word: wrap prose naturally or not at all. Scripting stays fine for read only inspection (grep, counts, link checks), never for writing.
 4. **Project Rules.** A `## 0. Project Rules` section may be added at the very top of this file, above everything else, to hold instructions specific to the current project. Add it only when a project needs rules the general ones do not cover. Leave the rest of the file unchanged.
