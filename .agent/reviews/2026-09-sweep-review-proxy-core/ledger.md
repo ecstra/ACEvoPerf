@@ -21,8 +21,8 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit. Batches 1 to 3 added nine, nine and six
-more, seven of those bugs the batches' own fixes caused or left standing.
+Fifteen findings, one breaks, six bug, four debt, four nit. Batches 1 to 4 added nine, nine, six and
+seven more, nine of those bugs the batches' own fixes caused or left standing.
 
 Batch 3 is the one with no runtime gate for its own findings. Both need a race or a reference count
 fault the game has never produced, and 113 captured runs create exactly one factory each, so no
@@ -43,7 +43,7 @@ batch does deserve, rather than proof of the fixes.
 | 1 | an off switch turns off only what it names | closed, runtime confirmed | 2026-09-20 |
 | 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
 | 3 | one time init happens once, and a freed object is not left addressable | closed, regression checked | 2026-09-20 |
-| 4 | the log does not carry the player's machine into a public post | pending | |
+| 4 | the log does not carry the player's machine into a public post | closed, runtime confirmed | 2026-09-22 |
 | 5 | the leftovers | pending | |
 
 ## Findings
@@ -172,8 +172,8 @@ leaks.
 - severity: bug
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 529c812 then 928d7d3, 2026-09-22, `PublicPath` at all nineteen sites that log a path, and the command line summarised as the exe's leaf name, the switch names, and counts of what was left out. Runtime confirmed, 38 of 452 lines carried an absolute path before, 0 of 451 after.
 
 `src/dllmain.cpp:62` writes the full command line from `GetCommandLineW` and line 54 writes the full
 ini path. README.md:71 and dist/README.txt both ask the player to attach acevo_perf.log when reporting
@@ -682,6 +682,113 @@ two callers, and this batch put one of them under a lock the other does not take
 enough for that one, unlike the export's, because the loser has no use for the result and only
 needs the work not to happen twice. Saying which of the two shapes applies and why is the point.
 
+### H-14: the command line parse split on spaces, so it was wrong on every default install
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 928d7d3, 2026-09-22, quote aware.
+
+Steam launches the game as one quoted argument whose path has spaces in it, and the game folder is
+called `Assetto Corsa EVO`, so the split turned one argument into five. A stock launch that passed
+nothing reported four arguments it was not showing. Worse, a folder or profile name containing a
+hyphen came out in the switch list, so `C:\Users\Jane -Doe\...` would have printed `-Doe`, which is
+a piece of the profile name in the line that exists to keep the profile out.
+
+### H-15: only an equals was treated as a value, so the other two syntaxes went in whole
+- severity: bug
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 928d7d3, 2026-09-22, the name is the marker plus letters, digits, underscores and hyphens, and anything after it is counted rather than written.
+
+`/user:john.smith` and `--token=x` are both common, and the first went into the log untouched.
+That is F-07's own failure reached through the fix for F-07.
+
+One class survives and is accepted: a value glued on with no separator at all, `-uJohn`, cannot be
+told from a plain switch by shape and prints whole. Everything with a separator is cut.
+
+### H-16: the throw log copies the game's own exception text, which can hold a path
+- severity: debt
+- found-by: hunter
+- batch: 4
+- status: wontfix
+- fix:
+
+`src/engine/exceptions.cpp` copies 128 bytes of `what()` and writes it raw. A message built from a
+file operation carries the path it failed on. `PublicPath` cannot reach it, because it is text of
+unknown shape rather than a path the mod built.
+
+Not fixed, because scrubbing arbitrary text either mangles the diagnostic or misses. `throw_log`
+ships off, and the ini line now says the setting can carry file paths. The verifier found the same
+shape on `[req]` request names and that got the same treatment.
+
+### H-17: the header described the branch that does not normally run
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 928d7d3, 2026-09-22.
+
+It said everything the mod logs sits under the game folder, so the subfolder survives. The highest
+volume path in the log is the game's own save files, which sit under the player's profile and take
+the other branch, so the subfolder is exactly what is dropped there. That is the point rather than
+a shortfall, since the subfolder is the profile, but the comment had it backwards.
+
+### V-15: the exe was dropped entirely, which the finding had asked to keep
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-22, in the commit that closed the batch.
+
+F-07's own wording was "logging the leaf name plus the argument count keeps the diagnostic value".
+The fix logged the count and dropped the name. The leaf is the one part that says the game was
+started through a renamed or wrapping executable, and the folder around it is the part that
+identifies the machine, so the two separate cleanly.
+
+### V-16: the request name has the throw message's shape and none of its warnings
+- severity: debt
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-22, the ini line and the telemetry doc both say so now.
+
+`[req]` lines with `log_requests=1` write `request->Name` straight out of the game's memory, the
+same unknown shaped text as the throw message. No captured log has ever carried a `[req]` line, so
+what the game puts there is unknown. It ships off like the throw log, and now it is named like it.
+
+### V-17: the doc gained twelve lines and kept its date
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-22.
+
+Ninth instance on this review of one half of a file moving and the other not. This time the content
+was right and the frontmatter date was two days stale, which is the half that tells a reader
+whether to trust the rest.
+
+## The run for batch 4
+
+Session `logs/proxycore-b4-20260922`, a normal launch to a loaded track with the shipped ini, set
+against `logs/proxycore-b3-20260920` on the same machine before the fix. This is the one batch of
+the review whose gate is stronger than reasoning, because the question is what the file contains
+and the file exists.
+
+Six line shapes changed, one for one, and a seventh that the shape comparison hides: 32
+`OpenFile 'C:\Users\<name>\Saved Games\ACE\...'` lines became bare file names. 38 of 452 lines
+carried an absolute path or the raw command line before, 0 of 451 do now. No line went silent as a
+side effect. Searched for and absent: any drive letter, `Steam`, `Program Files`, the owner's
+Windows user name, the machine name, `@`, UNC prefixes. The three backslash tokens left are the
+game's own package paths and `\\.\DISPLAY2`.
+
+The strongest part of that is the 32 save file opens, because they take the branch for a path that
+is not under the game folder, and that is the highest volume path in the log by a wide margin. What
+it does not show is the branch for a game folder that itself sits under a profile, which is F-07's
+own example. This install is under Program Files, so that one follows from the code and not from a
+run.
+
 ## Checked and clean
 
 `src/exports.def` and the export forwarding table. The export directories of dist/dstorage.dll, the
@@ -697,7 +804,9 @@ correct and deliberate. AddRef and Release balance in `CreateQueue` and in the u
 passthroughs.
 
 Log format strings. Every `Log` call in the tree passes a string literal as the format, including
-`Log("command line: %ls", GetCommandLineW())`, so there is no format string hole.
+the command line line, so there is no format string hole. That example used to quote
+`Log("command line: %ls", GetCommandLineW())`, which batch 4 deleted along with the finding it
+belonged to. The property it was cited for still holds everywhere.
 
 `src/core/iat.cpp` page protection handling. Both `PatchIatByAddress` and `HookVtableSlot` restore the
 original protection, the writes are single aligned pointer stores so a concurrent caller cannot see a

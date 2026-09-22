@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-20
+updated: 2026-09-22
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -26,8 +26,13 @@ name. The command line is summarised rather than written: the argument count, th
 a count of the values left out, because a launcher can pass an account or a session id there.
 
 A new `Log` call that hands a raw path to `%ls` puts that back, and only the comment on
-`PublicPath` stands in the way. The one string still copied out of the game's memory untouched is
-the `[throw]` message below, which is why that one is developer only and ships off.
+`PublicPath` stands in the way.
+
+Two strings are still copied out of the game's memory untouched, and `PublicPath` cannot reach
+either, since both are text of unknown shape rather than a path we built. The `[throw]` message
+below is one. The other is the request name on every `[req]` line. Both are developer only, ship
+off, and say so in the ini. Nothing else in a default log comes from the game's own memory as free
+text.
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what

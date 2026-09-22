@@ -40,7 +40,7 @@
 // because a path is one of the things being left out anyway.
 static void LogCommandLine()
 {
-    std::wstring switches;
+    std::wstring switches, exe;
     int args = 0, withValues = 0, others = 0;
     bool firstWord = true;
 
@@ -58,7 +58,14 @@ static void LogCommandLine()
             if (!inQuotes && (*p == L' ' || *p == L'\t')) break;
             word.push_back(*p);
         }
-        if (firstWord) { firstWord = false; continue; }   // the exe, which is not logged at all
+        if (firstWord) {
+            firstWord = false;
+            // The exe by leaf name. It is the one part of the line that says the game was started
+            // through a renamed or wrapping executable, and the folder it sits in is the part
+            // that identifies the machine, so the two separate cleanly here.
+            exe = PublicPath(word);
+            continue;
+        }
         if (word.empty()) continue;
         ++args;
         if (word[0] != L'-' && word[0] != L'/') { ++others; continue; }
@@ -72,8 +79,8 @@ static void LogCommandLine()
         switches += switches.empty() ? L"" : L" ";
         switches += word.substr(0, end);
     }
-    Log("command line: %d argument(s) after the exe, switches: %ls (%d of them carried a value, not logged), %d other value(s) not logged",
-        args, switches.empty() ? L"(none)" : switches.c_str(), withValues, others);
+    Log("command line: %ls, %d argument(s) after it, switches: %ls (%d of them carried a value, not logged), %d other value(s) not logged",
+        exe.empty() ? L"(no exe)" : exe.c_str(), args, switches.empty() ? L"(none)" : switches.c_str(), withValues, others);
 }
 
 static void OnAttach(HMODULE h)
