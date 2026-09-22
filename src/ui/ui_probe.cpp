@@ -1202,14 +1202,18 @@ static void OnLibrary(void* library)
     // thread cannot run until DllMain returns, because its own thread attach pass wants the loader
     // lock we are holding, so any DLL in the process whose attach handler blocks would hang the
     // launch. There is nothing for the sampler to look at before a Cohtml library exists anyway.
-    static bool started = false;
-    if (started) return;
+    // Atomic because this used to run at attach, where the game was still one thread, and now runs
+    // from a Cohtml callback where it is not guaranteed to be.
+    static std::atomic<bool> starting{false};
+    static std::atomic<bool> started{false};
+    if (started.load() || starting.exchange(true)) return;
     HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
     if (!sampler) {
         Log("[ui] the layout sampler thread could not be created (error %lu), trying again at the next library", GetLastError());
-        return;   // not latched, so a later library gets another go
+        starting.store(false);   // handed back, so a later library really does get another go
+        return;
     }
-    started = true;
+    started.store(true);
     SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
     CloseHandle(sampler);
     Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);

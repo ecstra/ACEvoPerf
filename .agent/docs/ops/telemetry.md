@@ -128,9 +128,10 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
 own tile pool figures (used, capacity, pending) as the last kick read them, and a separate
-`[stats] across all queues` line carries the total of repeated reads. That total is process wide
-and is printed once per interval whichever queue's report reaches it, which is why it is not
-attached to a queue's own line as it used to be.
+`[stats] across all queues` line carries the total of repeated reads. That total is process wide, so
+it is printed once per interval whichever queue's report reaches it first, and once more at
+shutdown, rather than attached to a queue's own line as it used to be. The shutdown one needs its
+own latch, because every queue's last report is final and they all arrive in the same millisecond.
 
 ## acevo_perf_memory.csv
 

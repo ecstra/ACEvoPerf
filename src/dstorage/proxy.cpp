@@ -237,12 +237,24 @@ struct QueueProxy : IDStorageQueue2 {
         // duplicate totals with wrong names, which is how the finding was noticed.
         if (g_cfg.streamingTrace && g_repeatedReads.load()) {
             static std::atomic<uint64_t> lastRereadReport{0};
-            uint64_t previous = lastRereadReport.load();
-            if (final || now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull) {
-                if (lastRereadReport.compare_exchange_strong(previous, now))
-                    Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
-                        (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
+            static std::atomic<bool> finalRereadDone{false};
+            bool print;
+            if (final) {
+                // Its own latch. The time gate cannot hold this one, because every queue's last
+                // report is final and they all arrive in the same millisecond, which is the
+                // duplicate this whole finding is about arriving at shutdown instead.
+                print = !finalRereadDone.exchange(true);
+            } else {
+                // Zero is not a time, it is the seed, and the clock here counts from boot. Without
+                // the first test the line would wait out a whole interval of system uptime, which
+                // at the permitted ceiling of an hour means most sessions never see it.
+                uint64_t previous = lastRereadReport.load();
+                print = (previous == 0 || now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull)
+                     && lastRereadReport.compare_exchange_strong(previous, now);
             }
+            if (print)
+                Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
+                    (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
         }
         st.lastReportTick = now;
         st.lastRequests = requests;

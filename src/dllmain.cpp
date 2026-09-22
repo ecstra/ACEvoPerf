@@ -12,11 +12,11 @@
 //   overlay/    loose files that shadow package entries
 //   ui/         the responsive UI and its parts, the shared Cohtml hooks, the developer UI probe
 //
-// Everything is configured by acevo_perf.ini next to this DLL and logged to acevo_perf.log. The
-// only game file replaced is dstorage.dll. The mod also writes two files of its own next to the
-// exe, acevo_bigscreen.texture and acevo_uicomponents.css, which the overlay generates from the
-// player's own package and then serves in place of the originals. Nothing of the game's is
-// modified in place.
+// Everything is configured by acevo_perf.ini next to this DLL. The only game file replaced is
+// dstorage.dll. Everything else the mod writes is its own and goes next to the exe: acevo_perf.log,
+// the four developer CSVs when their switches are on, and acevo_bigscreen.texture and
+// acevo_uicomponents.css, which the overlay generates from the player's own package and then serves
+// in place of the originals. Nothing of the game's is modified in place.
 #include "acevo/common.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
