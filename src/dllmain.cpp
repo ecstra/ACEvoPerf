@@ -14,7 +14,7 @@
 //
 // Everything is configured by acevo_perf.ini next to this DLL. The only game file replaced is
 // dstorage.dll. Everything else the mod writes is its own and goes next to the exe: acevo_perf.log,
-// the four developer CSVs when their switches are on, and acevo_bigscreen.texture and
+// the five developer CSVs when their switches are on, and acevo_bigscreen.texture and
 // acevo_uicomponents.css, which the overlay generates from the player's own package and then serves
 // in place of the originals. Nothing of the game's is modified in place.
 #include "acevo/common.h"

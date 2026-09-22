@@ -240,16 +240,18 @@ struct QueueProxy : IDStorageQueue2 {
             static std::atomic<bool> finalRereadDone{false};
             bool print;
             if (final) {
-                // Its own latch. The time gate cannot hold this one, because every queue's last
-                // report is final and they all arrive in the same millisecond, which is the
-                // duplicate this whole finding is about arriving at shutdown instead.
+                // Its own latch. The time gate cannot hold this one, because the queues that get a
+                // final report at shutdown arrive in the same millisecond, which is the duplicate
+                // this whole finding is about arriving at shutdown instead.
                 print = !finalRereadDone.exchange(true);
             } else {
-                // Zero is not a time, it is the seed, and the clock here counts from boot. Without
-                // the first test the line would wait out a whole interval of system uptime, which
-                // at the permitted ceiling of an hour means most sessions never see it.
+                // `now` was read before this queue's own line went to disk, so another queue can
+                // have stored a later time in between. Unsigned, `now - previous` would then wrap
+                // to a huge number and pass, printing a second line in the same interval, so a
+                // stored time at or after ours means someone else already reported it.
                 uint64_t previous = lastRereadReport.load();
-                print = (previous == 0 || now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull)
+                print = now > previous
+                     && now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull
                      && lastRereadReport.compare_exchange_strong(previous, now);
             }
             if (print)

@@ -131,7 +131,8 @@ own tile pool figures (used, capacity, pending) as the last kick read them, and 
 `[stats] across all queues` line carries the total of repeated reads. That total is process wide, so
 it is printed once per interval whichever queue's report reaches it first, and once more at
 shutdown, rather than attached to a queue's own line as it used to be. The shutdown one needs its
-own latch, because every queue's last report is final and they all arrive in the same millisecond.
+own latch, because the queues that get a final report arrive in the same millisecond. In every
+captured run those are the two `GpuUpload` queues, and `FileToMemory Queue` never gets one.
 
 ## acevo_perf_memory.csv
 
