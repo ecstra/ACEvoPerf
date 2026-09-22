@@ -230,12 +230,20 @@ struct QueueProxy : IDStorageQueue2 {
                 (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
                 (unsigned long long)st.submits.load());
         }
-        // Not named after this queue. The counters behind it are process wide, and with more than
-        // one file source queue every one of them would have printed the same total under its own
-        // name, which is the measurement TODO-018 rests on.
-        if (g_cfg.streamingTrace && st.byDest[DSTORAGE_REQUEST_DESTINATION_MEMORY].load())
-            Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
-                (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
+        // Not named after this queue, and printed once for the process rather than once per queue.
+        // The counters behind it are process wide, so with more than one queue reading into memory
+        // every one of them used to print the same total under its own name. Taking the name off
+        // was half the fix, since duplicate totals with nothing to tell them apart is worse than
+        // duplicate totals with wrong names, which is how the finding was noticed.
+        if (g_cfg.streamingTrace && g_repeatedReads.load()) {
+            static std::atomic<uint64_t> lastRereadReport{0};
+            uint64_t previous = lastRereadReport.load();
+            if (final || now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull) {
+                if (lastRereadReport.compare_exchange_strong(previous, now))
+                    Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
+                        (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
+            }
+        }
         st.lastReportTick = now;
         st.lastRequests = requests;
         st.lastBytes = bytes;
@@ -473,12 +481,20 @@ static void ReportRuntimeInUse()
     HMODULE core = GetModuleHandleW(L"dstoragecore.dll");
     if (!core) { Log("[runtime] no dstoragecore.dll is loaded, the DirectStorage runtime did not come up"); return; }
 
-    wchar_t path[MAX_PATH] = {};
-    GetModuleFileNameW(core, path, MAX_PATH);
+    // Truncation matters here for the same reason it did in DllMain, and for one more: a cut path
+    // no longer starts with g_dir, so PublicPath cannot take the prefix off it and prints whatever
+    // follows the last backslash of a string chopped mid name, which is a piece of the player's
+    // own folder in the file they are told to attach.
+    std::vector<wchar_t> path(MAX_PATH);
+    for (;;) {
+        DWORD n = GetModuleFileNameW(core, path.data(), (DWORD)path.size());
+        if (n == 0 || n < path.size() - 1 || path.size() >= 32768) break;
+        path.resize(path.size() * 2);
+    }
     const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
     UINT32 v = sdk ? *sdk : 0;
 
-    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path).c_str());
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path.data()).c_str());
     if (v < DSTORAGE_SDK_VERSION)
         Log("[runtime] that is older than the 1.%u.%u this mod ships, so the game's own runtime is being used. "
             "It works, it is just the old one.", (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);

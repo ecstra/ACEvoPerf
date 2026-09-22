@@ -46,6 +46,7 @@ bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* o
 static std::atomic<bool> g_gameIsRunning{false};
 
 void CodePatchingIsNowUnsafe() { g_gameIsRunning.store(true); }
+bool CodePatchingIsLate() { return g_gameIsRunning.load(); }
 
 // Copies straight over live code with no thread suspension and no atomic write. A five byte jump
 // is five stores, and a thread executing that address mid write runs whatever half is there, which
@@ -57,6 +58,10 @@ void CodePatchingIsNowUnsafe() { g_gameIsRunning.store(true); }
 // game. Making it actually safe means suspending every other thread and checking each one's
 // instruction pointer against the range, which is worth writing the day something needs to patch
 // late and not before.
+//
+// Three places copy over code without coming through here, in engine/streamer, ui/restyle_fix and
+// ui/ui_probe, because each changes protection over a range in its own shape. They ask
+// CodePatchingIsLate for themselves, so this is not the choke point it looks like.
 bool WriteCode(BYTE* at, const BYTE* code, size_t length)
 {
     if (g_gameIsRunning.load())

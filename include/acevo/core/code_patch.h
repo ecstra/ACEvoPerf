@@ -21,5 +21,11 @@ bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* o
 // source for what it would take to make it genuinely safe.
 bool WriteCode(BYTE* at, const BYTE* code, size_t length);
 
-// Called once DllMain returns, after which WriteCode warns rather than staying quiet.
+// Called as the last thing attach does, from which point the game has threads of its own.
 void CodePatchingIsNowUnsafe();
+
+// Whether that point has passed. `WriteCode` asks for itself. The three places that change page
+// protection and copy over code without going through it, in `engine/streamer`, `ui/restyle_fix`
+// and `ui/ui_probe`, ask on their own behalf, since the hazard is theirs too and nothing else
+// would catch them.
+bool CodePatchingIsLate();

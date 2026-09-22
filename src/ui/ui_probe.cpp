@@ -1098,6 +1098,8 @@ static void InstallStyleHooks()
         }
         patch.rel = (int32_t)rel;
     }
+    if (CodePatchingIsLate())
+        Log("[ui] WARNING: patching Cohtml's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     int written = 0;
     for (Patch& patch : patches) {
         if (!VirtualProtect(patch.at, 5, PAGE_EXECUTE_READWRITE, &old)) {
@@ -1202,12 +1204,14 @@ static void OnLibrary(void* library)
     // launch. There is nothing for the sampler to look at before a Cohtml library exists anyway.
     static bool started = false;
     if (started) return;
-    started = true;
     HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
-    if (sampler) {
-        SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
-        CloseHandle(sampler);
+    if (!sampler) {
+        Log("[ui] the layout sampler thread could not be created (error %lu), trying again at the next library", GetLastError());
+        return;   // not latched, so a later library gets another go
     }
+    started = true;
+    SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
+    CloseHandle(sampler);
     Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
 }
 

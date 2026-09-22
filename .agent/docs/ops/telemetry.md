@@ -127,8 +127,10 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
-own tile pool figures (used, capacity, pending) as the last kick read them, and the file to memory
-queue's `[stats]` line is followed by the total of repeated reads.
+own tile pool figures (used, capacity, pending) as the last kick read them, and a separate
+`[stats] across all queues` line carries the total of repeated reads. That total is process wide
+and is printed once per interval whichever queue's report reaches it, which is why it is not
+attached to a queue's own line as it used to be.
 
 ## acevo_perf_memory.csv
 

@@ -11,6 +11,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - Turning off `stats` in `acevo_perf.ini` also turning off the sharp trackside screens, the menu styling and any files you put in the mods folder.
 - Settings typed wrong or left empty in `acevo_perf.ini` no longer break the game quietly. The log says what was corrected.
 - `acevo_perf.log` no longer records where the game is installed or how it was started, so the file you attach to a bug report does not carry your PC's folder names.
+- The mod not starting at all when the game sits in a very long folder path.
 
 ### Changed
 
