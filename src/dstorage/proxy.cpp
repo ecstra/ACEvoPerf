@@ -154,6 +154,12 @@ static void TraceFileRequest(const DSTORAGE_REQUEST* request)
     }
     if (request->Options.DestinationType != DSTORAGE_REQUEST_DESTINATION_MEMORY) return;
 
+    // Keyed on the IDStorageFile pointer, which the allocator hands back once the game closes a
+    // file, so an entry can outlive the file it was about and count a fresh read of a different
+    // file as a repeat. The map is never cleared either, so it only grows. Both are accepted:
+    // this whole path is behind streaming_trace, which ships off, and clearing on close needs a
+    // hook on IDStorageFile::Release that the proxy does not have. Named here so a reading of
+    // the reread numbers knows what it is reading.
     AcquireSRWLockExclusive(&g_readsLock);
     uint32_t seen = ++g_reads[ReadKey{ source.Source, source.Offset, source.Size }];
     ReleaseSRWLockExclusive(&g_readsLock);
@@ -203,26 +209,36 @@ struct QueueProxy : IDStorageQueue2 {
     void Report(bool final)
     {
         uint64_t now = GetTickCount64();
-        uint64_t dt = now - st.lastReportTick;
-        if (!final && dt < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
-        uint64_t r = st.requests.load(), b = st.bytes.load();
-        uint64_t dr = r - st.lastRequests, db = b - st.lastBytes;
-        double secs = dt / 1000.0; if (secs <= 0) secs = 1;
+        uint64_t sinceLastReportMs = now - st.lastReportTick;
+        if (!final && sinceLastReportMs < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
+
+        uint64_t requests = st.requests.load();
+        uint64_t bytes = st.bytes.load();
+        uint64_t requestsSince = requests - st.lastRequests;
+        uint64_t bytesSince = bytes - st.lastBytes;
+
+        double secs = sinceLastReportMs / 1000.0;
+        if (secs <= 0) secs = 1;
         // Each line checks the setting that asks for it. The queue is wrapped for several
         // reasons now, so reaching here says nothing about which of them is on.
         if (g_cfg.stats) {
             Log("[stats] queue '%s'%s: total %llu req / %.1f MB (max req %llu KB) | last %.0fs: %llu req, %.1f MB/s | dest MEM=%llu BUF=%llu TEX=%llu MULTI=%llu TILES=%llu | fromMem=%llu compressed=%llu gdeflate=%llu submits=%llu",
-                name.c_str(), final ? " (final)" : "", (unsigned long long)r, b / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
-                secs, (unsigned long long)dr, (db / 1048576.0) / secs,
+                name.c_str(), final ? " (final)" : "", (unsigned long long)requests, bytes / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
+                secs, (unsigned long long)requestsSince, (bytesSince / 1048576.0) / secs,
                 (unsigned long long)st.byDest[0].load(), (unsigned long long)st.byDest[1].load(), (unsigned long long)st.byDest[2].load(),
                 (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
                 (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
                 (unsigned long long)st.submits.load());
         }
+        // Not named after this queue. The counters behind it are process wide, and with more than
+        // one file source queue every one of them would have printed the same total under its own
+        // name, which is the measurement TODO-018 rests on.
         if (g_cfg.streamingTrace && st.byDest[DSTORAGE_REQUEST_DESTINATION_MEMORY].load())
-            Log("[stats] queue '%s': %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
-                name.c_str(), (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
-        st.lastReportTick = now; st.lastRequests = r; st.lastBytes = b;
+            Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
+                (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
+        st.lastReportTick = now;
+        st.lastRequests = requests;
+        st.lastBytes = bytes;
     }
 
     // IUnknown
@@ -264,17 +280,21 @@ struct QueueProxy : IDStorageQueue2 {
             st.requests++; st.bytes += sz;
             uint64_t prev = st.maxReq.load();
             while (sz > prev && !st.maxReq.compare_exchange_weak(prev, sz)) {}
-            UINT64 dt = request->Options.DestinationType;
-            if (dt < 5) { st.byDest[dt]++; g_reqByDest[dt]++; g_bytesByDest[dt] += sz; }
+            UINT64 destination = request->Options.DestinationType;
+            if (destination < 5) {
+                st.byDest[destination]++;
+                g_reqByDest[destination]++;
+                g_bytesByDest[destination] += sz;
+            }
             st.sinceSubmit++;
             if (request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_MEMORY) st.fromMemory++;
             if (request->Options.CompressionFormat != DSTORAGE_COMPRESSION_FORMAT_NONE) st.compressed++;
             if (request->Options.CompressionFormat == DSTORAGE_COMPRESSION_FORMAT_GDEFLATE) st.gdeflate++;
             if (g_cfg.logRequests) {
                 if (request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_MEMORY)
-                    Log("[req] '%s' MEM->%s size=%u uncomp=%u comp=%u name=%s", name.c_str(), DestName(dt), request->Source.Memory.Size, request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
+                    Log("[req] '%s' MEM->%s size=%u uncomp=%u comp=%u name=%s", name.c_str(), DestName(destination), request->Source.Memory.Size, request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
                 else
-                    Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(dt), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
+                    Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(destination), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
             }
             if (g_cfg.streamingTrace && request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_FILE) TraceFileRequest(request);
             DSTORAGE_REQUEST redirected;

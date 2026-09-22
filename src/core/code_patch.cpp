@@ -1,4 +1,5 @@
 #include "acevo/core/code_patch.h"
+#include "acevo/core/log.h"
 
 uint64_t Fnv1a64(const BYTE* p, size_t n)
 {
@@ -40,8 +41,28 @@ bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* o
     return true;
 }
 
+// Set once DllMain is done. Everything that patches code today runs before that, while the game is
+// still one thread, which is the only reason a plain copy over live code is safe.
+static std::atomic<bool> g_gameIsRunning{false};
+
+void CodePatchingIsNowUnsafe() { g_gameIsRunning.store(true); }
+
+// Copies straight over live code with no thread suspension and no atomic write. A five byte jump
+// is five stores, and a thread executing that address mid write runs whatever half is there, which
+// is a crash inside the game's own code with nothing of the mod on the stack.
+//
+// Every caller runs from DLL_PROCESS_ATTACH, before the game has made a second thread, so no
+// thread can be there. That is a property of the callers and not of this function, so the function
+// says when it has been broken rather than leaving the next caller to find out in someone else's
+// game. Making it actually safe means suspending every other thread and checking each one's
+// instruction pointer against the range, which is worth writing the day something needs to patch
+// late and not before.
 bool WriteCode(BYTE* at, const BYTE* code, size_t length)
 {
+    if (g_gameIsRunning.load())
+        Log("WARNING: code at %p patched after start up, while the game has other threads running. "
+            "A thread executing these %zu bytes mid write will crash. See WriteCode.", at, length);
+
     DWORD old = 0;
     if (!VirtualProtect(at, length, PAGE_EXECUTE_READWRITE, &old)) return false;
     memcpy(at, code, length);

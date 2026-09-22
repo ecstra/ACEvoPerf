@@ -12,11 +12,15 @@
 //   overlay/    loose files that shadow package entries
 //   ui/         the responsive UI and its parts, the shared Cohtml hooks, the developer UI probe
 //
-// Everything is configured by acevo_perf.ini next to this DLL and logged to
-// acevo_perf.log. No game files other than the replaced dstorage.dll are touched.
+// Everything is configured by acevo_perf.ini next to this DLL and logged to acevo_perf.log. The
+// only game file replaced is dstorage.dll. The mod also writes two files of its own next to the
+// exe, acevo_bigscreen.texture and acevo_uicomponents.css, which the overlay generates from the
+// player's own package and then serves in place of the originals. Nothing of the game's is
+// modified in place.
 #include "acevo/common.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include "acevo/core/code_patch.h"
 #include "acevo/dstorage/proxy.h"
 #include "acevo/engine/flags.h"
 #include "acevo/engine/process.h"
@@ -89,9 +93,18 @@ static void OnAttach(HMODULE h)
     InitDStorageProxy();
     InitFrameStats();
 
-    wchar_t path[MAX_PATH];
-    GetModuleFileNameW(h, path, MAX_PATH);
-    g_dir = path;
+    // Truncation is checked because past MAX_PATH the buffer still comes back null terminated, so
+    // g_dir would silently name an ancestor of the real folder: no ini found, and the absolute
+    // load of dstorage_orig.dll failing into the message box with nothing saying why.
+    std::vector<wchar_t> path(MAX_PATH);
+    for (;;) {
+        DWORD n = GetModuleFileNameW(h, path.data(), (DWORD)path.size());
+        if (n == 0) break;                                       // nothing sensible to do
+        if (n < path.size() - 1) break;                          // fits
+        if (path.size() >= 32768) break;                         // the longest Windows allows
+        path.resize(path.size() * 2);
+    }
+    g_dir = path.data();
     size_t s = g_dir.find_last_of(L'\\');
     g_dir = (s == std::wstring::npos) ? L"" : g_dir.substr(0, s + 1);
     g_iniPath = g_dir + L"acevo_perf.ini";
@@ -127,6 +140,7 @@ static void OnAttach(HMODULE h)
     InstallDxgiHooks();
     InstallThrowLog();
     overlay::Install();
+    CodePatchingIsNowUnsafe();   // the game gets its own threads from here, see WriteCode
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID)

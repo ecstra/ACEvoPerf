@@ -13,4 +13,13 @@ BYTE* AllocNear(BYTE* anchor, size_t size);
 bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* out);
 
 // Copies `code` over loaded code, restoring the page protection.
+//
+// Only safe while the game is still one thread, which it is for the whole of DLL_PROCESS_ATTACH
+// and never again. There is no thread suspension here and a multi byte patch is not atomic, so a
+// thread executing those bytes mid write runs half of the old instruction and half of the new one.
+// Every caller today is on the attach path. One that is not gets a warning in the log, see the
+// source for what it would take to make it genuinely safe.
 bool WriteCode(BYTE* at, const BYTE* code, size_t length);
+
+// Called once DllMain returns, after which WriteCode warns rather than staying quiet.
+void CodePatchingIsNowUnsafe();
