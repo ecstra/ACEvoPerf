@@ -40,25 +40,40 @@
 // because a path is one of the things being left out anyway.
 static void LogCommandLine()
 {
-    std::wstring line = GetCommandLineW();
     std::wstring switches;
-    int words = 0, others = 0;
-    size_t at = 0;
-    while (at < line.size()) {
-        size_t end = line.find(L' ', at);
-        if (end == std::wstring::npos) end = line.size();
-        std::wstring word = line.substr(at, end - at);
-        at = end + 1;
+    int args = 0, withValues = 0, others = 0;
+    bool firstWord = true;
+
+    // Quote aware, because the exe path has spaces in it on a stock Steam install and splitting on
+    // spaces alone turned one argument into five. That made the line report four unnamed arguments
+    // for a launch that passed none, and a folder or profile name containing a hyphen came out
+    // looking like a switch, which is the one thing this line exists to keep out.
+    for (const wchar_t* p = GetCommandLineW(); *p; ) {
+        while (*p == L' ' || *p == L'\t') ++p;
+        if (!*p) break;
+        std::wstring word;
+        bool inQuotes = false;
+        for (; *p; ++p) {
+            if (*p == L'"') { inQuotes = !inQuotes; continue; }
+            if (!inQuotes && (*p == L' ' || *p == L'\t')) break;
+            word.push_back(*p);
+        }
+        if (firstWord) { firstWord = false; continue; }   // the exe, which is not logged at all
         if (word.empty()) continue;
-        if (words++ == 0) continue;            // the exe itself, which PublicPath already covers
+        ++args;
         if (word[0] != L'-' && word[0] != L'/') { ++others; continue; }
-        size_t eq = word.find(L'=');
-        if (eq != std::wstring::npos) word.erase(eq);
+
+        // The name is the marker plus letters, digits, underscores and hyphens. Whatever follows
+        // is a value in one of the several syntaxes, `=`, `:` or a bare suffix, and it is counted
+        // rather than written, since an account name or a session id arrives that way.
+        size_t end = 1;
+        while (end < word.size() && (iswalnum(word[end]) || word[end] == L'_' || word[end] == L'-')) ++end;
+        if (end != word.size()) ++withValues;
         switches += switches.empty() ? L"" : L" ";
-        switches += word;
+        switches += word.substr(0, end);
     }
-    Log("command line: %d argument(s) after the exe, switches: %ls, %d other value(s) not logged",
-        words > 0 ? words - 1 : 0, switches.empty() ? L"(none)" : switches.c_str(), others);
+    Log("command line: %d argument(s) after the exe, switches: %ls (%d of them carried a value, not logged), %d other value(s) not logged",
+        args, switches.empty() ? L"(none)" : switches.c_str(), withValues, others);
 }
 
 static void OnAttach(HMODULE h)

@@ -3,9 +3,11 @@
 
 std::wstring PublicPath(const std::wstring& path)
 {
-    if (!g_dir.empty() && path.size() > g_dir.size()
-        && _wcsnicmp(path.c_str(), g_dir.c_str(), g_dir.size()) == 0)
-        return path.substr(g_dir.size());
+    if (!g_dir.empty() && path.size() >= g_dir.size()
+        && _wcsnicmp(path.c_str(), g_dir.c_str(), g_dir.size()) == 0) {
+        std::wstring rest = path.substr(g_dir.size());
+        return rest.empty() ? L"the game folder" : rest;   // the path was the game folder itself
+    }
     size_t slash = path.find_last_of(L"\\/");
     return slash == std::wstring::npos ? path : path.substr(slash + 1);
 }

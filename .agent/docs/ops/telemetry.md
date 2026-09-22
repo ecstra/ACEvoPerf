@@ -18,6 +18,17 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 
 ## acevo_perf.log
 
+**This file is written to be posted.** `README.md` and `dist/README.txt` both tell players to
+attach it to a bug report, so it is public by design and nothing in it may identify the player.
+Every path that reaches `Log` goes through `PublicPath` (`core/log`), which trims the game folder
+off a path under it and reduces anything else, the game's own save files included, to a bare file
+name. The command line is summarised rather than written: the argument count, the switch names, and
+a count of the values left out, because a launcher can pass an account or a session id there.
+
+A new `Log` call that hands a raw path to `%ls` puts that back, and only the comment on
+`PublicPath` stands in the way. The one string still copied out of the game's memory untouched is
+the `[throw]` message below, which is why that one is developer only and ships off.
+
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what
 `frame_stats=0` silences, since the hitch lines have no switch of their own and the two frame CSVs
