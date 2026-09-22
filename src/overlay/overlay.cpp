@@ -118,7 +118,7 @@ static void TrackHandle(HANDLE h, const wchar_t* path, void* caller)
     }
     LeaveCriticalSection(&g_cs);
     char mod[MAX_PATH];
-    Log("overlay: package opened, handle %p by %s (%ls), size %llu, table at %llu", h, CallerModule(caller, mod, sizeof mod), path,
+    Log("overlay: package opened, handle %p by %s (%ls), size %llu, table at %llu", h, CallerModule(caller, mod, sizeof mod), PublicPath(path).c_str(),
         (unsigned long long)g_pkgSize, (unsigned long long)g_tocStart);
 }
 
@@ -129,7 +129,7 @@ static void TrackHandle(HANDLE h, const wchar_t* path, void* caller)
 static void CollectFiles(const std::wstring& dir, const std::string& rel, int depth = 0)
 {
     if (depth > 16) {
-        Log("overlay: %ls is nested deeper than 16 folders, not descending further", dir.c_str());
+        Log("overlay: %ls is nested deeper than 16 folders, not descending further", PublicPath(dir).c_str());
         return;
     }
     WIN32_FIND_DATAW fd;
@@ -267,11 +267,11 @@ static void AddBigScreenFix(size_t used)
 
     const std::wstring loose = g_dir + kBigScreenLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the big screen fix is skipped", loose.c_str(), GetLastError()); return; }
+    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the big screen fix is skipped", PublicPath(loose).c_str(), GetLastError()); return; }
     DWORD wrote = 0;
     const bool ok = WriteFile(w, header.data(), (DWORD)header.size(), &wrote, nullptr) && wrote == header.size();
     g_origCloseHandle(w);
-    if (!ok) { Log("overlay: short write to %ls, the big screen fix is skipped", loose.c_str()); return; }
+    if (!ok) { Log("overlay: short write to %ls, the big screen fix is skipped", PublicPath(loose).c_str()); return; }
 
     Override o;
     o.loosePath = loose;
@@ -376,11 +376,11 @@ static void AddUiStyleFix(size_t used)
 
     const std::wstring loose = g_dir + kUiStylesheetLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the UI stylesheet is served untouched", loose.c_str(), GetLastError()); return; }
+    if (w == INVALID_HANDLE_VALUE) { Log("overlay: cannot write %ls (error %lu), the UI stylesheet is served untouched", PublicPath(loose).c_str(), GetLastError()); return; }
     DWORD wrote = 0;
     const bool ok = WriteFile(w, corrected.data(), (DWORD)corrected.size(), &wrote, nullptr) && wrote == corrected.size();
     g_origCloseHandle(w);
-    if (!ok) { Log("overlay: short write to %ls, the UI stylesheet is served untouched", loose.c_str()); return; }
+    if (!ok) { Log("overlay: short write to %ls, the UI stylesheet is served untouched", PublicPath(loose).c_str()); return; }
 
     Override o;
     o.loosePath = loose;
@@ -398,7 +398,7 @@ static void BuildToc()
     g_tocFailed = true;    // flipped back on success
     std::wstring pkg = g_dir + L"content.kspkg";
     HANDLE h = g_origCreateFileW(pkg.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (h == INVALID_HANDLE_VALUE) { Log("overlay: cannot open %ls (error %lu)", pkg.c_str(), GetLastError()); return; }
+    if (h == INVALID_HANDLE_VALUE) { Log("overlay: cannot open %ls (error %lu)", PublicPath(pkg).c_str(), GetLastError()); return; }
     LARGE_INTEGER sz = {};
     GetFileSizeEx(h, &sz);
     g_pkgSize = (uint64_t)sz.QuadPart;
@@ -591,9 +591,9 @@ void Install()
     std::wstring folder = g_dir + g_cfg.overlayFolder;
     if (g_cfg.overlayEnabled && GetFileAttributesW(folder.c_str()) != INVALID_FILE_ATTRIBUTES) {
         CollectFiles(folder, "");
-        Log("overlay: %zu loose file(s) under %ls", g_files.size(), folder.c_str());
+        Log("overlay: %zu loose file(s) under %ls", g_files.size(), PublicPath(folder).c_str());
     } else if (g_cfg.overlayEnabled) {
-        Log("overlay: folder %ls not present%s", folder.c_str(),
+        Log("overlay: folder %ls not present%s", PublicPath(folder).c_str(),
             (g_cfg.fixBigScreens || g_cfg.responsiveUi) ? ", the mod's own asset fixes still apply" : ", layer idle");
     }
     // The mod's own corrections are reason enough to hook the file calls. They are generated from
@@ -631,7 +631,7 @@ bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirect
         if (!g_dsFactory) g_dsFactory = RealDStorageFactory();
         if (!o->dsFile && g_dsFactory) {
             HRESULT hr = g_dsFactory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&o->dsFile);
-            Log("overlay: DirectStorage open %ls -> hr=0x%08X", o->loosePath.c_str(), (unsigned)hr);
+            Log("overlay: DirectStorage open %ls -> hr=0x%08X", PublicPath(o->loosePath).c_str(), (unsigned)hr);
         }
         LeaveCriticalSection(&g_cs);
         if (!o->dsFile) return false;

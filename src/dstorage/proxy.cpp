@@ -59,7 +59,7 @@ static bool LoadBundledCore()
     if (!core) {
         Log("[runtime] cannot load %ls (error %lu), falling back to the game's own runtime. Copy "
             "acevo_dstoragecore.dll from the mod zip next to the exe to get the newer one.",
-            path.c_str(), GetLastError());
+            PublicPath(path).c_str(), GetLastError());
         return false;
     }
 
@@ -67,7 +67,7 @@ static bool LoadBundledCore()
     auto setConfig = (PFN_DStorageSetConfiguration1)GetProcAddress(core, "DStorageSetConfigurationCore");
     auto createCodec = (PFN_DStorageCreateCompressionCodec)GetProcAddress(core, "DStorageCreateCompressionCodecCore");
     if (!getFactory || !setConfig || !createCodec) {
-        Log("[runtime] %ls does not offer the core entry points, falling back to the game's own runtime", path.c_str());
+        Log("[runtime] %ls does not offer the core entry points, falling back to the game's own runtime", PublicPath(path).c_str());
         FreeLibrary(core);
         return false;
     }
@@ -81,7 +81,7 @@ static bool LoadBundledCore()
 
     const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
     UINT32 v = sdk ? *sdk : 0;
-    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path.c_str());
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path).c_str());
     if (v < DSTORAGE_SDK_VERSION)
         Log("[runtime] that is older than the 1.%u.%u this mod ships with, so that file is stale",
             (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);
@@ -98,7 +98,7 @@ static bool EnsureReal()
         g_real = LoadLibraryW(path.c_str());
         if (!g_real) {
             DWORD err = GetLastError();
-            Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", path.c_str(), err);
+            Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", PublicPath(path).c_str(), err);
             MessageBoxW(nullptr,
                 L"ACEvoPerf: dstorage_orig.dll was not found next to the game executable.\n\n"
                 L"Copy all the files from the mod zip into the game folder, then start the\n"
@@ -109,7 +109,7 @@ static bool EnsureReal()
             g_realSetConfiguration = (PFN_DStorageSetConfiguration)GetProcAddress(g_real, "DStorageSetConfiguration");
             g_realSetConfiguration1 = (PFN_DStorageSetConfiguration1)GetProcAddress(g_real, "DStorageSetConfiguration1");
             g_realCreateCodec = (PFN_DStorageCreateCompressionCodec)GetProcAddress(g_real, "DStorageCreateCompressionCodec");
-            Log("Loaded real runtime %ls (GetFactory=%p SetConfiguration1=%p)", path.c_str(), g_realGetFactory, g_realSetConfiguration1);
+            Log("Loaded real runtime %ls (GetFactory=%p SetConfiguration1=%p)", PublicPath(path).c_str(), g_realGetFactory, g_realSetConfiguration1);
         }
     }
     LeaveCriticalSection(&g_realCs);
@@ -399,7 +399,7 @@ struct FactoryProxy : IDStorageFactory {
     HRESULT STDMETHODCALLTYPE OpenFile(const WCHAR* path, REFIID riid, void** ppv) override
     {
         HRESULT hr = real->OpenFile(path, riid, ppv);
-        Log("OpenFile '%ls' -> hr=0x%08X file=%p", path ? path : L"", (unsigned)hr, (ppv && SUCCEEDED(hr)) ? *ppv : nullptr);
+        Log("OpenFile '%ls' -> hr=0x%08X file=%p", PublicPath(path ? path : L"").c_str(), (unsigned)hr, (ppv && SUCCEEDED(hr)) ? *ppv : nullptr);
         return hr;
     }
     HRESULT STDMETHODCALLTYPE CreateStatusArray(UINT32 capacity, PCSTR name, REFIID riid, void** ppv) override
@@ -458,7 +458,7 @@ static void ReportRuntimeInUse()
     const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
     UINT32 v = sdk ? *sdk : 0;
 
-    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path);
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path).c_str());
     if (v < DSTORAGE_SDK_VERSION)
         Log("[runtime] that is older than the 1.%u.%u this mod ships, so the game's own runtime is being used. "
             "It works, it is just the old one.", (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);

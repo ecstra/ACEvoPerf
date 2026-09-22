@@ -1,4 +1,14 @@
 #include "acevo/core/log.h"
+#include "acevo/core/config.h"   // g_dir
+
+std::wstring PublicPath(const std::wstring& path)
+{
+    if (!g_dir.empty() && path.size() > g_dir.size()
+        && _wcsnicmp(path.c_str(), g_dir.c_str(), g_dir.size()) == 0)
+        return path.substr(g_dir.size());
+    size_t slash = path.find_last_of(L"\\/");
+    return slash == std::wstring::npos ? path : path.substr(slash + 1);
+}
 
 static HANDLE g_log = INVALID_HANDLE_VALUE;
 static CRITICAL_SECTION g_logCs;
@@ -16,7 +26,7 @@ void LogOpen(const std::wstring& path, const std::wstring& fallback)
     DWORD err = GetLastError();
     g_log = CreateFileW(fallback.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (g_log != INVALID_HANDLE_VALUE)
-        Log("log: [log] file could not be opened at %ls (error %lu), writing here instead", path.c_str(), err);
+        Log("log: [log] file could not be opened at %ls (error %lu), writing here instead", PublicPath(path).c_str(), err);
 }
 
 void Log(const char* fmt, ...)

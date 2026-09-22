@@ -32,6 +32,35 @@
 #include "acevo/ui/responsive_ui.h"
 #include "acevo/ui/ui_probe.h"
 
+// Not written out as it stands. The readme tells players to attach this log to a public report,
+// and a launcher can put an account name, a session id or a token on the command line. What the
+// line is read for is whether the game was started with anything unusual, so the switches are
+// listed by name with any value after an equals dropped, and everything else is counted and left
+// out. Split on spaces, which mis-splits a quoted path into several words, and that is fine here
+// because a path is one of the things being left out anyway.
+static void LogCommandLine()
+{
+    std::wstring line = GetCommandLineW();
+    std::wstring switches;
+    int words = 0, others = 0;
+    size_t at = 0;
+    while (at < line.size()) {
+        size_t end = line.find(L' ', at);
+        if (end == std::wstring::npos) end = line.size();
+        std::wstring word = line.substr(at, end - at);
+        at = end + 1;
+        if (word.empty()) continue;
+        if (words++ == 0) continue;            // the exe itself, which PublicPath already covers
+        if (word[0] != L'-' && word[0] != L'/') { ++others; continue; }
+        size_t eq = word.find(L'=');
+        if (eq != std::wstring::npos) word.erase(eq);
+        switches += switches.empty() ? L"" : L" ";
+        switches += word;
+    }
+    Log("command line: %d argument(s) after the exe, switches: %ls, %d other value(s) not logged",
+        words > 0 ? words - 1 : 0, switches.empty() ? L"(none)" : switches.c_str(), others);
+}
+
 static void OnAttach(HMODULE h)
 {
     g_self = h;
@@ -51,7 +80,7 @@ static void OnAttach(HMODULE h)
         if (lp.find(L':') == std::wstring::npos && lp.rfind(L"\\\\", 0) != 0) lp = g_dir + lp;
         LogOpen(lp, g_dir + L"acevo_perf.log");
     }
-    Log("ACEvoPerf %s attached (pid %lu). ini=%ls", ACEVO_PERF_VERSION, GetCurrentProcessId(), g_iniPath.c_str());
+    Log("ACEvoPerf %s attached (pid %lu). ini=%ls", ACEVO_PERF_VERSION, GetCurrentProcessId(), PublicPath(g_iniPath).c_str());
     // Anything LoadConfig had to correct. It runs before the log file exists, because the log's
     // own path comes out of the ini, so it collects these rather than writing them.
     for (const auto& note : g_cfg.iniNotes) Log("%s", note.c_str());
@@ -63,7 +92,7 @@ static void OnAttach(HMODULE h)
         g_cfg.priority, g_cfg.disablePowerThrottling, g_cfg.timerResolutionUs, g_cfg.flags.size(),
         g_cfg.dxgiEnabled, g_cfg.frameStats, g_cfg.timeline, g_cfg.frames, g_cfg.hitchMs,
         g_cfg.reflex, g_cfg.reflexBoost);
-    Log("command line: %ls", GetCommandLineW());
+    LogCommandLine();
 
     InstallMemoryCensus();
     ApplyProcessTweaks();
