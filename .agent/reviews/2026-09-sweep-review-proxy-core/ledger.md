@@ -21,8 +21,8 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit. Batches 1 to 4 added nine, nine, six and
-seven more, nine of those bugs the batches' own fixes caused or left standing.
+Fifteen findings, one breaks, six bug, four debt, four nit. The five batches added nine, nine, six,
+seven and ten more, eleven of those bugs the batches' own fixes caused or left standing.
 
 Batch 3 is the one with no runtime gate for its own findings. Both need a race or a reference count
 fault the game has never produced, and 113 captured runs create exactly one factory each, so no
@@ -44,7 +44,7 @@ batch does deserve, rather than proof of the fixes.
 | 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
 | 3 | one time init happens once, and a freed object is not left addressable | closed, regression checked | 2026-09-20 |
 | 4 | the log does not carry the player's machine into a public post | closed, runtime confirmed | 2026-09-22 |
-| 5 | the leftovers | pending | |
+| 5 | the leftovers | closed, awaiting the owner's run | 2026-09-22 |
 
 ## Findings
 
@@ -204,8 +204,8 @@ inside the same critical section the creation uses is the whole fix.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432 then c581cba then 7b256c2 then 0d5d5c8, 2026-09-22, the total is labelled across all queues and printed once per interval and once at shutdown for the whole process. The map keyed on a reusable pointer is documented rather than fixed, since this path is behind `streaming_trace` and clearing on close needs a hook the proxy does not have.
 
 `src/dstorage/proxy.cpp:216`, with the counters at line 141 at file scope. With several file source
 queues, each queue's stats line prints the process wide total under its own name, and the measurement
@@ -217,8 +217,8 @@ address back, the old entries count fresh reads of a different file as repeats.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432 then c581cba, 2026-09-22, the constraint is written at the header and the source, and all four places that copy over live code warn in the log if they ever run after attach. Not made safe, which would mean suspending every other thread, and is worth doing the day something needs to patch late.
 
 `src/core/code_patch.cpp:43`. Safe today only because of when it is called. Every caller runs from
 DLL_PROCESS_ATTACH while the game is still single threaded.
@@ -231,8 +231,8 @@ code with no mod frame on the stack. Nothing in the function signals that constr
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432 then c581cba then 7b256c2, 2026-09-22, the sampler starts from the probe's `OnLibrary`, which is where the responsive UI starts its own, with a one shot that latches only once the thread exists.
 
 `src/dllmain.cpp:70` with `developer.ui_probe=1` creates the layout sampler thread at
 `ui_probe.cpp:1252` while DLL_PROCESS_ATTACH holds the loader lock. The new thread cannot start until
@@ -245,8 +245,8 @@ by creating its thread from `OnLibrary` instead.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432 then c581cba, 2026-09-22, both calls in the tree grow the buffer until the path fits. The second one was the worse of the two, since a cut path defeats `PublicPath` and prints a fragment of the player's folder name.
 
 `src/dllmain.cpp:42`. Past MAX_PATH the buffer is truncated and still null terminated, and the return
 value is dropped, so `g_dir` names an ancestor of the real folder, the ini is not found, and the
@@ -257,8 +257,8 @@ path over 260 characters. One comparison against `ERROR_INSUFFICIENT_BUFFER`.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432 then 7b256c2 then 0d5d5c8, 2026-09-22, it names every file the mod writes, which took three attempts because the first named two and the second miscounted the CSVs.
 
 `src/dllmain.cpp:16`. `AddBigScreenFix` and `AddUiStyleFix` create acevo_bigscreen.texture and
 acevo_uicomponents.css in the game folder on every start, both on by default. dist/README.txt already
@@ -268,8 +268,8 @@ tells players to delete everything starting with acevo_, so only the source comm
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432, 2026-09-22, the prefix is gone and the interface name each caller passes says which layer it is.
 
 `src/core/iat.cpp:71` hardcodes `Log("DXGI: hooked %s", what)` and `HookVtableSlot` is the single shared
 vtable patcher with thirteen call sites across dxgi_hooks, frame_stats, cohtml_hooks, responsive_ui and
@@ -280,8 +280,8 @@ acevo_perf.log to check a UI fix landed is told it came from the DXGI layer.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 0979432, 2026-09-22, `sinceLastReportMs` and `destination`, the single letter locals named, and the packed lines split. The hunter checked all eighteen format arguments against the old ones and found no transposition.
 
 `src/dstorage/proxy.cpp:205` and `:260`. `QueueProxy::Report` also uses single letter locals where the
 rest of the codebase names things, and packs two statements per line at 207 and 218.
@@ -768,6 +768,126 @@ what the game puts there is unknown. It ships off like the throw log, and now it
 Ninth instance on this review of one half of a file moving and the other not. This time the content
 was right and the frontmatter date was two days stale, which is the half that tells a reader
 whether to trust the rest.
+
+### H-18: the truncation fixed in DllMain stood unfixed at the tree's other call
+- severity: debt
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba, 2026-09-22.
+
+F-12 fixed one of the two `GetModuleFileNameW` calls. `ReportRuntimeInUse` was the other, and it is
+the worse one: a path cut short no longer begins with `g_dir`, so `PublicPath` cannot trim it and
+prints everything after the last backslash of a name chopped in half, which is a piece of the
+player's folder in the file they are told to attach.
+
+### H-19: the late patch warning sat on one of four places that patch live code
+- severity: debt
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba, 2026-09-22, a `CodePatchingIsLate` query that all four ask.
+
+`engine/streamer`, `ui/restyle_fix` and `ui/ui_probe` each change page protection and copy over
+code themselves without going through `WriteCode`. So the header's "every caller today is on the
+attach path" was true of `WriteCode` and said nothing about the others, and a late patch through
+any of the three would have been exactly the case F-10 exists to catch, uncaught.
+
+`streamer.cpp` declares the query rather than including the header, because it has its own
+`static` `Fnv1a64` and `AllocNear` and the include added two compiler warnings to a tree that had
+one. Caught on the build, before it was committed.
+
+### H-20: the reread total lost its wrong name and kept printing once per queue
+- severity: debt
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba then 7b256c2 then 0d5d5c8, 2026-09-22.
+
+F-09's first fix relabelled the line as process wide and left its gate on the queue, so it still
+printed once per queue. That is worse than before: duplicate totals under different names showed
+something was off, which is how F-09 was found, and duplicate totals with no names show nothing.
+
+### H-21: the sampler said it had started whether or not the thread existed
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba, 2026-09-22.
+
+### H-22: the header said the flag is set once DllMain returns, and it is set inside it
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba, 2026-09-22.
+
+### H-23: the telemetry doc still gave the reread total to one queue
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: fixed
+- fix: c581cba, 2026-09-22.
+
+Tenth instance on this review of one half of a file moving and the other not, and the doc's date
+was already today's, so it looked current.
+
+### V-18: the shutdown path walked straight past the reread gate
+- severity: bug
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 7b256c2, 2026-09-22, its own latch.
+
+H-20's fix gated the line on a stored time and a compare exchange, and wrote the condition as
+`final || due`, so `final` skipped the time test entirely. The compare exchange only breaks ties
+between threads that race, it cannot refuse a caller that arrives after another has finished. The
+queues that get a final report arrive in the same millisecond, `logs/render-b4-20260920` has two,
+so shutdown printed the duplicate the finding was about with the names taken off.
+
+### V-19: a one shot that moved from attach to a callback kept its single threaded shape
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 7b256c2, 2026-09-22.
+
+The sampler's `static bool started` was safe at attach, where the game is one thread, and not in a
+Cohtml callback. Made atomic, and the first version of that latched on a failed `CreateThread` and
+broke the retry its own comment promised, which the verifier's second pass confirmed is now handed
+back.
+
+### V-20: the reread gate could still print twice in one interval, through an unsigned wrap
+- severity: bug
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 0d5d5c8, 2026-09-22, a stored time at or after ours means it has been reported.
+
+A queue reads the clock before its own stats line goes to disk. Another queue can store a later
+time in that window, and then `now - previous` is negative in unsigned arithmetic, wraps to about
+2^64, passes the interval test, and the compare exchange succeeds against the value just loaded.
+Narrow, since two queues have to report within the same few milliseconds, and the captured logs
+show that happening several times in a long session.
+
+### V-21: a guard against a delay that could not happen, and a file count that was wrong twice
+- severity: nit
+- found-by: verifier
+- batch: 5
+- status: fixed
+- fix: 0d5d5c8, 2026-09-22.
+
+7b256c2 treated a stored time of zero as due, with a comment about waiting out an interval of system
+uptime. A periodic report cannot reach that test until a full interval has passed since the queue
+was built, so `now - 0` always passed anyway and the test and its comment described nothing. Both
+went. The header comment on what the mod writes named two files, then four CSVs, and there are five,
+the fifth being the load sampler's. And the doc claimed every queue gets a final report, which the
+file to memory queue never does in any captured run.
+
+A third verifier pass was not run on 0d5d5c8. Its code change is the one condition the second pass
+prescribed, and the cases were walked by hand instead: the first report prints, a thread holding a
+stale reading sees the later stored time and stays quiet, and two threads with the same reading
+still resolve to one print through the exchange.
 
 ## The run for batch 4
 
