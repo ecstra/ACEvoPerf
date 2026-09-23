@@ -2,7 +2,7 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-20
+updated: 2026-09-23
 links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
 ---
 
@@ -34,6 +34,10 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    gets a slot inserted in hash order (the table has 139,746 free slots). Virtual offsets start at
    the package size rounded up to 64 KB and are 64 KB aligned. The table is re encoded and every
    later read in the table range is answered from this copy.
+
+   It runs once, under `std::call_once`, so a second thread reading the table meanwhile waits for
+   the copy rather than building its own or getting its piece unedited. It uses the sizes step 1
+   took and leaves the table alone if the package it opens is any other size.
 3. Reads at a virtual offset (`Hook_ReadFile`) are served from the loose file and the file
    position is advanced as if the package had the data. Seen for no file yet, every read observed
    so far went through DirectStorage, the path exists for completeness.

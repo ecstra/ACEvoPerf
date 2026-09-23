@@ -17,6 +17,7 @@
 #include "acevo/core/iat.h"
 #include "acevo/dstorage/stats.h"
 #include "acevo/dstorage/proxy.h"
+#include <mutex>
 
 namespace overlay {
 
@@ -36,7 +37,13 @@ struct Override {
 static std::vector<Override> g_files;
 static std::vector<BYTE> g_toc;          // modified table, XOR encoded like the original
 static uint64_t g_pkgSize = 0, g_tocStart = 0, g_tocSize = 0, g_virtBase = 0, g_virtEnd = 0;
-static bool g_tocBuilt = false, g_tocFailed = false, g_active = false;
+static bool g_active = false;
+// The table is built by whichever thread reads it first, and any other reader waits for that in
+// PatchTableRead. The flag is stored last, so a thread that sees it true also sees the finished
+// table, the virtual range and every override's offset. The hooks and the redirect read it with no
+// lock.
+static std::once_flag g_tocOnce;
+static std::atomic<bool> g_tocBuilt{false};
 // A reference of our own on the real DirectStorage factory, taken the first time a redirect needs
 // one and held for the process, like the IDStorageFile handles beside it. See OverlayRedirect.
 static IDStorageFactory* g_dsFactory = nullptr;
@@ -391,23 +398,33 @@ static void AddUiStyleFix(size_t used)
         sizeof kStyleEdits / sizeof kStyleEdits[0]);
 }
 
-// Read the real table, apply the overrides, re-encode. Called on the first table read.
+// Read the real table, apply the overrides, re-encode. Runs once, on the first table read.
 static void BuildToc()
 {
-    if (g_tocBuilt || g_tocFailed) return;
-    g_tocFailed = true;    // flipped back on success
     std::wstring pkg = g_dir + L"content.kspkg";
     HANDLE h = g_origCreateFileW(pkg.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) { Log("overlay: cannot open %ls (error %lu)", PublicPath(pkg).c_str(), GetLastError()); return; }
+
+    // The sizes are the ones TrackHandle took from the handle the game opened, and they are not
+    // written again here, because Hook_ReadFile reads them on other threads with no lock. A package
+    // here of any other size is not the file the game is reading, so its table would be the wrong one.
     LARGE_INTEGER sz = {};
-    GetFileSizeEx(h, &sz);
-    g_pkgSize = (uint64_t)sz.QuadPart;
-    g_tocSize = 0x4000000;
-    g_tocStart = g_pkgSize - g_tocSize;
+    if (!GetFileSizeEx(h, &sz) || (uint64_t)sz.QuadPart != g_pkgSize) {
+        Log("overlay: %ls is %lld bytes where the game opened %llu, the table is left alone", PublicPath(pkg).c_str(),
+            (long long)sz.QuadPart, (unsigned long long)g_pkgSize);
+        g_origCloseHandle(h);
+        return;
+    }
     Log("overlay: reading the table (%llu bytes at %llu) to apply %zu override(s)", (unsigned long long)g_tocSize, (unsigned long long)g_tocStart, g_files.size());
     g_toc.resize((size_t)g_tocSize);
     LARGE_INTEGER pos; pos.QuadPart = (LONGLONG)g_tocStart;
-    g_origSetFilePointerEx(h, pos, nullptr, FILE_BEGIN);
+    if (!g_origSetFilePointerEx(h, pos, nullptr, FILE_BEGIN)) {
+        // Left unchecked, the reads below start at the front of the package and its first 64 MB
+        // become the table.
+        Log("overlay: cannot seek to the table (error %lu)", GetLastError());
+        g_origCloseHandle(h);
+        return;
+    }
     uint64_t done = 0;
     while (done < g_tocSize) {
         DWORD got = 0;
@@ -469,7 +486,7 @@ static void BuildToc()
     }
     g_virtEnd = next;
     XorRange(g_toc.data(), 0, (size_t)g_tocSize);
-    g_tocBuilt = true; g_tocFailed = false;
+    g_tocBuilt.store(true);
     Log("overlay: table rebuilt, %zu entries used, %d replaced, %d added, virtual range %llu..%llu", used, replaced, inserted,
         (unsigned long long)g_virtBase, (unsigned long long)g_virtEnd);
 }
@@ -485,8 +502,12 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
 {
     uint64_t end = off + len;
     if (end <= g_tocStart || off >= g_tocStart + g_tocSize) return;
-    BuildToc();
-    if (!g_tocBuilt) return;
+    // A second thread reading the table while the first is still building it waits here. With the
+    // two plain flags this used to be, it either built the table a second time into the buffer the
+    // first was filling, or gave up and handed its piece to the game unedited, leaving the game a
+    // table half edited.
+    std::call_once(g_tocOnce, BuildToc);
+    if (!g_tocBuilt.load()) return;
     uint64_t a = std::max(off, g_tocStart), b = std::min(end, g_tocStart + g_tocSize);
     memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
 }
@@ -552,7 +573,7 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
 
     // A virtual offset lies past the end of the package, the file itself has nothing there,
     // so the read is answered from the loose file and the file position moved as if it had.
-    if (g_active && g_tocBuilt && off >= g_virtBase && off < g_virtEnd) {
+    if (g_active && g_tocBuilt.load() && off >= g_virtBase && off < g_virtEnd) {
         DWORD got = ReadLoose(off, (BYTE*)buf, n);
         if (read) *read = got;
         if (ov) {
@@ -616,7 +637,7 @@ bool Active() { return g_active; }
 bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirected)
 {
     using namespace overlay;
-    if (!g_active || !g_tocBuilt) return false;
+    if (!g_active || !g_tocBuilt.load()) return false;
     if (request->Options.SourceType != DSTORAGE_REQUEST_SOURCE_FILE) return false;
     uint64_t off = request->Source.File.Offset;
     if (off < g_virtBase || off >= g_virtEnd) return false;
