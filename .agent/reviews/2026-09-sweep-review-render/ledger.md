@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-render
 kind: review
-description: the render angle of the full review of main, the auto sizes landing on the wrong card and the settings that silently take other fixes down with them, twelve findings plus six from the hunter and six from the verifier on batch 1 alone, three of them breaks
-updated: 2026-09-20
+description: the render angle of the full review of main, the auto sizes landing on the wrong card and the settings that silently take other fixes down with them, twelve findings plus forty from the hunters and verifiers across four batches, three of them breaks, merged into 0.4 on 2026-09-20
+updated: 2026-09-23
 links: [spec-reviews, house-rules-agent, directstorage-streaming, reviews-index, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size]
 branch: sweep/review-render
-status: open
+status: closed
 ---
 
 # Review of the render layer
@@ -21,6 +21,11 @@ turning one off silently removes fixes the player never agreed to lose.
 Twelve findings, one breaks, five bug, five debt, one nit. Six more from the hunter on batch 1 and
 six from the verifier after it, two of those a breaks that the batch's own fixes either created or
 left standing.
+
+Fifty two in all when the ledger closed, twenty five from the hunters and fifteen from the
+verifiers across the four batches, three breaks, nineteen bug, eighteen debt and twelve nit. The
+status line stayed open for three days after the merge on 2026-09-20 and flipped with the proxy
+and core angle's.
 
 ## Batches
 

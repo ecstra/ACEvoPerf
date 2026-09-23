@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-proxy-core
 kind: review
-description: the proxy and core angle of the full review of main, an off switch that takes the override layer with it and a row of ini values used without validation, fifteen findings plus nine from batch 1's hunter and verifier, one breaks
-updated: 2026-09-20
+description: the proxy and core angle of the full review of main, an off switch that takes the override layer with it and a row of ini values used without validation, fifteen findings plus forty three from the hunters and verifiers across five batches, one breaks, merged into 0.4 on 2026-09-23
+updated: 2026-09-23
 links: [spec-reviews, house-rules-agent, proxy-architecture, reviews-index]
 branch: sweep/review-proxy-core
-status: open
+status: closed
 ---
 
 # Review of the DirectStorage proxy and the core
@@ -21,8 +21,9 @@ The COM layer itself came back clean, which is the part that would have been mos
 wrong. What the review found instead is a row of values that cross the ini boundary and are used
 without a single check, and one switch whose name promises far less than it does.
 
-Fifteen findings, one breaks, six bug, four debt, four nit. The five batches added nine, nine, six,
-seven and ten more, eleven of those bugs the batches' own fixes caused or left standing.
+Fifteen findings, one breaks, six bug, four debt, four nit. The five batches added nine, eleven,
+six, seven and ten more, eleven of those bugs the batches' own fixes caused or left standing. Fifty
+eight in all when the ledger closed, one breaks, twenty seven bug, twelve debt and eighteen nit.
 
 Batch 3 is the one with no runtime gate for its own findings. Both need a race or a reference count
 fault the game has never produced, and 113 captured runs create exactly one factory each, so no
@@ -593,7 +594,11 @@ a changed number on this ini.
 
 The override layer still worked throughout, `overlay: redirected request #1` at 16:58:12.
 
-### V-09: the lock guarded the read of the pointer and not the use of it
+There is no V-09, V-10 or V-11. The hunter found the three blocks below and they went in under the
+verifier's prefix, the slip V-08 had caught one batch earlier. No commit named them, so they became
+H-24 to H-26 when the ledger closed on 2026-09-23.
+
+### H-24: the lock guarded the read of the pointer and not the use of it
 - severity: bug
 - found-by: hunter
 - batch: 3
@@ -605,7 +610,7 @@ pointer. The caller then used it with the lock gone, and the last `Release` can 
 window, free the real factory, and have `OpenFile` called on it. F-08's own failure, one
 instruction later, with the ledger about to say fixed and a comment asserting the hole was closed.
 
-### V-10: clearing the global made a live no factory state in which the layer sends reads off the end of the package
+### H-25: clearing the global made a live no factory state in which the layer sends reads off the end of the package
 - severity: bug
 - found-by: hunter
 - batch: 3
@@ -618,7 +623,7 @@ rebased and three queues still live. `OverlayRedirect` returns false on a null f
 sits past the end of `content.kspkg` by construction. That is F-01's confirmed failure, reached
 from the fix for F-08.
 
-### V-11: the atomic gave run once, not wait until done, and the finding's own title named the lock
+### H-26: the atomic gave run once, not wait until done, and the finding's own title named the lock
 - severity: bug
 - found-by: hunter
 - batch: 3
@@ -641,7 +646,7 @@ lines later". The lock gives exclusion and ordering in one move. The atomic gave
 - status: fixed
 - fix: 26e69a4, 2026-09-20, the unimplemented interface branch runs under the same lock and after the same one time work.
 
-Caused while fixing V-11. Moving the one time work inside the lock left it below the early return
+Caused while fixing H-26. Moving the one time work inside the lock left it below the early return
 that forwards an interface the proxy does not implement, and that return calls the real
 `DStorageGetFactory`, which creates a real factory. So a first call asking for anything unusual
 would have built a factory with no configuration applied at all.

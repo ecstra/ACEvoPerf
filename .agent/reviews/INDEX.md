@@ -1,8 +1,8 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, two of them done
-updated: 2026-09-20
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, three of them done
+updated: 2026-09-23
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
 
@@ -26,8 +26,8 @@ conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-
 build guard, the render layer and the proxy and core, and the ten below them are open with every
 batch pending the owner's word.
 
-Those three added 111 findings of their own, from the hunter and verifier sub agents that run on
-every batch. Every one of the fifteen batches so far needed at least one correction after its first
+Those three added 113 findings of their own, from the hunter and verifier sub agents that run on
+every batch. Every one of the fourteen batches so far needed at least one correction after its first
 fix, and twenty of the added findings were bugs a fix had itself caused or left standing. The loop
 is not ceremony on this codebase.
 
@@ -47,7 +47,7 @@ single log line that reads like routine.
 
 ### The branches
 
-Thirteen branches, one per angle, cut from fresh main in this order. The owner acks each batch, and a
+Thirteen branches, one per angle, each cut from the latest 0.4 in this order. The owner acks each batch, and a
 branch merges before the next one starts.
 
 | order | branch | ledger | findings | worst |
@@ -73,7 +73,7 @@ last for the same reason.
 Four files are named by two branches each. `src/core/log.cpp`, `src/engine/streamer.cpp`,
 `src/telemetry/load_sampler.cpp` and `src/telemetry/timeline.cpp` all carry teardown findings that
 belong to `fix/review-shutdown` and other findings that belong to their own surface. Because branches
-run one at a time and each cuts from fresh main, that is a rebase rather than a conflict, and each
+run one at a time and each cuts from the latest 0.4, that is a rebase rather than a conflict, and each
 ledger says which findings it owns.
 
 ### The twelve breaks
@@ -105,14 +105,6 @@ ledger.
 
 ## Active
 
-- [2026-09-sweep-review-render](2026-09-sweep-review-render/ledger.md), the auto sizes landing on the
-  wrong card and three settings wired in series, 12 findings, 1 breaks, plus 25 from the hunters and
-  15 from the verifiers, 3 of those breaks. All four batches closed and runtime confirmed, waiting
-  on the merge into 0.4
-- [2026-09-sweep-review-proxy-core](2026-09-sweep-review-proxy-core/ledger.md), an off switch that takes
-  the override layer with it and a row of ini values used without validation, 15 findings, 1 breaks,
-  plus 41 from the hunters and verifiers. All five batches closed and runtime confirmed where a run
-  can show it, waiting on the merge into 0.4
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
   64 MB table and a redirect that fails silently, 11 findings, 1 breaks
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
@@ -136,6 +128,13 @@ ledger.
 
 ## Closed
 
+- [2026-09-sweep-review-proxy-core](2026-09-sweep-review-proxy-core/ledger.md), an off switch that takes
+  the override layer with it and a row of ini values used without validation, 15 findings plus 43
+  from the hunters and verifiers, 58 in all and 1 of them breaks, five batches, runtime confirmed
+  where a run can show it, merged into 0.4 on 2026-09-23
+- [2026-09-sweep-review-render](2026-09-sweep-review-render/ledger.md), the auto sizes landing on the
+  wrong card and three settings wired in series, 12 findings plus 40 from the hunters and verifiers,
+  52 in all and 3 of them breaks, four batches, all runtime confirmed, merged into 0.4 on 2026-09-20
 - [2026-09-fix-review-cohtml-build-guard](2026-09-fix-review-cohtml-build-guard/ledger.md), the Cohtml
   vtable calls that ignore the build check every byte patch honours, 7 findings plus 30 from the
   hunters and verifiers, five batches, all runtime confirmed, merged into 0.4 on 2026-09-20
