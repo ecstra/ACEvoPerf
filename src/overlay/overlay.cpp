@@ -667,12 +667,23 @@ void Install()
     // the player's package once the table is read, so there need not be a mods folder at all.
     g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens || g_cfg.responsiveUi);
     if (!g_active && !g_cfg.traceFileIo) return;
+    PatchEverywhere("SetFilePointerEx", nullptr, (void**)&g_origSetFilePointerEx);   // original address only
     int a = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
     int b = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);
     int c = PatchEverywhere("CreateFile2", (void*)&Hook_CreateFile2, (void**)&g_origCreateFile2);
-    int d = PatchEverywhere("ReadFile", (void*)&Hook_ReadFile, (void**)&g_origReadFile);
-    PatchEverywhere("SetFilePointerEx", nullptr, (void**)&g_origSetFilePointerEx);   // original address only
     int f = PatchEverywhere("CloseHandle", (void*)&Hook_CloseHandle, (void**)&g_origCloseHandle);
+
+    // ReadFile goes in last, once every original its paths call is resolved, because a hook is live
+    // in every module the moment its patch lands. It used to go in one statement before
+    // SetFilePointerEx was resolved, so a read of the package in that window called a null pointer.
+    // PatchEverywhere leaves an original unresolved when it cannot list the modules, so that is
+    // checked rather than assumed.
+    if (!g_origSetFilePointerEx || !g_origCreateFileW || !g_origCloseHandle) {
+        Log("overlay: a file function could not be resolved, so reads of the package are not hooked and the layer is off");
+        g_active = false;
+        return;
+    }
+    int d = PatchEverywhere("ReadFile", (void*)&Hook_ReadFile, (void**)&g_origReadFile);
     Log("overlay: file hooks installed (CreateFileW %d, CreateFileA %d, CreateFile2 %d, ReadFile %d, CloseHandle %d import slots)", a, b, c, d, f);
 }
 
