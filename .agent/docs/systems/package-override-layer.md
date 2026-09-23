@@ -44,7 +44,9 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    position is advanced as if the package had the data, with or without an `OVERLAPPED` giving the
    offset. On a handle opened with `FILE_FLAG_OVERLAPPED` they go to the package unchanged instead,
    said once, and get end of file through the caller's own event, completion port or APC, because a
-   completion made up in the hook reaches none of those and its caller would wait forever. No traced run has served a file this way
+   completion made up in the hook reaches none of those and its caller would wait forever. A loose
+   file found missing or shorter than the table says is said once, and a read it cannot answer at
+   all goes to the package, which past its end answers end of file in whichever shape it was asked. No traced run has served a file this way
    yet, but it is a live path, since the engine reads some entries with plain file reads as above
    and an override of one of those comes through here.
 4. DirectStorage requests whose offset is virtual (`OverlayRedirect`, called from

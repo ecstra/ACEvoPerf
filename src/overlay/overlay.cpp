@@ -32,6 +32,7 @@ struct Override {
     uint64_t     virtOffset = 0;
     IDStorageFile* dsFile = nullptr;
     bool         dsOpenFailed = false;  // not retried, see OverlayRedirect
+    bool         plainReadNoted = false;  // see NoteShortLooseRead
 };
 
 static std::vector<Override> g_files;
@@ -589,21 +590,33 @@ static void NoteOverlappedVirtualRead()
         "so those reads go to the package unchanged and get end of file");
 }
 
-// Fill a buffer for a read at a virtual offset from the loose file behind it.
-static DWORD ReadLoose(uint64_t off, BYTE* buf, DWORD len)
+// Fill a buffer for a read at a virtual offset from the loose file behind it. The caller has
+// already cut the length to what the table promises at that offset.
+static DWORD ReadLoose(const Override& o, uint64_t off, BYTE* buf, DWORD want)
 {
-    Override* o = FindByVirtual(off);
-    if (!o) return 0;
-    HANDLE h = g_origCreateFileW(o->loosePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (!want) return 0;
+    HANDLE h = g_origCreateFileW(o.loosePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) return 0;
-    LARGE_INTEGER pos; pos.QuadPart = (LONGLONG)(off - o->virtOffset);
+    LARGE_INTEGER pos; pos.QuadPart = (LONGLONG)(off - o.virtOffset);
     g_origSetFilePointerEx(h, pos, nullptr, FILE_BEGIN);
-    uint64_t left = o->size - (off - o->virtOffset);
-    DWORD want = (DWORD)std::min<uint64_t>(len, left);
     DWORD got = 0;
-    if (want) g_origReadFile(h, buf, want, &got, nullptr);
+    g_origReadFile(h, buf, want, &got, nullptr);
     g_origCloseHandle(h);
     return got;
+}
+
+// A plain read that finds a loose file missing or shorter than the table says is said once per
+// file, as a failed DirectStorage open is. It used to come back short or empty with nothing in the
+// log unless the file trace was on.
+static void NoteShortLooseRead(Override& o)
+{
+    EnterCriticalSection(&g_cs);
+    const bool first = !o.plainReadNoted;
+    o.plainReadNoted = true;
+    LeaveCriticalSection(&g_cs);
+    if (!first) return;
+    Log("overlay: %ls is missing or shorter than when the table was built, so the game's plain reads of %s end early this session",
+        PublicPath(o.loosePath).c_str(), o.pkgPath.c_str());
 }
 
 static HANDLE WINAPI Hook_CreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
@@ -662,7 +675,15 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
             NoteOverlappedVirtualRead();
             return g_origReadFile(h, buf, n, read, ov);
         }
-        DWORD got = ReadLoose(off, (BYTE*)buf, n);
+        Override* o = FindByVirtual(off);
+        const DWORD promised = o ? (DWORD)std::min<uint64_t>(n, o->size - (off - o->virtOffset)) : 0;
+        DWORD got = o ? ReadLoose(*o, off, (BYTE*)buf, promised) : 0;
+        if (got < promised) NoteShortLooseRead(*o);
+
+        // With nothing to give, the package answers. Past its end it gives exactly what a caller
+        // expects at the end of a file, in whichever shape the read was made, TRUE and no bytes
+        // without an OVERLAPPED, ERROR_HANDLE_EOF with one.
+        if (got == 0) return g_origReadFile(h, buf, n, read, ov);
         if (read) *read = got;
         // A synchronous handle moves its file position on every read, an OVERLAPPED giving the offset
         // included, and the kernel fills that OVERLAPPED and sets its event, so the same happens here.
