@@ -605,9 +605,10 @@ static DWORD ReadLoose(const Override& o, uint64_t off, BYTE* buf, DWORD want)
     return got;
 }
 
-// A plain read that finds a loose file missing or shorter than the table says is said once per
-// file, as a failed DirectStorage open is. It used to come back short or empty with nothing in the
-// log unless the file trace was on.
+// A plain read that cannot get from a loose file all the table promised is said the first time, once
+// per file. It used to come back short or empty with nothing in the log unless the file trace was
+// on. Every read reopens the file, so a later one can succeed again, for instance once another
+// program lets go of it.
 static void NoteShortLooseRead(Override& o)
 {
     EnterCriticalSection(&g_cs);
@@ -615,8 +616,8 @@ static void NoteShortLooseRead(Override& o)
     o.plainReadNoted = true;
     LeaveCriticalSection(&g_cs);
     if (!first) return;
-    Log("overlay: %ls is missing or shorter than when the table was built, so the game's plain reads of %s end early this session",
-        PublicPath(o.loosePath).c_str(), o.pkgPath.c_str());
+    Log("overlay: %ls could not be read in full, missing, shorter than when the table was built or held by another program, "
+        "so a plain read of %s ended early", PublicPath(o.loosePath).c_str(), o.pkgPath.c_str());
 }
 
 static HANDLE WINAPI Hook_CreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
@@ -664,41 +665,42 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
     char mod[MAX_PATH];
 
     // A virtual offset lies past the end of the package, the file itself has nothing there,
-    // so the read is answered from the loose file.
+    // so the read is answered from the loose file when it can be.
     if (g_active && g_tocBuilt.load() && off >= g_virtBase && off < g_virtEnd) {
-        // On a handle opened overlapped the read goes to the package unchanged. The package answers
-        // past its end exactly as it would with no layer, pending and then end of file through the
-        // caller's own event, completion port or APC. An answer made up here reached none of those,
-        // so a caller bound to a port waited forever. The replacement is not served on such a
-        // handle, and the log says so.
+        // On a handle opened overlapped the replacement is not served. An answer made up here set the
+        // caller's event but queued no completion packet, so a caller bound to a completion port
+        // waited forever. The read goes on to the package below instead, which answers pending and
+        // then end of file through the caller's own event or port, and the log says so.
         if (overlappedHandle) {
             NoteOverlappedVirtualRead();
-            return g_origReadFile(h, buf, n, read, ov);
+        } else {
+            Override* o = FindByVirtual(off);
+            const DWORD promised = o ? (DWORD)std::min<uint64_t>(n, o->size - (off - o->virtOffset)) : 0;
+            DWORD got = o ? ReadLoose(*o, off, (BYTE*)buf, promised) : 0;
+            if (got < promised) NoteShortLooseRead(*o);
+            if (got > 0) {
+                if (read) *read = got;
+                // A synchronous handle moves its file position on every read, an OVERLAPPED giving the
+                // offset included, and the kernel fills that OVERLAPPED and sets its event, so the same
+                // happens here.
+                LARGE_INTEGER np; np.QuadPart = (LONGLONG)(off + got);
+                g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
+                if (ov) {
+                    ov->Internal = 0; ov->InternalHigh = got;
+                    HANDLE ev = (HANDLE)((uintptr_t)ov->hEvent & ~(uintptr_t)1);
+                    if (ev) SetEvent(ev);
+                }
+                if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < 200) {
+                    Log("overlay: ReadFile off=%llu len=%lu -> %lu bytes from loose file%s by %s", (unsigned long long)off, n, got,
+                        ov ? " (offset in an OVERLAPPED)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
+                }
+                return TRUE;
+            }
         }
-        Override* o = FindByVirtual(off);
-        const DWORD promised = o ? (DWORD)std::min<uint64_t>(n, o->size - (off - o->virtOffset)) : 0;
-        DWORD got = o ? ReadLoose(*o, off, (BYTE*)buf, promised) : 0;
-        if (got < promised) NoteShortLooseRead(*o);
-
-        // With nothing to give, the package answers. Past its end it gives exactly what a caller
-        // expects at the end of a file, in whichever shape the read was made, TRUE and no bytes
-        // without an OVERLAPPED, ERROR_HANDLE_EOF with one.
-        if (got == 0) return g_origReadFile(h, buf, n, read, ov);
-        if (read) *read = got;
-        // A synchronous handle moves its file position on every read, an OVERLAPPED giving the offset
-        // included, and the kernel fills that OVERLAPPED and sets its event, so the same happens here.
-        LARGE_INTEGER np; np.QuadPart = (LONGLONG)(off + got);
-        g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
-        if (ov) {
-            ov->Internal = 0; ov->InternalHigh = got;
-            HANDLE ev = (HANDLE)((uintptr_t)ov->hEvent & ~(uintptr_t)1);
-            if (ev) SetEvent(ev);
-        }
-        if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < 200) {
-            Log("overlay: ReadFile off=%llu len=%lu -> %lu bytes from loose file%s by %s", (unsigned long long)off, n, got,
-                ov ? " (offset in an OVERLAPPED)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
-        }
-        return TRUE;
+        // Whatever was not served goes on to the package below, traced like any other read. Past its
+        // end the package answers end of file in whichever shape the read was asked, TRUE and no
+        // bytes without an OVERLAPPED, ERROR_HANDLE_EOF with one, and pending then end of file on an
+        // overlapped handle.
     }
 
     DWORD local = 0;
