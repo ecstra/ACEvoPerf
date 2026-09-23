@@ -86,7 +86,7 @@ F-01's quiet half.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns. Widened by H-02 in fb4c1f2 to every table read with an OVERLAPPED, then narrowed by V-01 in 4c558ea and V-03 in 0c39e60 to a read on an overlapped handle or with an event.
+- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns. Widened by H-02 in fb4c1f2 to every table read with an OVERLAPPED, narrowed by V-01 in 4c558ea to a read on a handle opened overlapped, and widened again by V-03 in 0c39e60 to take in a read whose OVERLAPPED carries an event.
 
 `src/overlay/overlay.cpp:566` runs the patch only under `if (ok && got && ...)`. An overlapped ReadFile
 that goes pending returns FALSE with ERROR_IO_PENDING. The trace line at 562 already has a branch that
@@ -178,7 +178,7 @@ or lose a count. A developer switch and only the line count, but the batch's own
 - found-by: verifier
 - batch: 1
 - status: fixed
-- fix: 4c558ea, 2026-09-23, the layer remembers at open time whether a package handle was opened with `FILE_FLAG_OVERLAPPED`, and only that decides.
+- fix: 4c558ea then 0c39e60, 2026-09-23, the layer remembers at open time whether a package handle was opened with `FILE_FLAG_OVERLAPPED`, and that or an event in the read's OVERLAPPED decides, never the OVERLAPPED alone.
 
 Caused by H-02's fix in fb4c1f2. A read on a handle opened without `FILE_FLAG_OVERLAPPED` can pass
 an OVERLAPPED only to give its offset. It is complete when `ReadFile` returns, and it was edited
@@ -196,10 +196,10 @@ each passes a null one. All 5580 package opens across the 68 runs came from `ucr
 - status: fixed
 - fix: 4c558ea, 2026-09-23, the Limits list says which moves are noticed and which are not.
 
-The line fires only for a `ReadFile` on an overlapped handle. A table read moved to DirectStorage,
-a mapped view (the exe already imports `MapViewOfFile` and `CreateFileMappingA`) or `ReadFileEx`
-never reaches `Hook_ReadFile`, so neither `table rebuilt` nor the note prints and every override
-stops.
+The line fires only for a `ReadFile` the hooks see, on an overlapped handle or with an event. A
+table read moved entirely to DirectStorage, a mapped view (the exe already imports `MapViewOfFile`
+and `CreateFileMappingA`) or `ReadFileEx` never reaches `Hook_ReadFile`, so neither `table rebuilt`
+nor the note prints and every override stops.
 
 The verifier's third finding is in `src/ui/restyle_fix.cpp`, which belongs to
 `sweep/review-ui-fixes`, so it went into that ledger as F-13. H-01 made it reachable for the main
@@ -266,6 +266,32 @@ findings, so it takes the next `F-` id, and its found-by names who raised it.
 - batch: 1
 - status: fixed
 - fix: 2026-09-23, 68 runs and 5580 opens, all from `ucrtbase.dll` with one table build each, so the conclusion held.
+
+A third pass ran on 0c39e60 and 719a42c. It confirmed both, disassembled the compiled test to check
+the mask, and raised the two below, both about words trailing the final rule.
+
+### V-10: V-01's and V-02's lines and F-03's history still described 4c558ea's rule
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, each now names the handle and the event, and F-03's history says 0c39e60 widened what 4c558ea had narrowed.
+
+V-05 rewrote F-03 and H-02 for this very reason and missed these. Batch 2's fix for V-09 and F-06
+builds on the handle tracking, and a reader taking V-01's line as the rule would have treated a
+read with an event as edited.
+
+### V-11: the doc said a table read the hooks never see leaves neither table rebuilt nor the note
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23.
+
+True only when no read of the table is seen at all. A later version reading the first pieces
+through the C runtime and the rest through a mapped view gets `table rebuilt`, while the overrides
+in the mapped part quietly stop, so a reader told that line rules out an unseen read would look
+elsewhere.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
