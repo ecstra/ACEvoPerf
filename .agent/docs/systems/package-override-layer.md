@@ -60,6 +60,10 @@ with no `acevo_mods` folder needed: the big screen flipbook header with one mip 
 to the exe and pushed as an override like a loose file, and each is skipped with a log line when the
 package entry is not the size or shape it expects.
 
+A player's own file for either entry in the mods folder wins, and the correction is skipped with a
+log line. Until 2026-09-23 the correction joined the list after the player's file and took the slot,
+so the player's file was never served and the log showed the entry replaced twice.
+
 ## Verified on 2026-09-05
 
 A 1 KB text file of the package replaced by a marked copy, plus a new 83 byte file added next to

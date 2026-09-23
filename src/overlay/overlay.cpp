@@ -225,6 +225,14 @@ static bool ReadPackageRange(uint64_t offset, uint64_t size, std::vector<BYTE>& 
     return ok;
 }
 
+// A player's own file for an entry the mod also corrects wins, since they put it there. Without
+// this the mod's copy joined the list after theirs, took the slot, and theirs was never served.
+static bool PlayerOverrides(const std::string& pkgPath)
+{
+    for (const Override& o : g_files) if (o.pkgPath == pkgPath) return true;
+    return false;
+}
+
 // Every step checks what it found, because this reads the player's own package and a game update
 // is free to change any of it. Anything unexpected leaves the asset alone and says so.
 static void AddBigScreenFix(size_t used)
@@ -232,6 +240,10 @@ static void AddBigScreenFix(size_t used)
     if (!g_cfg.fixBigScreens) return;
 
     const std::string pkgPath = kBigScreenTexture;
+    if (PlayerOverrides(pkgPath)) {
+        Log("overlay: the mods folder has its own %s, served as it is, so the big screen fix is not applied to it", pkgPath.c_str());
+        return;
+    }
     const uint64_t hash = Fnv1a64Utf16(pkgPath);
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
     size_t lo = 0, hi = used;
@@ -342,6 +354,10 @@ static void AddUiStyleFix(size_t used)
     if (!g_cfg.responsiveUi) return;
 
     const std::string pkgPath = kUiStylesheet;
+    if (PlayerOverrides(pkgPath)) {
+        Log("overlay: the mods folder has its own %s, served as it is, so the responsive UI's stylesheet fix is not applied to it", pkgPath.c_str());
+        return;
+    }
     const uint64_t hash = Fnv1a64Utf16(pkgPath);
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
     size_t lo = 0, hi = used;
