@@ -103,11 +103,10 @@ bytes from disk, the trackside screen fix, the UI stylesheet fix and every playe
 applying, and nothing anywhere says so.
 
 The unedited half stays. A pending read's bytes land after the hook returns, and editing them
-safely would mean hooking the completion side too, the event and the completion port.
-0.9.1 reads the table synchronously through the C runtime, so the line is for an update that
-changes that. The error code fix was needed by this one, since the new log line sits on the very
-path where a caller reads `ERROR_IO_PENDING`, and it also mends the trace line that already sat
-there.
+safely would mean hooking the completion side too, the event and the completion port. 0.9.1 reads
+the table synchronously through the C runtime, so the line is for an update that changes that. The
+error code fix was needed by this one, since the new log line sits on the very path where a caller
+reads `ERROR_IO_PENDING`, and it also mends the trace line that already sat there.
 
 ### H-01: a player's own file for either asset the mod corrects was silently replaced by the mod's copy
 - severity: bug
@@ -372,8 +371,8 @@ end of the package, and a file queue has no way to be handed bytes the layer no 
 fix makes it one line instead of a line per request. Left out at startup is the better outcome, a
 replaced entry read from the package, and the check runs before the mod's own corrections so a
 player's unreadable file does not also cost the correction for that entry. A left out file that
-adds a path leaves no entry at all. A player can meet the startup case with a file
-another program holds open, so it has a changelog line.
+adds a path leaves no entry at all. A player can meet the startup case with a file another program
+holds open, so it has a changelog line.
 
 ### F-05: unlocked double checked read of o->dsFile, a plain pointer written inside the critical section by another thread
 - severity: debt
@@ -610,6 +609,15 @@ against the real package, and raised the three below, all in this ledger.
 - batch: 2
 - status: fixed
 - fix: 2026-09-23, F-06 gains a correction below its original text, and F-03 no longer names the APC.
+
+A third pass ran on 5765337 and found nothing false. It raised one more, the loop stopped there.
+
+### V-27: three lines the last edits touched were left short of the wrap
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, F-03's and F-04's paragraphs and the index line rewrapped. V-15's slip, a third time.
 
 ### F-08: the comment claims the older 32 MB table layout is handled and the branch below it gives up
 - severity: debt
