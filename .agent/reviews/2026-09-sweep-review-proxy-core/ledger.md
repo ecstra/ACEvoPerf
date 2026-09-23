@@ -44,7 +44,7 @@ batch does deserve, rather than proof of the fixes.
 | 2 | every value that crosses the ini boundary is validated | closed, runtime confirmed | 2026-09-20 |
 | 3 | one time init happens once, and a freed object is not left addressable | closed, regression checked | 2026-09-20 |
 | 4 | the log does not carry the player's machine into a public post | closed, runtime confirmed | 2026-09-22 |
-| 5 | the leftovers | closed, awaiting the owner's run | 2026-09-22 |
+| 5 | the leftovers | closed, runtime confirmed | 2026-09-22 |
 
 ## Findings
 
@@ -888,6 +888,19 @@ A third verifier pass was not run on 0d5d5c8. Its code change is the one conditi
 prescribed, and the cases were walked by hand instead: the first report prints, a thread holding a
 stale reading sees the later stored time and stays quiet, and two threads with the same reading
 still resolve to one print through the exchange.
+
+## The run for batch 5
+
+Session `logs/proxycore-b5-20260923`, a normal launch to a loaded track. Eleven `hooked` lines and
+not one carrying the old `DXGI:` prefix. The command line reads `AssettoCorsaEVO.exe, 0 argument(s)
+after it`, which is also the first run to show the exe leaf name V-15 of batch 4 put back. None of
+the four late patch warnings, which is the right answer since nothing patches after attach. And
+nothing else moved: one factory, Reflex on, eight redirects, the auto sizes, no absolute path and no
+user name anywhere in 450 lines.
+
+What no launch can show: the two truncation loops need an install path over 260 characters, the
+late patch warnings need something to patch late, and F-13 and F-15 are a comment and a rename.
+Those are closed on reading.
 
 ## The run for batch 4
 

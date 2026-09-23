@@ -22,13 +22,14 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Two angles are done as of 2026-09-20, the Cohtml
-build guard and the render layer, and the eleven below them are open with every batch pending the
-owner's word.
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Three angles are done as of 2026-09-23, the Cohtml
+build guard, the render layer and the proxy and core, and the ten below them are open with every
+batch pending the owner's word.
 
-Those two added 70 findings of their own, from the hunter and verifier sub agents that run on every
-batch. Seven were breaks and four of those were in a fix that had already been written, built and
-reasoned about. The loop is not ceremony on this codebase.
+Those three added 111 findings of their own, from the hunter and verifier sub agents that run on
+every batch. Every one of the fifteen batches so far needed at least one correction after its first
+fix, and twenty of the added findings were bugs a fix had itself caused or left standing. The loop
+is not ceremony on this codebase.
 
 ### What the review found, in one paragraph
 
@@ -109,7 +110,9 @@ ledger.
   15 from the verifiers, 3 of those breaks. All four batches closed and runtime confirmed, waiting
   on the merge into 0.4
 - [2026-09-sweep-review-proxy-core](2026-09-sweep-review-proxy-core/ledger.md), an off switch that takes
-  the override layer with it and a row of ini values used without validation, 15 findings, 1 breaks
+  the override layer with it and a row of ini values used without validation, 15 findings, 1 breaks,
+  plus 41 from the hunters and verifiers. All five batches closed and runtime confirmed where a run
+  can show it, waiting on the merge into 0.4
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
   64 MB table and a redirect that fails silently, 11 findings, 1 breaks
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
