@@ -700,22 +700,28 @@ bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirect
     if (off < g_virtBase || off >= g_virtEnd) return false;
     Override* o = FindByVirtual(off);
     if (!o) return false;
+
+    // The file handle is read and written under the lock. The first request for a file opens it and
+    // later ones only read it, and the check used to be made before the lock, on a plain pointer
+    // another streaming thread could be writing, which held only because x64 keeps stores in order.
+    EnterCriticalSection(&g_cs);
     if (!o->dsFile) {
-        EnterCriticalSection(&g_cs);
         // Kept for the run once we have it. The layer cannot serve a redirect without a factory,
         // and if the game ever drops its own last reference this is what stops the proxy's real
         // factory going with it. Without that the layer would go quiet while the package table
         // still points every one of these reads past the end of the file it was rebased against.
         if (!g_dsFactory) g_dsFactory = RealDStorageFactory();
-        if (!o->dsFile && g_dsFactory) {
+        if (g_dsFactory) {
             HRESULT hr = g_dsFactory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&o->dsFile);
             Log("overlay: DirectStorage open %ls -> hr=0x%08X", PublicPath(o->loosePath).c_str(), (unsigned)hr);
         }
-        LeaveCriticalSection(&g_cs);
-        if (!o->dsFile) return false;
     }
+    IDStorageFile* file = o->dsFile;
+    LeaveCriticalSection(&g_cs);
+    if (!file) return false;
+
     *redirected = *request;
-    redirected->Source.File.Source = o->dsFile;
+    redirected->Source.File.Source = file;
     redirected->Source.File.Offset = off - o->virtOffset;
     uint64_t n = ++g_redirected;
     if (n <= 20 || (n % 500) == 0)
