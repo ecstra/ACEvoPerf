@@ -103,7 +103,7 @@ bytes from disk, the trackside screen fix, the UI stylesheet fix and every playe
 applying, and nothing anywhere says so.
 
 The unedited half stays. A pending read's bytes land after the hook returns, and editing them
-safely would mean hooking the completion side too, the event, the completion port and the APC.
+safely would mean hooking the completion side too, the event and the completion port.
 0.9.1 reads the table synchronously through the C runtime, so the line is for an update that
 changes that. The error code fix was needed by this one, since the new log line sits on the very
 path where a caller reads `ERROR_IO_PENDING`, and it also mends the trace line that already sat
@@ -353,7 +353,7 @@ raised the three below.
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 9293fae then ec7de5d, 2026-09-23, a loose file that cannot be opened when the table is built, opened the way DirectStorage opens it, is left out so the entry comes from the package or the mod's own correction, and a DirectStorage open that fails later is remembered and said once.
+- fix: 9293fae then ec7de5d, 2026-09-23, a loose file that cannot be opened when the table is built, opened the way DirectStorage opens it, is left out, so a replaced entry comes from the package or the mod's own correction and an added path has none, and a DirectStorage open that fails later is remembered and said once.
 
 `src/overlay/overlay.cpp:614` returns false on an `OpenFile` failure, and `QueueProxy::EnqueueRequest`
 at `proxy.cpp:276` then enqueues the original request, whose `Source.File.Offset` is the virtual offset
@@ -369,9 +369,10 @@ the process waits on that same critical section inside `IsPackageHandle`.
 
 What stays is the read after a later failure, which still fails. The slot already points past the
 end of the package, and a file queue has no way to be handed bytes the layer no longer has, so the
-fix makes it one line instead of a line per request. Left out at startup is the better outcome, the
-game's own asset, and the check runs before the mod's own corrections so a player's unreadable file
-does not also cost the correction for that entry. A player can meet the startup case with a file
+fix makes it one line instead of a line per request. Left out at startup is the better outcome, a
+replaced entry read from the package, and the check runs before the mod's own corrections so a
+player's unreadable file does not also cost the correction for that entry. A left out file that
+adds a path leaves no entry at all. A player can meet the startup case with a file
 another program holds open, so it has a changelog line.
 
 ### F-05: unlocked double checked read of o->dsFile, a plain pointer written inside the critical section by another thread
@@ -400,6 +401,10 @@ fails, nothing is signalled, and `GetQueuedCompletionStatus` never returns. `Get
 a null hEvent waits on the file handle, which is also never signalled. The doc records that this path
 has never been exercised, which is why it would surface first on somebody else's machine.
 
+The `GetOverlappedResult` half was wrong, a verifier found on 2026-09-23. It checks `Internal` before
+it waits, and the made up completion set that to 0, so it returned at once. Only a caller bound to a
+completion port waited forever.
+
 Serving the replacement on such a handle would need the port and key it is bound to, which means
 hooking `CreateIoCompletionPort` as well, for a path 0.9.1 never takes. 83aa09e failed the read at
 once instead, with a byte count 91f8352 then zeroed, and called that the package's own answer. It
@@ -425,7 +430,7 @@ runs inside DllMain, before the game's own threads exist, keeps the window shut.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 83aa09e then 6ba7803, 2026-09-23, with F-06, the branch decides by the handle, moves the position on every read it serves on a synchronous one, and hands a read it cannot serve to the package, which leaves the position where it was.
+- fix: 83aa09e then 6ba7803, 2026-09-23, with F-06, the branch decides by the handle and moves the position on every read it serves on a synchronous one, and a read it cannot serve goes to the package, which leaves the position at the read's offset as a real read at the end of a file does.
 
 The virtual branch of `Hook_ReadFile` moves the file position only when `ov` is null. On a handle
 opened without `FILE_FLAG_OVERLAPPED`, a real read with an OVERLAPPED for its offset moves the
@@ -550,8 +555,7 @@ APC, only `ReadFileEx`, which the hooks never see. Only a caller bound to a port
 - fix: 2026-09-23, both lines carry their history and H-08 names write or delete access.
 
 F-04's line named only 9293fae and still said the game reads the package's own entry, which H-13
-corrected, and V-09's said every read on a synchronous handle moves the position, which 6ba7803
-changed for a read the loose file cannot answer. The rule V-05 set in batch 1, again.
+corrected, and V-09's lacked 6ba7803. The rule V-05 set in batch 1, again.
 
 ### V-21: H-07 fixed a released bug players can see and had no changelog line
 - severity: nit
@@ -582,6 +586,30 @@ gives 0 bytes, and every read reopens the file, so a later one recovers once the
 The early returns from 83aa09e and 6ba7803 ran before the trace line, while the doc promises the
 first 200 package reads that are not table chunks. With the trace on and a loose file deleted mid
 session, a developer saw the one note and none of the reads.
+
+A second pass ran on 1f0d9c7 and c66276d. It found the code right in every shape of read it tried
+against the real package, and raised the three below, all in this ledger.
+
+### V-24: V-09's rewritten fix line said the package leaves the position where it was
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, a read past the end of a file leaves the position at its offset, which V-09's line now says, and V-20 no longer gives a wrong reason for rewriting it.
+
+### V-25: F-04 still said a file left out gives the game's own asset, which H-13 had corrected for an added path
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, F-04's fix line and body say a replaced entry comes from the package and an added path has none.
+
+### V-26: F-06's and F-03's bodies kept two claims V-18 had corrected elsewhere
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, F-06 gains a correction below its original text, and F-03 no longer names the APC.
 
 ### F-08: the comment claims the older 32 MB table layout is handled and the branch below it gives up
 - severity: debt
