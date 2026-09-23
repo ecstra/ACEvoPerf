@@ -585,8 +585,8 @@ static void NoteOverlappedVirtualRead()
 {
     static std::atomic<bool> noted{false};
     if (noted.exchange(true)) return;
-    Log("overlay: the game is reading a replaced entry on an overlapped handle, which this layer cannot complete "
-        "safely, so those reads fail the way they would past the end of the package");
+    Log("overlay: the game is reading a replaced entry on an overlapped handle, which this layer cannot serve, "
+        "so those reads go to the package unchanged and get end of file");
 }
 
 // Fill a buffer for a read at a virtual offset from the loose file behind it.
@@ -653,16 +653,14 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
     // A virtual offset lies past the end of the package, the file itself has nothing there,
     // so the read is answered from the loose file.
     if (g_active && g_tocBuilt.load() && off >= g_virtBase && off < g_virtEnd) {
-        // On a handle opened overlapped an answer made up here cannot pass for a real completion. A
-        // caller bound to a completion port waits for a packet no hook can queue, and one waiting on
-        // the file handle waits for a signal that never comes, so it waited forever. The read fails
-        // at once instead, the way the package itself answers past its end, and a read that fails at
-        // once queues nothing and sets no event, so nobody is left waiting.
+        // On a handle opened overlapped the read goes to the package unchanged. The package answers
+        // past its end exactly as it would with no layer, pending and then end of file through the
+        // caller's own event, completion port or APC. An answer made up here reached none of those,
+        // so a caller bound to a port waited forever. The replacement is not served on such a
+        // handle, and the log says so.
         if (overlappedHandle) {
             NoteOverlappedVirtualRead();
-            if (read) *read = 0;   // ReadFile zeroes it before any work or error check
-            SetLastError(ERROR_HANDLE_EOF);
-            return FALSE;
+            return g_origReadFile(h, buf, n, read, ov);
         }
         DWORD got = ReadLoose(off, (BYTE*)buf, n);
         if (read) *read = got;
