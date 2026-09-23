@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-overlay
 kind: review
 description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks
-updated: 2026-09-20
+updated: 2026-09-23
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
 status: open
@@ -28,7 +28,7 @@ Eleven findings, one breaks, three bug, five debt, two nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the table is built once and published safely | pending | |
+| 1 | the table is built once and published safely | fixing | 2026-09-23 |
 | 2 | a redirect that cannot be served fails visibly | pending | |
 | 3 | the slot layout and the leftovers | pending | |
 
@@ -38,8 +38,8 @@ Eleven findings, one breaks, three bug, five debt, two nit.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: d05b42b, 2026-09-23, the build runs under `std::call_once` so a second reader waits for it, and `g_tocBuilt` is an atomic stored last.
 
 `src/overlay/overlay.cpp:381`. `Hook_ReadFile` runs on whatever thread reads a tracked package handle,
 and `PatchTableRead` calls `BuildToc` with two plain bools as the only guard. Nothing is atomic and
@@ -58,12 +58,20 @@ still prints "table rebuilt".
 
 Found independently by three reviewers.
 
+In 58 captured runs the table was built exactly once each, read in one pass of 4 KB pieces through
+the C runtime, so neither half has been seen. Nothing but that timing prevented it.
+
+Also found on the same reading and fixed with it. The build wrote the three package sizes again,
+unlocked, while `Hook_ReadFile` read them on other threads with no lock, and it now uses the ones
+`TrackHandle` took and checks its own file is that size. And it ignored a failed seek, after which
+the reads would have started at the front of the package and made its first 64 MB the table.
+
 ### F-02: the tracked handle list is read with no lock while it is written under one, on every ReadFile in the process
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 26e69a4, 2026-09-20, by the proxy and core angle before this branch began. The hooks test `g_pkgHandleCount`, an atomic, and `IsPackageHandle` holds the lock for the scan.
 
 `src/overlay/overlay.cpp:529`. `Hook_ReadFile` and `Hook_CloseHandle` read `g_pkgHandles` without the
 critical section that `TrackHandle` takes to push into it.
@@ -77,8 +85,8 @@ F-01's quiet half.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns.
 
 `src/overlay/overlay.cpp:566` runs the patch only under `if (ok && got && ...)`. An overlapped ReadFile
 that goes pending returns FALSE with ERROR_IO_PENDING. The trace line at 562 already has a branch that
@@ -87,6 +95,13 @@ prints "(async pending)", so async reads are known to happen in this process.
 Failure: a game update switches the table read to an overlapped handle. The engine gets the real table
 bytes from disk, the trackside screen fix, the UI stylesheet fix and every player override stop
 applying, and nothing anywhere says so.
+
+The unedited half stays. A pending read's bytes land after the hook returns, and editing them
+safely would mean hooking the completion side too, the event, the completion port and the APC.
+0.9.1 reads the table synchronously through the C runtime, so the line is for an update that
+changes that. The error code fix was needed by this one, since the new log line sits on the very
+path where a caller reads `ERROR_IO_PENDING`, and it also mends the trace line that already sat
+there.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
