@@ -86,7 +86,7 @@ F-01's quiet half.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns.
+- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns. Widened by H-02 in fb4c1f2 to every table read with an OVERLAPPED.
 
 `src/overlay/overlay.cpp:566` runs the patch only under `if (ok && got && ...)`. An overlapped ReadFile
 that goes pending returns FALSE with ERROR_IO_PENDING. The trace line at 562 already has a branch that
@@ -102,6 +102,76 @@ safely would mean hooking the completion side too, the event, the completion por
 changes that. The error code fix was needed by this one, since the new log line sits on the very
 path where a caller reads `ERROR_IO_PENDING`, and it also mends the trace line that already sat
 there.
+
+### H-01: a player's own file for either asset the mod corrects was silently replaced by the mod's copy
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 1c8ab05, 2026-09-23, the player's file wins and the correction is skipped with a log line.
+
+`CollectFiles` puts the player's files into `g_files` first, `AddBigScreenFix` and `AddUiStyleFix`
+append theirs after, and the loop in `BuildToc` lets the last writer of a slot win. So with
+`responsive_ui` on, the default, a UI mod's `acevo_mods\uiresources\css\uicomponents.css` never
+reached the game and the log showed the entry replaced twice. The big screen texture behaved the
+same with `fix_big_screens` on. Released in 0.3.2, so it has a changelog line.
+
+### H-02: an overlapped table read that completes at once was edited after the game had been signalled
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: fb4c1f2, 2026-09-23, any table read with an OVERLAPPED is left unedited and said once.
+
+F-03's fix only noticed a read that went pending. One that completes inside `NtReadFile` has
+already set its event or queued its completion packet before `ReadFile` returns to the hook, and
+the first table piece then sits in `call_once` for the whole build, 80 to 160 ms. A worker thread
+could take the raw bytes in that window, or hand the buffer to its next read so the edit landed in
+someone else's data. Where the caller passed no byte count on an overlapped handle, the hook's own
+substitute was filled from the OVERLAPPED after completion, which Microsoft warns against, and was
+never clamped to the buffer. Leaving every overlapped table read alone removes both. Same future
+update as F-03, since 0.9.1 passes no OVERLAPPED for the table.
+
+### H-03: the layer's doc said the engine reopens the package without reading it
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2d685e6, 2026-09-23.
+
+`logs/lap6-clean-retest-20260905-1948` shows 132 opens and 4 KB reads at 131 distinct offsets
+outside the table through the C runtime. So the virtual read branch in `Hook_ReadFile` is a live
+path for any overridden entry the engine reads that way, not one kept for completeness, which
+matters when F-04 and F-06 are weighed in batch 2.
+
+### H-04: the note F-03 added understated the damage when an override adds a file
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: fb4c1f2, 2026-09-23, the line says a package entry can go missing or appear twice.
+
+If the table is read both ways, edited pieces and raw pieces disagree about where every slot past
+an inserted one sits, so at each seam one stock entry is missing or doubled and the engine's lookup
+of the missing one fails. The line only said the overrides in that part do not apply. And when
+every table read goes pending `BuildToc` never runs, so "part of the table" was wrong as well.
+
+### H-05: the file trace's line counter was a plain int bumped by any thread
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 33e2241, 2026-09-23, an atomic, taken only when the line would print.
+
+With `trace_file_io=1`, two threads reading the package at once could both pass the 200 line cap
+or lose a count. A developer switch and only the line count, but the batch's own theme.
+
+### H-06: each override's inserted flag was set and never read
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 33e2241, 2026-09-23, removed. The count of added entries in `BuildToc` is a separate local and stays.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
