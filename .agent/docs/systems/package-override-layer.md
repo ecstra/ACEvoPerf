@@ -49,6 +49,11 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
    that has been requested once cannot be edited while the game runs.
 
+   A loose file that cannot be opened when the table is built is left out of it, so the game reads
+   the package's own entry. One that opened then and fails its first DirectStorage open later,
+   quarantined, deleted or locked in between, is said once and not retried, and the game's reads of
+   that entry fail for the session, since its slot already points past the end of the package.
+
    That one call site is why `overlay::Active()` is in the condition that decides whether a queue
    is wrapped at all. Until 2026-09-20 the wrapper existed only for the statistics and the two
    developer traces, so `[directstorage] stats=0` took this whole step with it while the install

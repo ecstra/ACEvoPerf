@@ -31,6 +31,7 @@ struct Override {
     uint64_t     size = 0;
     uint64_t     virtOffset = 0;
     IDStorageFile* dsFile = nullptr;
+    bool         dsOpenFailed = false;  // not retried, see OverlayRedirect
 };
 
 static std::vector<Override> g_files;
@@ -421,6 +422,26 @@ static void AddUiStyleFix(size_t used)
         sizeof kStyleEdits / sizeof kStyleEdits[0]);
 }
 
+// A loose file that cannot be opened now is left out rather than put in the table. In the table it
+// would send the game to a read that fails, and left out the game reads the package's own entry.
+// The share flags are wide so the check itself locks nothing.
+static void DropUnreadable()
+{
+    for (size_t i = 0; i < g_files.size(); ) {
+        HANDLE probe = g_origCreateFileW(g_files[i].loosePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                         nullptr, OPEN_EXISTING, 0, nullptr);
+        if (probe != INVALID_HANDLE_VALUE) {
+            g_origCloseHandle(probe);
+            ++i;
+            continue;
+        }
+        const DWORD error = GetLastError();
+        Log("overlay: cannot open %ls (error %lu), left out, so the game reads the package's own %s",
+            PublicPath(g_files[i].loosePath).c_str(), error, g_files[i].pkgPath.c_str());
+        g_files.erase(g_files.begin() + i);
+    }
+}
+
 // Read the real table, apply the overrides, re-encode. Runs once, on the first table read.
 static void BuildToc()
 {
@@ -471,6 +492,10 @@ static void BuildToc()
         return;
     }
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
+
+    // Before the mod's own corrections, so a player's file that cannot be served does not stop the
+    // correction for the same entry.
+    DropUnreadable();
 
     // The mod's own corrections join the list before it is applied, so they get a virtual offset
     // and a table slot exactly like a loose file the player put there.
@@ -705,15 +730,28 @@ bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirect
     // later ones only read it, and the check used to be made before the lock, on a plain pointer
     // another streaming thread could be writing, which held only because x64 keeps stores in order.
     EnterCriticalSection(&g_cs);
-    if (!o->dsFile) {
+    if (!o->dsFile && !o->dsOpenFailed) {
         // Kept for the run once we have it. The layer cannot serve a redirect without a factory,
         // and if the game ever drops its own last reference this is what stops the proxy's real
         // factory going with it. Without that the layer would go quiet while the package table
         // still points every one of these reads past the end of the file it was rebased against.
         if (!g_dsFactory) g_dsFactory = RealDStorageFactory();
         if (g_dsFactory) {
-            HRESULT hr = g_dsFactory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&o->dsFile);
-            Log("overlay: DirectStorage open %ls -> hr=0x%08X", PublicPath(o->loosePath).c_str(), (unsigned)hr);
+            IDStorageFile* opened = nullptr;
+            HRESULT hr = g_dsFactory->OpenFile(o->loosePath.c_str(), __uuidof(IDStorageFile), (void**)&opened);
+            if (SUCCEEDED(hr) && opened) {
+                o->dsFile = opened;
+                Log("overlay: DirectStorage open %ls -> hr=0x%08X", PublicPath(o->loosePath).c_str(), (unsigned)hr);
+            } else {
+                // The file opened when the table was built, so since then it has been quarantined,
+                // deleted or locked, or DirectStorage refuses it. Nothing can serve the entry now,
+                // since its slot already points past the end of the package, so the read the game
+                // gets is a failed one. Remembered, because retrying held this lock, which every
+                // ReadFile in the process takes, and wrote a line for every request.
+                o->dsOpenFailed = true;
+                Log("overlay: DirectStorage cannot open %ls (hr=0x%08X), so the game's reads of %s fail this session",
+                    PublicPath(o->loosePath).c_str(), (unsigned)hr, o->pkgPath.c_str());
+            }
         }
     }
     IDStorageFile* file = o->dsFile;

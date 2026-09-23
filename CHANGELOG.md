@@ -13,6 +13,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - `acevo_perf.log` no longer records where the game is installed or how it was started, so the file you attach to a bug report does not carry your PC's folder names.
 - The mod not starting at all when the game sits in a very long folder path.
 - A file in the mods folder that replaces the menu styling or the trackside big screens being ignored.
+- Part of the game failing to load, instead of using the game's own file, when a file in the mods folder could not be opened at startup.
 
 ### Changed
 
