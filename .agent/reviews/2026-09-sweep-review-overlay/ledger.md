@@ -35,7 +35,7 @@ The fifth pass found nothing false and the loop stopped there.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the table is built once and published safely | closed, runtime confirmed | 2026-09-23 |
-| 2 | a redirect that cannot be served fails visibly | pending | |
+| 2 | a redirect that cannot be served fails visibly | fixing | 2026-09-23 |
 | 3 | the slot layout and the leftovers | pending | |
 
 ## Findings
@@ -352,8 +352,8 @@ raised the three below.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 9293fae, 2026-09-23, a loose file that cannot be opened when the table is built is left out so the game reads the package's own entry, and a DirectStorage open that fails later is remembered and said once.
 
 `src/overlay/overlay.cpp:614` returns false on an `OpenFile` failure, and `QueueProxy::EnqueueRequest`
 at `proxy.cpp:276` then enqueues the original request, whose `Source.File.Offset` is the virtual offset
@@ -367,12 +367,19 @@ unstyled. The failure is also not remembered, so lines 606 to 613 re-enter the g
 call `OpenFile` and write a log line on every single request for that entry, while every ReadFile in
 the process waits on that same critical section inside `IsPackageHandle`.
 
+What stays is the read after a later failure, which still fails. The slot already points past the
+end of the package, and a file queue has no way to be handed bytes the layer no longer has, so the
+fix makes it one line instead of a line per request. Left out at startup is the better outcome, the
+game's own asset, and the check runs before the mod's own corrections so a player's unreadable file
+does not also cost the correction for that entry. A player can meet the startup case with a file
+another program holds open, so it has a changelog line.
+
 ### F-05: unlocked double checked read of o->dsFile, a plain pointer written inside the critical section by another thread
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2342bdf, 2026-09-23, the check and the read of the handle are inside the lock that writes it.
 
 `src/overlay/overlay.cpp:606`. `OverlayRedirect` is called from `QueueProxy::EnqueueRequest`, which the
 game drives from several streaming threads at once. Thread A holds the lock and lets `OpenFile` write
@@ -383,8 +390,8 @@ ordering rather than by construction, and the pointer goes straight to `real->En
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 83aa09e, 2026-09-23, on a handle opened overlapped a virtual read fails at once with `ERROR_HANDLE_EOF`, which queues nothing, and is said once.
 
 `src/overlay/overlay.cpp:543` fills the OVERLAPPED itself and returns TRUE without going near the
 kernel, so no completion packet is ever queued. A reader that opened the package with
@@ -393,12 +400,18 @@ fails, nothing is signalled, and `GetQueuedCompletionStatus` never returns. `Get
 a null hEvent waits on the file handle, which is also never signalled. The doc records that this path
 has never been exercised, which is why it would surface first on somebody else's machine.
 
+Serving the read properly would need the port and key the handle is bound to, which means hooking
+`CreateIoCompletionPort` as well, for a path 0.9.1 never takes. A read that fails at once is the
+Win32 contract that leaves nobody waiting, and it is what the package itself answers at that offset.
+The cost is that a later version reading a replaced entry this way gets a failed read rather than
+the replacement, and the log says so.
+
 ### F-07: the ReadFile hook goes live one statement before the original it calls is resolved
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: fcf7ec2, 2026-09-23, ReadFile is hooked last, after every original its paths call is resolved, and not at all if one cannot be.
 
 `src/overlay/overlay.cpp:589` returns with every module's import slot pointing at `Hook_ReadFile`, and
 only line 590 then resolves `g_origSetFilePointerEx`. A non overlapped ReadFile on a tracked handle in
@@ -409,8 +422,8 @@ runs inside DllMain, before the game's own threads exist, keeps the window shut.
 - severity: nit
 - found-by: verifier
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 83aa09e, 2026-09-23, with F-06, the branch decides by the handle and moves the position on every read on a synchronous one.
 
 The virtual branch of `Hook_ReadFile` moves the file position only when `ov` is null. On a handle
 opened without `FILE_FLAG_OVERLAPPED`, a real read with an OVERLAPPED for its offset moves the
