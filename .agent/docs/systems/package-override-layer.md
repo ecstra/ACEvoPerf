@@ -52,8 +52,10 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
    that has been requested once cannot be edited while the game runs.
 
-   A loose file that cannot be opened when the table is built is left out of it, so the game reads
-   the package's own entry. One that opened then and fails its first DirectStorage open later,
+   A loose file that cannot be opened when the table is built is left out of it, opened the way
+   DirectStorage opens it so a file another program is still writing fails there too, and its size
+   is taken from the open file rather than the folder listing, which gives 0 for a symbolic link.
+   Left out, a replaced entry is read from the package, or from the mod's own correction for it. One that opened then and fails its first DirectStorage open later,
    quarantined, deleted or locked in between, is said once and not retried, and the game's reads of
    that entry fail for the session, since its slot already points past the end of the package.
 

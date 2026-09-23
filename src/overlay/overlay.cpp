@@ -422,22 +422,25 @@ static void AddUiStyleFix(size_t used)
         sizeof kStyleEdits / sizeof kStyleEdits[0]);
 }
 
-// A loose file that cannot be opened now is left out rather than put in the table. In the table it
-// would send the game to a read that fails, and left out the game reads the package's own entry.
-// The share flags are wide so the check itself locks nothing.
+// A loose file that cannot be opened now is left out of the table, where it would send the game to
+// a read that fails. It is opened the way DirectStorage and ReadLoose open it, read access and read
+// sharing only, so a file another program still has open for writing fails here rather than at its
+// first request, where the failure lasts the session. The size is taken from the open file, since
+// the folder listing gives 0 for a symbolic link and can give a hard link's old size.
 static void DropUnreadable()
 {
     for (size_t i = 0; i < g_files.size(); ) {
-        HANDLE probe = g_origCreateFileW(g_files[i].loosePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                         nullptr, OPEN_EXISTING, 0, nullptr);
-        if (probe != INVALID_HANDLE_VALUE) {
+        HANDLE probe = g_origCreateFileW(g_files[i].loosePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        LARGE_INTEGER size = {};
+        if (probe != INVALID_HANDLE_VALUE && GetFileSizeEx(probe, &size)) {
             g_origCloseHandle(probe);
+            g_files[i].size = (uint64_t)size.QuadPart;
             ++i;
             continue;
         }
         const DWORD error = GetLastError();
-        Log("overlay: cannot open %ls (error %lu), left out, so the game reads the package's own %s",
-            PublicPath(g_files[i].loosePath).c_str(), error, g_files[i].pkgPath.c_str());
+        if (probe != INVALID_HANDLE_VALUE) g_origCloseHandle(probe);
+        Log("overlay: cannot open %ls (error %lu), so it is left out of the table", PublicPath(g_files[i].loosePath).c_str(), error);
         g_files.erase(g_files.begin() + i);
     }
 }
@@ -445,6 +448,10 @@ static void DropUnreadable()
 // Read the real table, apply the overrides, re-encode. Runs once, on the first table read.
 static void BuildToc()
 {
+    // Before anything is counted or applied, and before the mod's own corrections, so a player's
+    // file that cannot be served does not also stop the correction for the same entry.
+    DropUnreadable();
+
     std::wstring pkg = g_dir + L"content.kspkg";
     HANDLE h = g_origCreateFileW(pkg.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) { Log("overlay: cannot open %ls (error %lu)", PublicPath(pkg).c_str(), GetLastError()); return; }
@@ -492,10 +499,6 @@ static void BuildToc()
         return;
     }
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
-
-    // Before the mod's own corrections, so a player's file that cannot be served does not stop the
-    // correction for the same entry.
-    DropUnreadable();
 
     // The mod's own corrections join the list before it is applied, so they get a virtual offset
     // and a table slot exactly like a loose file the player put there.
