@@ -757,6 +757,17 @@ void Install()
 
 bool Active() { return g_active; }
 
+// Every request for a replaced entry needs a factory to open its file with. None is there only if
+// the game dropped its last reference before the first such request, which 0.9.1 never does, and the
+// lookup is repeated on each request so a later factory is picked up.
+static void NoteNoFactory()
+{
+    static std::atomic<bool> noted{false};
+    if (noted.exchange(true)) return;
+    Log("overlay: no DirectStorage factory to open replacement files with, so requests for them fail without "
+        "writing their buffers until the game creates one");
+}
+
 } // namespace overlay
 
 bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirected)
@@ -788,13 +799,18 @@ bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirect
             } else {
                 // The file opened when the table was built, so since then it has been quarantined,
                 // deleted or locked, or DirectStorage refuses it. Nothing can serve the entry now,
-                // since its slot already points past the end of the package, so the read the game
-                // gets is a failed one. Remembered, because retrying held this lock, which every
-                // ReadFile in the process takes, and wrote a line for every request.
+                // since its slot already points past the end of the package. DirectStorage fails
+                // each such request without writing its buffer, and the fence after it still fires.
+                // The game hears of it only through a status array, which 0.9.1 never makes, or the
+                // queue's error record, and one that checks neither takes whatever the buffer held.
+                // Remembered, because retrying held this lock, which every ReadFile in the process
+                // takes, and wrote a line for every request.
                 o->dsOpenFailed = true;
-                Log("overlay: DirectStorage cannot open %ls (hr=0x%08X), so the game's reads of %s fail this session",
-                    PublicPath(o->loosePath).c_str(), (unsigned)hr, o->pkgPath.c_str());
+                Log("overlay: DirectStorage cannot open %ls (hr=0x%08X), so every request for %s fails this session "
+                    "without writing its buffer", PublicPath(o->loosePath).c_str(), (unsigned)hr, o->pkgPath.c_str());
             }
+        } else {
+            NoteNoFactory();
         }
     }
     IDStorageFile* file = o->dsFile;

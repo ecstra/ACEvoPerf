@@ -58,8 +58,12 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    DirectStorage opens it so a file another program is still writing fails there too, and its size
    is taken from the open file rather than the folder listing, which gives 0 for a symbolic link.
    Left out, a replaced entry is read from the package, or from the mod's own correction for it. One that opened then and fails its first DirectStorage open later,
-   quarantined, deleted or locked in between, is said once and not retried, and the game's reads of
-   that entry fail for the session, since its slot already points past the end of the package.
+   quarantined, deleted or locked in between, is said once and not retried. Its slot already points
+   past the end of the package, so DirectStorage fails every request for that entry for the session
+   without writing the buffer, and the fence after it still fires. The game hears of it only
+   through a status array, which it made in none of 118 captured runs, or the queue's error record,
+   and unless it reads that it takes whatever the buffer held. With no factory to open a file with
+   at all, the same happens to every replaced entry, said once.
 
    That one call site is why `overlay::Active()` is in the condition that decides whether a queue
    is wrapped at all. Until 2026-09-20 the wrapper existed only for the statistics and the two
