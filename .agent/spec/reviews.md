@@ -21,7 +21,9 @@ the review runs, permanent once born. The full protocol lives in
    count when closed.
 2. **Batches**: the batch table. Number, theme, status
    (pending, fixing, verified, done), the owner's ack noted per batch.
-3. **Findings**: one block per finding, ordered by batch then severity:
+3. **Findings**: one block per finding, ordered by batch, then by the pass
+   that raised it in the order the passes ran, then by severity. A pass's
+   blocks sit together because they answer the fixes before them.
 
 ```
 ### F-07: <one line claim>

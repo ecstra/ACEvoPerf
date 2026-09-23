@@ -232,8 +232,8 @@ the whole build. That is H-02's failure through another door. No 0.9.1 path reac
 `PatchEverywhere` patches the static imports of the modules loaded when `Install` runs. A later
 version that opens the package from a DLL it loads afterwards, or through `GetProcAddress`, gets an
 untracked handle whose table reads pass through unedited, overlapped or not, with neither `table
-rebuilt` nor the note in the log when the whole table is read through it. DirectStorage's own core loads that way today, which is harmless
-only because its reads go through the redirect.
+rebuilt` nor the note in the log when the whole table is read through it. DirectStorage's own core
+loads that way today, which is harmless only because its reads go through the redirect.
 
 ### V-05: F-03's and H-02's fix lines described the rule 4c558ea replaced
 - severity: nit
@@ -317,6 +317,30 @@ every line, and raised three wording slips of that commit's own, V-12 to V-14.
 - batch: 1
 - status: fixed
 - fix: 2026-09-23, it holds when the whole table is read through the late handle, and V-04 now says so.
+
+A fifth pass ran on 8d27f4a and looked only for statements that are false. It found none, and
+raised the three below.
+
+### V-15: V-04's paragraph was left with one line far longer than the rest
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, rewrapped.
+
+### V-16: the spec said batch then severity, while every ledger orders a batch by the pass that raised each finding
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, the spec now says what all four ledgers do, since each pass's blocks answer the fixes just before them.
+
+### V-17: the message of 8d27f4a says V-11 moved, and in that commit's diff it did not
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: wontfix
+- fix: a pushed commit message stays as it is. The new blocks first went in above V-11 and were put below it before the commit, so the diff shows no move, and the order in the file is right.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
