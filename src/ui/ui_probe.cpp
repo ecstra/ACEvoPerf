@@ -1098,6 +1098,8 @@ static void InstallStyleHooks()
         }
         patch.rel = (int32_t)rel;
     }
+    if (CodePatchingIsLate())
+        Log("[ui] WARNING: patching Cohtml's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     int written = 0;
     for (Patch& patch : patches) {
         if (!VirtualProtect(patch.at, 5, PAGE_EXECUTE_READWRITE, &old)) {
@@ -1195,6 +1197,26 @@ static void OnView(void* view, int number, unsigned width, unsigned height, bool
 static void OnLibrary(void* library)
 {
     HookVtableSlot(*(void***)library, cohtml_slot::kLibraryExecuteWork, (void*)&Hook_ExecuteWork, (void**)&g_origExecuteWork, "Cohtml Library::ExecuteWork");
+
+    // The sampler starts here and not at attach. Creating a thread from DllMain works, but the new
+    // thread cannot run until DllMain returns, because its own thread attach pass wants the loader
+    // lock we are holding, so any DLL in the process whose attach handler blocks would hang the
+    // launch. There is nothing for the sampler to look at before a Cohtml library exists anyway.
+    // Atomic because this used to run at attach, where the game was still one thread, and now runs
+    // from a Cohtml callback where it is not guaranteed to be.
+    static std::atomic<bool> starting{false};
+    static std::atomic<bool> started{false};
+    if (started.load() || starting.exchange(true)) return;
+    HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
+    if (!sampler) {
+        Log("[ui] the layout sampler thread could not be created (error %lu), trying again at the next library", GetLastError());
+        starting.store(false);   // handed back, so a later library really does get another go
+        return;
+    }
+    started.store(true);
+    SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
+    CloseHandle(sampler);
+    Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -1252,12 +1274,7 @@ void InstallUiProbe()
     DWORD stubCount = 0;
     if (StyleMatchFixUnwind(&stubs, &stubsSize, &stubFunctions, &stubCount)) AddUnwindRange(stubs, stubsSize, stubFunctions, stubCount, "styles");
     InstallStyleHooks();
-    HANDLE sampler = CreateThread(nullptr, 0, &LayoutSamplerThread, nullptr, 0, nullptr);
-    if (sampler) {
-        SetThreadPriority(sampler, THREAD_PRIORITY_ABOVE_NORMAL);
-        CloseHandle(sampler);
-    }
-    Log("[ui] layout sampler started, %d modules with unwind tables", g_unwindModuleCount);
+    Log("[ui] probe installed, %d modules with unwind tables, the layout sampler starts with Cohtml", g_unwindModuleCount);
 }
 
 uint32_t UiProbeTakeEndFrameUs()

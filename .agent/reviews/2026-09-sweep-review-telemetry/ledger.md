@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-telemetry
 kind: review
-description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and one the render angle's verifier added
+description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and two added by other angles' sub agents
 updated: 2026-09-20
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-telemetry
@@ -24,7 +24,9 @@ which means the per thread numbers the project has been reading were measuring l
 what was hot during the load.
 
 Ten findings, one breaks, five bug, three debt, one nit. F-11 was added on 2026-09-20 by the verifier
-of `sweep/review-render`, which met the same shape in the render layer's adapter pick.
+of `sweep/review-render`, which met the same shape in the render layer's adapter pick, and F-12 the
+same day by the hunter of `sweep/review-proxy-core`, whose own fix made it matter more. F-05's
+validation half is already closed by that branch, since the key is read there.
 
 ## Batches
 
@@ -112,14 +114,37 @@ bogus crash reports in the player's game log.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 8c3ccb1 and the batch 2 hunter round, 2026-09-20, on `sweep/review-proxy-core`. `sample_us` is read into a range of 100 to 1000000 and anything outside it is corrected with a line in the log.
 
 `src/telemetry/load_sampler.cpp:354`, reading a value `src/core/config.cpp:117` never validates. Filed
 against `sweep/review-proxy-core` as its F-05 for the validation half. Recorded here because the
 consequence lands in this file: `SuspendThread`, `GetThreadContext` and `ResumeThread` on a game thread
 tens of thousands of times a second from a `THREAD_PRIORITY_HIGHEST` thread, and the only way out is
-killing the process. The key is in neither the shipped ini nor the telemetry doc.
+killing the process. The telemetry doc does not cover it, which is the agent directory angle's
+F-10. The claim originally made here that the key is not in the shipped ini is wrong,
+`dist/acevo_perf.ini:63` has carried `sample_us=1000` with a note all along.
+
+### F-12: the sampler's wait spins rather than sleeps at every interval near its default
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: open
+- fix:
+
+`src/telemetry/load_sampler.cpp:365`. The comment above it says "Sleep the wait away rather than
+spinning it. A spin here would hold a whole core at the highest priority and take it from the very
+workers being measured." The code only sleeps when more than 1500 microseconds are left, and the
+shipped `sample_us=1000` never reaches that, so the entire wait is `YieldProcessor` on a
+`THREAD_PRIORITY_HIGHEST` thread.
+
+The lower bound of 100 that `sweep/review-proxy-core` put on the key makes this worse at the bottom
+of the range, ten thousand suspend and resume pairs a second with the wait between them spun rather
+than slept. The bound is right as a bound, but its whole range sits inside the branch the comment
+says it avoids, so either the comment or the threshold is wrong.
+
+Raised by the hunter on batch 2 of `sweep/review-proxy-core`, recorded here because the file belongs
+to this angle.
 
 ### F-06: the first timeline row reports process lifetime totals as one second of activity
 - severity: bug

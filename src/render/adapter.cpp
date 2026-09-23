@@ -23,8 +23,12 @@ int AutoTilePoolMb(uint64_t vramMb)
     return 3072;
 }
 
-// The runtime keeps two staging buffers in video memory and the game's largest request is
-// 32 MB, so 128 MB already holds four of them in flight.
+// The runtime keeps two staging buffers in video memory. A request larger than the buffer fails
+// outright, so the floor is the game's largest single request, and that is 96.2 MB, measured as
+// the highest `max req` across all 7,848 stats lines on disk. 32 MB is only the ninetieth
+// percentile, which is what this comment used to claim was the maximum. So 128 MB holds the
+// largest request with room to spare rather than four of them, and it is the smallest step here
+// for that reason.
 int AutoStagingMb(uint64_t vramMb)
 {
     if (vramMb < 7168) return 128;
@@ -68,19 +72,26 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
     return found;
 }
 
-static bool g_resolveDone = false;
+// An exchange, because the two callers are on different threads and one of them now runs under the
+// proxy's lock while the other takes nothing. In every captured run they are 1.7 seconds apart and
+// the loser has no use for the result, it only needs the work not to happen twice, so run once is
+// enough here where it was not enough for the one time init in DStorageGetFactory.
+static std::atomic<bool> g_resolveDone{false};
 
 static bool WantsAutoSizes()
 {
     if (g_cfg.stagingAuto) return true;
-    for (auto& f : g_cfg.flags) if (f.find(L"=auto") != std::wstring::npos) return true;
+    for (auto& f : g_cfg.flags) {
+        std::wstring lower = f;   // `Auto` has to count, the same way SplitFlag lowercases it
+        for (auto& ch : lower) ch = (wchar_t)towlower(ch);
+        if (lower.find(L"=auto") != std::wstring::npos) return true;
+    }
     return false;
 }
 
 void ResolveAutoSizes(IDXGIFactory1* factory)
 {
-    if (g_resolveDone || !factory) return;
-    g_resolveDone = true;
+    if (!factory || g_resolveDone.exchange(true)) return;
     if (!WantsAutoSizes()) return;
 
     DXGI_ADAPTER_DESC1 d = {};

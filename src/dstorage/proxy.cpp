@@ -59,7 +59,7 @@ static bool LoadBundledCore()
     if (!core) {
         Log("[runtime] cannot load %ls (error %lu), falling back to the game's own runtime. Copy "
             "acevo_dstoragecore.dll from the mod zip next to the exe to get the newer one.",
-            path.c_str(), GetLastError());
+            PublicPath(path).c_str(), GetLastError());
         return false;
     }
 
@@ -67,7 +67,7 @@ static bool LoadBundledCore()
     auto setConfig = (PFN_DStorageSetConfiguration1)GetProcAddress(core, "DStorageSetConfigurationCore");
     auto createCodec = (PFN_DStorageCreateCompressionCodec)GetProcAddress(core, "DStorageCreateCompressionCodecCore");
     if (!getFactory || !setConfig || !createCodec) {
-        Log("[runtime] %ls does not offer the core entry points, falling back to the game's own runtime", path.c_str());
+        Log("[runtime] %ls does not offer the core entry points, falling back to the game's own runtime", PublicPath(path).c_str());
         FreeLibrary(core);
         return false;
     }
@@ -81,7 +81,7 @@ static bool LoadBundledCore()
 
     const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
     UINT32 v = sdk ? *sdk : 0;
-    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path.c_str());
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path).c_str());
     if (v < DSTORAGE_SDK_VERSION)
         Log("[runtime] that is older than the 1.%u.%u this mod ships with, so that file is stale",
             (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);
@@ -98,18 +98,18 @@ static bool EnsureReal()
         g_real = LoadLibraryW(path.c_str());
         if (!g_real) {
             DWORD err = GetLastError();
-            Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", path.c_str(), err);
+            Log("FATAL: cannot load %ls (error %lu). Reinstall the mod or restore the original dstorage.dll.", PublicPath(path).c_str(), err);
             MessageBoxW(nullptr,
                 L"ACEvoPerf: dstorage_orig.dll was not found next to the game executable.\n\n"
-                L"Copy all three files from the mod zip (dstorage.dll, dstorage_orig.dll,\n"
-                L"acevo_perf.ini) into the game folder, then start the game again.",
+                L"Copy all the files from the mod zip into the game folder, then start the\n"
+                L"game again. Copying only some of them leaves the mod half installed.",
                 L"ACEvoPerf", MB_ICONERROR | MB_OK);
         } else {
             g_realGetFactory = (PFN_DStorageGetFactory)GetProcAddress(g_real, "DStorageGetFactory");
             g_realSetConfiguration = (PFN_DStorageSetConfiguration)GetProcAddress(g_real, "DStorageSetConfiguration");
             g_realSetConfiguration1 = (PFN_DStorageSetConfiguration1)GetProcAddress(g_real, "DStorageSetConfiguration1");
             g_realCreateCodec = (PFN_DStorageCreateCompressionCodec)GetProcAddress(g_real, "DStorageCreateCompressionCodec");
-            Log("Loaded real runtime %ls (GetFactory=%p SetConfiguration1=%p)", path.c_str(), g_realGetFactory, g_realSetConfiguration1);
+            Log("Loaded real runtime %ls (GetFactory=%p SetConfiguration1=%p)", PublicPath(path).c_str(), g_realGetFactory, g_realSetConfiguration1);
         }
     }
     LeaveCriticalSection(&g_realCs);
@@ -154,6 +154,12 @@ static void TraceFileRequest(const DSTORAGE_REQUEST* request)
     }
     if (request->Options.DestinationType != DSTORAGE_REQUEST_DESTINATION_MEMORY) return;
 
+    // Keyed on the IDStorageFile pointer, which the allocator hands back once the game closes a
+    // file, so an entry can outlive the file it was about and count a fresh read of a different
+    // file as a repeat. The map is never cleared either, so it only grows. Both are accepted:
+    // this whole path is behind streaming_trace, which ships off, and clearing on close needs a
+    // hook on IDStorageFile::Release that the proxy does not have. Named here so a reading of
+    // the reread numbers knows what it is reading.
     AcquireSRWLockExclusive(&g_readsLock);
     uint32_t seen = ++g_reads[ReadKey{ source.Source, source.Offset, source.Size }];
     ReleaseSRWLockExclusive(&g_readsLock);
@@ -165,7 +171,9 @@ static void TraceFileRequest(const DSTORAGE_REQUEST* request)
 }
 
 // ---------------------------------------------------------------------------
-// IDStorageQueue proxy (statistics + error reporting)
+// IDStorageQueue proxy. Started as statistics and error reporting, and is now also the only
+// writer of the process wide request counters and the only place OverlayRedirect is reached
+// from, so several things that look unrelated to statistics need it. See QueueProxyWanted.
 // ---------------------------------------------------------------------------
 struct QueueStats {
     std::atomic<uint64_t> requests{0}, bytes{0}, submits{0}, maxReq{0}, sinceSubmit{0};
@@ -201,22 +209,58 @@ struct QueueProxy : IDStorageQueue2 {
     void Report(bool final)
     {
         uint64_t now = GetTickCount64();
-        uint64_t dt = now - st.lastReportTick;
-        if (!final && dt < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
-        uint64_t r = st.requests.load(), b = st.bytes.load();
-        uint64_t dr = r - st.lastRequests, db = b - st.lastBytes;
-        double secs = dt / 1000.0; if (secs <= 0) secs = 1;
-        Log("[stats] queue '%s'%s: total %llu req / %.1f MB (max req %llu KB) | last %.0fs: %llu req, %.1f MB/s | dest MEM=%llu BUF=%llu TEX=%llu MULTI=%llu TILES=%llu | fromMem=%llu compressed=%llu gdeflate=%llu submits=%llu",
-            name.c_str(), final ? " (final)" : "", (unsigned long long)r, b / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
-            secs, (unsigned long long)dr, (db / 1048576.0) / secs,
-            (unsigned long long)st.byDest[0].load(), (unsigned long long)st.byDest[1].load(), (unsigned long long)st.byDest[2].load(),
-            (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
-            (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
-            (unsigned long long)st.submits.load());
-        if (g_cfg.streamingTrace && st.byDest[DSTORAGE_REQUEST_DESTINATION_MEMORY].load())
-            Log("[stats] queue '%s': %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
-                name.c_str(), (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
-        st.lastReportTick = now; st.lastRequests = r; st.lastBytes = b;
+        uint64_t sinceLastReportMs = now - st.lastReportTick;
+        if (!final && sinceLastReportMs < (uint64_t)g_cfg.statsIntervalS * 1000ull) return;
+
+        uint64_t requests = st.requests.load();
+        uint64_t bytes = st.bytes.load();
+        uint64_t requestsSince = requests - st.lastRequests;
+        uint64_t bytesSince = bytes - st.lastBytes;
+
+        double secs = sinceLastReportMs / 1000.0;
+        if (secs <= 0) secs = 1;
+        // Each line checks the setting that asks for it. The queue is wrapped for several
+        // reasons now, so reaching here says nothing about which of them is on.
+        if (g_cfg.stats) {
+            Log("[stats] queue '%s'%s: total %llu req / %.1f MB (max req %llu KB) | last %.0fs: %llu req, %.1f MB/s | dest MEM=%llu BUF=%llu TEX=%llu MULTI=%llu TILES=%llu | fromMem=%llu compressed=%llu gdeflate=%llu submits=%llu",
+                name.c_str(), final ? " (final)" : "", (unsigned long long)requests, bytes / 1048576.0, (unsigned long long)(st.maxReq.load() / 1024),
+                secs, (unsigned long long)requestsSince, (bytesSince / 1048576.0) / secs,
+                (unsigned long long)st.byDest[0].load(), (unsigned long long)st.byDest[1].load(), (unsigned long long)st.byDest[2].load(),
+                (unsigned long long)st.byDest[3].load(), (unsigned long long)st.byDest[4].load(),
+                (unsigned long long)st.fromMemory.load(), (unsigned long long)st.compressed.load(), (unsigned long long)st.gdeflate.load(),
+                (unsigned long long)st.submits.load());
+        }
+        // Not named after this queue, and printed once for the process rather than once per queue.
+        // The counters behind it are process wide, so with more than one queue reading into memory
+        // every one of them used to print the same total under its own name. Taking the name off
+        // was half the fix, since duplicate totals with nothing to tell them apart is worse than
+        // duplicate totals with wrong names, which is how the finding was noticed.
+        if (g_cfg.streamingTrace && g_repeatedReads.load()) {
+            static std::atomic<uint64_t> lastRereadReport{0};
+            static std::atomic<bool> finalRereadDone{false};
+            bool print;
+            if (final) {
+                // Its own latch. The time gate cannot hold this one, because the queues that get a
+                // final report at shutdown arrive in the same millisecond, which is the duplicate
+                // this whole finding is about arriving at shutdown instead.
+                print = !finalRereadDone.exchange(true);
+            } else {
+                // `now` was read before this queue's own line went to disk, so another queue can
+                // have stored a later time in between. Unsigned, `now - previous` would then wrap
+                // to a huge number and pass, printing a second line in the same interval, so a
+                // stored time at or after ours means someone else already reported it.
+                uint64_t previous = lastRereadReport.load();
+                print = now > previous
+                     && now - previous >= (uint64_t)g_cfg.statsIntervalS * 1000ull
+                     && lastRereadReport.compare_exchange_strong(previous, now);
+            }
+            if (print)
+                Log("[stats] across all queues: %llu reads repeated an earlier read of the same file, offset and size, %.1f MB",
+                    (unsigned long long)g_repeatedReads.load(), g_repeatedBytes.load() / 1048576.0);
+        }
+        st.lastReportTick = now;
+        st.lastRequests = requests;
+        st.lastBytes = bytes;
     }
 
     // IUnknown
@@ -258,17 +302,21 @@ struct QueueProxy : IDStorageQueue2 {
             st.requests++; st.bytes += sz;
             uint64_t prev = st.maxReq.load();
             while (sz > prev && !st.maxReq.compare_exchange_weak(prev, sz)) {}
-            UINT64 dt = request->Options.DestinationType;
-            if (dt < 5) { st.byDest[dt]++; g_reqByDest[dt]++; g_bytesByDest[dt] += sz; }
+            UINT64 destination = request->Options.DestinationType;
+            if (destination < 5) {
+                st.byDest[destination]++;
+                g_reqByDest[destination]++;
+                g_bytesByDest[destination] += sz;
+            }
             st.sinceSubmit++;
             if (request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_MEMORY) st.fromMemory++;
             if (request->Options.CompressionFormat != DSTORAGE_COMPRESSION_FORMAT_NONE) st.compressed++;
             if (request->Options.CompressionFormat == DSTORAGE_COMPRESSION_FORMAT_GDEFLATE) st.gdeflate++;
             if (g_cfg.logRequests) {
                 if (request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_MEMORY)
-                    Log("[req] '%s' MEM->%s size=%u uncomp=%u comp=%u name=%s", name.c_str(), DestName(dt), request->Source.Memory.Size, request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
+                    Log("[req] '%s' MEM->%s size=%u uncomp=%u comp=%u name=%s", name.c_str(), DestName(destination), request->Source.Memory.Size, request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
                 else
-                    Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(dt), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
+                    Log("[req] '%s' FILE off=%llu size=%u ->%s uncomp=%u comp=%u name=%s", name.c_str(), (unsigned long long)request->Source.File.Offset, request->Source.File.Size, DestName(destination), request->UncompressedSize, (unsigned)request->Options.CompressionFormat, request->Name ? request->Name : "");
             }
             if (g_cfg.streamingTrace && request->Options.SourceType == DSTORAGE_REQUEST_SOURCE_FILE) TraceFileRequest(request);
             DSTORAGE_REQUEST redirected;
@@ -313,6 +361,24 @@ struct QueueProxy : IDStorageQueue2 {
 // ---------------------------------------------------------------------------
 // IDStorageFactory proxy
 // ---------------------------------------------------------------------------
+struct FactoryProxy;
+static FactoryProxy* g_factory = nullptr;   // the one proxy, cleared when its last reference goes
+
+// Everything that needs a queue wrapped, named by the consumer that needs it rather than rolled
+// into one condition. QueueProxy is the only writer of the process wide request counters and the
+// only place OverlayRedirect is reached from, so a consumer left off this list does not fail, it
+// goes quietly empty while its own switch still reads as on.
+static bool QueueProxyWanted()
+{
+    return g_cfg.stats              // the per queue [stats] line
+        || g_cfg.logRequests        // the [req] line per request
+        || g_cfg.streamingTrace     // the streaming CSV rows and the repeated read total
+        || g_cfg.timeline           // nine request columns of acevo_perf_timeline.csv
+        || g_cfg.frameStats         // the [hitch] lines' streaming counts, and the frames CSV,
+                                    // whose rows only exist when this is on as well
+        || overlay::Active();       // the package override layer, whose redirect lives in the wrapper
+}
+
 struct FactoryProxy : IDStorageFactory {
     IDStorageFactory* real;
     std::atomic<LONG> ref{1};
@@ -325,7 +391,20 @@ struct FactoryProxy : IDStorageFactory {
         return real->QueryInterface(riid, ppv);
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)++ref; }
-    ULONG STDMETHODCALLTYPE Release() override { LONG r = --ref; if (r == 0) { real->Release(); delete this; } return (ULONG)r; }
+    // Under the same lock the creation uses, and g_factory is cleared before the object goes.
+    // Without that, one extra Release from the game left the global pointing at freed memory, so
+    // the next DStorageGetFactory handed back the same dead pointer and the overlay read it when
+    // opening an override file. The overlay holds its own reference on the real factory as well,
+    // which is what keeps it usable if the game ever does drop its last one.
+    ULONG STDMETHODCALLTYPE Release() override
+    {
+        EnterCriticalSection(&g_realCs);
+        LONG r = --ref;
+        if (r == 0 && g_factory == this) g_factory = nullptr;
+        LeaveCriticalSection(&g_realCs);
+        if (r == 0) { real->Release(); delete this; }
+        return (ULONG)r;
+    }
 
     HRESULT STDMETHODCALLTYPE CreateQueue(const DSTORAGE_QUEUE_DESC* desc, REFIID riid, void** ppv) override
     {
@@ -349,7 +428,7 @@ struct FactoryProxy : IDStorageFactory {
             hr = real->CreateQueue(desc, riid, ppv);
             Log("  retry with original capacity %u -> hr=0x%08X", origCap, (unsigned)hr);
         }
-        if (SUCCEEDED(hr) && ppv && *ppv && (g_cfg.stats || g_cfg.logRequests || g_cfg.streamingTrace) &&
+        if (SUCCEEDED(hr) && ppv && *ppv && QueueProxyWanted() &&
             (riid == __uuidof(IDStorageQueue) || riid == __uuidof(IDStorageQueue1) || riid == __uuidof(IDStorageQueue2))) {
             IDStorageQueue* q = nullptr;
             if (SUCCEEDED(((IUnknown*)*ppv)->QueryInterface(__uuidof(IDStorageQueue), (void**)&q))) {
@@ -362,7 +441,7 @@ struct FactoryProxy : IDStorageFactory {
     HRESULT STDMETHODCALLTYPE OpenFile(const WCHAR* path, REFIID riid, void** ppv) override
     {
         HRESULT hr = real->OpenFile(path, riid, ppv);
-        Log("OpenFile '%ls' -> hr=0x%08X file=%p", path ? path : L"", (unsigned)hr, (ppv && SUCCEEDED(hr)) ? *ppv : nullptr);
+        Log("OpenFile '%ls' -> hr=0x%08X file=%p", PublicPath(path ? path : L"").c_str(), (unsigned)hr, (ppv && SUCCEEDED(hr)) ? *ppv : nullptr);
         return hr;
     }
     HRESULT STDMETHODCALLTYPE CreateStatusArray(UINT32 capacity, PCSTR name, REFIID riid, void** ppv) override
@@ -383,12 +462,26 @@ struct FactoryProxy : IDStorageFactory {
     }
 };
 
-static FactoryProxy* g_factory = nullptr;
+// Both one time guards are read and written only under g_realCs, in DStorageGetFactory. Two engine
+// subsystems asking for the factory on their own threads during start up could each read false and
+// each run the whole block, which meant the flags written twice, the load sampler started twice,
+// and StartTimeline's own check losing its race so two timeline threads came up, the second
+// failing to open the CSV with a sharing violation and running its per second tick with nowhere to
+// write. The lock is what gives the second caller the finished work rather than only skipping it.
 static bool g_configApplied = false;
+static bool g_lateApplied = false;
 
+// Hands out a reference, not a bare pointer, and the caller owns it. Reading the pointer under the
+// lock is not enough on its own: the caller then uses it after the lock is gone, and in that window
+// the last Release can free the real factory underneath it. Called once for the whole process, the
+// overlay caches what it gets, so the reference costs nothing and keeps the layer alive.
 IDStorageFactory* RealDStorageFactory()
 {
-    return g_factory ? g_factory->real : nullptr;
+    EnterCriticalSection(&g_realCs);
+    IDStorageFactory* real = g_factory ? g_factory->real : nullptr;
+    if (real) real->AddRef();
+    LeaveCriticalSection(&g_realCs);
+    return real;
 }
 
 // Which runtime actually came up, for the path that still goes through the Microsoft forwarder.
@@ -402,12 +495,20 @@ static void ReportRuntimeInUse()
     HMODULE core = GetModuleHandleW(L"dstoragecore.dll");
     if (!core) { Log("[runtime] no dstoragecore.dll is loaded, the DirectStorage runtime did not come up"); return; }
 
-    wchar_t path[MAX_PATH] = {};
-    GetModuleFileNameW(core, path, MAX_PATH);
+    // Truncation matters here for the same reason it did in DllMain, and for one more: a cut path
+    // no longer starts with g_dir, so PublicPath cannot take the prefix off it and prints whatever
+    // follows the last backslash of a string chopped mid name, which is a piece of the player's
+    // own folder in the file they are told to attach.
+    std::vector<wchar_t> path(MAX_PATH);
+    for (;;) {
+        DWORD n = GetModuleFileNameW(core, path.data(), (DWORD)path.size());
+        if (n == 0 || n < path.size() - 1 || path.size() >= 32768) break;
+        path.resize(path.size() * 2);
+    }
     const UINT32* sdk = (const UINT32*)GetProcAddress(core, "DStorageSDKVersion");
     UINT32 v = sdk ? *sdk : 0;
 
-    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, path);
+    Log("[runtime] DirectStorage 1.%u.%u in use, from %ls", v / 100, v % 100, PublicPath(path.data()).c_str());
     if (v < DSTORAGE_SDK_VERSION)
         Log("[runtime] that is older than the 1.%u.%u this mod ships, so the game's own runtime is being used. "
             "It works, it is just the old one.", (UINT32)DSTORAGE_SDK_VERSION / 100, (UINT32)DSTORAGE_SDK_VERSION % 100);
@@ -415,7 +516,7 @@ static void ReportRuntimeInUse()
 
 static void ApplyDStorageConfiguration()
 {
-    if (g_configApplied) return;
+    if (g_configApplied) return;   // caller holds g_realCs
     g_configApplied = true;
     DSTORAGE_CONFIGURATION1 c = {};
     c.NumSubmitThreads = (UINT32)(g_cfg.submitThreads > 0 ? g_cfg.submitThreads : 0);
@@ -440,30 +541,59 @@ static void ApplyDStorageConfiguration()
 extern "C" HRESULT WINAPI DStorageGetFactory(REFIID riid, void** ppv)
 {
     if (!EnsureReal() || !g_realGetFactory) return E_FAIL;
-    ApplyDStorageConfiguration();
-    static bool lateApplied = false;
-    if (!lateApplied) { lateApplied = true; ResolveAutoSizesFallback(); ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
-    if (riid != __uuidof(IDStorageFactory)) {
-        HRESULT hr = g_realGetFactory(riid, ppv);
-        Log("DStorageGetFactory(non-IDStorageFactory riid) -> hr=0x%08X", (unsigned)hr);
-        return hr;
-    }
+    if (!ppv) return E_POINTER;
+
+    // IUnknown is answered with the proxy, the same way QueueProxy::QueryInterface answers it.
+    // Handing the real factory to a caller asking for the base interface would let every queue it
+    // creates past the staging override, the capacity raise and the overlay redirect, which is the
+    // hole the queue declines IDStorageQueue3 to avoid one level down.
+    bool ours = (riid == __uuidof(IDStorageFactory) || riid == __uuidof(IUnknown));
+
+    // The one time work is inside the lock, not merely guarded against running twice, and it is
+    // inside it for both branches below. Both pieces have to land before any factory exists at
+    // all: the configuration is refused once one does, and the auto size fallback is what fills in
+    // the g_cfg.stagingMb that the cap reads. An atomic exchange was tried and gives run once
+    // without wait until done, so a second thread arriving in the same window skipped both and
+    // then created the factory itself, ahead of either.
+    //
+    // The two threads are started after the lock is released, so it is not held across a
+    // CreateThread. It is still held across the LoadLibraryExW inside the fallback, which is the
+    // order EnsureReal already takes above, this lock and then the loader lock. So nothing may
+    // take this lock while holding the loader lock, or the two orders meet.
     EnterCriticalSection(&g_realCs);
-    if (!g_factory) {
-        IDStorageFactory* f = nullptr;
-        HRESULT hr = g_realGetFactory(__uuidof(IDStorageFactory), (void**)&f);
-        Log("DStorageGetFactory -> hr=0x%08X factory=%p", (unsigned)hr, f);
-        if (FAILED(hr) || !f) { LeaveCriticalSection(&g_realCs); return hr; }
-        if (g_cfg.stagingMb > 0) {
-            HRESULT h2 = f->SetStagingBufferSize((UINT32)g_cfg.stagingMb * 1048576u);
-            Log("SetStagingBufferSize(%d MB) at factory creation -> hr=0x%08X", g_cfg.stagingMb, (unsigned)h2);
+    ApplyDStorageConfiguration();
+    bool late = !g_lateApplied;
+    if (late) { g_lateApplied = true; ResolveAutoSizesFallback(); }
+
+    HRESULT hr = S_OK;
+    if (!ours) {
+        hr = g_realGetFactory(riid, ppv);
+        Log("DStorageGetFactory: an interface the proxy does not implement was asked for, handing over the real factory -> hr=0x%08X", (unsigned)hr);
+    } else {
+        if (!g_factory) {
+            IDStorageFactory* f = nullptr;
+            hr = g_realGetFactory(__uuidof(IDStorageFactory), (void**)&f);
+            Log("DStorageGetFactory -> hr=0x%08X factory=%p", (unsigned)hr, f);
+            if (SUCCEEDED(hr) && f) {
+                if (g_cfg.stagingMb > 0) {
+                    HRESULT h2 = f->SetStagingBufferSize((UINT32)g_cfg.stagingMb * 1048576u);
+                    Log("SetStagingBufferSize(%d MB) at factory creation -> hr=0x%08X", g_cfg.stagingMb, (unsigned)h2);
+                }
+                g_factory = new FactoryProxy(f);
+            }
         }
-        g_factory = new FactoryProxy(f);
+        if (g_factory) {
+            g_factory->AddRef();
+            *ppv = static_cast<IDStorageFactory*>(g_factory);
+            hr = S_OK;
+        } else if (SUCCEEDED(hr)) {
+            hr = E_FAIL;
+        }
     }
-    g_factory->AddRef();
-    *ppv = static_cast<IDStorageFactory*>(g_factory);
     LeaveCriticalSection(&g_realCs);
-    return S_OK;
+
+    if (late) { ApplyFlags("late"); StartTimeline(); StartLoadSampler(); }
+    return hr;
 }
 
 extern "C" HRESULT WINAPI DStorageSetConfiguration(DSTORAGE_CONFIGURATION const* configuration)

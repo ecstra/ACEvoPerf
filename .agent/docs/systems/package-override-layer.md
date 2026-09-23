@@ -2,7 +2,7 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-15
+updated: 2026-09-20
 links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
 ---
 
@@ -41,6 +41,11 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    `QueueProxy::EnqueueRequest`) get their source swapped to an `IDStorageFile` opened on the
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
    that has been requested once cannot be edited while the game runs.
+
+   That one call site is why `overlay::Active()` is in the condition that decides whether a queue
+   is wrapped at all. Until 2026-09-20 the wrapper existed only for the statistics and the two
+   developer traces, so `[directstorage] stats=0` took this whole step with it while the install
+   and table lines still printed as though the layer were running.
 
 ## The mod's own corrections
 

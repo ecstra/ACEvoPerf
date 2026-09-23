@@ -5,6 +5,13 @@
 namespace overlay {
     // Collect the loose files and hook the game's file I/O. Call from DllMain.
     void Install();
+
+    // Whether the layer has anything to serve, which is what OverlayRedirect tests first. Settled
+    // by Install at attach, long before the game creates a queue, so a caller deciding whether the
+    // redirect will ever be needed can ask. The proxy does, because the redirect only runs from
+    // inside QueueProxy and without this the queue would go unwrapped whenever the statistics are
+    // off, taking the whole layer with it.
+    bool Active();
 }
 
 // Rewrite a DirectStorage request that targets a virtual offset onto the loose file.

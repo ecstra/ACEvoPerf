@@ -2,7 +2,7 @@
 name: spec-reviews
 kind: doc
 description: format and lifecycle for .agent/reviews, the code review ledgers
-updated: 2026-08-14
+updated: 2026-09-20
 links: [conventions, house-rules-agent, spec-bugs]
 ---
 
@@ -26,11 +26,16 @@ the review runs, permanent once born. The full protocol lives in
 ```
 ### F-07: <one line claim>
 - severity: breaks | bug | debt | nit
-- found-by: review | hunter
+- found-by: review | hunter | verifier
 - batch: 2
 - status: open | fixed | wontfix | deferred
 - fix: <commit hash, date, when fixed>
 ```
+
+The id is the handle a commit or another ledger uses to name a finding, so it
+is unique across the whole ledger and never restarts per batch. `F-` is the
+review's own, `H-` the hunter's, `V-` the verifier's, each running on from the
+last one used anywhere in the file.
 
 A wontfix carries its reason inline. A finding too big for its branch is
 `deferred`: it graduates into bugs/ as its own file, linked both ways,

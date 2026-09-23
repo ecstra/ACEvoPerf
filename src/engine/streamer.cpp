@@ -82,6 +82,9 @@
 #include "acevo/engine/streamer.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+// Declared rather than included: this file has its own static Fnv1a64 and AllocNear, and pulling in
+// core/code_patch.h would redeclare those as extern first, which the compiler warns about.
+bool CodePatchingIsLate();
 #include "acevo/telemetry/streaming_trace.h"
 #include <algorithm>
 #include <string_view>
@@ -918,6 +921,8 @@ void InstallStreamerHooks()
         lo = std::min(lo, base + site->rva);
         hi = std::max(hi, base + site->rva + site->length);
     }
+    if (CodePatchingIsLate())
+        Log("[streamer] WARNING: patching the exe's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     if (!VirtualProtect(lo, hi - lo, PAGE_EXECUTE_READWRITE, &old)) {
         VirtualFree(cave, 0, MEM_RELEASE);
         Log("[streamer] could not make the exe's code writable, nothing patched");

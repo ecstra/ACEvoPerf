@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-20
+updated: 2026-09-22
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -17,6 +17,22 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 `--from HH:MM:SS --to HH:MM:SS` for one stretch of a session.
 
 ## acevo_perf.log
+
+**This file is written to be posted.** `README.md` and `dist/README.txt` both tell players to
+attach it to a bug report, so it is public by design and nothing in it may identify the player.
+Every path that reaches `Log` goes through `PublicPath` (`core/log`), which trims the game folder
+off a path under it and reduces anything else, the game's own save files included, to a bare file
+name. The command line is summarised rather than written: the argument count, the switch names, and
+a count of the values left out, because a launcher can pass an account or a session id there.
+
+A new `Log` call that hands a raw path to `%ls` puts that back, and only the comment on
+`PublicPath` stands in the way.
+
+Two strings are still copied out of the game's memory untouched, and `PublicPath` cannot reach
+either, since both are text of unknown shape rather than a path we built. The `[throw]` message
+below is one. The other is the request name on every `[req]` line. Both are developer only, ship
+off, and say so in the ini. Nothing else in a default log comes from the game's own memory as free
+text.
 
 Human readable. The configuration read from the ini, every engine flag written with old and new
 value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what
@@ -111,8 +127,12 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
-own tile pool figures (used, capacity, pending) as the last kick read them, and the file to memory
-queue's `[stats]` line is followed by the total of repeated reads.
+own tile pool figures (used, capacity, pending) as the last kick read them, and a separate
+`[stats] across all queues` line carries the total of repeated reads. That total is process wide, so
+it is printed once per interval whichever queue's report reaches it first, and once more at
+shutdown, rather than attached to a queue's own line as it used to be. The shutdown one needs its
+own latch, because the queues that get a final report arrive in the same millisecond. In every
+captured run those are the two `GpuUpload` queues, and `FileToMemory Queue` never gets one.
 
 ## acevo_perf_memory.csv
 

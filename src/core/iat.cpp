@@ -68,5 +68,8 @@ void HookVtableSlot(void** vt, int idx, void* hook, void** orig, const char* wha
     *orig = vt[idx];
     vt[idx] = hook;
     VirtualProtect(&vt[idx], sizeof(void*), old, &old);
-    Log("DXGI: hooked %s", what);
+    // No prefix. This is the one shared vtable patcher and most of its thirteen call sites are
+    // Cohtml or the game's own UI, so a DXGI prefix told a reader the UI fix came from the DXGI
+    // layer. The name passed in already says which interface it is.
+    Log("hooked %s", what);
 }
