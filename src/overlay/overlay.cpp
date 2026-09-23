@@ -512,16 +512,19 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
     memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
 }
 
-// 0.9.1 reads the table with plain synchronous reads through the C runtime. A read that goes
-// pending cannot be edited from here, because its bytes land after the hook has returned, so that
-// piece of the table reaches the game as it is on disk and the overrides in it do not apply.
-// Editing it safely would mean hooking the completion side as well, so it is said once instead.
-static void NoteTableReadPending()
+// 0.9.1 reads the table with plain synchronous reads through the C runtime, and only those are
+// edited. A read with an OVERLAPPED is left alone. If it goes pending, its bytes land after the hook
+// has returned. If it completes at once, it has already set its event or queued its completion
+// packet, so another thread can take the bytes, or hand the buffer to its next read, before an edit
+// would land in it. Editing either safely would mean hooking the completion side as well, so it is
+// said once instead.
+static void NoteOverlappedTableRead()
 {
     static std::atomic<bool> noted{false};
     if (noted.exchange(true)) return;
-    Log("overlay: the game read the package table asynchronously, which this layer cannot edit, so part of "
-        "the table reached the game unedited and the overrides in that part do not apply this session");
+    Log("overlay: the game is reading the package table asynchronously, which this layer leaves unedited, so the "
+        "overrides may not apply this session, and if other reads of the table were edited, an override that adds "
+        "a file can leave a package entry missing or doubled");
 }
 
 // Fill a buffer for a read at a virtual offset from the loose file behind it.
@@ -616,8 +619,8 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
             readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
     }
-    if (ok && got && g_active && inTable) PatchTableRead(off, (BYTE*)buf, got);
-    if (readError == ERROR_IO_PENDING && g_active && inTable) NoteTableReadPending();
+    if (ok && got && g_active && inTable && !ov) PatchTableRead(off, (BYTE*)buf, got);
+    if (ov && g_active && inTable) NoteOverlappedTableRead();
     if (!ok) SetLastError(readError);
     return ok;
 }
