@@ -657,6 +657,7 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
         // once queues nothing and sets no event, so nobody is left waiting.
         if (overlappedHandle) {
             NoteOverlappedVirtualRead();
+            if (read) *read = 0;   // ReadFile zeroes it before any work or error check
             SetLastError(ERROR_HANDLE_EOF);
             return FALSE;
         }
