@@ -31,7 +31,6 @@ struct Override {
     uint64_t     size = 0;
     uint64_t     virtOffset = 0;
     IDStorageFile* dsFile = nullptr;
-    bool         inserted = false;  // true when the package had no entry of that name
 };
 
 static std::vector<Override> g_files;
@@ -55,7 +54,7 @@ static std::vector<HANDLE> g_pkgHandles;
 // opened while other threads are already reading files.
 static std::atomic<size_t> g_pkgHandleCount{0};
 static std::atomic<uint64_t> g_redirected{0};
-static int g_traceLines = 0;
+static std::atomic<int> g_traceLines{0};   // any thread reading the package can take a line
 
 typedef HANDLE (WINAPI *PFN_CreateFileW)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
 typedef HANDLE (WINAPI *PFN_CreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
@@ -488,7 +487,7 @@ static void BuildToc()
             uint16_t plen = (uint16_t)o.pkgPath.size();
             memcpy(e + 0xE6, &plen, 2);
             memcpy(e + 0xE8, &hash, 8);
-            ++used; ++inserted; o.inserted = true;
+            ++used; ++inserted;
         } else ++replaced;
         uint16_t flags; memcpy(&flags, e + 0xE4, 2);
         if (g_cfg.overlayClearXor) flags &= (uint16_t)~0x100;
@@ -615,8 +614,7 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
             LARGE_INTEGER np; np.QuadPart = (LONGLONG)(off + got);
             g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
         }
-        if (g_cfg.traceFileIo && g_traceLines < 200) {
-            ++g_traceLines;
+        if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < 200) {
             Log("overlay: ReadFile off=%llu len=%lu -> %lu bytes from loose file%s by %s", (unsigned long long)off, n, got,
                 ov ? " (overlapped)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
         }
@@ -629,8 +627,7 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
     // whose read went pending decides what to do next from ERROR_IO_PENDING.
     const DWORD readError = ok ? ERROR_SUCCESS : GetLastError();
     DWORD got = read ? *read : local;
-    if (g_cfg.traceFileIo && g_traceLines < 200 && (!inTable || off == g_tocStart)) {
-        ++g_traceLines;
+    if (g_cfg.traceFileIo && (!inTable || off == g_tocStart) && g_traceLines.fetch_add(1) < 200) {
         Log("overlay: ReadFile off=%llu len=%lu -> %s got=%lu%s by %s%s", (unsigned long long)off, n, ok ? "ok" : "FAIL", got,
             readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
