@@ -577,6 +577,15 @@ static void NoteUneditableTableRead()
         "override that adds a file can leave a package entry missing or doubled");
 }
 
+// 0.9.1 opens the package only through the C runtime, never overlapped, so this is for an update.
+static void NoteOverlappedVirtualRead()
+{
+    static std::atomic<bool> noted{false};
+    if (noted.exchange(true)) return;
+    Log("overlay: the game is reading a replaced entry on an overlapped handle, which this layer cannot complete "
+        "safely, so those reads fail the way they would past the end of the package");
+}
+
 // Fill a buffer for a read at a virtual offset from the loose file behind it.
 static DWORD ReadLoose(uint64_t off, BYTE* buf, DWORD len)
 {
@@ -639,21 +648,32 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
     char mod[MAX_PATH];
 
     // A virtual offset lies past the end of the package, the file itself has nothing there,
-    // so the read is answered from the loose file and the file position moved as if it had.
+    // so the read is answered from the loose file.
     if (g_active && g_tocBuilt.load() && off >= g_virtBase && off < g_virtEnd) {
+        // On a handle opened overlapped an answer made up here cannot pass for a real completion. A
+        // caller bound to a completion port waits for a packet no hook can queue, and one waiting on
+        // the file handle waits for a signal that never comes, so it waited forever. The read fails
+        // at once instead, the way the package itself answers past its end, and a read that fails at
+        // once queues nothing and sets no event, so nobody is left waiting.
+        if (overlappedHandle) {
+            NoteOverlappedVirtualRead();
+            SetLastError(ERROR_HANDLE_EOF);
+            return FALSE;
+        }
         DWORD got = ReadLoose(off, (BYTE*)buf, n);
         if (read) *read = got;
+        // A synchronous handle moves its file position on every read, an OVERLAPPED giving the offset
+        // included, and the kernel fills that OVERLAPPED and sets its event, so the same happens here.
+        LARGE_INTEGER np; np.QuadPart = (LONGLONG)(off + got);
+        g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
         if (ov) {
             ov->Internal = 0; ov->InternalHigh = got;
             HANDLE ev = (HANDLE)((uintptr_t)ov->hEvent & ~(uintptr_t)1);
             if (ev) SetEvent(ev);
-        } else {
-            LARGE_INTEGER np; np.QuadPart = (LONGLONG)(off + got);
-            g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
         }
         if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < 200) {
             Log("overlay: ReadFile off=%llu len=%lu -> %lu bytes from loose file%s by %s", (unsigned long long)off, n, got,
-                ov ? " (overlapped)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
+                ov ? " (offset in an OVERLAPPED)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
         }
         return TRUE;
     }

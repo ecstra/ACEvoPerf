@@ -41,7 +41,10 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    the copy rather than building its own or getting its piece unedited. It uses the sizes step 1
    took and leaves the table alone if the package it opens is any other size.
 3. Reads at a virtual offset (`Hook_ReadFile`) are served from the loose file and the file
-   position is advanced as if the package had the data. No traced run has served a file this way
+   position is advanced as if the package had the data, with or without an `OVERLAPPED` giving the
+   offset. On a handle opened with `FILE_FLAG_OVERLAPPED` they fail at once with
+   `ERROR_HANDLE_EOF` instead, said once, because a completion made up in the hook never reaches a
+   completion port and its caller would wait forever. No traced run has served a file this way
    yet, but it is a live path, since the engine reads some entries with plain file reads as above
    and an override of one of those comes through here.
 4. DirectStorage requests whose offset is virtual (`OverlayRedirect`, called from
