@@ -47,7 +47,10 @@ static std::atomic<bool> g_tocBuilt{false};
 // one and held for the process, like the IDStorageFile handles beside it. See OverlayRedirect.
 static IDStorageFactory* g_dsFactory = nullptr;
 static CRITICAL_SECTION g_cs;
-static std::vector<HANDLE> g_pkgHandles;
+// Whether the handle was opened with FILE_FLAG_OVERLAPPED, since that and not the presence of an
+// OVERLAPPED on a read is what decides whether the read can complete behind the hook's back.
+struct PackageHandle { HANDLE handle; bool overlapped; };
+static std::vector<PackageHandle> g_pkgHandles;
 // The count, so the two file hooks can skip the whole thing without touching the vector. They ran
 // `g_pkgHandles.empty()` outside the lock, which reads the vector's own pointers while another
 // thread's push_back or erase is rewriting them. That window is start up, when the package is
@@ -100,19 +103,24 @@ static bool EndsWithPackageName(const wchar_t* path)
     return n >= t && _wcsicmp(path + n - t, tail) == 0;
 }
 
-static bool IsPackageHandle(HANDLE h)
+static bool IsPackageHandle(HANDLE h, bool* overlapped = nullptr)
 {
     EnterCriticalSection(&g_cs);
     bool found = false;
-    for (HANDLE x : g_pkgHandles) if (x == h) { found = true; break; }
+    for (const PackageHandle& x : g_pkgHandles) {
+        if (x.handle != h) continue;
+        found = true;
+        if (overlapped) *overlapped = x.overlapped;
+        break;
+    }
     LeaveCriticalSection(&g_cs);
     return found;
 }
 
-static void TrackHandle(HANDLE h, const wchar_t* path, void* caller)
+static void TrackHandle(HANDLE h, const wchar_t* path, bool overlapped, void* caller)
 {
     EnterCriticalSection(&g_cs);
-    g_pkgHandles.push_back(h);
+    g_pkgHandles.push_back({ h, overlapped });
     g_pkgHandleCount.store(g_pkgHandles.size());
     if (g_pkgSize == 0) {
         LARGE_INTEGER sz = {};
@@ -527,12 +535,13 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
     memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
 }
 
-// 0.9.1 reads the table with plain synchronous reads through the C runtime, and only those are
-// edited. A read with an OVERLAPPED is left alone. If it goes pending, its bytes land after the hook
-// has returned. If it completes at once, it has already set its event or queued its completion
-// packet, so another thread can take the bytes, or hand the buffer to its next read, before an edit
-// would land in it. Editing either safely would mean hooking the completion side as well, so it is
-// said once instead.
+// 0.9.1 reads the table with plain synchronous reads through the C runtime, and only reads on a
+// handle opened without FILE_FLAG_OVERLAPPED are edited. Those are complete when ReadFile returns,
+// with or without an OVERLAPPED giving the offset. A read on an overlapped handle is left alone. If
+// it goes pending, its bytes land after the hook has returned. If it completes at once, it has
+// already set its event or queued its completion packet, so another thread can take the bytes, or
+// hand the buffer to its next read, before an edit would land in it. Editing either safely would
+// mean hooking the completion side as well, so it is said once instead.
 static void NoteOverlappedTableRead()
 {
     static std::atomic<bool> noted{false};
@@ -562,13 +571,14 @@ static DWORD ReadLoose(uint64_t off, BYTE* buf, DWORD len)
 static HANDLE WINAPI Hook_CreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
 {
     HANDLE h = g_origCreateFileW(name, access, share, sa, disp, flags, tmpl);
-    if (h != INVALID_HANDLE_VALUE && EndsWithPackageName(name)) TrackHandle(h, name, _ReturnAddress());
+    if (h != INVALID_HANDLE_VALUE && EndsWithPackageName(name)) TrackHandle(h, name, (flags & FILE_FLAG_OVERLAPPED) != 0, _ReturnAddress());
     return h;
 }
 static HANDLE WINAPI Hook_CreateFile2(LPCWSTR name, DWORD access, DWORD share, DWORD disp, LPCREATEFILE2_EXTENDED_PARAMETERS ex)
 {
     HANDLE h = g_origCreateFile2(name, access, share, disp, ex);
-    if (h != INVALID_HANDLE_VALUE && EndsWithPackageName(name)) TrackHandle(h, name, _ReturnAddress());
+    if (h != INVALID_HANDLE_VALUE && EndsWithPackageName(name))
+        TrackHandle(h, name, ex && (ex->dwFileFlags & FILE_FLAG_OVERLAPPED) != 0, _ReturnAddress());
     return h;
 }
 static HANDLE WINAPI Hook_CreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
@@ -577,7 +587,7 @@ static HANDLE WINAPI Hook_CreateFileA(LPCSTR name, DWORD access, DWORD share, LP
     if (h != INVALID_HANDLE_VALUE && name) {
         wchar_t w[MAX_PATH * 2] = {};
         MultiByteToWideChar(CP_ACP, 0, name, -1, w, MAX_PATH * 2 - 1);
-        if (EndsWithPackageName(w)) TrackHandle(h, w, _ReturnAddress());
+        if (EndsWithPackageName(w)) TrackHandle(h, w, (flags & FILE_FLAG_OVERLAPPED) != 0, _ReturnAddress());
     }
     return h;
 }
@@ -585,7 +595,7 @@ static BOOL WINAPI Hook_CloseHandle(HANDLE h)
 {
     if (g_pkgHandleCount.load() && IsPackageHandle(h)) {
         EnterCriticalSection(&g_cs);
-        for (size_t i = 0; i < g_pkgHandles.size(); ++i) if (g_pkgHandles[i] == h) { g_pkgHandles.erase(g_pkgHandles.begin() + i); break; }
+        for (size_t i = 0; i < g_pkgHandles.size(); ++i) if (g_pkgHandles[i].handle == h) { g_pkgHandles.erase(g_pkgHandles.begin() + i); break; }
         g_pkgHandleCount.store(g_pkgHandles.size());
         LeaveCriticalSection(&g_cs);
         Log("overlay: package handle %p closed", h);
@@ -594,7 +604,8 @@ static BOOL WINAPI Hook_CloseHandle(HANDLE h)
 }
 static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LPOVERLAPPED ov)
 {
-    if (!g_pkgHandleCount.load() || !IsPackageHandle(h)) return g_origReadFile(h, buf, n, read, ov);
+    bool overlappedHandle = false;
+    if (!g_pkgHandleCount.load() || !IsPackageHandle(h, &overlappedHandle)) return g_origReadFile(h, buf, n, read, ov);
     uint64_t off = 0;
     if (ov) off = ((uint64_t)ov->OffsetHigh << 32) | ov->Offset;
     else { LARGE_INTEGER cur = {}, zero = {}; g_origSetFilePointerEx(h, zero, &cur, FILE_CURRENT); off = (uint64_t)cur.QuadPart; }
@@ -632,8 +643,8 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
             readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
     }
-    if (ok && got && g_active && inTable && !ov) PatchTableRead(off, (BYTE*)buf, got);
-    if (ov && g_active && inTable) NoteOverlappedTableRead();
+    if (ok && got && g_active && inTable && !overlappedHandle) PatchTableRead(off, (BYTE*)buf, got);
+    if (overlappedHandle && g_active && inTable) NoteOverlappedTableRead();
     if (!ok) SetLastError(readError);
     return ok;
 }
