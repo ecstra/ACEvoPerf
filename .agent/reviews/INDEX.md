@@ -106,8 +106,8 @@ ledger.
 ## Active
 
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
-  64 MB table and a redirect that fails silently, 11 findings, 1 breaks, plus 17 from batch 1's hunter
-  and three verifier passes, one of them left for batch 2
+  64 MB table and a redirect that fails silently, 11 findings, 1 breaks, plus 20 from batch 1's hunter
+  and four verifier passes, one of them left for batch 2
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
   rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can

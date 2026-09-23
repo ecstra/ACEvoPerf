@@ -232,7 +232,7 @@ the whole build. That is H-02's failure through another door. No 0.9.1 path reac
 `PatchEverywhere` patches the static imports of the modules loaded when `Install` runs. A later
 version that opens the package from a DLL it loads afterwards, or through `GetProcAddress`, gets an
 untracked handle whose table reads pass through unedited, overlapped or not, with neither `table
-rebuilt` nor the note in the log. DirectStorage's own core loads that way today, which is harmless
+rebuilt` nor the note in the log when the whole table is read through it. DirectStorage's own core loads that way today, which is harmless
 only because its reads go through the redirect.
 
 ### V-05: F-03's and H-02's fix lines described the rule 4c558ea replaced
@@ -270,16 +270,17 @@ findings, so it takes the next `F-` id, and its found-by names who raised it.
 A third pass ran on 0c39e60 and 719a42c. It confirmed both, disassembled the compiled test to check
 the mask, and raised the two below, both about words trailing the final rule.
 
-### V-10: V-01's and V-02's lines and F-03's history still described 4c558ea's rule
+### V-10: V-01's and V-02's lines described 4c558ea's rule, and F-03's history called 0c39e60 a narrowing
 - severity: nit
 - found-by: verifier
 - batch: 1
 - status: fixed
 - fix: 2026-09-23, each now names the handle and the event, and F-03's history says 0c39e60 widened what 4c558ea had narrowed.
 
-V-05 rewrote F-03 and H-02 for this very reason and missed these. Batch 2's fix for V-09 and F-06
-builds on the handle tracking, and a reader taking V-01's line as the rule would have treated a
-read with an event as edited.
+V-05 rewrote F-03 and H-02 for this very reason and missed V-01 and V-02, and its own rewrite of
+F-03 wrote 0c39e60 down as a narrowing when it widened what 4c558ea left. Batch 2's fix for V-09
+and F-06 builds on the handle tracking, and a reader taking V-01's line as the rule would have
+treated a read with an event as edited.
 
 ### V-11: the doc said a table read the hooks never see leaves neither table rebuilt nor the note
 - severity: nit
@@ -292,6 +293,30 @@ True only when no read of the table is seen at all. A later version reading the 
 through the C runtime and the rest through a mapped view gets `table rebuilt`, while the overrides
 in the mapped part quietly stop, so a reader told that line rules out an unseen read would look
 elsewhere.
+
+A fourth pass ran on e869a7e, paper only. It confirmed the final rule is stated the same way in
+every line, and raised three wording slips of that commit's own, V-12 to V-14.
+
+### V-12: the doc's new sentence said table rebuilt prints once some table read is seen
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, it prints only once some read of the table has been edited, which a seen read on an overlapped handle or with an event is not.
+
+### V-13: V-10's own heading and body misdescribed what was wrong with F-03's line
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, F-03's history already ended on the final rule and only called 0c39e60 a narrowing, which V-10 now says.
+
+### V-14: V-04's body kept the claim V-11 corrected, without the qualifier V-02 gained
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, it holds when the whole table is read through the late handle, and V-04 now says so.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
