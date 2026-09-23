@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes
 updated: 2026-09-23
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
@@ -24,11 +24,17 @@ be served.
 
 Eleven findings, one breaks, three bug, five debt, two nit.
 
+Batch 1 added twenty two more of its own and one for batch 2, from its hunter and five verifier
+passes, one bug, three debt and the rest nit. The bug was the hunter's, a player's own file for
+either asset the mod corrects never reaching the game. Two were code slips of the batch's own
+fixes, V-01 and V-03, and most of the rest were slips in this ledger's and the doc's own wording.
+The fifth pass found nothing false and the loop stopped there.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the table is built once and published safely | fixing | 2026-09-23 |
+| 1 | the table is built once and published safely | closed, runtime confirmed | 2026-09-23 |
 | 2 | a redirect that cannot be served fails visibly | pending | |
 | 3 | the slot layout and the leftovers | pending | |
 
@@ -462,6 +468,24 @@ fails `SetFilePointerEx`. `offset > g_pkgSize - size` is the ordering that canno
 - fix:
 
 `src/overlay/overlay.cpp:586` to 591, skipping e. The rest of the file names things properly.
+
+## The runs
+
+Batch 1, two launches on 2026-09-23 with the ini at its defaults.
+
+`logs/overlay-b1-20260923`, one track loaded. The table was read once and built once in 95 ms, both
+of the mod's own corrections applied with `2 replaced`, and all 134 package opens came from
+`ucrtbase.dll`. Eight redirects served the flipbook twice and the stylesheet six times. No note of
+any kind appeared, so no uneditable table read, no size mismatch and no failed seek, and the game's
+own log has no `Exception Detected`. The race F-01 closes and the reads F-03 and H-02 are about never
+happen on 0.9.1, so this run shows the rewritten paths broke nothing rather than the fixes working.
+
+`logs/overlay-b1-mods-20260923`, the main menu only, with a copy of the mod's own narrowed stylesheet
+placed at `acevo_mods\uiresources\css\uicomponents.css` as a player's file. It was moved out of the
+game folder into that session afterwards. The log shows `1 loose file(s)`, the skip line for the
+stylesheet fix, and `replace uiresources\css\uicomponents.css` once, where before H-01's fix it came
+twice and the mod's copy took the slot. The stylesheet was redirected three times, to the player's
+file, the only override left for that entry. No note and no exception.
 
 ## Checked and clean
 
