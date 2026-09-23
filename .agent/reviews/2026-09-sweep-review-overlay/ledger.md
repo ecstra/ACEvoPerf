@@ -58,7 +58,7 @@ still prints "table rebuilt".
 
 Found independently by three reviewers.
 
-In 58 captured runs the table was built exactly once each, read in one pass of 4 KB pieces through
+In 68 captured runs the table was built exactly once each, read in one pass of 4 KB pieces through
 the C runtime, so neither half has been seen. Nothing but that timing prevented it.
 
 Also found on the same reading and fixed with it. The build wrote the three package sizes again,
@@ -86,7 +86,7 @@ F-01's quiet half.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns. Widened by H-02 in fb4c1f2 to every table read with an OVERLAPPED.
+- fix: f7366ed, 2026-09-23, the unnoticed half. A table read that goes pending is said once in the log, and the hook puts the read's error code back before it returns. Widened by H-02 in fb4c1f2 to every table read with an OVERLAPPED, then narrowed by V-01 in 4c558ea and V-03 in 0c39e60 to a read on an overlapped handle or with an event.
 
 `src/overlay/overlay.cpp:566` runs the patch only under `if (ok && got && ...)`. An overlapped ReadFile
 that goes pending returns FALSE with ERROR_IO_PENDING. The trace line at 562 already has a branch that
@@ -121,7 +121,7 @@ same with `fix_big_screens` on. Released in 0.3.2, so it has a changelog line.
 - found-by: hunter
 - batch: 1
 - status: fixed
-- fix: fb4c1f2, 2026-09-23, any table read with an OVERLAPPED is left unedited and said once.
+- fix: fb4c1f2 then 4c558ea and 0c39e60, 2026-09-23, a table read on a handle opened with `FILE_FLAG_OVERLAPPED`, or with an event in its OVERLAPPED, is left unedited and said once.
 
 F-03's fix only noticed a read that went pending. One that completes inside `NtReadFile` has
 already set its event or queued its completion packet before `ReadFile` returns to the hook, and
@@ -187,7 +187,7 @@ and every override, with the log blaming an asynchronous read that never happene
 
 No effect on 0.9.1, whose C runtime never passes an OVERLAPPED. The verifier read the three
 `ReadFile` calls in the UCRT source of SDK 10.0.26100 and the four in the system `ucrtbase.dll`, and
-each passes a null one. All 5060 package opens across the 58 runs came from `ucrtbase.dll`.
+each passes a null one. All 5580 package opens across the 68 runs came from `ucrtbase.dll`.
 
 ### V-02: the doc promised a log line whenever a later version stops reading the table synchronously
 - severity: nit
@@ -206,6 +206,66 @@ The verifier's third finding is in `src/ui/restyle_fix.cpp`, which belongs to
 stylesheet. A player's own `uicomponents.css` now reaches the game, and the restyle stub skips the
 sibling walk on hover and focus changes on the strength of the stock stylesheets having no rule
 that needs it, which a UI mod's file may not honour.
+
+A second verifier pass ran on 4c558ea and the ledger, since that commit changed code. It confirmed
+V-01 and V-02 and raised the six below, plus V-09 for batch 2.
+
+### V-03: the fix for V-01 edited a read on an ordinary handle after its event had been set
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0c39e60, 2026-09-23, only a read nobody but its caller hears about is edited, meaning a handle opened without `FILE_FLAG_OVERLAPPED` and no event in its OVERLAPPED.
+
+Caused by 4c558ea. On a handle opened without the flag, a read whose OVERLAPPED carries an event
+has the event set inside `ReadFile`, which the verifier confirmed on this machine. A thread waiting
+on it could take the raw piece, or reuse the buffer, while the first piece sat in `call_once` for
+the whole build. That is H-02's failure through another door. No 0.9.1 path reaches it.
+
+### V-04: the doc's list of reads the hooks never see missed a package opened from a module loaded later
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 0c39e60, 2026-09-23.
+
+`PatchEverywhere` patches the static imports of the modules loaded when `Install` runs. A later
+version that opens the package from a DLL it loads afterwards, or through `GetProcAddress`, gets an
+untracked handle whose table reads pass through unedited, overlapped or not, with neither `table
+rebuilt` nor the note in the log. DirectStorage's own core loads that way today, which is harmless
+only because its reads go through the redirect.
+
+### V-05: F-03's and H-02's fix lines described the rule 4c558ea replaced
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, both lines carry the whole history, the way the closed ledgers write a reworked fix.
+
+### V-06: the reviews index still said every open angle's batches were waiting on the owner
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23.
+
+### V-07: F-13 in the ui fixes ledger is a verifier's finding under the review's prefix
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, the spec says how a finding handed over from another angle is numbered.
+
+The telemetry ledger's F-11 and F-12 set the pattern on 2026-09-20 and the spec never said so. A
+handed over finding joins the receiving ledger's own list and waits for a batch like the review's
+findings, so it takes the next `F-` id, and its found-by names who raised it.
+
+### V-08: the run counts covered only the top level session folders
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-23, 68 runs and 5580 opens, all from `ucrtbase.dll` with one table build each, so the conclusion held.
 
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
@@ -263,6 +323,23 @@ has never been exercised, which is why it would surface first on somebody else's
 only line 590 then resolves `g_origSetFilePointerEx`. A non overlapped ReadFile on a tracked handle in
 that window takes the else branch at line 532 and calls a null pointer. Only the fact that `Install`
 runs inside DllMain, before the game's own threads exist, keeps the window shut.
+
+### V-09: the virtual read branch decides by the OVERLAPPED rather than by the handle, so it can leave the file position behind
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: open
+- fix:
+
+The virtual branch of `Hook_ReadFile` moves the file position only when `ov` is null. On a handle
+opened without `FILE_FLAG_OVERLAPPED`, a real read with an OVERLAPPED for its offset moves the
+position too, which the verifier confirmed on this machine, 100 bytes read at offset 1000 leaving it
+at 1100. So a caller that reads an overridden entry that way and follows with a plain read gets the
+wrong bytes, while the doc's step 3 says the position advances.
+
+Raised on batch 1's second verifier pass. It belongs with F-06, since both are the virtual branch
+reading an OVERLAPPED as if it said what kind of handle it is on, and batch 1 now tracks the
+handle's kind, so the fix has what it needs.
 
 ### F-08: the comment claims the older 32 MB table layout is handled and the branch below it gives up
 - severity: debt

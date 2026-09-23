@@ -23,8 +23,8 @@ The gate passed first. `build.ps1` exits 0, and the one warning in the entire tr
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
 151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Three angles are done as of 2026-09-23, the Cohtml
-build guard, the render layer and the proxy and core, and the ten below them are open with every
-batch pending the owner's word.
+build guard, the render layer and the proxy and core, and the ten below them are open. The override
+layer is on its first batch, and every other batch waits on the owner's word.
 
 Those three added 113 findings of their own, from the hunter and verifier sub agents that run on
 every batch. Every one of the fourteen batches so far needed at least one correction after its first
@@ -106,8 +106,8 @@ ledger.
 ## Active
 
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
-  64 MB table and a redirect that fails silently, 11 findings, 1 breaks, plus 8 from batch 1's hunter
-  and verifier
+  64 MB table and a redirect that fails silently, 11 findings, 1 breaks, plus 15 from batch 1's hunter
+  and two verifier passes, one of them left for batch 2
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
   rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
