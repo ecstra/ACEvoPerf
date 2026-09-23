@@ -353,7 +353,7 @@ raised the three below.
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 9293fae, 2026-09-23, a loose file that cannot be opened when the table is built is left out so the game reads the package's own entry, and a DirectStorage open that fails later is remembered and said once.
+- fix: 9293fae then ec7de5d, 2026-09-23, a loose file that cannot be opened when the table is built, opened the way DirectStorage opens it, is left out so the entry comes from the package or the mod's own correction, and a DirectStorage open that fails later is remembered and said once.
 
 `src/overlay/overlay.cpp:614` returns false on an `OpenFile` failure, and `QueueProxy::EnqueueRequest`
 at `proxy.cpp:276` then enqueues the original request, whose `Source.File.Offset` is the virtual offset
@@ -391,7 +391,7 @@ ordering rather than by construction, and the pointer goes straight to `real->En
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 83aa09e then 91f8352 and 028b15b, 2026-09-23, on a handle opened overlapped a virtual read goes to the package unchanged and is said once, and gets end of file through the caller's own event, completion port or APC.
+- fix: 83aa09e then 91f8352, 028b15b and 1f0d9c7, 2026-09-23, on a handle opened overlapped a virtual read goes on to the package through the ordinary path and is said once, and gets end of file through the caller's own event or completion port.
 
 `src/overlay/overlay.cpp:543` fills the OVERLAPPED itself and returns TRUE without going near the
 kernel, so no completion packet is ever queued. A reader that opened the package with
@@ -425,7 +425,7 @@ runs inside DllMain, before the game's own threads exist, keeps the window shut.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 83aa09e, 2026-09-23, with F-06, the branch decides by the handle and moves the position on every read on a synchronous one.
+- fix: 83aa09e then 6ba7803, 2026-09-23, with F-06, the branch decides by the handle, moves the position on every read it serves on a synchronous one, and hands a read it cannot serve to the package, which leaves the position where it was.
 
 The virtual branch of `Hook_ReadFile` moves the file position only when `ov` is null. On a handle
 opened without `FILE_FLAG_OVERLAPPED`, a real read with an OVERLAPPED for its offset moves the
@@ -457,8 +457,8 @@ ran past the end of the loose file and failed while the log said `redirected req
 - status: fixed
 - fix: ec7de5d, 2026-09-23, it opens with read access and read sharing only, as the bundled DirectStorage core and `ReadLoose` do.
 
-F-04's fix probed with write and delete sharing as well, which are exactly the flags that let an
-open succeed beside a handle with write access. A mod still being copied into `acevo_mods` when the
+F-04's fix probed with write and delete sharing as well, which are the flags that let an open
+succeed beside a handle with write or delete access. A mod still being copied into `acevo_mods` when the
 table was built passed the check, failed its first DirectStorage open, and stayed broken all session
 under the no retry rule, the very startup case the changelog line promises now falls back.
 
@@ -519,6 +519,69 @@ error would have diverged.
 A player's unreadable `uicomponents.css` is replaced by the mod's own correction, not the package's
 entry, and a left out file that adds a path leaves no entry at all. The `to apply N override(s)`
 line also counted the files left out after it.
+
+The verifier then ran on batch 2. It confirmed all twelve, F-04 as far as the ledger says it goes,
+tested the bundled DirectStorage core and the package's own answers in its scratch folder, and
+raised the six below, all nits.
+
+### V-18: the doc and a comment gave the wrong reason for passing an overlapped read of a replaced entry to the package
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 1f0d9c7 for the comment, 2026-09-23 for the doc and F-06's fix line.
+
+They said a completion made up in the hook reached none of the caller's event, completion port or
+APC. It did set the event, as 83aa09e's own message says, and ReadFile never completes through an
+APC, only `ReadFileEx`, which the hooks never see. Only a caller bound to a port was out of reach.
+
+### V-19: two doc lines were left unwrapped
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, rewrapped. V-15's slip again.
+
+### V-20: F-04's and V-09's fix lines did not describe the code after the hunter's fixes, and H-08 named only write access
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, both lines carry their history and H-08 names write or delete access.
+
+F-04's line named only 9293fae and still said the game reads the package's own entry, which H-13
+corrected, and V-09's said every read on a synchronous handle moves the position, which 6ba7803
+changed for a read the loose file cannot answer. The rule V-05 set in batch 1, again.
+
+### V-21: H-07 fixed a released bug players can see and had no changelog line
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-23, "A linked file in the mods folder being served empty or cut short."
+
+The mods folder shipped in 0.3.0, and a symbolic link in it was served as an empty file since then.
+
+### V-22: the short read line named one cause and said it lasts the session
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 1f0d9c7, 2026-09-23, it names a file held by another program as well and says only that this read ended early.
+
+`ReadLoose` opens with read sharing only, so a file another program holds open for writing also
+gives 0 bytes, and every read reopens the file, so a later one recovers once the lock goes.
+
+### V-23: reads at a virtual offset that went on to the package skipped the file trace
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 1f0d9c7, 2026-09-23, they fall through to the ordinary path, which traces them.
+
+The early returns from 83aa09e and 6ba7803 ran before the trace line, while the doc promises the
+first 200 package reads that are not table chunks. With the trace on and a loose file deleted mid
+session, a developer saw the one note and none of the reads.
 
 ### F-08: the comment claims the older 32 MB table layout is handled and the branch below it gives up
 - severity: debt

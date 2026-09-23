@@ -43,12 +43,13 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
 3. Reads at a virtual offset (`Hook_ReadFile`) are served from the loose file and the file
    position is advanced as if the package had the data, with or without an `OVERLAPPED` giving the
    offset. On a handle opened with `FILE_FLAG_OVERLAPPED` they go to the package unchanged instead,
-   said once, and get end of file through the caller's own event, completion port or APC, because a
-   completion made up in the hook reaches none of those and its caller would wait forever. A loose
-   file found missing or shorter than the table says is said once, and a read it cannot answer at
-   all goes to the package, which past its end answers end of file in whichever shape it was asked. No traced run has served a file this way
-   yet, but it is a live path, since the engine reads some entries with plain file reads as above
-   and an override of one of those comes through here.
+   said once, and get end of file through the caller's own event or completion port. A completion
+   made up in the hook set the event but queued no completion packet, so a caller bound to a port
+   waited forever. A loose file that cannot give all the table promised, missing, shorter or held
+   by another program, is said the first time, and a read it cannot answer at all goes to the
+   package, which past its end answers end of file in whichever shape it was asked. No traced run
+   has served a file this way yet, but it is a live path, since the engine reads some entries with
+   plain file reads as above and an override of one of those comes through here.
 4. DirectStorage requests whose offset is virtual (`OverlayRedirect`, called from
    `QueueProxy::EnqueueRequest`) get their source swapped to an `IDStorageFile` opened on the
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
@@ -57,13 +58,16 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    A loose file that cannot be opened when the table is built is left out of it, opened the way
    DirectStorage opens it so a file another program is still writing fails there too, and its size
    is taken from the open file rather than the folder listing, which gives 0 for a symbolic link.
-   Left out, a replaced entry is read from the package, or from the mod's own correction for it. One that opened then and fails its first DirectStorage open later,
-   quarantined, deleted or locked in between, is said once and not retried. Its slot already points
-   past the end of the package, so DirectStorage fails every request for that entry for the session
-   without writing the buffer, and the fence after it still fires. The game hears of it only
-   through a status array, which it made in none of 118 captured runs, or the queue's error record,
-   and unless it reads that it takes whatever the buffer held. With no factory to open a file with
-   at all, the same happens to every replaced entry, said once.
+   Left out, a replaced entry is read from the package, or from the mod's own correction for it.
+
+   One that opened then and fails its first DirectStorage open later, quarantined, deleted or
+   locked in between, is said once and not retried. Its slot already points past the end of the
+   package, so DirectStorage fails every request for that entry for the session without writing
+   the buffer, and the fence after it still fires. The game hears of it only through a status
+   array, which it made in none of 118 captured runs, or the queue's error record, and unless it
+   reads that it takes whatever the buffer held. With no factory to open a file with at all, the
+   same happens to every replaced entry, said once. The mod's own two files are written after the
+   startup check, so for them only this later path applies.
 
    That one call site is why `overlay::Active()` is in the condition that decides whether a queue
    is wrapped at all. Until 2026-09-20 the wrapper existed only for the statistics and the two

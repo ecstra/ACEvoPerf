@@ -14,6 +14,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - The mod not starting at all when the game sits in a very long folder path.
 - A file in the mods folder that replaces the menu styling or the trackside big screens being ignored.
 - Part of the game failing to load, instead of using the game's own file, when a file in the mods folder could not be opened at startup.
+- A linked file in the mods folder being served empty or cut short.
 
 ### Changed
 
