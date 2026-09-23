@@ -15,7 +15,9 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
 
 - At startup the engine opens the package through the C runtime (`ucrtbase.dll`, `fopen`) and
   reads the last 64 MB, the table of contents, in 4 KB `ReadFile` calls starting at the table
-  offset. It opens and closes the package a few more times right after, without reading.
+  offset. It then opens and closes the package over and over through the same C runtime and reads
+  some entries on those handles in the same 4 KB pieces, 132 opens and 131 distinct offsets outside
+  the table in the traced run of 2026-09-05.
 - Everything else goes through DirectStorage. Every request is one whole entry: offset and size
   come straight from the table. Small files (text, scripts, data) travel on the `FileToMemory
   Queue` (destination `MEMORY`), textures on the `GpuUpload File Queue` (destination `TILES`).
@@ -39,8 +41,9 @@ disk is never written. Code: `src/overlay/overlay.cpp`, ini section `[overlay]`.
    the copy rather than building its own or getting its piece unedited. It uses the sizes step 1
    took and leaves the table alone if the package it opens is any other size.
 3. Reads at a virtual offset (`Hook_ReadFile`) are served from the loose file and the file
-   position is advanced as if the package had the data. Seen for no file yet, every read observed
-   so far went through DirectStorage, the path exists for completeness.
+   position is advanced as if the package had the data. No traced run has served a file this way
+   yet, but it is a live path, since the engine reads some entries with plain file reads as above
+   and an override of one of those comes through here.
 4. DirectStorage requests whose offset is virtual (`OverlayRedirect`, called from
    `QueueProxy::EnqueueRequest`) get their source swapped to an `IDStorageFile` opened on the
    loose file, offset rebased. The file stays open for the life of the process, so a loose file
