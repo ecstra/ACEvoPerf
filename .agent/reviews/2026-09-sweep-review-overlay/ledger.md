@@ -391,7 +391,7 @@ ordering rather than by construction, and the pointer goes straight to `real->En
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 83aa09e, 2026-09-23, on a handle opened overlapped a virtual read fails at once with `ERROR_HANDLE_EOF`, which queues nothing, and is said once.
+- fix: 83aa09e then 91f8352 and 028b15b, 2026-09-23, on a handle opened overlapped a virtual read goes to the package unchanged and is said once, and gets end of file through the caller's own event, completion port or APC.
 
 `src/overlay/overlay.cpp:543` fills the OVERLAPPED itself and returns TRUE without going near the
 kernel, so no completion packet is ever queued. A reader that opened the package with
@@ -400,10 +400,12 @@ fails, nothing is signalled, and `GetQueuedCompletionStatus` never returns. `Get
 a null hEvent waits on the file handle, which is also never signalled. The doc records that this path
 has never been exercised, which is why it would surface first on somebody else's machine.
 
-Serving the read properly would need the port and key the handle is bound to, which means hooking
-`CreateIoCompletionPort` as well, for a path 0.9.1 never takes. A read that fails at once is the
-Win32 contract that leaves nobody waiting, and it is what the package itself answers at that offset.
-The cost is that a later version reading a replaced entry this way gets a failed read rather than
+Serving the replacement on such a handle would need the port and key it is bound to, which means
+hooking `CreateIoCompletionPort` as well, for a path 0.9.1 never takes. 83aa09e failed the read at
+once instead, with a byte count 91f8352 then zeroed, and called that the package's own answer. It
+is not, H-12 found, since the package answers pending and then end of file through the completion.
+028b15b hands the read to the package unchanged, which gives exactly that answer with nothing made
+up. The cost is that a later version reading a replaced entry this way gets end of file rather than
 the replacement, and the log says so.
 
 ### F-07: the ReadFile hook goes live one statement before the original it calls is resolved
@@ -434,6 +436,89 @@ wrong bytes, while the doc's step 3 says the position advances.
 Raised on batch 1's second verifier pass. It belongs with F-06, since both are the virtual branch
 reading an OVERLAPPED as if it said what kind of handle it is on, and batch 1 now tracks the
 handle's kind, so the fix has what it needs.
+
+### H-07: a loose file's size came from its folder listing, which says 0 for a symbolic link and can be stale for a hard link
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: ec7de5d, 2026-09-23, the startup check takes the size from the file it opens.
+
+The hunter checked both on this machine. A link to a 9000 byte file listed as 0, so the table told
+the engine the entry was empty and the log said `(0 bytes)`. A hard link still listed 8000 bytes
+after its file grew to 9000 through its other name, since the listing only updates when something
+opens the file by that name. Grown, the engine got the old length. Shrunk, every redirected request
+ran past the end of the loose file and failed while the log said `redirected request`.
+
+### H-08: the startup check allowed more sharing than either reader, so a file still being written passed it and failed for the session
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: ec7de5d, 2026-09-23, it opens with read access and read sharing only, as the bundled DirectStorage core and `ReadLoose` do.
+
+F-04's fix probed with write and delete sharing as well, which are exactly the flags that let an
+open succeed beside a handle with write access. A mod still being copied into `acevo_mods` when the
+table was built passed the check, failed its first DirectStorage open, and stayed broken all session
+under the no retry rule, the very startup case the changelog line promises now falls back.
+
+### H-09: a plain read of a replaced entry whose file was gone or shorter came back empty or short with nothing said
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 6ba7803, 2026-09-23, said once per file, and a read the loose file cannot answer at all goes to the package.
+
+The live path H-03 found. `ReadLoose` returned 0 and the hook returned TRUE with no bytes, which the
+C runtime reads as end of file, and nothing was logged unless the file trace was on. With an
+OVERLAPPED on a synchronous handle the hook also answered TRUE where the package past its end
+answers `ERROR_HANDLE_EOF`, and handing it the read gives that shape for free.
+
+### H-10: with no DirectStorage factory, every request for a replaced entry went through at its invented offset with no line
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: d625ad7, 2026-09-23, said once, and the lookup stays so a later factory is picked up.
+
+`dsOpenFailed` is never set when there is no factory at all, so the layer went quiet while every
+read failed past the end of the package. It needs the game to drop its last factory reference
+before the first redirect, which none of 118 captured runs does.
+
+### H-11: the failed open line said the game's reads fail, when the game is not told
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: d625ad7, 2026-09-23, the line says the request fails without writing its buffer, and the doc says what the game can and cannot hear.
+
+The bundled core marks such a request failed before reading anything, and the fence after it still
+fires. The game hears of it only through a status array, which it made in none of 118 captured runs,
+or the queue's error record, whose use is unknown because no captured run with the queues wrapped
+had a failure to report. So the line now says only what DirectStorage does.
+
+### H-12: the overlapped virtual read's comment, line and ledger text claimed a shape the package does not give
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 028b15b, 2026-09-23, the read goes to the package unchanged, which gives its real answer.
+
+On NTFS here an overlapped read at or past the end of a file returned `ERROR_IO_PENDING` ten times
+in ten, and `ERROR_HANDLE_EOF` came later through `GetOverlappedResult` with the event set. The
+immediate failure was safe but not what the package answers, so a reader that took it for a hard
+error would have diverged.
+
+### H-13: the line for a file left out said the game reads the package's own entry, wrong for two kinds of file
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: ec7de5d, 2026-09-23, the line says only that the file is left out, and the check runs first so the count of overrides is right.
+
+A player's unreadable `uicomponents.css` is replaced by the mod's own correction, not the package's
+entry, and a left out file that adds a path leaves no entry at all. The `to apply N override(s)`
+line also counted the files left out after it.
 
 ### F-08: the comment claims the older 32 MB table layout is handled and the branch below it gives up
 - severity: debt
