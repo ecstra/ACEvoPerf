@@ -81,12 +81,15 @@ rebuild costs 80 ms at startup (64 MB read and decoded once).
 - The `.texturemips` tile files are streamed by 64 KB tile, an override must keep the cooked
   layout the engine expects, only same layout replacements make sense there.
 - Files are collected once at startup, adding a file needs a restart.
-- A table read on a handle opened with `FILE_FLAG_OVERLAPPED` is left unedited. One that goes
-  pending gets its bytes after `Hook_ReadFile` returns, and one that completes at once has already
-  signalled the game, which can take the bytes or reuse the buffer before an edit lands. 0.9.1 opens
-  the package through the C runtime, which never asks for that. If a later version does, the log
-  says so once. If it reads the table both ways, and an override adds a file, the pieces disagree on
-  where every later slot sits, so a package entry can go missing or appear twice.
-- A table read the hooks never see, through DirectStorage, a mapped view or `ReadFileEx`, leaves
-  the table unedited with neither `table rebuilt` nor that line in the log.
+- A table read on a handle opened with `FILE_FLAG_OVERLAPPED`, or one whose `OVERLAPPED` carries an
+  event, is left unedited. One that goes pending gets its bytes after `Hook_ReadFile` returns, and
+  one that completes at once has already signalled the game, which can take the bytes or reuse the
+  buffer before an edit lands. 0.9.1 reads the package through the C runtime, which asks for
+  neither. If a later version does, the log says so once. If it reads the table both ways, and an
+  override adds a file, the pieces disagree on where every later slot sits, so a package entry can
+  go missing or appear twice.
+- A table read the hooks never see leaves the table unedited with neither `table rebuilt` nor that
+  line in the log. That covers DirectStorage, a mapped view and `ReadFileEx`, and also a package
+  opened from a module loaded after `Install` or through `GetProcAddress`, since only the static
+  imports of the modules loaded at that point are patched.
 - Diagnostics: `trace_file_io=1` logs the first 200 package reads that are not table chunks.

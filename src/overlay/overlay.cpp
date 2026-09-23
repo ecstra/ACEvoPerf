@@ -47,8 +47,8 @@ static std::atomic<bool> g_tocBuilt{false};
 // one and held for the process, like the IDStorageFile handles beside it. See OverlayRedirect.
 static IDStorageFactory* g_dsFactory = nullptr;
 static CRITICAL_SECTION g_cs;
-// Whether the handle was opened with FILE_FLAG_OVERLAPPED, since that and not the presence of an
-// OVERLAPPED on a read is what decides whether the read can complete behind the hook's back.
+// Whether the handle was opened with FILE_FLAG_OVERLAPPED, which Hook_ReadFile needs to tell a read
+// that can complete behind its back from one that passes an OVERLAPPED only for its offset.
 struct PackageHandle { HANDLE handle; bool overlapped; };
 static std::vector<PackageHandle> g_pkgHandles;
 // The count, so the two file hooks can skip the whole thing without touching the vector. They ran
@@ -535,20 +535,21 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
     memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
 }
 
-// 0.9.1 reads the table with plain synchronous reads through the C runtime, and only reads on a
-// handle opened without FILE_FLAG_OVERLAPPED are edited. Those are complete when ReadFile returns,
-// with or without an OVERLAPPED giving the offset. A read on an overlapped handle is left alone. If
-// it goes pending, its bytes land after the hook has returned. If it completes at once, it has
-// already set its event or queued its completion packet, so another thread can take the bytes, or
-// hand the buffer to its next read, before an edit would land in it. Editing either safely would
-// mean hooking the completion side as well, so it is said once instead.
-static void NoteOverlappedTableRead()
+// 0.9.1 reads the table with plain synchronous reads through the C runtime. Only a read that nobody
+// but its caller hears about is edited, which means a handle opened without FILE_FLAG_OVERLAPPED and
+// no event in the read's OVERLAPPED, if it has one. Such a read is complete when ReadFile returns.
+// Any other is left alone. On an overlapped handle, a read that goes pending gets its bytes after the
+// hook has returned. One that completes at once, or any read with an event, has already set the event
+// or queued its completion packet, so another thread can take the bytes, or hand the buffer to its
+// next read, before an edit would land in it. Editing those safely would mean hooking the completion
+// side as well, so it is said once instead.
+static void NoteUneditableTableRead()
 {
     static std::atomic<bool> noted{false};
     if (noted.exchange(true)) return;
-    Log("overlay: the game is reading the package table asynchronously, which this layer leaves unedited, so the "
-        "overrides may not apply this session, and if other reads of the table were edited, an override that adds "
-        "a file can leave a package entry missing or doubled");
+    Log("overlay: the game is reading the package table on an overlapped handle or with an event, which this layer "
+        "leaves unedited, so the overrides may not apply this session, and if other reads of the table were edited, an "
+        "override that adds a file can leave a package entry missing or doubled");
 }
 
 // Fill a buffer for a read at a virtual offset from the loose file behind it.
@@ -643,8 +644,9 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
             readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
     }
-    if (ok && got && g_active && inTable && !overlappedHandle) PatchTableRead(off, (BYTE*)buf, got);
-    if (overlappedHandle && g_active && inTable) NoteOverlappedTableRead();
+    const bool othersHear = overlappedHandle || (ov && ((uintptr_t)ov->hEvent & ~(uintptr_t)1));
+    if (ok && got && g_active && inTable && !othersHear) PatchTableRead(off, (BYTE*)buf, got);
+    if (othersHear && g_active && inTable) NoteUneditableTableRead();
     if (!ok) SetLastError(readError);
     return ok;
 }
