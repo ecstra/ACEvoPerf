@@ -74,4 +74,7 @@ rebuild costs 80 ms at startup (64 MB read and decoded once).
 - The `.texturemips` tile files are streamed by 64 KB tile, an override must keep the cooked
   layout the engine expects, only same layout replacements make sense there.
 - Files are collected once at startup, adding a file needs a restart.
+- A table read that goes pending cannot be edited, because its bytes arrive after `Hook_ReadFile`
+  returns, so that piece reaches the game unedited. 0.9.1 reads the table synchronously through
+  the C runtime. If a later version does not, the log says so once.
 - Diagnostics: `trace_file_io=1` logs the first 200 package reads that are not table chunks.

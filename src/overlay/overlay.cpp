@@ -512,6 +512,18 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
     memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
 }
 
+// 0.9.1 reads the table with plain synchronous reads through the C runtime. A read that goes
+// pending cannot be edited from here, because its bytes land after the hook has returned, so that
+// piece of the table reaches the game as it is on disk and the overrides in it do not apply.
+// Editing it safely would mean hooking the completion side as well, so it is said once instead.
+static void NoteTableReadPending()
+{
+    static std::atomic<bool> noted{false};
+    if (noted.exchange(true)) return;
+    Log("overlay: the game read the package table asynchronously, which this layer cannot edit, so part of "
+        "the table reached the game unedited and the overrides in that part do not apply this session");
+}
+
 // Fill a buffer for a read at a virtual offset from the loose file behind it.
 static DWORD ReadLoose(uint64_t off, BYTE* buf, DWORD len)
 {
@@ -594,14 +606,19 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
 
     DWORD local = 0;
     BOOL ok = g_origReadFile(h, buf, n, read ? read : &local, ov);
+    // Taken now and put back at the end, because the log lines below can overwrite it, and a caller
+    // whose read went pending decides what to do next from ERROR_IO_PENDING.
+    const DWORD readError = ok ? ERROR_SUCCESS : GetLastError();
     DWORD got = read ? *read : local;
     if (g_cfg.traceFileIo && g_traceLines < 200 && (!inTable || off == g_tocStart)) {
         ++g_traceLines;
         Log("overlay: ReadFile off=%llu len=%lu -> %s got=%lu%s by %s%s", (unsigned long long)off, n, ok ? "ok" : "FAIL", got,
-            (!ok && GetLastError() == ERROR_IO_PENDING) ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
+            readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
     }
     if (ok && got && g_active && inTable) PatchTableRead(off, (BYTE*)buf, got);
+    if (readError == ERROR_IO_PENDING && g_active && inTable) NoteTableReadPending();
+    if (!ok) SetLastError(readError);
     return ok;
 }
 
