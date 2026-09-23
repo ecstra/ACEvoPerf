@@ -106,7 +106,8 @@ ledger.
 ## Active
 
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
-  64 MB table and a redirect that fails silently, 11 findings, 1 breaks
+  64 MB table and a redirect that fails silently, 11 findings, 1 breaks, plus 8 from batch 1's hunter
+  and verifier
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
   rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
@@ -114,9 +115,11 @@ ledger.
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
-  the census cannot open its file and a sampler that picks the wrong threads, 10 findings, 1 breaks
+  the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
+  from other angles' sub agents, 1 breaks
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
-  invalidation and a row of load bearing assumptions written down nowhere, 12 findings
+  invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
+  another angle's verifier
 - [2026-09-sweep-review-ui-probe](2026-09-sweep-review-ui-probe/ledger.md), an instrument that can fault
   while holding a game thread suspended and pays its cost in the frames it explains, 9 findings, 1 breaks
 - [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that can write

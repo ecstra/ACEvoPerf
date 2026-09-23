@@ -173,6 +173,40 @@ or lose a count. A developer switch and only the line count, but the batch's own
 - status: fixed
 - fix: 33e2241, 2026-09-23, removed. The count of added entries in `BuildToc` is a separate local and stays.
 
+### V-01: leaving every table read that carried an OVERLAPPED unedited also caught a plain synchronous read
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 4c558ea, 2026-09-23, the layer remembers at open time whether a package handle was opened with `FILE_FLAG_OVERLAPPED`, and only that decides.
+
+Caused by H-02's fix in fb4c1f2. A read on a handle opened without `FILE_FLAG_OVERLAPPED` can pass
+an OVERLAPPED only to give its offset. It is complete when `ReadFile` returns, and it was edited
+before fb4c1f2. After it, an update that read the table that way would have lost both corrections
+and every override, with the log blaming an asynchronous read that never happened.
+
+No effect on 0.9.1, whose C runtime never passes an OVERLAPPED. The verifier read the three
+`ReadFile` calls in the UCRT source of SDK 10.0.26100 and the four in the system `ucrtbase.dll`, and
+each passes a null one. All 5060 package opens across the 58 runs came from `ucrtbase.dll`.
+
+### V-02: the doc promised a log line whenever a later version stops reading the table synchronously
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 4c558ea, 2026-09-23, the Limits list says which moves are noticed and which are not.
+
+The line fires only for a `ReadFile` on an overlapped handle. A table read moved to DirectStorage,
+a mapped view (the exe already imports `MapViewOfFile` and `CreateFileMappingA`) or `ReadFileEx`
+never reaches `Hook_ReadFile`, so neither `table rebuilt` nor the note prints and every override
+stops.
+
+The verifier's third finding is in `src/ui/restyle_fix.cpp`, which belongs to
+`sweep/review-ui-fixes`, so it went into that ledger as F-13. H-01 made it reachable for the main
+stylesheet. A player's own `uicomponents.css` now reaches the game, and the restyle stub skips the
+sibling walk on hover and focus changes on the strength of the stock stylesheets having no rule
+that needs it, which a UI mod's file may not honour.
+
 ### F-04: when the loose file cannot be opened the request is passed through with the invented virtual offset
 - severity: bug
 - found-by: review
