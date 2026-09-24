@@ -15,5 +15,7 @@ namespace overlay {
 }
 
 // Rewrite a DirectStorage request that targets a virtual offset onto the loose file.
-// Returns false when the request is not affected.
+// Returns false when the request is not affected, and also when it targets a replaced entry whose
+// file cannot be opened or no factory is there to open it with. The caller then enqueues it as it
+// came, at its virtual offset, and DirectStorage fails it without writing its buffer.
 bool OverlayRedirect(const DSTORAGE_REQUEST* request, DSTORAGE_REQUEST* redirected);

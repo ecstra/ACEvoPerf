@@ -2,14 +2,17 @@
 //
 // Loose files under <game>\acevo_mods\<package path> shadow entries of
 // content.kspkg. The engine reads the package's table of contents (the last
-// 64 MB of the file) with ordinary file I/O at startup and then streams every
-// entry as one DirectStorage request whose offset and size come from that
-// table. So two interceptions are enough:
+// 64 MB of the file) with ordinary file I/O at startup, streams most entries
+// as one DirectStorage request whose offset and size come from that table,
+// and reads some with plain 4 KB reads through the C runtime. So three
+// interceptions:
 //   1. ReadFile on the package handle: the table range is answered from a
 //      modified copy in which overridden entries carry the loose file's size
 //      and an offset past the end of the package (a "virtual" offset).
 //   2. DirectStorage requests whose offset is virtual are pointed at an
 //      IDStorageFile opened on the loose file.
+//   3. Plain ReadFile calls at a virtual offset are answered from the loose
+//      file, see Hook_ReadFile.
 // The package on disk is never written.
 #include "acevo/overlay/overlay.h"
 #include "acevo/core/config.h"
@@ -512,7 +515,8 @@ static void BuildToc()
         g_origCloseHandle(h);
         return;
     }
-    Log("overlay: reading the table (%llu bytes at %llu) to apply %zu override(s)", (unsigned long long)g_tocSize, (unsigned long long)g_tocStart, g_files.size());
+    Log("overlay: reading the table (%llu bytes at %llu) for %zu loose file(s) and the mod's own corrections",
+        (unsigned long long)g_tocSize, (unsigned long long)g_tocStart, g_files.size());
     g_toc.resize((size_t)g_tocSize);
     LARGE_INTEGER pos; pos.QuadPart = (LONGLONG)g_tocStart;
     if (!g_origSetFilePointerEx(h, pos, nullptr, FILE_BEGIN)) {
