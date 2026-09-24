@@ -2,7 +2,7 @@
 name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth and the HUD from uneven driving frame times, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
-updated: 2026-09-23
+updated: 2026-09-24
 links: [review-2026-09-fix-review-cohtml-build-guard, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
@@ -152,7 +152,8 @@ queued jobs while its UI frame end waits, and on some page loads it picked up th
 hook on slot 5 hands type 0 work called on the frame thread (the thread of EvoUi slot 8) to one mod thread
 that makes the same call through the vtable, and runs any handed over work on the calling thread before
 Cohtml's `StopWorkers` (slot 2) or `Uninitialize` (slot 3). Style and layout work (type 1) stays, the frame
-waits for its result.
+waits for its result. The hook on slot 3 writes a `[responsive ui] the UI engine is shutting down` line
+every time it runs, since the drain's own lines appear only when work was left over or a call is still out.
 
 This part needs both checks to have passed, not only the UI engine one, because the frame thread it moves
 work away from is learned from the frame end wrapper. On a build where the frame slots stood down it

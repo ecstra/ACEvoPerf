@@ -10,7 +10,7 @@ links: [agent-index, spec-memory]
 
 project
 
-- [reported-working-configurations](reported-working-configurations.md), the machines players report the mod working on and where each report came from, Nvidia and a Radeon RX 6600 and Linux through Proton, plus the open reports nobody has reproduced and why none of them points at a card
+- [reported-working-configurations](reported-working-configurations.md), the machines players report the mod working on and where each report came from, Nvidia and a Radeon RX 6600 and Linux through Proton, plus the open reports, the glass fences since seen here as BUG-038, and why none of them points at a card
 - [free-roam-is-a-password-away](free-roam-is-a-password-away.md), the Free Roam mode is gated by a plain text password and a hidden panel, its content stops at the Nürburgring complex, not shipped
 - [ghost-car-records-but-never-shows](ghost-car-records-but-never-shows.md), the ghost car flag records, saves, loads and samples a lap and nothing in the exe draws it, not shipped
 - [dstorage-dll-is-only-a-forwarder](dstorage-dll-is-only-a-forwarder.md), the runtime is dstoragecore.dll, the game claims that base name at start-up, nothing checks the two versions match, and the core's own entry points can be called directly

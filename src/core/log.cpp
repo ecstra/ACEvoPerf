@@ -14,6 +14,19 @@ std::wstring PublicPath(const std::wstring& path)
 
 static HANDLE g_log = INVALID_HANDLE_VALUE;
 static CRITICAL_SECTION g_logCs;
+static std::atomic<bool> g_detaching{false};
+
+// A thread killed inside Log at process exit leaves the lock held for good, so once detaching the lock is
+// only taken when it is free, the way TraceFinalFlush takes its own, and a line that finds it held is
+// dropped.
+static bool EnterLog()
+{
+    if (!g_detaching) {
+        EnterCriticalSection(&g_logCs);
+        return true;
+    }
+    return TryEnterCriticalSection(&g_logCs) != FALSE;
+}
 
 // A path the player chose can be a folder, or sit under one that does not exist. Nothing could
 // report that, because reporting goes through Log and Log is what just failed, so the player sees
@@ -45,15 +58,24 @@ void Log(const char* fmt, ...)
     if (m > (int)(sizeof buf - n - 3)) m = (int)(sizeof buf - n - 3);
     n += m;
     buf[n++] = '\r'; buf[n++] = '\n';
-    EnterCriticalSection(&g_logCs);
-    DWORD w; WriteFile(g_log, buf, (DWORD)n, &w, nullptr);
+    if (!EnterLog()) return;
+    if (g_log != INVALID_HANDLE_VALUE) { DWORD w; WriteFile(g_log, buf, (DWORD)n, &w, nullptr); }
     LeaveCriticalSection(&g_logCs);
+}
+
+void LogDetaching()
+{
+    g_detaching = true;
 }
 
 void LogClose()
 {
     if (g_log == INVALID_HANDLE_VALUE) return;
     Log("detached");
+    // Closed under the lock Log writes under, so no line can go to a handle value the system has already
+    // given to another file. Left open when the lock is not free, and the system closes it at exit.
+    if (!EnterLog()) return;
     CloseHandle(g_log);
     g_log = INVALID_HANDLE_VALUE;
+    LeaveCriticalSection(&g_logCs);
 }

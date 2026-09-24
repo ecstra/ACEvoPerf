@@ -2,7 +2,7 @@
 name: review-2026-09-fix-review-cohtml-build-guard
 kind: review
 description: the Cohtml angle of the full review of main, the vtable calls that ignore the build check every byte patch honours, seven findings, one breaks
-updated: 2026-09-20
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: fix/review-cohtml-build-guard
 status: closed
@@ -28,7 +28,7 @@ one bug, two debt, one nit.
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
-| 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
+| 4 | the moved work thread and its stop flag | done, and the path it fixes was thought never to run, corrected in H-23 | 2026-09-20, ack, runtime confirmed |
 | 5 | what the page fixes script costs, and saying when it is not there | done | 2026-09-20, ack, runtime confirmed |
 
 ## Findings
@@ -177,7 +177,7 @@ never exits.
 - found-by: review
 - batch: 4
 - status: deferred to fix/review-shutdown
-- fix:
+- fix: handed over to `fix/review-shutdown` as its F-05, 2026-09-24. The exit hang below turned out to end the process instead, that branch's H-02.
 
 Deferred rather than fixed here. The fix is a stop at DLL detach, and the detach path belongs to
 `fix/review-shutdown`, which already owns the identical hazard in `log.cpp`, `timeline.cpp`,
@@ -873,6 +873,17 @@ method the drain line would have appeared. Whatever those two slots are, nothing
 them. The finding stays open because the numbers are still unproven, at a severity the evidence no longer
 supports treating as urgent.
 
+**Corrected on 2026-09-24.** The drain line is written only when work was left over or a call never came
+back, so the quit above says nothing about whether either hook ran, and the game's own log has
+`Uninitializing COHTML library!` 0.8 to 5.9 s before `detached` in every session that reached `detached`.
+`fix/review-shutdown` F-05 has `Hook_Uninitialize` write a line every time, so the next quit shows whether
+slot 3 fires as the game uninitialises.
+
+**Answered for slot 3 on 2026-09-24.** On that branch's quit the hook on slot 3 wrote its line at
+16:52:35.336 and the game's own `Uninitializing COHTML library!` came at 16:52:35.341, from inside the call
+the hook had just passed on. Slot 3 is `Uninitialize` in all but a disassembly. Slot 2 is still unseen,
+so the finding stays open for it.
+
 ### V-12: giving up on a call was permanent, so every later teardown destroyed the library under a live one
 - severity: bug
 - found-by: verifier
@@ -997,6 +1008,10 @@ single launch a question twelve recorded sessions could not.
 
 The lesson for the batches that follow: when a fix's whole surface is a path with no evidence of ever
 running, log it first and weigh it second.
+
+**Corrected on 2026-09-24, from `fix/review-shutdown`.** The line added here is written only when work was
+left over or a call never came back, so its absence did not show the stop never ran, and the lesson
+applies to it too, a line that proves a path runs has to be written every time it does. See H-23.
 
 Batch 4 is done.
 
