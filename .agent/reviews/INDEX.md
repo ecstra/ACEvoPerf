@@ -110,7 +110,7 @@ ledger.
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
   still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks, and 1
   handed over from the Cohtml build guard angle, plus 13 from batch 1's hunter and verifier and 7 from
-  batch 2's, batch 1 closed and runtime confirmed, batch 2 waiting on a quit
+  batch 2's, both batches closed and runtime confirmed, waiting on the owner's word to merge
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when

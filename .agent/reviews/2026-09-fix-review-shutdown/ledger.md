@@ -33,12 +33,17 @@ whose exit would wait on an abandoned lock rather than hanging it. It added four
 nine from its verifier, and one fix of its own, the load sampler no longer waiting 200 ms at every exit
 for a thread Windows had already ended.
 
+Batch 2 closed with both its findings left as they are. With the default settings F-03's timeline ticks
+read only the mod's own state, and F-05's moved thread turned out to be stopped at every normal quit,
+which a line written every time now shows, correcting the Cohtml angle's reading that the stop never
+runs. It added three from its hunter and four from its verifier.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | nothing blocks on a lock a dead thread may own | closed, runtime confirmed | 2026-09-24 |
-| 2 | the threads the mod starts have a stop | fixing | 2026-09-24 |
+| 2 | the threads the mod starts have a stop | closed, runtime confirmed | 2026-09-24 |
 
 ## Findings
 
@@ -250,8 +255,8 @@ keeps this from being worse.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-24, not reachable on a normal quit. Batch 2's run shows the game's quit uninitialising Cohtml through the hooked slot, the mod's line 5 ms before the game's own from inside the same call and 3.8 s before `detached`, so the moved thread is parked and holding nothing when Windows ends it. The crash path this finding also names is a process already going down.
 
 Handed over from the Cohtml build guard angle, its F-07, which deferred it to this branch on 2026-09-20
 since the detach path is this branch's. Batch 1's verifier found it had never been copied in.
@@ -355,3 +360,9 @@ Batch 1, one launch on 2026-09-24, `logs/shutdown-b1-20260924`, a track and then
 The log ends with the `[streamer] at exit` line and `detached`, and the game's own log has no
 `Exception Detected`. The case the fix is for, a thread ended while it holds the log's lock, cannot be
 forced from a run.
+
+Batch 2, one launch on 2026-09-24, `logs/shutdown-b2-20260924`, 16:18 to 16:52, the owner's own play
+and a quit from the menu, on e2887ec's build, whose line reads the same as the final one when no call is
+out. `[responsive ui] the UI engine is shutting down, the moved resource work is stopped` at
+16:52:35.336, the game's `Uninitializing COHTML library!` at 16:52:35.341, and `detached` at
+16:52:39.173. No give up line and no `Exception Detected`.

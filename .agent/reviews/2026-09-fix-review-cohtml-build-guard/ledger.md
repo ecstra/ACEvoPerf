@@ -879,6 +879,11 @@ back, so the quit above says nothing about whether either hook ran, and the game
 `fix/review-shutdown` F-05 has `Hook_Uninitialize` write a line every time, so the next quit shows whether
 slot 3 fires as the game uninitialises.
 
+**Answered for slot 3 on 2026-09-24.** On that branch's quit the hook on slot 3 wrote its line at
+16:52:35.336 and the game's own `Uninitializing COHTML library!` came at 16:52:35.341, from inside the call
+the hook had just passed on. Slot 3 is `Uninitialize` in all but a disassembly. Slot 2 is still unseen,
+so the finding stays open for it.
+
 ### V-12: giving up on a call was permanent, so every later teardown destroyed the library under a live one
 - severity: bug
 - found-by: verifier
