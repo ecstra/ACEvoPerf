@@ -22,11 +22,15 @@ write the right value to the wrong global and report success.
 
 Seven findings, two bug, three debt, two nit.
 
+Batch 1 closed with both its findings fixed, neither of which had ever fired in 51 sessions and 23,814
+kicks, the hunter finding the overlap F-03 feared not possible as far as anything shows. It added two
+from its hunter and five from its verifier, all in the wording.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | one fault does not silently retire the fixes for the session | fixing | 2026-09-24 |
+| 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | pending | |
 | 3 | the throw log cannot eat the game's own exception | pending | |
 | 4 | the leftovers | pending | |
@@ -219,6 +223,13 @@ compiler warning in the entire build, C4244 in xutility instantiated from here. 
 names, which is all of them, and it silently mangles anything else. Worth closing because it is the
 one thing standing between the build and a clean `/W4` run, which the tools branch wants in order to
 turn warnings into errors.
+
+## The runs
+
+Batch 1, one launch on 2026-09-24, `logs/engine-b1-20260924`, 19:44 to 19:47, a short drive and a quit.
+The streamer hooked and its line counted up to 142 kicks, 17,630 finer levels wanted and 9,729 loads
+turned away for space, with no `a hook faulted` and no `second hook arrived` line, a clean `detached`
+and no `Exception Detected` in the game's own log.
 
 ## Checked and clean
 
