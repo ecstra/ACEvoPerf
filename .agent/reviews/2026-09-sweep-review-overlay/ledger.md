@@ -35,13 +35,18 @@ debt and the rest nit. Both bugs were the hunter's and both sat in the startup c
 added, which read sizes from the folder listing and allowed more sharing than the files' real
 readers. The verifier's findings were all wording, one of them a changelog line owed.
 
+Batch 3 added eighteen, eleven from its hunter and seven from three verifier passes, two debt and
+the rest nit. The one that mattered was H-14, that F-08's fix claimed a package with another table
+layout gives up while the check could not tell one, which made the check real. Across the angle the
+eleven review findings became sixty nine.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the table is built once and published safely | closed, runtime confirmed | 2026-09-23 |
 | 2 | a redirect that cannot be served fails visibly | closed, runtime confirmed | 2026-09-23 |
-| 3 | the slot layout and the leftovers | fixing | 2026-09-24 |
+| 3 | the slot layout and the leftovers | closed, runtime confirmed | 2026-09-24 |
 
 ## Findings
 
@@ -862,9 +867,16 @@ check refused it with error 32, a sharing violation, left it out, and the overri
 The mod's own stylesheet correction then took the entry, since the player's file no longer counted,
 and was served, `replace uiresources\css\uicomponents.css` once and seven redirects in all.
 `file hooks installed` printed with the new hook order, each DirectStorage open was logged once,
-and the game's own log has no exception. Before F-04's fix the table would have pointed at the locked file
-and every stylesheet read would have failed. The paths that need an overlapped handle, a missing
-factory or a file lost after the build never happen on 0.9.1 and were not forced.
+and the game's own log has no exception. Before F-04's fix the table would have pointed at the
+locked file and every stylesheet read would have failed. The paths that need an overlapped handle,
+a missing factory or a file lost after the build never happen on 0.9.1 and were not forced.
+
+Batch 3, one launch on 2026-09-24, `logs/overlay-b3-20260924`, defaults, one track loaded. The table
+passed the new first slot check and was built once in 147 ms, and both corrections landed at the
+same virtual offsets as batch 1's run, 69070749696 and 69070815232, with
+`122398 entries used, 2 replaced`, so the slot refactor moved nothing. Eight redirects served the flipbook twice and the
+stylesheet six times, all 134 package opens came from `ucrtbase.dll`, the table line named the
+mod's own corrections, and the game's own log has no exception.
 
 ## Checked and clean
 
