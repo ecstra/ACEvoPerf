@@ -38,7 +38,7 @@ Seven findings, two bug, three debt, two nit.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: e829171, 2026-09-24, `ReadFeedback` returns an empty reading when the texture has no allocator, as `ReadPool` beside it does. A stale allocator is not handled, and the hunter found no way for one to be stale, since the engine reads its allocator at the start of every kick and would fault first. No session on disk logged the fault, in 51 with the streamer hooked and 23,814 kicks.
+- fix: e829171, 2026-09-24, `ReadFeedback` returns an empty reading when the texture has no allocator, as `ReadPool` beside it does. A stale allocator is not handled. The hunter found no way for one to be stale, taking a texture's allocator at +0x50 to be the streamer's, which the kick reads for its load gate at its start and which has only been seen freed at exit, BUG-022, though nothing on disk shows the two are one object. No session on disk logged the fault, in 51 with the streamer hooked and 23,814 kicks.
 
 `src/engine/streamer.cpp:422` reads `alloc` from tex+0x50 and dereferences it at +0xA8B0 on the next
 line with no null check, while `ReadPool` at line 443 checks the same kind of field.
@@ -106,9 +106,60 @@ the destructor note true under /EHs, and raised the two below.
 - found-by: hunter
 - batch: 1
 - status: fixed
-- fix: 2026-09-24, F-01's line says only a null allocator is handled and why a stale one does not arise, F-03's says the overlap is not possible as far as anything shows, and both count 51 sessions and 23,814 kicks.
+- fix: 2026-09-24, F-01's line says only a null allocator is handled and what a stale one not arising rests on, F-03's says the overlap is not possible as far as anything shows, and both count 51 sessions and 23,814 kicks.
 
 3e02fee wrote them.
+
+The verifier then ran on batch 1. It found no code defect, both fixes and the destructor note right in
+the object code and both counts exact, and raised the three below and two older comments in the same
+file. The loop stopped there, all five being precision in the record or a comment.
+
+### V-01: F-01's fix line gave a reason for a stale allocator not arising that nothing on disk backs
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it names the premise, a texture's allocator being the streamer's.
+
+a2984a2 wrote it, in F-01's and H-02's fix lines.
+
+### V-02: the overlap line said the fixes stay on in runs where none is on
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 869b0df, 2026-09-24, the line and the header say nothing was switched off.
+
+The hooks also install for the trace alone, and four sessions on disk ran with the fixes off.
+1f948b9 and 2edf3b3 wrote it.
+
+### V-03: the reviews index said every batch of the open angles waits on the owner, with engine batch 1 fixing
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+V-32's slip in the session leak angle, again.
+
+### V-04: the header counted seven sites where it lists six
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 869b0df, 2026-09-24.
+
+`src/engine/streamer.cpp:47`, wrong since 9f7e83e.
+
+### V-05: the header of streamer.h said only the trace or the reload fix installs the hooks
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 869b0df, 2026-09-24, it names the rank fix and the partial loads as well.
+
+`include/acevo/engine/streamer.h:5`, wrong since 9f7e83e, when `InstallStreamerHooks` began installing
+for any of the three fixes.
 
 ### F-04: a flag's storage address can be inherited from a previous registration and written as if it were correct
 - severity: debt
