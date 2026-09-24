@@ -675,6 +675,104 @@ fails `SetFilePointerEx`. `offset > g_pkgSize - size` is the ordering that canno
 
 `src/overlay/overlay.cpp:586` to 591, skipping e. The rest of the file names things properly.
 
+### H-14: F-08's fix said a package with a 32 MB table gives up, and the check could not tell one
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 809d4ff, 2026-09-24, the table is recognised only if its first slot is a real entry, a path as long as its stored length that hashes to its stored hash.
+
+The only test was that the first slot did not decode to a zero byte and a later one did. On a
+package with a 32 MB table the 64 MB window starts in entry data, which passes unless the byte at
+size minus 64 MB happens to be the key's first byte. The corrections would then have logged "not
+in this package", every player file been logged as `add` into data, and `table rebuilt` printed
+while nothing applied. On this machine's package the first slot passes the new test, a 69 byte path
+whose hash matches, and the same test on the window a 32 MB reader takes fails.
+
+### H-15: the file header said every entry is streamed by DirectStorage and two interceptions are enough
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: ad31ee5, 2026-09-24, it names the plain reads and the third interception that serves them.
+
+H-03 showed the engine reads 131 entries with plain reads, so a reader of the header took the
+virtual branch of `Hook_ReadFile`, which batch 2 reworked, for dead code.
+
+### H-16: SLOT_SIZE and SLOT_OFFSET read as the slot's own size and position
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 1095c2f, 2026-09-24, `SLOT_DATA_SIZE` and `SLOT_DATA_OFFSET`.
+
+They sat in the loop that steps by `SLOT`, where a slip that meant the next slot would compile and
+step 240 bytes.
+
+### H-17: the slot constants sent readers to a docstring that gives the slot two pad bytes it does not have
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: a40019e, 2026-09-24, the comment names `parse_slot`, and the docstring went to the tools ledger as F-19, since `tools/kspkg.py` belongs to that angle.
+
+### H-18: the override doc's date was not moved by the batch 3 commits that changed it
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 809d4ff, 2026-09-24.
+
+### H-19: with clear_xor_flag=0 both corrections were ciphered whatever their entry's flag said
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 882c352, 2026-09-24, they take their entry's own encoding, and the kept flag suffix prints only where the flag is set.
+
+With the setting at 0 the table keeps each entry's own flag, so an update that stored either entry
+plain would have got a scrambled file under a plain flag. Both entries are ciphered on 0.9.1.
+
+### H-20: the header said OverlayRedirect returns false only for a request it does not touch
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: ad31ee5, 2026-09-24.
+
+It also returns false for a replaced entry whose file cannot be opened or with no factory, and the
+caller then enqueues the request at its virtual offset, which batch 2's F-04 and H-10 left behind.
+
+### H-21: the table line counted only the player's files
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: ad31ee5, 2026-09-24, it names the loose files and the mod's own corrections apart.
+
+`logs/overlay-b1-20260923` shows `to apply 0 override(s)` and then `2 replaced`.
+
+### H-22: bare numbers with meaning were left after F-09
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 1095c2f, 2026-09-24, the trace cap and the folder depth are constants, the event's low bit is explained once in `EventOf`, and the two size windows say why they are what they are.
+
+### H-23: XorRange's key phase parameter was 0 at all six calls
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 1095c2f, 2026-09-24, removed, with the reason the phase is always the byte's place in the buffer.
+
+### H-24: the doc's list of table reads the hooks never see missed a handle made from a tracked one
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: a40019e, 2026-09-24, it names `ReOpenFile` and `DuplicateHandle`.
+
 ## The runs
 
 Batch 1, two launches on 2026-09-23 with the ini at its defaults.
