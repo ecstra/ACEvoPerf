@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes and seventeen from batch 2's hunter and three
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and sixteen from batch 3's hunter and verifier
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
@@ -629,7 +629,7 @@ A third pass ran on 5765337 and found nothing false. It raised one more, the loo
 - found-by: review
 - batch: 3
 - status: fixed
-- fix: 322a6aa, 2026-09-24, the comment, the log line and the doc say the layer reads only the 64 MB table of 0.9.0 and 0.9.1 and that nothing applies when the table is not recognised. The hardcoded size became `TABLE_SIZE` in a5cc278.
+- fix: 322a6aa then 809d4ff, 2026-09-24, the comment, the log line and the doc say the layer reads only the 64 MB table of 0.9.0 and 0.9.1 and that nothing applies when the table is not recognised, and 809d4ff made the check able to tell, H-14. The hardcoded size became `TABLE_SIZE` in a5cc278.
 
 `src/overlay/overlay.cpp:413`. The comment `// older layout: 32 MB table` sits directly above a log
 line saying the 64 MB table was not recognised and a return. `g_tocSize = 0x4000000` is hardcoded at
@@ -642,7 +642,7 @@ reads that comment as a handled path.
 - found-by: review
 - batch: 3
 - status: fixed
-- fix: a5cc278, 2026-09-24, the slot fields, the cipher bit, the path limit and the table size are named constants, and the search by hash is one function with a second that reads a path's own entry.
+- fix: a5cc278 then 1095c2f and a40019e, 2026-09-24, the slot fields, the cipher bit, the path limit and the table size are named constants, and the search by hash is one function with a second that reads a path's own entry. 1095c2f renamed the size and offset fields, H-16, and a40019e pointed the comment at `parse_slot`, H-17.
 
 `src/overlay/overlay.cpp:213` and about fifteen other places read slot fields as raw numbers: 0xE8 for
 the hash at 213, 323, 417 and 441, 0xE4 for flags at 224, 334, 444 and 446, 0xE6 for the path length at
@@ -687,7 +687,10 @@ package with a 32 MB table the 64 MB window starts in entry data, which passes u
 size minus 64 MB happens to be the key's first byte. The corrections would then have logged "not
 in this package", every player file been logged as `add` into data, and `table rebuilt` printed
 while nothing applied. On this machine's package the first slot passes the new test, a 69 byte path
-whose hash matches, and the same test on the window a 32 MB reader takes fails.
+whose hash matches. The window a 32 MB reader would take on this package starts in the zero slots
+past the used ones, which the old test already rejected, so it shows nothing about entry data. The
+check holds there by construction, since entry data would need a matching length and a matching 64
+bit hash.
 
 ### H-15: the file header said every entry is streamed by DirectStorage and two interceptions are enough
 - severity: debt
@@ -696,8 +699,9 @@ whose hash matches, and the same test on the window a 32 MB reader takes fails.
 - status: fixed
 - fix: ad31ee5, 2026-09-24, it names the plain reads and the third interception that serves them.
 
-H-03 showed the engine reads 131 entries with plain reads, so a reader of the header took the
-virtual branch of `Hook_ReadFile`, which batch 2 reworked, for dead code.
+H-03 showed the engine reads some entries with plain 4 KB reads, at 131 distinct offsets in one
+traced run, so a reader of the header took the virtual branch of `Hook_ReadFile`, which batch 2
+reworked, for dead code.
 
 ### H-16: SLOT_SIZE and SLOT_OFFSET read as the slot's own size and position
 - severity: nit
@@ -772,6 +776,47 @@ caller then enqueues the request at its virtual offset, which batch 2's F-04 and
 - batch: 3
 - status: fixed
 - fix: a40019e, 2026-09-24, it names `ReOpenFile` and `DuplicateHandle`.
+
+The verifier then ran on batch 3. It confirmed all fifteen with no change in behaviour beyond
+882c352's intended one, and raised the five below, all nits.
+
+### V-28: two lines the last edits left long
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 66d5eb5, 2026-09-24, rewrapped. V-15's slip a fourth time.
+
+### V-29: the table line named the mod's own corrections even with both switched off
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 66d5eb5, 2026-09-24, it names them only when one is on.
+
+### V-30: F-08's and F-09's fix lines named only their first commit
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, both carry their history.
+
+### V-31: H-15 read 131 distinct offsets as 131 entries, and H-14 cited a window that shows nothing
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, H-15 says offsets, and H-14 rests on construction.
+
+The 131 offsets are 4 KB pieces, 78 runs of them in the traced session, so far fewer entries. The
+32 MB window on this package starts in zero slots, which the old test already rejected.
+
+### V-32: the overlay's counts in the index and in this ledger's description left out batch 3
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24.
 
 ## The runs
 
