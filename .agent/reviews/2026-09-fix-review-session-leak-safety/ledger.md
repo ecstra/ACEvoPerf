@@ -63,8 +63,8 @@ about the source and does not close the window, because the clear happens after 
 return.
 
 Why it stays open. Closing it needs either the game's own lock around the list, which needs the
-game's code that reads the list, or a free that waits a connect and backs off if the count was
-raised in between. The code could not be examined here, since an agent's script reading the exe's
+game's code that reads the list, or a free that waits a connect and backs off if anything touched
+the connection in between, which the count alone cannot show, so the weak count has to be read too. The code could not be examined here, since an agent's script reading the exe's
 class tables was stopped by a safety check and that route was left alone. The wait would hold one
 finished session through the next load, about 50 MB at the Red Bull Ring and likely 100 to 200 MB
 at bigger tracks, and the owner's bar was 50 MB and no pile up. What the logs show, from a second
@@ -129,11 +129,11 @@ were closed.
 - status: fixed
 - fix: 2026-09-24, DEC-023 says where each race fails and names triggers that can fire.
 
-Neither race faults in the free. The copy leaves another thread holding a count on a deleted block,
-and the push leaves zeroed bytes in a freed buffer, so a crash, if one comes, names that thread or
-the heap and never the free. The trigger is now any `Exception Detected` or unexplained exit after a
-`[sessions] freed` line, a connect line saying it was not the game thread, or evidence of another
-thread touching the list.
+The copy leaves another thread holding a count on a deleted block, and the push leaves zeroed bytes
+in a freed buffer, so a crash can come later on another thread or in the heap. The first rewrite
+said neither faults in the free and waited for a fault after a freed line, which V-01 corrected. The
+trigger is now any `Exception Detected` or unexplained exit at or after a load with the fix on, a
+connect line saying it was not the game thread, or evidence of another thread touching the list.
 
 ### H-04: an out of memory throw from a push under g_lock left the lock held
 - severity: nit
@@ -171,6 +171,41 @@ Reachable only with two connects freeing at once, which H-01's check now rules o
 
 `logs/render-b4-20260920` kept no game log, and the 2026-09-18 play session's mod log was
 overwritten, so its seven frees exist only in BUG-016's notes.
+
+The verifier then ran on batch 1. It confirmed H-01, H-02, H-04, H-05, H-06 and H-07 gone and F-01
+and F-02 open for true reasons, and raised the three below.
+
+### V-01: DEC-023 said neither race faults in the free, and its trigger waited for a fault after a freed line
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the consequence says a copy that lets go during the teardown crashes on either thread, inside the free included, and the trigger is any fault at or after a load with the fix on.
+
+A copy that raises the count from 0 to 1 and lets go within the 0.2 to 31 ms a teardown takes in the
+logs runs the destructor a second time while the free is still in it. The freed line is written only
+once `Free` returns, so a crash in a run's first free leaves no freed line to follow. H-03's rewrite,
+1f85426, caused it.
+
+### V-02: the wait as sketched would not have closed the copy race either
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, DEC-023 and F-01 say the wait has to read the weak count as well as the count.
+
+A copy that raises the count from 0 to 1 and lets go leaves it at 0 again, after the game's own
+release has already destroyed the connection on that thread, so a deferred destroy that checked the
+count alone would run a second time on a dead connection. That release lowers the weak count, which
+is the second signal the design needs. It changes the record of the rejected design, not the
+decision.
+
+### V-03: the hook's new comment put back the wording H-06 had taken out of DEC-023
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it names the manager holding the session before last as well and points at the header.
 
 ### F-03: EntryFor walks three engine pointers with no fault guard and nothing proves the game mode is still live
 - severity: breaks
