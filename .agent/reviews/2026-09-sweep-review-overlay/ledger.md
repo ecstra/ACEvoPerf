@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and eighteen from batch 3's hunter and three verifier passes
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and eighteen from batch 3's hunter and three verifier passes, merged into 0.4 on 2026-09-24
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
-status: open
+status: closed
 ---
 
 # Review of the package override layer
