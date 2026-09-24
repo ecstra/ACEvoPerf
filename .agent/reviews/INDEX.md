@@ -1,7 +1,7 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, four of them done
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, five of them done
 updated: 2026-09-24
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
@@ -22,15 +22,15 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Four angles are done as of 2026-09-24, the Cohtml
-build guard, the render layer, the proxy and core, and the package override layer, and the nine
-below them are open with every batch pending the owner's word.
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Five angles are done as of 2026-09-24, the Cohtml
+build guard, the render layer, the proxy and core, the package override layer and the session leak
+fix, and the eight below them are open with every batch pending the owner's word.
 
-Those four added 171 findings of their own, from the hunter and verifier sub agents that run on
-every batch. Every one of the seventeen batches so far needed at least one correction after its
-first fix. Twenty of the first three angles' added findings were bugs a fix had itself caused or
-left standing, and seven more code defects in the override layer's. The loop is not ceremony on
-this codebase.
+Those five added 222 findings of their own, from the hunter and verifier sub agents that run on
+every batch. Every one of the twenty batches so far needed at least one correction after its first
+fix. Twenty of the first three angles' added findings were bugs a fix had itself caused or left
+standing, and seven more code defects in the override layer's, and in the session leak fix's one fix
+did more harm than its finding and was reverted. The loop is not ceremony on this codebase.
 
 ### What the review found, in one paragraph
 
@@ -106,8 +106,6 @@ ledger.
 
 ## Active
 
-- [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
-  rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
   still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
@@ -130,6 +128,11 @@ ledger.
 
 ## Closed
 
+- [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
+  rolled shared_ptr surgery and what it does not guard against, 6 findings plus 51 from the hunters and
+  verifiers, 57 in all and 3 of them breaks, three batches, the last leaving the code as the second's
+  run confirmed it, the copy and push races left open on the owner's choice in DEC-023, merged into
+  0.4 on 2026-09-24
 - [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
   64 MB table and a redirect that fails silently, 11 findings plus 58 from the hunters and verifiers,
   69 in all and 1 of them breaks, three batches, all runtime confirmed, merged into 0.4 on

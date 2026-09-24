@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-20
+updated: 2026-09-24
 links: [agent-index, spec-bugs]
 ---
 

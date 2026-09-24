@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-22
+updated: 2026-09-24
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -50,7 +50,10 @@ With `[engine] session_leak_fix=1` (`src/engine/session_leak_fix.cpp`, BUG-016) 
 names each finished session the fix frees when a later one connects, its game mode's class
 (`TimeAttackRemote` for a practice, `PaintShopGameMode` for the menu), how long freeing it took and how
 many have been freed so far, and another at every connect names the thread that connected and how many
-connections the fix is still holding a weak reference on.
+connections the fix is still holding a weak reference on. A connect on any thread but the game thread,
+which the install line names by id, ends that line with `not the game thread, so nothing was freed`. A
+connection whose game mode no longer looks live is let go for good with a
+`let go of N connection(s) for good` line.
 
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)

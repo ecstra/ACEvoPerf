@@ -2,12 +2,13 @@
 name: decisions-index
 kind: doc
 description: index of every decision taken, newest first
-updated: 2026-09-20
+updated: 2026-09-24
 links: [agent-index, spec-decisions]
 ---
 
 # Decisions Index
 
+- [DEC-023-the-session-free-stays-immediate](DEC-023-the-session-free-stays-immediate.md), 2026-09-24, the session leak fix keeps freeing a finished session at the next connect rather than a connect later, because the wait would hold 50 to 200 MB through a load, past the owner's bar of 50 MB and no pile up, and the race it would close has never shown
 - [DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after](DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after.md), 2026-09-20, the auto tile pool reaches down to 256 MB instead of standing down on a small card, because writing nothing hands the canonical flag the whole define, and the adapter the sizes came from is checked against the one the game renders on once the device exists, superseding DEC-009
 - [DEC-021-a-version-branch-collects-work-and-main-holds-the-release](DEC-021-a-version-branch-collects-work-and-main-holds-the-release.md), 2026-09-20, work merges into a long lived branch named for the version being built, `0.4` today, and main moves only when that version ships, so the newest commit on main is always the newest published zip, and the next version is 0.4 rather than 0.3.3 because the review lands far more than a patch
 - [DEC-020-responsive-ui-is-one-switch-on-by-default](DEC-020-responsive-ui-is-one-switch-on-by-default.md), 2026-09-15, every UI fix ships under `responsive_ui`, on by default, with the page fixes out of the developer probe, rather than a switch per fix or fixes that run only with the probe

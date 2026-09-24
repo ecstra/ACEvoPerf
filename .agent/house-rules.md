@@ -2,7 +2,7 @@
 name: house-rules-agent
 kind: doc
 description: the branch contract and code review protocol, the agent's operating version
-updated: 2026-09-20
+updated: 2026-09-24
 links: [spec-reviews, spec-bugs, spec-todos, agent-readme]
 ---
 
@@ -74,8 +74,11 @@ works, reviewers never burn effort on red suites.
    - A separate verifier sub agent checks bug wise, not code wise: is
      each bug actually gone, did anything new surface in scope. The loop
      repeats until the verifier comes back clean.
-   - Sub agents run one at a time, sequentially. This is the named
-     carve-out from the single threaded research rule.
+   - Sub agents may run in parallel wherever the work splits, for
+     instance investigators or hunters over different lenses of one
+     scope. A verifier still runs after the fixes it checks. The owner
+     lifted the old one at a time rule on 2026-09-24 to make reviews
+     faster.
 5. **Batch close.** Mark it in the ledger, report to the owner, and name
    anything unfixable in scope. Unfixables defer into `.agent/bugs/` as
    their own files, linked both ways, and earn a future branch sparingly,
