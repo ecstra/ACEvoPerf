@@ -29,11 +29,16 @@ the sessions that were measured and none of them is enforced.
 
 Six findings, three breaks, one bug, one debt, one nit.
 
+Batch 1 closed with both its findings left open on the owner's choice, DEC-023, and added seven from
+two hunters and fifteen from four verifier passes. The hunters' one real gap was the free running on
+whatever thread connected, which the mod now checks. The verifiers' fifteen were all in the record,
+mostly how DEC-023 described the race it leaves open.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the free cannot race a strong copy or a moved vector | fixing | 2026-09-24 |
+| 1 | the free cannot race a strong copy or a moved vector | closed, runtime confirmed | 2026-09-24 |
 | 2 | the walk and the teardown cannot fault or throw into the game | pending | |
 | 3 | the leftovers | pending | |
 
@@ -109,8 +114,8 @@ The header stated it as fact. A connect from another thread, on a path no log co
 untested pause menu restart or in a later build, would have destroyed a finished session there
 while `GameThread` ran its frame, the race DEC-023 assumes away, and two connects at once would have
 run two teardowns in parallel, since `g_lock` covers the pick and not the destroy. All 43 connect
-lines on disk before the fix, and all 208 of the game's own `Server connection` steps across 64 game
-logs, name `GameThread`, so no logged path changes.
+lines on disk before the fix, and all 278 of the game's own `Server connection` steps across the 90
+game logs on disk then, name `GameThread`, so no logged path changes.
 
 ### H-02: DEC-023 said waiting a connect before the destroy closes both races, and it closes only the copy
 - severity: debt
@@ -134,8 +139,9 @@ The copy leaves another thread holding a count on a deleted block, and the push 
 in a freed buffer, so a crash can come later on another thread or in the heap. The first rewrite
 said neither faults in the free and waited for a fault after a freed line, which V-01 corrected. The
 trigger is now any `Exception Detected`, unexplained exit or freeze at or after a load with the fix
-on, from 2026-09-24, a connect line saying it was not the game thread, or evidence of another thread
-touching the list, the freeze from V-05 and the date from V-10.
+on, other than the two events DEC-023 weighs, a connect line saying it was not the game thread, or
+evidence of another thread touching the list, the freeze from V-05 and the exceptions from V-10 and
+V-14.
 
 ### H-04: an out of memory throw from a push under g_lock left the lock held
 - severity: nit
@@ -276,7 +282,7 @@ trigger covers crash, freeze and exit, and raised the four below.
 - found-by: verifier
 - batch: 1
 - status: fixed
-- fix: 2026-09-24, the trigger counts events from 2026-09-24 on, and the two before it are named as weighed, BUG-032 on the owner's read that it was the memory budget and TODO-030 through its own test with the fix switched off.
+- fix: 2026-09-24, the two events are named as weighed and the trigger counts any other, BUG-032 on the owner's read that it was the memory budget and TODO-030 through its own test with the fix switched off. The first form of this fix scoped the trigger by date, which V-14 corrected.
 
 BUG-032 is an unexplained freeze after a load with the fix on, which the trigger as written counted,
 and TODO-030's crash on 0.3.2 is an unexplained exit at a load with the fix on by default.
@@ -301,6 +307,23 @@ and TODO-030's crash on 0.3.2 is an unexplained exit at a load with the fix on b
 - batch: 1
 - status: fixed
 - fix: 2026-09-24, F-01 counts 50 connects and 20 frees with the run added and a shortest gap of 6.3 s, and H-01 says its 43 were the lines on disk before the fix.
+
+A fourth pass ran on 2f7a992, confirmed every count against the logs, and raised the two below. The
+loop stopped there, both being precision in the record rather than anything about the code.
+
+### V-14: the trigger's date window still took in TODO-030, which was reported the same day
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the trigger counts any event other than the two DEC-023 weighs, rather than events from a date.
+
+### V-15: H-01's count of the game's own connect steps left out older logs
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, 278 steps across the 90 game logs on disk before the fix, 285 across 91 with the batch 1 run, every one on `GameThread`.
 
 ### F-03: EntryFor walks three engine pointers with no fault guard and nothing proves the game mode is still live
 - severity: breaks
@@ -377,3 +400,11 @@ null, so `FreeFinishedSessions` never selects that control and it stays in `g_co
 
 Failure: no crash, just the leak the fix exists to remove, silently, on the one configuration where the
 session is biggest, which is a large lobby. Only a successful free logs, so nothing says it happened.
+
+## The runs
+
+Batch 1, one launch on 2026-09-24, `logs/leakfix-b1-20260924`, a track, the menu and a track again,
+seven connects in all. The install line named the game thread by id, and every connect came on
+`GameThread` with that same id, so the thread check never skipped a free. Five finished sessions were
+freed, three `PaintShopGameMode` at 0.2 to 0.3 ms and two `TimeAttackRemote` at 30.7 and 7.1 ms,
+counted one to five. The mod detached cleanly and the game's own log has no `Exception Detected`.

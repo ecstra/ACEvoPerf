@@ -50,12 +50,12 @@ in a freed buffer, which shows up as heap corruption wherever that block is used
 can hang the game as well as crash it. Every free across the logs ran on `GameThread` a whole session
 after the freed one ended, with no fault in any game log kept from those runs.
 
-What reopens this, from 2026-09-24 on, is any `Exception Detected`, unexplained exit or freeze at or
-after a load in a session with the fix on, since the free runs inside the load's connect and writes
-its freed line only once it returns, a connect line saying it was not the game thread, or evidence
-of another thread touching a game mode's connection list.
+What reopens this is any `Exception Detected`, unexplained exit or freeze at or after a load in a
+session with the fix on, other than the two weighed below, since the free runs inside the load's
+connect and writes its freed line only once it returns, a connect line saying it was not the game
+thread, or evidence of another thread touching a game mode's connection list.
 
-Two earlier events were weighed when this was written. BUG-032 froze a thirty AI race start at the
+Two events were weighed when this was written. BUG-032 froze a thirty AI race start at the
 Nürburgring 76 s after the last free of its launch, with video memory over budget. The gap alone
 does not rule the free out, since a race with it can surface that much later, and the owner's read
 is the memory budget, not the mod. TODO-030 is a player's crash joining a session on 0.3.2 with
