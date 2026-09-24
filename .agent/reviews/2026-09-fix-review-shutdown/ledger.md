@@ -2,7 +2,7 @@
 name: review-2026-09-fix-review-shutdown
 kind: review
 description: the teardown angle of the full review of main, the log lock a terminated thread can still own when DllMain logs, four findings, one breaks, found by three reviewers independently
-updated: 2026-09-20
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, reviews-index]
 branch: fix/review-shutdown
 status: open
@@ -31,7 +31,7 @@ Four findings, one breaks, two bug, one debt.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | nothing blocks on a lock a dead thread may own | pending | |
+| 1 | nothing blocks on a lock a dead thread may own | fixing | 2026-09-24 |
 | 2 | the timeline thread has a stop | pending | |
 
 ## Findings
@@ -40,8 +40,8 @@ Four findings, one breaks, two bug, one debt.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: b7dca1e, 2026-09-24, `LogDetaching` runs first on detach, and from then on `Log` takes its lock only when it is free and drops the line otherwise, the way `TraceFinalFlush` takes its own. Whether a wait on an abandoned critical section at exit hangs the game, as below, or has Windows end the process there was not checked, and the fix is the same either way.
 
 At `ExitProcess` the kernel terminates every thread except the one running DllMain, and it does not
 release the critical sections those threads held. `Log` at `src/core/log.cpp:26` holds `g_logCs`
@@ -68,8 +68,8 @@ Found independently by three reviewers, from streamer.cpp, from log.cpp and from
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 513f633, 2026-09-24, `LogClose` closes the handle under the lock, and `Log` reads it under the lock before it writes. `LogClose` runs only on detach, and at process exit every other thread is already gone, so the race needed a detach with live threads, which no run has shown.
 
 `src/core/log.cpp:14` reads `g_log` outside the critical section, and `LogClose` closes it at line 35.
 
@@ -97,8 +97,8 @@ keeps this from being worse.
 - severity: debt
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: b7dca1e, 2026-09-24, with F-01's fix the line after the poll takes the lock only when it is free, like every other line on detach.
 
 `src/telemetry/load_sampler.cpp:446` to 450 already handle the case where the sampler thread does not
 answer within 200 ms, and correctly skip `LogSummary`. Line 451 then calls `Log` unconditionally. The
