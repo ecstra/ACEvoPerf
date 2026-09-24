@@ -153,13 +153,21 @@ static bool Writable(const void* p)
     return mbi.State == MEM_COMMIT && (pr == PAGE_READWRITE || pr == PAGE_WRITECOPY || pr == PAGE_EXECUTE_READWRITE || pr == PAGE_EXECUTE_WRITECOPY);
 }
 
+static std::string Utf8(const std::wstring& text)
+{
+    int bytes = text.empty() ? 0 : WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), nullptr, 0, nullptr, nullptr);
+    std::string out(bytes > 0 ? bytes : 0, '\0');
+    if (bytes > 0) WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), out.data(), bytes, nullptr, nullptr);
+    return out;
+}
+
 static void SplitFlag(const std::wstring& f, std::string& name, std::string& val)
 {
     size_t eq = f.find(L'=');
     std::wstring wname = f.substr(0, eq);
     std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
-    name.assign(wname.begin(), wname.end());
-    val.assign(wval.begin(), wval.end());
+    name = Utf8(wname);
+    val = Utf8(wval);
     // Lowercased here so the two `auto` comparisons below both see it. Written as `Auto`, the flag
     // used to miss the auto branch, reach WriteFlag, and have atoi turn it into a literal 0 in the
     // engine's tile pool size, which then hands the canonical flag the whole define.
