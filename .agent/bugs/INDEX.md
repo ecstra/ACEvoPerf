@@ -10,10 +10,6 @@ links: [agent-index, spec-bugs]
 
 ## Open
 
-breaks
-
-- [BUG-037-crash-joining-a-session-with-custom-track-mods-installed](BUG-037-crash-joining-a-session-with-custom-track-mods-installed.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, not reproduced, the likeliest lead the mod's smaller loading buffer failing a bigger custom track request
-
 bug
 
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since

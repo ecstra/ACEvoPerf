@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-20
+updated: 2026-09-24
 links: [agent-index, spec-todos]
 ---
 
@@ -33,6 +33,10 @@ render
 tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames
+
+stability
+
+- [TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track](TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, to reproduce by loading a custom track, the likeliest lead the mod's smaller loading buffer failing a bigger request
 
 engine-flags
 
