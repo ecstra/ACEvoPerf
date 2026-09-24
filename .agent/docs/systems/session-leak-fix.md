@@ -31,18 +31,21 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
   block's destroy and delete run as they would for a last `std::shared_ptr`. It runs only when the connect is
   on the game thread, the process's first thread, which the mod was loaded on. A connect on any other thread
   tracks its connection and frees nothing.
-- **A connection whose game mode is gone is never freed.** A connection kept past its game mode, which a
+- **A connection whose game mode is gone is not freed.** A connection kept past its game mode, which a
   session restarted from the pause menu might leave, points at freed memory, and freeing it would delete the
-  game mode a second time. The walk cannot find it there, since the game mode's destructor released the
-  list, and MSVC's `std::vector` leaves its pointers null when it goes. That rests on the vector as MSVC
-  builds it, and the exe's copy was not read.
+  game mode a second time. While the block still holds the destroyed game mode the walk cannot find the
+  connection there, since the game mode's destructor released the list, and MSVC's `std::vector` leaves its
+  pointers null when it goes. That rests on the vector as MSVC builds it, and the exe's copy was not checked
+  for that. Once another of the game's objects takes the block, the walk reads that object's words as a
+  list, and a match there, unlikely as it is, is not ruled out.
 - **Its memory is checked before the walk.** Every read of the game mode and its list is checked readable
   with the system first, since the game's crash handler logs any fault as a crash in the mod even when the
   mod catches it, and is fault guarded as well. The game mode's first word has to point at a vtable in the
   exe's image with a readable class name. A freed game mode can still pass, since the heap does not always
-  write into a freed block and its destructor leaves a base class's vtable there, so the check is not what
-  keeps the free off it. One that fails, unreadable or written over, has its connection let go for good,
-  which then stays in memory as it would without the fix.
+  write into a freed block and its destructor leaves a base class's vtable there, and so does a block
+  another of the game's objects has taken, so the check is not what keeps the free off it. One that fails,
+  unreadable or written over, has its connection let go for good, which then stays in memory as it would
+  without the fix.
 - **Checks first.** The exe's stamp and size, and seven byte ranges hashed against the 0.9.1 build (the connect,
   the make_shared and its thunk, the destructors of the connection, the local game server and the game mode's
   list, and the list's element release). Any mismatch logs the range and patches nothing.

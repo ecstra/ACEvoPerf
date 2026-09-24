@@ -36,11 +36,12 @@
 //     though not the push, at the cost of a finished session held through a load, and DEC-023 records why
 //     it does not.
 //   - A connection whose game mode is null, whose list does not hold it, or that anything else still holds is
-//     left alone. A connection kept past its game mode is one of those, since the game mode's destructor
-//     emptied its list, see EntryFor. One whose game mode can no longer be read, or no longer starts with a
-//     vtable of the exe, is let go for good, since it can never be freed without deleting that game mode a
-//     second time. Every read of the game mode and its list is checked readable before it is made, and
-//     fault guarded as well.
+//     left alone. A connection kept past its game mode is one of those while the block still holds that game
+//     mode, since its destructor emptied the list, see EntryFor, which also says what happens once another
+//     object takes the block. One whose game mode can no longer be read, or no longer starts with a vtable of
+//     the exe, is let go for good, since it can never be freed without deleting that game mode a second time.
+//     Every read of the game mode and its list is checked readable before it is made, and fault guarded as
+//     well.
 
 #include "acevo/engine/session_leak_fix.h"
 #include "acevo/core/code_patch.h"
@@ -160,11 +161,13 @@ static bool Readable(const void* p, size_t length)
 }
 
 // The class of a game mode from its RTTI, ".?AVTimeAttackRemote@@" read as TimeAttackRemote. False when its
-// first word is not a vtable in the exe's image whose locator and type name are in the image too, which is
-// how a game mode shows once the heap or the block's next owner has written over it. One the game destroyed
-// with nothing written over it since still passes, with the vtable of the last base class its destructor
-// reached, see EntryFor. The game mode's word is checked readable before it is read, the rest lies in the
-// exe's image, and a fault on the way is still caught, since the pointer comes out of memory the game owns.
+// first word cannot be read or is not a vtable in the exe's image whose locator and type name are in the
+// image too, which is how a game mode shows once the heap has given its memory back or written its own links
+// over the start of it, or the block went to something that is not one of the exe's objects. One the game
+// destroyed with nothing written over it since still passes, with the vtable of the last base class its
+// destructor reached, and so does a block another of the exe's objects has taken, with that object's class,
+// see EntryFor. The game mode's word is checked readable before it is read, the rest lies in the exe's
+// image, and a fault on the way is still caught, since the pointer comes out of memory the game owns.
 static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 {
     strcpy_s(out, size, "unknown");
@@ -190,11 +193,14 @@ static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 
 // The entry of the game mode's connection list that holds this connection, or null. A connection kept past
 // its game mode, which a session restarted from the pause menu might leave, points at freed memory, and
-// freeing it would delete that game mode a second time. It is not freed, because the game mode's destructor
-// released the list, and MSVC's vector leaves its pointers null when it goes, so the walk finds nothing even
-// when the freed memory still passes GameModeClass. That rests on the vector as MSVC builds it, and the
-// exe's copy was not read. `gameModeDead` says the memory can no longer be read or no longer holds one of
-// the exe's objects at all, each read checked before it is made, see Readable.
+// freeing it would delete that game mode a second time. While the block still holds the destroyed game mode
+// the walk finds nothing, even though the block still passes GameModeClass, because the game mode's
+// destructor released the list and MSVC's vector leaves its pointers null when it goes. That rests on the
+// vector as MSVC builds it, and the exe's copy was not checked for that. Once another of the exe's objects
+// takes the block, the walk reads that object's words as a list, where a match would need this very
+// connection's control block where an entry's sits, unlikely but not ruled out. `gameModeDead` says the
+// memory can no longer be read or no longer holds one of the exe's objects at all, each read checked before
+// it is made, see Readable.
 static BYTE* EntryFor(BYTE* control, bool& gameModeDead)
 {
     BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
