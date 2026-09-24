@@ -124,7 +124,8 @@ ledger.
 - [2026-09-sweep-review-ui-probe](2026-09-sweep-review-ui-probe/ledger.md), an instrument that can fault
   while holding a game thread suspended and pays its cost in the frames it explains, 9 findings, 1 breaks
 - [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that can write
-  outside its output folder and parsers that produce a wrong file at exit 0, 18 findings, 1 breaks
+  outside its output folder and parsers that produce a wrong file at exit 0, 18 findings plus 1 from
+  another angle's hunter, 1 breaks
 - [2026-09-sweep-review-public-docs](2026-09-sweep-review-public-docs/ledger.md), an uninstall that can
   leave the game unable to start and settings whose comments hide what they turn off, 16 findings, 1 breaks
 - [2026-09-sweep-review-agent-dir](2026-09-sweep-review-agent-dir/ledger.md), knowledge docs describing

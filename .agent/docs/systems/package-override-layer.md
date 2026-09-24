@@ -116,7 +116,8 @@ rebuild costs 80 ms at startup (64 MB read and decoded once).
 - A table read the hooks never see reaches the game unedited, and no line says so. That covers
   DirectStorage, a mapped view and `ReadFileEx`, and also a package opened from a module loaded
   after `Install` or through `GetProcAddress`, since only the static imports of the modules loaded
-  at that point are patched. `table rebuilt` prints only once some read of the table has been
+  at that point are patched, and a handle made from a tracked one by `ReOpenFile` or
+  `DuplicateHandle`, which is never tracked. `table rebuilt` prints only once some read of the table has been
   edited. If one has, the overrides in the unseen pieces quietly do not apply, with the same
   missing or doubled entry at a seam when an override adds a file.
 - Diagnostics: `trace_file_io=1` logs the first 200 package reads that are not table chunks.

@@ -30,7 +30,7 @@ static const uint64_t VIRT_ALIGN = 65536;
 // The table is the package's last 64 MB on 0.9.0 and 0.9.1, the only layout this layer reads.
 static const uint64_t TABLE_SIZE = 0x4000000;
 
-// One slot of the table, laid out as tools/kspkg.py reads it. The path is UTF-8 and NUL padded, and
+// One slot of the table, laid out as parse_slot in tools/kspkg.py reads it. The path is UTF-8 and NUL padded, and
 // the hash is FNV-1a 64 over the path as UTF-16. Used slots come first, sorted by hash, and the rest
 // are zero.
 static const uint64_t SLOT = 256;
