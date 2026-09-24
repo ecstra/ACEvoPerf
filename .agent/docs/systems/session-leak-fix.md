@@ -27,7 +27,8 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
 - **A weak reference per connection.** The hook adds one to each new connection's weak count, so a control
   block the game frees by itself stays readable until the hook lets go of it.
 - **The free.** An earlier connection whose use count is 1 and whose own game mode's list holds it has nothing
-  else left. The count goes from 1 to 0 by compare and exchange, the list entry is cleared, and the control
+  else left. The count goes from 1 to 0 by compare and exchange, the entry is taken out of the list the way
+  the list's own erase would, the entries after it moved down and the list one shorter, and the control
   block's destroy and delete run as they would for a last `std::shared_ptr`. It runs only when the connect is
   on the game thread, the process's first thread, which the mod was loaded on. A connect on any other thread
   tracks its connection and frees nothing.
@@ -57,7 +58,7 @@ and the one before it, and each is freed one load later.
 
 The free runs on the game thread inside the connect, and nothing else of the game touches a finished session
 there. A plain copy of the list's entry, which raises the count without looking, or a push that moves the list
-between the entry being found and cleared, would race it if another thread made one at that moment. It also
+between the entry being found and taken out, would race it if another thread made one at that moment. It also
 rests on the manager still holding the session before last at each connect, which is why every free comes a
 whole session after the freed one ended. Every free logged so far ran on `GameThread` that late, with no fault
 in any game log kept from those runs, but the game's code that reads the list was not examined.

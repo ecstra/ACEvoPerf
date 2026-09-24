@@ -14,9 +14,9 @@
 // The fix. The call that makes each connection is hooked. After the game has made a new one, every
 // connection made before it is looked at, and one whose only strong reference left is the entry in its own
 // game mode's list is finished, since nothing outside the cycle can reach it any more. Its count is taken
-// from one to zero, the entry cleared so the list's destructor skips it, and the control block's own destroy
-// and delete run, the same calls a last std::shared_ptr going away makes. A session the manager still holds
-// when the next one connects waits for the connect after that.
+// from one to zero, its entry taken out of the list the way the list's own erase would, and the control
+// block's own destroy and delete run, the same calls a last std::shared_ptr going away makes. A session the
+// manager still holds when the next one connects waits for the connect after that.
 //
 // Why this is safe to do:
 //
@@ -28,13 +28,13 @@
 //     revive it after that.
 //   - What it rests on is that only the game thread touches a finished session. The free runs only on that
 //     thread, inside the connect, so a plain copy of the list's entry, which raises the count without looking,
-//     or a push that moves the list between the entry being found and cleared, would have to come from another
-//     thread at that moment. It also rests on the manager still holding the session before last at each
-//     connect, which is why every free comes a whole session after the freed one ended. Every free logged so
-//     far ran on GameThread that late, with no fault in any game log kept from those runs, but the game's code
-//     that reads the list was not examined. Waiting a connect before the destroy would take away the copy,
-//     though not the push, at the cost of a finished session held through a load, and DEC-023 records why
-//     it does not.
+//     or a push that moves the list between the entry being found and taken out, would have to come from
+//     another thread at that moment. It also rests on the manager still holding the session before last at
+//     each connect, which is why every free comes a whole session after the freed one ended. Every free logged
+//     so far ran on GameThread that late, with no fault in any game log kept from those runs, but the game's
+//     code that reads the list was not examined. Waiting a connect before the destroy would take away the
+//     copy, though not the push, at the cost of a finished session held through a load, and DEC-023 records
+//     why it does not.
 //   - A connection whose game mode is null, whose list does not hold it, or that anything else still holds is
 //     left alone. A connection kept past its game mode is one of those while nothing has written over the
 //     game mode's memory, since its destructor emptied the list, see EntryFor, which also says what happens
@@ -247,7 +247,17 @@ static bool Free(BYTE* control)
     if (!entry) return false;
     if (_InterlockedCompareExchange((long*)(control + control::kUses), 0, 1) != 1) return false;
 
-    memset(entry, 0, gamemode::kEntrySize);
+    // The entry is taken out of the list the way the vector's own erase leaves it, the entries after it moved
+    // down, the place freed at the end cleared and the list one shorter, so nothing the teardown below runs
+    // can meet an empty entry in it. Its reference is not released, the compare and exchange ended it.
+    BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
+    BYTE* last = At<BYTE*>(gameMode, gamemode::kConnectionsLast);
+    BYTE* next = entry + gamemode::kEntrySize;
+    memmove(entry, next, (size_t)(last - next));
+    last -= gamemode::kEntrySize;
+    memset(last, 0, gamemode::kEntrySize);
+    memcpy(gameMode + gamemode::kConnectionsLast, &last, sizeof last);
+
     Slot(control, control::kSlotDestroy)(control);
     ReleaseWeak(control);      // the weak reference every strong count carries
     ReleaseWeak(control);      // the hook's own
