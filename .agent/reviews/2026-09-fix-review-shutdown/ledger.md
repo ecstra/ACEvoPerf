@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-fix-review-shutdown
 kind: review
-description: the teardown angle of the full review of main, the log lock a terminated thread can still own when DllMain logs, four findings, one breaks, found by three reviewers independently
+description: the teardown angle of the full review of main, the log lock a terminated thread can still own when DllMain logs, four findings, one breaks, found by three reviewers independently, and one handed over from the Cohtml build guard angle
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, reviews-index]
 branch: fix/review-shutdown
@@ -25,14 +25,20 @@ This branch owns the teardown path in `src/core/log.cpp`, `src/telemetry/timelin
 `src/telemetry/load_sampler.cpp` and `src/engine/streamer.cpp`. Findings in those files that are not
 about teardown belong to their own surface branches and are not repeated here.
 
-Four findings, one breaks, two bug, one debt.
+Four findings, one breaks, two bug, one debt, and a fifth, debt, handed over from the Cohtml build
+guard angle.
+
+Batch 1 closed with its three findings fixed, F-01 lighter than written since Windows ends a process
+whose exit would wait on an abandoned lock rather than hanging it. It added four from its hunter and
+nine from its verifier, and one fix of its own, the load sampler no longer waiting 200 ms at every exit
+for a thread Windows had already ended.
 
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | nothing blocks on a lock a dead thread may own | fixing | 2026-09-24 |
-| 2 | the timeline thread has a stop | pending | |
+| 1 | nothing blocks on a lock a dead thread may own | closed, runtime confirmed | 2026-09-24 |
+| 2 | the threads the mod starts have a stop | pending | |
 
 ## Findings
 
@@ -41,7 +47,7 @@ Four findings, one breaks, two bug, one debt.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: b7dca1e, 2026-09-24, `LogDetaching` runs first on detach, and from then on `Log` takes its lock only when it is free and drops the line otherwise, the way `TraceFinalFlush` takes its own. The failure below was lighter than written, H-02. Microsoft documents that an `EnterCriticalSection` that would block while a process exits ends the process instead, so the game did exit, without its last two log lines and the rest of the teardown, and the fix keeps both.
+- fix: b7dca1e, 2026-09-24, `LogDetaching` runs first on detach, and from then on `Log` takes its lock only when it is free and drops the line otherwise, the way `TraceFinalFlush` takes its own. The failure below was lighter than written, H-02. Microsoft documents that an `EnterCriticalSection` that would block while a process exits ends the process instead, so the game did exit, without its last two log lines and the rest of the teardown. The fix keeps the teardown, and those two lines are still lost then, since the lock they need stays held. It stays graded breaks as the review filed it, and the reviews index leads with what it did.
 
 At `ExitProcess` the kernel terminates every thread except the one running DllMain, and it does not
 release the critical sections those threads held. `Log` at `src/core/log.cpp:26` holds `g_logCs`
@@ -81,7 +87,7 @@ another file, and the live thread's `WriteFile` writes a log line into somebody 
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: b7dca1e, 2026-09-24, with F-01's fix the line after the poll takes the lock only when it is free, like every other line on detach.
+- fix: b7dca1e and ef69729, 2026-09-24, the line takes the lock only when it is free like every other line on detach, and ef69729 removed the poll and the summary it waited for, H-04.
 
 `src/telemetry/load_sampler.cpp:446` to 450 already handle the case where the sampler thread does not
 answer within 200 ms, and correctly skip `LogSummary`. Line 451 then calls `Log` unconditionally. The
@@ -100,14 +106,15 @@ older than the batch, one of them lightening F-01.
 
 `src/dllmain.cpp:151`. vcruntime's detach runs `_cexit` after DllMain, which runs the mod's 24 static
 destructors, `g_toc`'s 64 MB block among them, then frees the CRT's per thread data. A dead thread
-holding the process heap lock makes the first of those frees end the process, as the heap lock is a
-critical section too. With `streaming_trace=1`, a job thread killed inside `TraceRow`'s append after the
+holding the process heap lock makes the first of those frees that takes the lock end the process, and
+`g_toc`'s block always takes it. That goes by the heap's lock being a critical section, which is how
+Windows builds it rather than anything Microsoft documents. With `streaming_trace=1`, a job thread killed inside `TraceRow`'s append after the
 string freed its old buffer and before it stored the new one leaves `g_pending` pointing at freed
 memory, which `TraceFinalFlush` rightly leaves alone and its static destructor then frees again, a heap
 corruption stop or an access violation the game's crash logger reports. How ntdll guards its fiber local
 storage at exit is not documented.
 
-### H-02: F-01's "the game never exits" does not match Microsoft's documentation
+### H-02: F-01's "the game never exits" is contradicted by the EnterCriticalSection page
 - severity: nit
 - found-by: hunter
 - batch: 1
@@ -115,17 +122,19 @@ storage at exit is not documented.
 - fix: 2026-09-24, F-01's fix line and the reviews index say what happens instead.
 
 The `EnterCriticalSection` page says that while a process is exiting, a call that would block ends the
-process instead. So before b7dca1e the first log line on detach ended the process there, losing the
+process instead. F-01 followed the `ExitProcess` page, whose remarks warn of a deadlock for locks in
+general. So before b7dca1e the first log line on detach ended the process there, losing the
 `[streamer] at exit` and `detached` lines and the rest of the teardown, and the game still left the task
-list. Every one of the 60 newest session logs ends in `detached` except `airace-hang`, which never
-reached detach. No player saw anything, so no CHANGELOG line is owed.
+list. Of the 60 newest logs directly under a session folder, only `airace-hang` lacks `detached`, and it
+never reached detach. Counting the runs one folder deeper, `memcreep-20260913/Q-passive` lacks it too, a
+run whose GPU device was removed before the end. No player saw anything, so no CHANGELOG line is owed.
 
 ### H-03: with the streaming trace on, TraceFinalFlush still frees on the heap inside DllMain
 - severity: nit
 - found-by: hunter
 - batch: 1
 - status: wontfix
-- fix: 2026-09-24. A developer switch, and the documented outcome is the process ending at that free with the `detached` line lost.
+- fix: 2026-09-24. A developer switch, and the outcome is the process ending at that free with the `detached` line lost, going by the heap's lock being a critical section, which Microsoft does not document.
 
 `src/telemetry/streaming_trace.cpp:87` and `:49`. The rows it writes can be too big for the heap's small
 block path, so freeing them takes the heap lock, which a thread killed inside a heap call holds.
@@ -138,8 +147,87 @@ block path, so freeing them takes the heap lock, which a thread killed inside a 
 - fix: ef69729, 2026-09-24, the poll, the summary it waited for and its flag are gone.
 
 `src/telemetry/load_sampler.cpp:446` to `:450`. Windows ends the sampler thread before DllMain's detach,
-so its exit flag stayed 0 and DllMain slept 40 times 5 ms under the loader lock. Both load sampler logs
-on disk end with `samples in total` and then `detached`, with no final summary.
+so its exit flag stayed 0 and DllMain slept 40 times 5 ms under the loader lock. All four logs on disk
+with the sampler on end with `samples in total` and then `detached`, with no final summary.
+
+The verifier then ran on batch 1. It found no code defect, the three code commits doing what the ledger
+says, raised the nine below, and found the Cohtml build guard angle's F-07 deferred to this branch and
+never copied in, now F-05. The loop stopped there, all nine being precision in the record or in a
+comment.
+
+### V-01: F-01's fix line said the fix keeps the last two log lines, which it drops when a dead thread holds the lock
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it says the fix keeps the teardown and those two lines are still lost then.
+
+`src/core/log.cpp:61`. f27b281 wrote it.
+
+### V-02: F-01 stayed graded breaks and the index still led with a game that never exits
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the grade stays as filed with the reason in F-01's fix line, and the index leads with the process ending inside DllMain.
+
+### V-03: H-02's title set F-01 against Microsoft's documentation, when the ExitProcess page says what F-01 said
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the title names the `EnterCriticalSection` page and the body the `ExitProcess` page F-01 followed.
+
+### V-04: H-02's count held only for logs directly under a session folder
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+`memcreep-20260913/Q-passive`, one folder deeper, has no `detached` either, a run whose GPU device was
+removed before the end.
+
+### V-05: H-04 said both load sampler logs, where there are four
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+### V-06: F-04's fix line described a poll ef69729 had removed
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+### V-07: the sampler's new comment said the window since the last summary is in the CSV, which holds only its bucket counts
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 4d7873a, 2026-09-24.
+
+### V-08: the sampler's stop flag can stop nothing, and the comment said it matters to a thread still running
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 4d7873a, 2026-09-24, the comment says no caller reaches a live sampler. The flag stays for batch 2, which decides whether anything stops the mod's threads before the exit.
+
+`src/telemetry/load_sampler.cpp:60`. A live stop would also race `CloseHandle(g_csv)` with the thread's
+`WriteFile`, the race F-02 closed for the log.
+
+### V-09: H-01 and H-03 went further than the evidence about the heap lock
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+Only a free that takes the heap lock can end the process, which `g_toc`'s block always does, and the
+heap's lock being a critical section is how Windows builds it rather than anything Microsoft documents.
 
 ### F-03: the timeline thread has no stop path, so its ticks run through the game's own teardown
 - severity: bug
@@ -157,3 +245,28 @@ game has just destroyed, or `PatchEverywhere` walks a module being unloaded. The
 violation still stalls that thread 120 to 210 ms and still makes the game's crash logger write a report
 naming the mod, which is exactly what BUG-022 was. Only the per tick caching of what each report prints
 keeps this from being worse.
+
+### F-05: the moved work thread runs forever and nothing at DLL detach drains it
+- severity: debt
+- found-by: review
+- batch: 2
+- status: open
+- fix:
+
+Handed over from the Cohtml build guard angle, its F-07, which deferred it to this branch on 2026-09-20
+since the detach path is this branch's. Batch 1's verifier found it had never been copied in.
+
+`src/ui/responsive_ui.cpp`. `StopMovingWork` runs only from `Hook_StopWorkers` and
+`Hook_Uninitialize`, so a game that exits without reaching either, on a crash path or a shutdown that
+skips `Library::Uninitialize`, has `MovedWorkThread` ended wherever it is, possibly inside Cohtml's
+stylesheet parse or image decode holding a heap or Cohtml lock. That ledger called the result an exit
+hang, which F-01's H-02 has since shown ends the process instead, and after b7dca1e the log no longer
+waits on a lock at all. What is left is the heap lock of H-01 and the game's own teardown running beside
+a live thread, F-03's shape.
+
+## The runs
+
+Batch 1, one launch on 2026-09-24, `logs/shutdown-b1-20260924`, a track and then a quit from the menu.
+The log ends with the `[streamer] at exit` line and `detached`, and the game's own log has no
+`Exception Detected`. The case the fix is for, a thread ended while it holds the log's lock, cannot be
+forced from a run.

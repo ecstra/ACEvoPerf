@@ -2,7 +2,7 @@
 name: review-2026-09-fix-review-cohtml-build-guard
 kind: review
 description: the Cohtml angle of the full review of main, the vtable calls that ignore the build check every byte patch honours, seven findings, one breaks
-updated: 2026-09-20
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: fix/review-cohtml-build-guard
 status: closed
@@ -177,7 +177,7 @@ never exits.
 - found-by: review
 - batch: 4
 - status: deferred to fix/review-shutdown
-- fix:
+- fix: handed over to `fix/review-shutdown` as its F-05, 2026-09-24. The exit hang below turned out to end the process instead, that branch's H-02.
 
 Deferred rather than fixed here. The fix is a stop at DLL detach, and the detach path belongs to
 `fix/review-shutdown`, which already owns the identical hazard in `log.cpp`, `timeline.cpp`,
