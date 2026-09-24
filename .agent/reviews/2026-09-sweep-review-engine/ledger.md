@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-engine
 kind: review
 description: the engine hooks angle of the full review of main, one null pointer that retires all three streamer fixes and a flag writer that can inherit the wrong storage, seven findings
-updated: 2026-09-20
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, directstorage-streaming, engine-flags, reviews-index]
 branch: sweep/review-engine
 status: open
@@ -26,7 +26,7 @@ Seven findings, two bug, three debt, two nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | one fault does not silently retire the fixes for the session | pending | |
+| 1 | one fault does not silently retire the fixes for the session | fixing | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | pending | |
 | 3 | the throw log cannot eat the game's own exception | pending | |
 | 4 | the leftovers | pending | |
@@ -37,8 +37,8 @@ Seven findings, two bug, three debt, two nit.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: e829171, 2026-09-24, `ReadFeedback` returns an empty reading when the texture has no allocator, as `ReadPool` beside it does. No session on disk logged the fault, in 50 with the streamer on.
 
 `src/engine/streamer.cpp:422` reads `alloc` from tex+0x50 and dereferences it at +0xA8B0 on the next
 line with no null check, while `ReadPool` at line 443 checks the same kind of field.
@@ -71,8 +71,8 @@ this is not breaks.
 - severity: debt
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 1f948b9, 2026-09-24, a second hook skips its one call and logs the first time, rather than calling `Broken`. The destructor an access violation skips is noted at `HookGuard`, harmless while `Broken` latches every hook off on that path. Neither half has fired in the 50 sessions on disk with the streamer on.
 
 `src/engine/streamer.cpp:559` and `:565`, and again at `:619`. Two problems in one object.
 
