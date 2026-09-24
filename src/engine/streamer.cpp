@@ -423,6 +423,7 @@ static Feedback ReadFeedback(const BYTE* str, const BYTE* tex)
     if (!fbObject) return fb;
 
     const BYTE* alloc = At<BYTE*>(tex, texture::kAllocator);
+    if (!alloc) return fb;
     uint32_t id = (uint32_t)(At<int32_t>(tex, texture::kFeedbackSlot) - At<int32_t>(alloc, allocator::kFeedbackBase));
     if (id >= At<uint32_t>(fbObject, feedback::kIds)) return fb;
 
