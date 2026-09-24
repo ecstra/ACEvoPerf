@@ -268,7 +268,7 @@ static void AddBigScreenFix(size_t used)
     memcpy(&flags, entry + 0xE4, 2);
     memcpy(&size, entry + 0xF0, 8);
     memcpy(&offset, entry + 0xF8, 8);
-    if (size < 8 || size > 4096 || offset + size > g_pkgSize) {
+    if (size < 8 || size > 4096 || offset > g_pkgSize - size) {   // the order that cannot wrap
         Log("overlay: the big screen flipbook header is %llu bytes at %llu, not what this expects, skipped",
             (unsigned long long)size, (unsigned long long)offset);
         return;
@@ -382,7 +382,7 @@ static void AddUiStyleFix(size_t used)
     memcpy(&flags, entry + 0xE4, 2);
     memcpy(&size, entry + 0xF0, 8);
     memcpy(&offset, entry + 0xF8, 8);
-    if (size < 0x40000 || size > 0x1000000 || offset + size > g_pkgSize) {
+    if (size < 0x40000 || size > 0x1000000 || offset > g_pkgSize - size) {   // the order that cannot wrap
         Log("overlay: the UI stylesheet is %llu bytes at %llu, not what this expects, served untouched",
             (unsigned long long)size, (unsigned long long)offset);
         return;
