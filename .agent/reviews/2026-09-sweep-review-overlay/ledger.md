@@ -874,9 +874,9 @@ a missing factory or a file lost after the build never happen on 0.9.1 and were 
 Batch 3, one launch on 2026-09-24, `logs/overlay-b3-20260924`, defaults, one track loaded. The table
 passed the new first slot check and was built once in 147 ms, and both corrections landed at the
 same virtual offsets as batch 1's run, 69070749696 and 69070815232, with
-`122398 entries used, 2 replaced`, so the slot refactor moved nothing. Eight redirects served the flipbook twice and the
-stylesheet six times, all 134 package opens came from `ucrtbase.dll`, the table line named the
-mod's own corrections, and the game's own log has no exception.
+`122398 entries used, 2 replaced`, so the slot refactor moved nothing. Eight redirects served the
+flipbook twice and the stylesheet six times, all 134 package opens came from `ucrtbase.dll`, the
+table line named the mod's own corrections, and the game's own log has no exception.
 
 ## Checked and clean
 

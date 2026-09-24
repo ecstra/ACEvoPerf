@@ -48,8 +48,8 @@ single log line that reads like routine.
 
 ### The branches
 
-Thirteen branches, one per angle, each cut from the latest 0.4 in this order. The owner acks each batch, and a
-branch merges before the next one starts.
+Thirteen branches, one per angle, each cut from the latest 0.4 in this order. The owner acks each
+batch, and a branch merges before the next one starts.
 
 | order | branch | ledger | findings | worst |
 |---|---|---|---|---|
