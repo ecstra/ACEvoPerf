@@ -26,12 +26,17 @@ Batch 1 closed with both its findings fixed, neither of which had ever fired in 
 kicks, the hunter finding the overlap F-03 feared not possible as far as anything shows. It added two
 from its hunter and five from its verifier, all in the wording.
 
+Batch 2 closed with both its findings fixed, the flag scan bounded so no flag takes another's address and
+the build clean of warnings. It added four from its hunter and eighteen from three verifier passes. The
+hunter found numeric flags took any text, and the strict check that closed it caused the batch's one
+bug, a typed tile pool size refused and left to the engine's whole define, now a fallback to auto.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
-| 2 | the flag writer cannot land on the wrong global | fixing | 2026-09-24 |
+| 2 | the flag writer cannot land on the wrong global | closed, runtime confirmed | 2026-09-24 |
 | 3 | the throw log cannot eat the game's own exception | pending | |
 | 4 | the leftovers | pending | |
 
@@ -234,7 +239,7 @@ and raised the four below.
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: 4f94029, 2026-09-24, an int32 or a double is written only when the whole value is one, through `strtoll` and `strtod`, and refused otherwise. Since 30f7232 a `tile_pool_mb` that check would refuse falls back to auto, V-06.
+- fix: 4f94029, 2026-09-24, an int32 or a double is written only when the whole value is one, through `strtoll` and `strtod`, and refused otherwise. Since 30f7232 and db3e0f9 a `tile_pool_mb` that check would refuse falls back to auto, V-06 and V-12.
 
 `src/engine/flags.cpp:201` and `:204`. `tile_pool_mb=1,024`, `=1.5` or `=2 GB` wrote 1 or 2 MB into the
 engine's tile pool at both slots, logged like any success. The bool branch has refused unknown words
@@ -340,8 +345,8 @@ ending where it should, no other flag changed and V-07 to V-10 gone, and raised 
 - fix: db3e0f9, 2026-09-24, more than nine digits falls back to auto as well, and the doc says so.
 
 `tile_pool_mb=3221225472`, a byte count typed where MB is asked, passed the digits test, reached
-`WholeInt`, was refused above INT_MAX and left the engine the whole define, V-06's own failure. 30f7232
-caused it.
+`WholeInt`, was refused above INT_MAX and left the engine the whole define, V-06's own failure. 4f94029
+caused it and 30f7232 left it.
 
 ### V-13: a key typed in another case got a note promising auto that the flag writer then refused
 - severity: nit
@@ -364,7 +369,7 @@ caused it.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: db3e0f9, 2026-09-24, the code now makes it true, so the sentence stands.
+- fix: db3e0f9, 2026-09-24, the code now makes it true, and V-21 dated the sentence right.
 
 ### V-16: V-11's title dated the skip to 57b43fb, which only moved it
 - severity: nit
@@ -385,7 +390,52 @@ caused it.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 2026-09-24, both say closed once the batch closes.
+- fix: 2026-09-24, both say closed, with the batch.
+
+The third verifier pass ran on db3e0f9 and 0f38065. It walked every form `tile_pool_mb` can take in the
+ini through the real section reader and found none that reaches the flag writer to be refused there, and
+raised the five below. The loop stopped there, the one code change among them being which flag the early
+pass promises an auto write for.
+
+### V-19: the reviews index still said batch 2 waits on a launch and counted 10 from it
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, with the batch's close.
+
+0f38065 marked V-18 fixed on that change before it was made.
+
+### V-20: V-12 blamed 30f7232 for a refusal 4f94029 made
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-21: H-03's sentence dated the fallback to 30f7232, where ten digits were still refused until db3e0f9
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-22: the note, the comment and the doc said an int32's worth of digits, where the check allows nine
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: cb9cbd8, 2026-09-24, nine plain digits at most, which also covers why `0000001024` and `+1024` fall back.
+
+### V-23: the early pass promised an auto write to any flag set to auto, and only the tile pool has a rule
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: bae9211, 2026-09-24, the early line is written for `tile_pool_mb` alone.
+
+`TILE_POOL_MB=auto` or `no_intro=auto` logged the promise and then `auto has no rule for this flag`.
+Older than the batch, 755b6cc.
 
 ## The runs
 
@@ -400,7 +450,8 @@ string. The four shipped flags were written at the same addresses as batch 1's r
 at 89C2 and 89C3, `no_intro` at 1DA4 and 1E22, `force_canonical_pool_sizes` at 83D8 and 83D9 and
 `tile_pool_mb` at 83D0 and 83D4 with 1024 from auto, in every pass. No refusal line, no `ini:` note, the
 game's own `[Tile Pool] sized to 1024 MB (16384 tiles)` and `canonical sizes forced`, a clean `detached`
-and no `Exception Detected`.
+and no `Exception Detected`. db3e0f9, cb9cbd8 and bae9211 came after it and change only what values
+other than the shipped ones do.
 
 ## Checked and clean
 
