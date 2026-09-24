@@ -170,7 +170,7 @@ for any of the three fixes.
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 7e8b058, 2026-09-24, the backward walk from each registration forgets what it found before the call to a registration that precedes it, so a site takes only what follows the one before, and a site with no storage of its own there is left unplaced rather than handed the last one's. Before the fix the scan found 204 flags on 0.9.1, which the hunter showed were 185 or 186 real ones and 18 string flags pinned to a neighbour's two addresses, so F-04 fired on every run, harmless only because string flags are never written, H-04. Since 934d6c0 the scan logs how many it placed, and on 0.9.1 that should be those 185 or 186.
+- fix: 7e8b058, 2026-09-24, the backward walk from each registration forgets what it found before the call to a registration that precedes it, so a site takes only what follows the one before, and a site with no storage of its own there is left unplaced rather than handed the last one's. Before the fix the scan found 204 flags on 0.9.1, which by the 0.9.0 table are 186 real ones and 18 string flags pinned to a neighbour's two addresses, or 185 and 19 if the flag 0.9.1 added is a string, so F-04 fired on every run, harmless only because string flags are never written, H-04. Since 934d6c0 the scan logs how many it placed, and on 0.9.1 that should be those 185 or 186.
 
 `src/engine/flags.cpp:99`. Pass 2 walks back up to 220 bytes from each `FlagRegisterer` call and keeps
 the last `lea rax` paired with `mov [rsp+20h],rax`. Registrations in a dynamic initializer sit tens of
@@ -225,15 +225,16 @@ one thing standing between the build and a clean `/W4` run, which the tools bran
 turn warnings into errors.
 
 The hunter then ran on batch 2. It found the reset right under the x64 calling convention and in the
-object code, a false reset from a stray byte about one in a million scans and only ever dropping a
-site, never moving one, and the conversion sound, and raised the four below.
+object code, a false reset from a stray byte about one chance in a million per game build, with the
+same answer every launch, and only ever dropping a site, never moving one, and the conversion sound,
+and raised the four below.
 
 ### H-03: numeric flags took any text through atoi and atof, so a badly typed size reached the engine as a tiny number
 - severity: bug
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: 4f94029, 2026-09-24, an int32 or a double is written only when the whole value is one, through `strtoll` and `strtod`, and refused otherwise.
+- fix: 4f94029, 2026-09-24, an int32 or a double is written only when the whole value is one, through `strtoll` and `strtod`, and refused otherwise. Since 30f7232 a `tile_pool_mb` that check would refuse falls back to auto, V-06.
 
 `src/engine/flags.cpp:201` and `:204`. `tile_pool_mb=1,024`, `=1.5` or `=2 GB` wrote 1 or 2 MB into the
 engine's tile pool at both slots, logged like any success. The bool branch has refused unknown words
@@ -243,10 +244,10 @@ since the proxy core review's V-07, and this branch was missed. Older than the b
 - severity: nit
 - found-by: hunter
 - batch: 2
-- status: fixed
-- fix: 2026-09-24, F-04's fix line says what the count was and what it should be, and the system doc takes the next run's figure.
+- status: open
+- fix: F-04's fix line says what the count was and what it should be, and the system doc takes the next run's figure once there is one, V-09.
 
-String registrations never load a storage slot with `lea rax`, so all 31 are unplaced now, and the
+String registrations never load a storage slot with `lea rax`, so all 31 of 0.9.0's should be unplaced now, and the
 free roam research of 2026-09-06 had already said the walk should stop at the previous registration.
 Its run then found all 216.
 
@@ -257,7 +258,8 @@ Its run then found all 216.
 - status: fixed
 - fix: 934d6c0, 2026-09-24, an unplaced site stays listed, a placed one wins over it on a repeated name, and the string flag is refused as a string.
 
-7e8b058 caused it, by skipping every site with no storage before it was typed.
+7e8b058 caused it, by leaving every string site with no storage, which the scan already dropped before
+typing.
 
 ### H-06: a refused bool typo ended with no writable storage found
 - severity: nit
@@ -268,6 +270,64 @@ Its run then found all 216.
 
 `logs/proxycore-b2-20260920` shows `left alone` once per slot and then `no writable storage found`.
 Older than the batch.
+
+The verifier then ran on batch 2. It found F-04, F-07, H-03, H-05 and H-06 closed in the source and the
+object code and every value the shipped ini and the docs pass still accepted, and raised the six below,
+one of them a bug the strict check caused. The loop stopped there, the rest being precision in the
+record.
+
+### V-06: a tile_pool_mb the strict check refuses was never written, and the engine took the whole define
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 30f7232, 2026-09-24, a value that is neither a number nor auto falls back to auto with a note, as `staging_buffer_mb` does since the proxy core review's H-09.
+
+With the shipped `force_canonical_pool_sizes=true` an unwritten tile pool takes the `texturePoolSize`
+define, 1433 MB at Low up to 6144 MB at Ultra, the failure DEC-022 and the auto sizes exist to prevent.
+`tile_pool_mb=512MB`, which `atoi` used to read as 512, went there. 4f94029 caused it.
+
+### V-07: a number flag with no value was refused quoting a true the player never wrote
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 552fb01, 2026-09-24, it says the flag has no value, and a bare name still means true for a bool.
+
+4f94029 caused it, the bare name's `true` being gflags' rule for bools.
+
+### V-08: F-04's fix line put 185 or 186 real flags and 18 strings behind a count of 204
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, 186 and 18, or 185 and 19, and by the 0.9.0 table rather than shown.
+
+03b6987 wrote it.
+
+### V-09: H-04 was marked fixed on a doc change still to come
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, H-04 stays open until the next run gives the doc its figure, and says the string sites should be unplaced rather than are.
+
+Since 934d6c0 the scan lists every name, placed or not, so the doc's 203 no longer matches the code
+either. 03b6987 wrote it.
+
+### V-10: "one in a million scans" read as a random failure each launch, where the scan reads the same bytes every time
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-11: H-05 said 7e8b058 added the skip, which has been there since 57b43fb
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
 
 ## The runs
 
