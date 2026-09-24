@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and sixteen from batch 3's hunter and verifier
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and seventeen from batch 3's hunter and two verifier passes
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
@@ -752,7 +752,7 @@ caller then enqueues the request at its virtual offset, which batch 2's F-04 and
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: ad31ee5, 2026-09-24, it names the loose files and the mod's own corrections apart.
+- fix: ad31ee5 then 66d5eb5, 2026-09-24, it names the loose files and the mod's own corrections apart, the corrections only when one is on.
 
 `logs/overlay-b1-20260923` shows `to apply 0 override(s)` and then `2 replaced`.
 
@@ -777,8 +777,8 @@ caller then enqueues the request at its virtual offset, which batch 2's F-04 and
 - status: fixed
 - fix: a40019e, 2026-09-24, it names `ReOpenFile` and `DuplicateHandle`.
 
-The verifier then ran on batch 3. It confirmed all fifteen with no change in behaviour beyond
-882c352's intended one, and raised the five below, all nits.
+The verifier then ran on batch 3. It confirmed all fifteen with no change in behaviour beyond the
+intended ones in 809d4ff and 882c352, and raised the five below, all nits.
 
 ### V-28: two lines the last edits left long
 - severity: nit
@@ -794,7 +794,7 @@ The verifier then ran on batch 3. It confirmed all fifteen with no change in beh
 - status: fixed
 - fix: 66d5eb5, 2026-09-24, it names them only when one is on.
 
-### V-30: F-08's and F-09's fix lines named only their first commit
+### V-30: F-08's and F-09's fix lines lacked the later commits that reworked their fixes
 - severity: nit
 - found-by: verifier
 - batch: 3
@@ -817,6 +817,15 @@ The 131 offsets are 4 KB pieces, 78 runs of them in the traced session, so far f
 - batch: 3
 - status: fixed
 - fix: 2026-09-24.
+
+A second pass ran on 66d5eb5 and cd44f88. It found the code right and raised one more.
+
+### V-33: three lines cd44f88 wrote were false in a small way
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, the pass paragraph names 809d4ff beside 882c352 as intended changes, H-21's fix line carries 66d5eb5, and V-30's heading says the lines lacked later commits, since F-08's already named a5cc278.
 
 ## The runs
 
