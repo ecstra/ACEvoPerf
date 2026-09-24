@@ -495,8 +495,10 @@ static void BuildToc()
         if (e[0] == 0) break;
     }
     if (used == 0 || used == slots) {
-        // older layout: 32 MB table
-        Log("overlay: 64 MB table not recognised (used=%zu), giving up", used);
+        // Not a table this layer reads. It knows only the 64 MB table of 0.9.0 and 0.9.1. The public
+        // package tools read a 32 MB one, presumably from earlier builds, and tools/kspkg.py falls
+        // back to that size, but nothing here does, so a package laid out that way gives up here.
+        Log("overlay: the 64 MB table was not recognised (used=%zu), so no override applies this session", used);
         return;
     }
     auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
