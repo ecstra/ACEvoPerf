@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-fix-review-session-leak-safety
 kind: review
-description: the session leak fix angle of the full review of main, the hand rolled shared_ptr surgery and what it does not guard against, six findings, three breaks
+description: the session leak fix angle of the full review of main, the hand rolled shared_ptr surgery and what it does not guard against, six findings, three breaks, plus fifty one from the hunters and verifiers across three batches, merged into 0.4 on 2026-09-24
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, session-leak-fix, BUG-016-vram-overhead-grows-across-scene-loads, reviews-index, DEC-023-the-session-free-stays-immediate]
 branch: fix/review-session-leak-safety
-status: open
+status: closed
 ---
 
 # Review of the session leak fix
@@ -27,7 +27,8 @@ everything else. It assumes nothing else takes a strong reference, that the game
 that the vector does not move, and that the destructor it runs cannot throw. Each of those is true in
 the sessions that were measured and none of them is enforced.
 
-Six findings, three breaks, one bug, one debt, one nit.
+Six findings, three breaks, one bug, one debt, one nit. With the 51 the hunters and verifiers added
+across the three batches, 57 in all, and the branch merged into 0.4 on 2026-09-24.
 
 Batch 1 closed with both its findings left open on the owner's choice, DEC-023, and added seven from
 two hunters and fifteen from four verifier passes. The hunters' one real gap was the free running on
