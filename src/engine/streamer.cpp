@@ -44,7 +44,7 @@
 // levels below its finest on most of them. The fix loads the levels that fit, and the rest follow
 // on later kicks as space comes back.
 //
-// The seven sites, each the rewrite of one rel32 displacement:
+// The six sites, each the rewrite of one rel32 displacement:
 //
 //   S1  the lea that hands the kick job its function, through a stub that counts kicks
 //   S2  the selected update's read of the current level, which also sees the admitted level
@@ -70,7 +70,7 @@
 //   - Kicks are serialised, the scheduler waits on the previous kick's job before it queues the
 //     next one, so the per texture state below needs no lock. A second hook arriving while one is
 //     running would mean that is wrong, and that one call then goes straight to the engine, logged
-//     the first time, with the fixes left on.
+//     the first time, with nothing switched off.
 //   - A refused drop keeps tiles the engine would have freed, and the engine's tile allocator
 //     stalls rather than evicts when the pool runs dry. The pool is a fixed heap that sits full in
 //     normal play, parked the streamer turns about 120 loads away for space on every kick, so
@@ -575,7 +575,7 @@ static void SkipOverlap(const char* where)
 {
     if (!g_overlapSaid.exchange(true))
         Log("[streamer] a second hook arrived in %s while one was running, so that call went straight to the engine "
-            "and the fixes stay on. Only the first time is logged.", where);
+            "and nothing was switched off. Only the first time is logged.", where);
 }
 
 static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* context)
