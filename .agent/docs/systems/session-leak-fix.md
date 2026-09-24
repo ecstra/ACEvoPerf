@@ -75,5 +75,6 @@ longer looks live, see [telemetry](../ops/telemetry.md).
 Six Red Bull Ring practice visits parked in the pit box with the menu between them, eleven sessions freed on
 `GameThread` in 0.2 to 5.7 ms each, no crash, the live heap growing about 5 MB a visit instead of 57 (BUG-016
 holds the table). Then the owner's own play, laps driven at two tracks, a leaderboard lap, a multiplayer
-session and a thirty AI race, whose `InstantRaceRemote` freed in 29.1 ms inside the next load. A session
-restarted from the pause menu is the one path that has not run under it.
+session and a thirty AI race, whose `InstantRaceRemote` freed in 29.1 ms inside the next load. Last, on
+2026-09-24, a practice restarted from the pause menu, the one path that had not run under it. The restart
+kept the same session and game mode, and the practice was freed a load later in 32.4 ms like any other.
