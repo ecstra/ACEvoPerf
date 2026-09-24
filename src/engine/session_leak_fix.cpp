@@ -24,8 +24,15 @@
 //     and none of those ranges carries a base relocation.
 //   - The hook keeps a weak reference of its own on each connection, the way a std::weak_ptr does, so a
 //     control block the game frees by itself stays readable until the hook lets go of it.
-//   - The count moves from one to zero only by compare and exchange. A std::weak_ptr lock elsewhere cannot
-//     revive it after that, and a strong copy could only come from the entry being cleared.
+//   - The count moves from one to zero only by compare and exchange, so a std::weak_ptr lock elsewhere cannot
+//     revive it after that.
+//   - What it rests on is that only the game thread touches a finished session. The free runs on that thread,
+//     inside the connect, so a plain copy of the list's entry, which raises the count without looking, or a
+//     push that moves the list between the entry being found and cleared, would have to come from another
+//     thread at that moment. Every free logged so far ran on GameThread a whole session after the freed one
+//     ended, with no fault, but the game's code that reads the list was not examined. Waiting a connect
+//     before the destroy would take the assumption away at the cost of a finished session held through a
+//     load, and DEC-023 records why it does not.
 //   - A connection whose game mode is gone, whose list does not hold it, or that anything else still holds is
 //     left alone.
 
