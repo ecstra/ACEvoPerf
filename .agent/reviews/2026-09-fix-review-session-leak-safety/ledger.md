@@ -407,7 +407,7 @@ caught, H-09.
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: bcde4b4, 2026-09-24, every read of the game mode and its list is checked readable with the system first, and such a connection is let go without a fault.
+- fix: bcde4b4, 2026-09-24, every read of the game mode and its list is checked readable with the system first, and such a connection is let go without a fault. 9e3f840 narrowed the header's wording to those reads.
 
 `src/engine/session_leak_fix.cpp:147` and `:180` to `:187`. The guard caught the fault, but the game's
 crash handler sees it first. It writes an `Exception Detected` naming `DSTORAGE.dll` into the player's
