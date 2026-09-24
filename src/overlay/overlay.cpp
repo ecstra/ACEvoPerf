@@ -360,8 +360,9 @@ static void AddBigScreenFix(size_t used)
     }
     header[at] = 1;
 
-    // The file has to carry the encoding the rebuilt table will claim for it.
-    if (!g_cfg.overlayClearXor) XorRange(header.data(), header.size());
+    // The file has to carry the encoding the rebuilt table will claim for it, which with the flag kept
+    // is the entry's own. Ciphered whatever the entry said, a plain entry would get a scrambled file.
+    if (!g_cfg.overlayClearXor && (entry.flags & FLAG_XOR)) XorRange(header.data(), header.size());
 
     const std::wstring loose = g_dir + kBigScreenLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -465,8 +466,9 @@ static void AddUiStyleFix(size_t used)
     for (const StyleEdit& edit : kStyleEdits) ReplaceAll(css, edit.from, edit.to);
 
     std::vector<BYTE> corrected(css.begin(), css.end());
-    // The file has to carry the encoding the rebuilt table will claim for it.
-    if (!g_cfg.overlayClearXor) XorRange(corrected.data(), corrected.size());
+    // The file has to carry the encoding the rebuilt table will claim for it, which with the flag kept
+    // is the entry's own. Ciphered whatever the entry said, a plain entry would get a scrambled file.
+    if (!g_cfg.overlayClearXor && (entry.flags & FLAG_XOR)) XorRange(corrected.data(), corrected.size());
 
     const std::wstring loose = g_dir + kUiStylesheetLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -598,7 +600,7 @@ static void BuildToc()
         memcpy(e + SLOT_DATA_OFFSET, &o.virtOffset, 8);
         next = (next + o.size + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
         Log("overlay: %s %s (%llu bytes) -> virtual offset %llu%s", exists ? "replace" : "add", o.pkgPath.c_str(),
-            (unsigned long long)o.size, (unsigned long long)o.virtOffset, g_cfg.overlayClearXor ? "" : " (xor flag kept)");
+            (unsigned long long)o.size, (unsigned long long)o.virtOffset, (flags & FLAG_XOR) ? " (xor flag kept)" : "");
     }
     g_virtEnd = next;
     XorRange(g_toc.data(), (size_t)g_tocSize);
