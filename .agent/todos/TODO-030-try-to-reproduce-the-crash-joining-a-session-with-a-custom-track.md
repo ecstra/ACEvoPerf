@@ -3,7 +3,7 @@ name: TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track
 kind: todo
 description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes
 updated: 2026-09-24
-links: [DEC-003-staging-buffer-128mb, BUG-003-menu-icons-stop-rendering, BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup, directstorage-streaming, session-leak-fix, package-override-layer]
+links: [DEC-003-staging-buffer-128mb, BUG-003-menu-icons-stop-rendering, BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup, directstorage-streaming, session-leak-fix, package-override-layer, DEC-023-the-session-free-stays-immediate]
 status: open
 by: owner
 area: stability
@@ -37,7 +37,7 @@ content the mod has never been run against. The leads, in the order they are wor
    one bigger request would load without the mod and fail with it. The cap exists for BUG-003 to
    BUG-005, see DEC-003. `staging_buffer_mb=0` under `[directstorage]` leaves the game's own size.
 2. **The session leak fix**, which runs exactly when a session connects. `session_leak_fix=0` under
-   `[engine]`.
+   `[engine]`. If that is what clears the crash, it reopens DEC-023.
 3. **The texture streamer fixes.** `streamer_reload_fix`, `streamer_rank_fix` and
    `streamer_partial_loads` under `[engine]`.
 4. **The package override layer**, if the track's installer repacks `content.kspkg`. 0.3.2

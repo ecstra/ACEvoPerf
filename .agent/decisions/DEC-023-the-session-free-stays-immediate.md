@@ -3,7 +3,7 @@ name: DEC-023-the-session-free-stays-immediate
 kind: decision
 description: the session leak fix keeps freeing a finished session at the next connect on the game thread rather than retiring it and freeing it one connect later, because the wait would hold a finished session through a whole load, about 50 MB at the Red Bull Ring and likely 100 to 200 MB at bigger tracks, past the owner's bar, and would close only the copy race
 updated: 2026-09-24
-links: [session-leak-fix, BUG-016-vram-overhead-grows-across-scene-loads, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, review-2026-09-fix-review-session-leak-safety]
+links: [session-leak-fix, BUG-016-vram-overhead-grows-across-scene-loads, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track, review-2026-09-fix-review-session-leak-safety]
 date: 2026-09-24
 area: stability
 status: standing
@@ -50,12 +50,14 @@ in a freed buffer, which shows up as heap corruption wherever that block is used
 can hang the game as well as crash it. Every free across the logs ran on `GameThread` a whole session
 after the freed one ended, with no fault in any game log kept from those runs.
 
-What reopens this is any `Exception Detected`, unexplained exit or freeze at or after a load in a
-session with the fix on, since the free runs inside the load's connect and writes its freed line
-only once it returns, a connect line saying it was not the game thread, or evidence of another
-thread touching a game mode's connection list.
+What reopens this, from 2026-09-24 on, is any `Exception Detected`, unexplained exit or freeze at or
+after a load in a session with the fix on, since the free runs inside the load's connect and writes
+its freed line only once it returns, a connect line saying it was not the game thread, or evidence
+of another thread touching a game mode's connection list.
 
-One freeze is on record in a launch whose frees had run, BUG-032, a thirty AI race start at the
-Nürburgring 76 s after the last free. Video memory was over budget there, the likelier cause, but
-the gap alone does not rule the free out, since a race with it can surface that much later. It is
-not taken as a reopen, and it stays linked here.
+Two earlier events were weighed when this was written. BUG-032 froze a thirty AI race start at the
+Nürburgring 76 s after the last free of its launch, with video memory over budget. The gap alone
+does not rule the free out, since a race with it can surface that much later, and the owner's read
+is the memory budget, not the mod. TODO-030 is a player's crash joining a session on 0.3.2 with
+custom tracks installed, and its own tests include `session_leak_fix=0`, which reopens this if that
+is what clears the crash.

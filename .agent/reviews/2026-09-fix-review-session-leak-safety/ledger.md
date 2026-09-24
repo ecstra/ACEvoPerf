@@ -68,12 +68,12 @@ strong reference itself, releasing it the normal way at the next connect so a ra
 raises a live count. The code could not be examined here, since an agent's script reading the exe's
 class tables was stopped by a safety check and that route was left alone. The wait would hold one
 finished session through the next load, about 50 MB at the Red Bull Ring and likely 100 to 200 MB
-at bigger tracks, and the owner's bar was 50 MB and no pile up. What the logs show, from a second
-agent on 2026-09-24, is 43 connects and 15 frees, every one on `GameThread`, the game's main thread,
-which also builds every connection, local server and game mode. Every freed session had ended a
-whole session earlier, 14 to 144 s before, and no game log holds an exception after a free. The
-game does take a physics lock when a session changes, so a second thread in that path is not ruled
-out.
+at bigger tracks, and the owner's bar was 50 MB and no pile up. What the logs show, counted by a
+second agent on 2026-09-24 and with that day's batch 1 run added, is 50 connects and 20 frees,
+every one on `GameThread`, the game's main thread, which also builds every connection, local server
+and game mode. Every freed session had ended a whole session earlier, 6.3 to 144 s before, and no
+game log kept from those runs holds an exception after a free. The game does take a physics lock
+when a session changes, so a second thread in that path is not ruled out.
 
 ### F-02: the entry pointer is captured before the compare exchange and written through after it, with no engine lock
 - severity: breaks
@@ -109,8 +109,8 @@ The header stated it as fact. A connect from another thread, on a path no log co
 untested pause menu restart or in a later build, would have destroyed a finished session there
 while `GameThread` ran its frame, the race DEC-023 assumes away, and two connects at once would have
 run two teardowns in parallel, since `g_lock` covers the pick and not the destroy. All 43 connect
-lines and all 208 of the game's own `Server connection` steps across 64 game logs name `GameThread`,
-so no logged path changes.
+lines on disk before the fix, and all 208 of the game's own `Server connection` steps across 64 game
+logs, name `GameThread`, so no logged path changes.
 
 ### H-02: DEC-023 said waiting a connect before the destroy closes both races, and it closes only the copy
 - severity: debt
@@ -133,8 +133,9 @@ were closed.
 The copy leaves another thread holding a count on a deleted block, and the push leaves zeroed bytes
 in a freed buffer, so a crash can come later on another thread or in the heap. The first rewrite
 said neither faults in the free and waited for a fault after a freed line, which V-01 corrected. The
-trigger is now any `Exception Detected` or unexplained exit at or after a load with the fix on, a
-connect line saying it was not the game thread, or evidence of another thread touching the list.
+trigger is now any `Exception Detected`, unexplained exit or freeze at or after a load with the fix
+on, from 2026-09-24, a connect line saying it was not the game thread, or evidence of another thread
+touching the list, the freeze from V-05 and the date from V-10.
 
 ### H-04: an out of memory throw from a push under g_lock left the lock held
 - severity: nit
@@ -206,7 +207,7 @@ decision.
 - found-by: verifier
 - batch: 1
 - status: fixed
-- fix: 2026-09-24, it names the manager holding the session before last as well and points at the comment at the top of the file.
+- fix: 2026-09-24, it names the manager holding the session before last as well. Its pointer to the header was V-07's to correct.
 
 The comment landed in ef53db1 a minute before H-06's fix took the same words out of DEC-023 in
 1f85426.
@@ -266,6 +267,40 @@ over budget there, the likelier cause, so it is linked rather than taken as a re
 - batch: 1
 - status: fixed
 - fix: 2026-09-24.
+
+A third pass ran on 0db59e5. It found the rewritten wait closes the copy race as claimed and the
+trigger covers crash, freeze and exit, and raised the four below.
+
+### V-10: DEC-023's trigger was met by the freeze its next paragraph set aside, and by TODO-030
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the trigger counts events from 2026-09-24 on, and the two before it are named as weighed, BUG-032 on the owner's read that it was the memory budget and TODO-030 through its own test with the fix switched off.
+
+BUG-032 is an unexplained freeze after a load with the fix on, which the trigger as written counted,
+and TODO-030's crash on 0.3.2 is an unexplained exit at a load with the fix on by default.
+
+### V-11: H-03 still gave the trigger without the freeze
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+### V-12: V-03's fix line credited it with V-07's change
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
+
+### V-13: F-01's and H-01's log counts left out the batch 1 run
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, F-01 counts 50 connects and 20 frees with the run added and a shortest gap of 6.3 s, and H-01 says its 43 were the lines on disk before the fix.
 
 ### F-03: EntryFor walks three engine pointers with no fault guard and nothing proves the game mode is still live
 - severity: breaks

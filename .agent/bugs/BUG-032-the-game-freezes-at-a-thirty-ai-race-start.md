@@ -35,7 +35,8 @@ next one and only what was read on the day is kept here.
   never freed, and the race at the next attempt froze on the census with nothing freed at all in that launch.
   The gap does not rule it out on its own, since a race between the free and another game thread can surface
   that much later as a hang or heap corruption, which is why
-  [DEC-023](../decisions/DEC-023-the-session-free-stays-immediate.md) keeps this freeze linked.
+  [DEC-023](../decisions/DEC-023-the-session-free-stays-immediate.md) keeps this freeze linked. The owner's
+  read on 2026-09-24 is the memory budget, not the mod.
 
 ## Reproduce
 
