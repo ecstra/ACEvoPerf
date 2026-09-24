@@ -738,10 +738,10 @@ void Install()
     g_active = g_cfg.overlayEnabled && (!g_files.empty() || g_cfg.fixBigScreens || g_cfg.responsiveUi);
     if (!g_active && !g_cfg.traceFileIo) return;
     PatchEverywhere("SetFilePointerEx", nullptr, (void**)&g_origSetFilePointerEx);   // original address only
-    int a = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
-    int b = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);
-    int c = PatchEverywhere("CreateFile2", (void*)&Hook_CreateFile2, (void**)&g_origCreateFile2);
-    int f = PatchEverywhere("CloseHandle", (void*)&Hook_CloseHandle, (void**)&g_origCloseHandle);
+    int createFileWSlots = PatchEverywhere("CreateFileW", (void*)&Hook_CreateFileW, (void**)&g_origCreateFileW);
+    int createFileASlots = PatchEverywhere("CreateFileA", (void*)&Hook_CreateFileA, (void**)&g_origCreateFileA);
+    int createFile2Slots = PatchEverywhere("CreateFile2", (void*)&Hook_CreateFile2, (void**)&g_origCreateFile2);
+    int closeHandleSlots = PatchEverywhere("CloseHandle", (void*)&Hook_CloseHandle, (void**)&g_origCloseHandle);
 
     // ReadFile goes in last, once every original its paths call is resolved, because a hook is live
     // in every module the moment its patch lands. It used to go in one statement before
@@ -753,8 +753,9 @@ void Install()
         g_active = false;
         return;
     }
-    int d = PatchEverywhere("ReadFile", (void*)&Hook_ReadFile, (void**)&g_origReadFile);
-    Log("overlay: file hooks installed (CreateFileW %d, CreateFileA %d, CreateFile2 %d, ReadFile %d, CloseHandle %d import slots)", a, b, c, d, f);
+    int readFileSlots = PatchEverywhere("ReadFile", (void*)&Hook_ReadFile, (void**)&g_origReadFile);
+    Log("overlay: file hooks installed (CreateFileW %d, CreateFileA %d, CreateFile2 %d, ReadFile %d, CloseHandle %d import slots)",
+        createFileWSlots, createFileASlots, createFile2Slots, readFileSlots, closeHandleSlots);
 }
 
 bool Active() { return g_active; }
