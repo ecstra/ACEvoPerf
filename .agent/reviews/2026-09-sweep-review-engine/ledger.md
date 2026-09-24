@@ -38,7 +38,7 @@ Seven findings, two bug, three debt, two nit.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: e829171, 2026-09-24, `ReadFeedback` returns an empty reading when the texture has no allocator, as `ReadPool` beside it does. No session on disk logged the fault, in 50 with the streamer on.
+- fix: e829171, 2026-09-24, `ReadFeedback` returns an empty reading when the texture has no allocator, as `ReadPool` beside it does. A stale allocator is not handled, and the hunter found no way for one to be stale, since the engine reads its allocator at the start of every kick and would fault first. No session on disk logged the fault, in 51 with the streamer hooked and 23,814 kicks.
 
 `src/engine/streamer.cpp:422` reads `alloc` from tex+0x50 and dereferences it at +0xA8B0 on the next
 line with no null check, while `ReadPool` at line 443 checks the same kind of field.
@@ -72,7 +72,7 @@ this is not breaks.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: 1f948b9, 2026-09-24, a second hook skips its one call and logs the first time, rather than calling `Broken`. The destructor an access violation skips is noted at `HookGuard`, harmless while `Broken` latches every hook off on that path. Neither half has fired in the 50 sessions on disk with the streamer on.
+- fix: 1f948b9 and 2edf3b3, 2026-09-24, a second hook skips its one call and logs the first time, rather than calling `Broken`. The destructor an access violation skips is noted at `HookGuard`, harmless while `Broken` latches every hook off on that path. The overlap below was weighed as possible and is not, as far as anything shows. Kicks are serialised, the scheduler queuing the next only after the last one's job, every hook call is checked to sit in its kick's own frame, and neither half has fired in the 51 sessions on disk with the streamer hooked, 23,814 kicks.
 
 `src/engine/streamer.cpp:559` and `:565`, and again at `:619`. Two problems in one object.
 
@@ -87,6 +87,28 @@ As a C++ object: `HookGuard` has a destructor and the build is /EHsc, so when
 `Broken` latches on the same path and every hook checks `g_broken` first. It becomes real the moment
 `Broken` is made recoverable, or a hook is added that consults `g_inHook` without also consulting
 `g_broken`.
+
+The hunter then ran on batch 1. It found both fixes right in the source and the object code, an empty
+reading safe for every caller, a skipped drop passing through exactly as the unhooked engine does, and
+the destructor note true under /EHs, and raised the two below.
+
+### H-01: the file's header still said an overlapping hook sends everything to the engine
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2edf3b3, 2026-09-24.
+
+`src/engine/streamer.cpp:70` to `:72`, in the list of why the patch is safe. 1f948b9 left it.
+
+### H-02: the fix lines left the stale allocator and the overlap as written, and counted 50 sessions
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, F-01's line says only a null allocator is handled and why a stale one does not arise, F-03's says the overlap is not possible as far as anything shows, and both count 51 sessions and 23,814 kicks.
+
+3e02fee wrote them.
 
 ### F-04: a flag's storage address can be inherited from a previous registration and written as if it were correct
 - severity: debt
