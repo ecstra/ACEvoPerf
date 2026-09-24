@@ -169,6 +169,15 @@ void LoadConfig()
             if (key.empty()) continue;
             std::wstring val = (eq == std::wstring::npos) ? L"" : line.substr(eq + 1);
             while (!val.empty() && (val.front() == L' ' || val.front() == L'\t')) val.erase(0, 1);
+            // A tile pool the flag writer would refuse is never written, and with the canonical flag on
+            // the engine then takes the whole texturePoolSize define, the failure the auto size exists
+            // for, so a value that is neither a number nor auto falls back to auto as staging_buffer_mb
+            // does.
+            if (_wcsicmp(key.c_str(), L"tile_pool_mb") == 0 && _wcsicmp(val.c_str(), L"auto") != 0
+                && (val.empty() || val.find_first_not_of(L"0123456789") != std::wstring::npos)) {
+                Note("ini: [flags] tile_pool_mb=%ls is neither a number nor auto, using auto", val.c_str());
+                val = L"auto";
+            }
             if (val.empty()) g_cfg.flags.push_back(key);
             else g_cfg.flags.push_back(key + L"=" + val);
         }
