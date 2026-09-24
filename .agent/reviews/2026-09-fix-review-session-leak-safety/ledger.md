@@ -34,12 +34,17 @@ two hunters and fifteen from four verifier passes. The hunters' one real gap was
 whatever thread connected, which the mod now checks. The verifiers' fifteen were all in the record,
 mostly how DEC-023 described the race it leaves open.
 
+Batch 2 closed with F-03 fixed and F-04 left as probably not reachable, and added three from two hunters
+and seventeen from two verifier passes. The one bug among them was the new check taking the credit for
+what the game mode's emptied list does, and the mod now asks the system before each read of a game mode
+rather than faulting on one. The run showed a session restarted from the pause menu keeps its game mode.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the free cannot race a strong copy or a moved vector | closed, runtime confirmed | 2026-09-24 |
-| 2 | the walk and the teardown cannot fault or throw into the game | fixing | 2026-09-24 |
+| 2 | the walk and the teardown cannot fault or throw into the game | closed, runtime confirmed | 2026-09-24 |
 | 3 | the leftovers | pending | |
 
 ## Findings
@@ -330,7 +335,7 @@ loop stopped there, both being precision in the record rather than anything abou
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: a05bdd5, 2026-09-24, every read of the game mode is fault guarded, and a connection whose game mode no longer starts with a vtable of the exe is let go for good. The hunters found the check is not what keeps the free off a destroyed game mode, H-08, and that the guard still let the game log a crash, H-09. The memset stays unguarded, since it writes the 16 bytes the walk read a few instructions earlier, which only F-02's race could move, and the destroy is F-04's.
+- fix: a05bdd5, 2026-09-24, every read of the game mode is fault guarded, and a connection whose game mode no longer starts with a vtable of the exe is let go for good. The hunters found the check is not what keeps the free off a destroyed game mode, H-08, and that the guard still let the game log a crash, H-09. The memset stays unguarded, since it writes the entry the walk matched a few instructions earlier, inside the list checked readable just before, which only F-02's race could move, and the destroy is F-04's.
 
 `src/engine/session_leak_fix.cpp:113`. The cycle guarantees that the game mode holds the connection, not
 the reverse.
@@ -353,9 +358,9 @@ committed heap, and the walk reads stale data there rather than faulting. This n
 check stops the walk finding the connection in the old list, because the heap or the block's next owner
 overwrites the vtable word, which H-08 showed wrong. What stops it is the list itself, emptied by the game
 mode's destructor, which rests on MSVC's vector leaving its pointers null, H-08. A fault the guard catches
-still stalls the thread while the game's crash logger
-symbolizes it and shows as an `Exception Detected`, which DEC-023 counts as a reason to look again, so
-since H-09 each read is checked before it is made and the guard is the last resort.
+still stalls the thread while the game's crash logger symbolizes it and shows as an `Exception Detected`,
+which DEC-023 counts as a reason to look again, so since H-09 each read is checked before it is made and
+the guard is the last resort.
 
 ### F-04: the connection destructor runs inline inside the game's connect, and a throw from it escapes into make_shared's call site
 - severity: bug
@@ -449,7 +454,7 @@ wrote it.
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 933f930, 2026-09-24, the header, `EntryFor` and the system doc say the emptied list protects while the block still holds the destroyed game mode, and that once another object takes it, a match in that object's words is unlikely but not ruled out.
+- fix: 933f930, 2026-09-24, `EntryFor` and the system doc say the emptied list protects while the block still holds the destroyed game mode, and that once another object takes it, a match in that object's words is unlikely but not ruled out, and the header points at `EntryFor` for that. V-26 to V-28 tightened it.
 
 `.agent/docs/systems/session-leak-fix.md:34` and `src/engine/session_leak_fix.cpp:39`. H-09 covered a
 fault in such a walk and nothing covered a match. 0471ce3 wrote it.
@@ -520,6 +525,68 @@ leaves the three pointers null.
 - status: fixed
 - fix: 2026-09-24, F-03's fix line says the memset stays unguarded and why.
 
+A second verifier pass ran on 294dfac. It found V-16 and V-18 to V-25 gone, V-17 all but its lead in,
+and every hash and count right, and raised the seven below. The loop stopped there, all seven being
+precision in the record, as batch 1's did.
+
+### V-26: the doc's lead in still said a connection whose game mode is gone is not freed
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: f9cd813, 2026-09-24, the lead in is a plain label and the bullet bounds the claim.
+
+`.agent/docs/systems/session-leak-fix.md:34`. The same bullet said a match in another object's words is
+not ruled out, and a match is a free. 933f930 wrote it.
+
+### V-27: the header and EntryFor bounded the emptied list's protection by a block that still holds the game mode, which a block the heap wrote its links over also does
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: f9cd813, 2026-09-24, both say while nothing has written over the destroyed game mode, the words `GameModeClass` uses.
+
+`src/engine/session_leak_fix.cpp:196` and `:39`. A block whose start carries the heap's links still holds
+the rest of the game mode and fails the check, so its connection is let go rather than left alone. 933f930
+wrote it.
+
+### V-28: "the block" in the header could only be read as the control block
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: f9cd813, 2026-09-24, the game mode's memory.
+
+### V-29: F-03's fix line had the memset write 16 bytes the walk read, when the walk reads 8 of them
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, the entry the walk matched, inside the list checked readable just before.
+
+### V-30: F-03's last paragraph had a stub line
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, rewrapped, V-06's slip again.
+
+### V-31: V-17's fix line credited the header with a caveat it only points to
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-32: the reviews index said every batch after the first waits on the owner's word, with batch 2 acked
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, it says two batches are closed and the third waits.
+
+33529a6 wrote it, and it went stale when batch 2 was acked.
+
 ### F-05: the cleared entry leaves a null shared_ptr inside a live vector whose other readers were never checked
 - severity: debt
 - found-by: review
@@ -556,3 +623,11 @@ seven connects in all. The install line named the game thread by id, and every c
 `GameThread` with that same id, so the thread check never skipped a free. Five finished sessions were
 freed, three `PaintShopGameMode` at 0.2 to 0.3 ms and two `TimeAttackRemote` at 30.7 and 7.1 ms,
 counted one to five. The mod detached cleanly and the game's own log has no `Exception Detected`.
+
+Batch 2, one launch on 2026-09-24, `logs/leakfix-b2-20260924`, the menu, a practice on the Nurburgring
+24h layout restarted once from the pause menu, the menu and the practice again, four connects in all. The
+restart connected nothing and kept its game mode. Every connect came on `GameThread` with the install
+line's id. Two finished sessions were freed, the first menu's `PaintShopGameMode` in 0.3 ms, which the
+game's own log marks `PaintShopGameMode destroyed` at the same moment, and the restarted practice's
+`TimeAttackRemote` in 32.4 ms. Nothing was let go, the mod detached cleanly and the game's own log has no
+`Exception Detected`.
