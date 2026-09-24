@@ -6,6 +6,9 @@
 // nobody can open is silent about being silent, so the fallback is what makes it visible.
 void LogOpen(const std::wstring& path, const std::wstring& fallback = L"");
 void Log(const char* fmt, ...);
+// Called first on detach. At process exit every other thread is already gone, and one may have been
+// killed inside Log holding its lock, so from here on a line is written only when the lock is free.
+void LogDetaching();
 void LogClose();
 
 // A path with the machine taken out of it. The readme tells players to attach this log to a public

@@ -149,6 +149,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
         DisableThreadLibraryCalls(hinst);
         OnAttach((HMODULE)hinst);
     } else if (reason == DLL_PROCESS_DETACH) {
+        LogDetaching();
         StopLoadSampler();
         StreamerDetach();
         LogClose();
