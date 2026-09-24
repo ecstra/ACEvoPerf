@@ -440,9 +440,10 @@ void StartLoadSampler()
 void StopLoadSampler()
 {
     if (!g_thread) return;
-    // At process exit Windows has already ended the sampler thread by the time DllMain runs, so the flag
-    // only matters to one still running, and nothing waits for it. The samples since its last summary are
-    // in the CSV only.
+    // At process exit Windows has already ended the sampler thread by the time DllMain runs, and DllMain's
+    // detach is the only caller, so the flag stops nothing today and nothing waits for the thread. The
+    // window since the last summary keeps its bucket counts in the CSV to the last whole second, and the
+    // rest of its tables are lost.
     InterlockedExchange(&g_stop, 1);
     Log("[loadsampler] %llu samples in total", (unsigned long long)(g_grandTotal + g_total));
     if (g_csv != INVALID_HANDLE_VALUE) CloseHandle(g_csv);
