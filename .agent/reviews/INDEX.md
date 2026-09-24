@@ -1,8 +1,8 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, three of them done
-updated: 2026-09-23
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, four of them done
+updated: 2026-09-24
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
 
@@ -22,14 +22,15 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Three angles are done as of 2026-09-23, the Cohtml
-build guard, the render layer and the proxy and core, and the ten below them are open with every
-batch pending the owner's word.
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Four angles are done as of 2026-09-24, the Cohtml
+build guard, the render layer, the proxy and core, and the package override layer, and the nine
+below them are open with every batch pending the owner's word.
 
-Those three added 113 findings of their own, from the hunter and verifier sub agents that run on
-every batch. Every one of the fourteen batches so far needed at least one correction after its first
-fix, and twenty of the added findings were bugs a fix had itself caused or left standing. The loop
-is not ceremony on this codebase.
+Those four added 171 findings of their own, from the hunter and verifier sub agents that run on
+every batch. Every one of the seventeen batches so far needed at least one correction after its
+first fix. Twenty of the first three angles' added findings were bugs a fix had itself caused or
+left standing, and seven more code defects in the override layer's. The loop is not ceremony on
+this codebase.
 
 ### What the review found, in one paragraph
 
@@ -47,8 +48,8 @@ single log line that reads like routine.
 
 ### The branches
 
-Thirteen branches, one per angle, each cut from the latest 0.4 in this order. The owner acks each batch, and a
-branch merges before the next one starts.
+Thirteen branches, one per angle, each cut from the latest 0.4 in this order. The owner acks each
+batch, and a branch merges before the next one starts.
 
 | order | branch | ledger | findings | worst |
 |---|---|---|---|---|
@@ -105,8 +106,6 @@ ledger.
 
 ## Active
 
-- [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
-  64 MB table and a redirect that fails silently, 11 findings, 1 breaks
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
   rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
@@ -114,13 +113,16 @@ ledger.
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
-  the census cannot open its file and a sampler that picks the wrong threads, 10 findings, 1 breaks
+  the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
+  from other angles' sub agents, 1 breaks
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
-  invalidation and a row of load bearing assumptions written down nowhere, 12 findings
+  invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
+  another angle's verifier
 - [2026-09-sweep-review-ui-probe](2026-09-sweep-review-ui-probe/ledger.md), an instrument that can fault
   while holding a game thread suspended and pays its cost in the frames it explains, 9 findings, 1 breaks
 - [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that can write
-  outside its output folder and parsers that produce a wrong file at exit 0, 18 findings, 1 breaks
+  outside its output folder and parsers that produce a wrong file at exit 0, 18 findings plus 1 from
+  another angle's hunter, 1 breaks
 - [2026-09-sweep-review-public-docs](2026-09-sweep-review-public-docs/ledger.md), an uninstall that can
   leave the game unable to start and settings whose comments hide what they turn off, 16 findings, 1 breaks
 - [2026-09-sweep-review-agent-dir](2026-09-sweep-review-agent-dir/ledger.md), knowledge docs describing
@@ -128,6 +130,10 @@ ledger.
 
 ## Closed
 
+- [2026-09-sweep-review-overlay](2026-09-sweep-review-overlay/ledger.md), an unlocked lazy build of a
+  64 MB table and a redirect that fails silently, 11 findings plus 58 from the hunters and verifiers,
+  69 in all and 1 of them breaks, three batches, all runtime confirmed, merged into 0.4 on
+  2026-09-24
 - [2026-09-sweep-review-proxy-core](2026-09-sweep-review-proxy-core/ledger.md), an off switch that takes
   the override layer with it and a row of ini values used without validation, 15 findings plus 43
   from the hunters and verifiers, 58 in all and 1 of them breaks, five batches, runtime confirmed

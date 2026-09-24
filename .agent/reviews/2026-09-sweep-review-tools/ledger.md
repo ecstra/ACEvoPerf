@@ -1,8 +1,8 @@
 ---
 name: review-2026-09-sweep-review-tools
 kind: review
-description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings, one breaks
-updated: 2026-09-20
+description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings and one added by another angle's hunter, one breaks
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, tools, build-and-release, reviews-index]
 branch: sweep/review-tools
 status: open
@@ -21,7 +21,8 @@ One theme runs through the Python: a length or an offset is read out of a file a
 check, and the failure is silent. Every one of these ends with the tool printing success and writing
 something that is not what it read.
 
-Eighteen findings, one breaks, five bug, ten debt, two nit.
+Eighteen findings, one breaks, five bug, ten debt, two nit. F-19 was added on 2026-09-24 by the
+hunter of `sweep/review-overlay`, whose named slot constants point readers at `parse_slot` here.
 
 ## Batches
 
@@ -296,6 +297,25 @@ docstring at line 103 expects both to appear in the report.
 `tools/acevo_settings.py:12`. `PROFILES` at line 28 holds four entries and the docstring that `--help`
 is built from names only two, so a user has to run the separate `profiles` subcommand to learn that
 `pacing` and `gpu-relief` exist.
+
+### F-19: kspkg.py's docstring gives a table slot two pad bytes it does not have
+- severity: nit
+- found-by: hunter
+- batch: 5
+- status: open
+- fix:
+
+`tools/kspkg.py:8` lays the slot out as
+`path[0xE4] | u8 pad | u8 pad | u16 flags | u16 pathlen | u64 hash | u64 size | u64 offset`, which
+adds up to 258 bytes and puts the flags at 0xE6. Its own parenthetical, `parse_slot` at line 60,
+`content-package.md` and the override layer's named constants all put the flags at 0xE4 and the
+path length at 0xE6, with no pad.
+
+Failure: someone checks the override layer's `SLOT_FLAGS` against the tool, reads the docstring
+rather than `parse_slot`, and finds the field two bytes off.
+
+Raised by the hunter on batch 3 of `sweep/review-overlay`. Left here because the file belongs to
+this angle.
 
 ## Checked and clean
 

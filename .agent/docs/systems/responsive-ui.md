@@ -2,7 +2,7 @@
 name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth and the HUD from uneven driving frame times, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
-updated: 2026-09-20
+updated: 2026-09-23
 links: [review-2026-09-fix-review-cohtml-build-guard, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
@@ -39,7 +39,8 @@ own package at start, checks that each of the seven parts occurs exactly as ofte
 them to what the styled elements always carry (`data-page`, `focus-indicator`, the channel group's own
 hover) and serves the result from `acevo_uicomponents.css` next to the exe, the way it serves the big
 screen fix (see [package-override-layer](package-override-layer.md)). A stylesheet an update changed is
-served untouched.
+served untouched, and a player's own stylesheet in the mods folder is served as it is, without the
+seven narrowed parts.
 
 ### Restyle fix
 

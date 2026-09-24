@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-23
+updated: 2026-09-24
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -38,9 +38,9 @@ line in the same commit.
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 13 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026, TODO-029), 12 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 16 open, 14 fixed, 4 won't fix
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 18 standing (DEC-001 to DEC-003, DEC-005, DEC-007, DEC-008, DEC-011 to DEC-022), 4 superseded
-- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 10 open, the full review of main of
-  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 4 closed. The Cohtml
-  build guard, render, and proxy and core angles are merged into 0.4
+- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 9 open, the full review of main of
+  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 5 closed. The Cohtml
+  build guard, render, proxy and core, and package override layer angles are merged into 0.4
 
 ## Memory and handovers
 

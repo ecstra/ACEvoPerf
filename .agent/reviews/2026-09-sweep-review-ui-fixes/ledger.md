@@ -1,8 +1,8 @@
 ---
 name: review-2026-09-sweep-review-ui-fixes
 kind: review
-description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, twelve findings
-updated: 2026-09-20
+description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, twelve findings and one added by another angle's verifier
+updated: 2026-09-23
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: sweep/review-ui-fixes
 status: open
@@ -23,7 +23,9 @@ mismatch. The findings are about what happens after the patch lands: a marking w
 silently stale page, hooks that walk engine pointers with no fault guard, and a set of assumptions
 between the four files that nothing in the code records.
 
-Twelve findings, one bug, seven debt, four nit.
+Twelve findings, one bug, seven debt, four nit. F-13 was added on 2026-09-23 by the verifier of
+`sweep/review-overlay`, whose fix for a player's own stylesheet in the mods folder made it reachable
+for the main stylesheet.
 
 ## Batches
 
@@ -217,6 +219,29 @@ patch surface reachable only by a diagnostic that ships off. The comment on line
 `src/ui/menu_refresh_fix.cpp:193` and `src/ui/restyle_fix.cpp:65`, two identical five line bodies. Both
 files include `acevo/core/code_patch.h` on their line 2, and `EncodeRel32(0xE9, from, destination, out)`
 from that header is exactly what each one does. A reader sees three spellings of one operation.
+
+### F-13: a player's own stylesheet can hold the rule the restyle stub assumes no stylesheet has
+- severity: debt
+- found-by: verifier
+- batch: 4
+- status: open
+- fix:
+
+`src/ui/restyle_fix.cpp:22` states the premise. The game's stylesheets hold no rule with a
+pseudo-class to the left of `+` or `~`, so the stub skips the sibling walk for state changes. The
+stub goes in whenever `responsive_ui` is on (`src/ui/responsive_ui.cpp:544`), and nothing checks the
+premise against the stylesheets the overlay actually serves.
+
+Failure: a UI mod in the mods folder ships its own `uiresources\css\uicomponents.css` with a rule
+like `.row:hover + .hint`, and `responsive_ui` is on, the default. Hovering the row should restyle
+the hint. The stub skips the walk, so the hint never changes, and nothing in the log says why.
+
+Raised by the verifier on batch 1 of `sweep/review-overlay`. Its H-01 fix (1c8ab05) lets a player's
+own copy of the main stylesheet reach the game at all, where before the mod's narrowed copy took its
+slot, and the premise was checked against that copy. A player's copy of any other stylesheet was
+already open to it. Left here because the file belongs to this angle. The fix may need more than
+writing the premise down, for example standing the stub down when the overlay serves a stylesheet
+of the player's.
 
 ## Checked and clean
 
