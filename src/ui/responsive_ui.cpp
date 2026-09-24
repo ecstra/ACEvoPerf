@@ -483,6 +483,9 @@ static void Hook_StopWorkers(void* library)
 static void Hook_Uninitialize(void* library, uint64_t arg)
 {
     StopMovingWork();
+    // Said every time, since the stop's own lines appear only when work was left over, and their absence
+    // was once read as the stop never running at exit.
+    Log("[responsive ui] the UI engine is shutting down, the moved resource work is stopped");
     g_origUninitialize(library, arg);
 }
 
