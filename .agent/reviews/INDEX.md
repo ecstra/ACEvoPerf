@@ -24,8 +24,8 @@ conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-
 
 151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Four angles are done as of 2026-09-24, the Cohtml
 build guard, the render layer, the proxy and core, and the package override layer, and the nine
-below them are open. The session leak fix has closed its first two batches, and every batch after those
-waits on the owner's word.
+below them are open. The session leak fix has closed all three of its batches and waits on the owner's
+word to merge.
 
 Those four added 171 findings of their own, from the hunter and verifier sub agents that run on
 every batch. Every one of the seventeen batches so far needed at least one correction after its
@@ -108,10 +108,10 @@ ledger.
 ## Active
 
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
-  rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks, plus 22 from
-  batch 1's two hunters and four verifier passes and 20 from batch 2's two hunters and two verifier
-  passes. Batches 1 and 2 closed and runtime confirmed, batch 1's two findings left open on the
-  owner's choice in DEC-023
+  rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks, plus 51 from
+  the hunters and verifiers, 22 of them batch 1's, 20 batch 2's and 9 batch 3's. All three batches
+  closed, batch 1's two findings left open on the owner's choice in DEC-023, waiting on the owner's
+  word to merge
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
   still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all

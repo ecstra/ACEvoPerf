@@ -39,13 +39,17 @@ and seventeen from two verifier passes. The one bug among them was the new check
 what the game mode's emptied list does, and the mod now asks the system before each read of a game mode
 rather than faulting on one. The run showed a session restarted from the pause menu keeps its game mode.
 
+Batch 3 closed with both its findings left as they were, F-05 after its fix proved worse than the
+finding and was reverted, H-11 and H-12, and F-06 on the owner's word. It added three from its hunter
+and six from its verifier, two of them corrections to DEC-023, and the code is as batch 2's run left it.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the free cannot race a strong copy or a moved vector | closed, runtime confirmed | 2026-09-24 |
 | 2 | the walk and the teardown cannot fault or throw into the game | closed, runtime confirmed | 2026-09-24 |
-| 3 | the leftovers | fixing | 2026-09-24 |
+| 3 | the leftovers | closed, the code as batch 2's run left it | 2026-09-24 |
 
 ## Findings
 
@@ -592,7 +596,7 @@ wrote it.
 - found-by: review
 - batch: 3
 - status: wontfix
-- fix: cf65098 took the entry out and 9f18755 put the zeroed entry back, 2026-09-24, the owner leaving the choice to the review. The zeroed entry is seen only by the teardown that runs right after, since the local game server deletes the game mode in the same destroy, and 22 frees across three game mode classes ran that teardown with it and no fault, H-12. Taking it out traded that for a list no run had seen, and let F-02's race write much further, H-11.
+- fix: cf65098 took the entry out and 9f18755 put the zeroed entry back, 2026-09-24, the owner leaving the choice to the review. On the game thread the zeroed entry is seen only by the teardown that runs right after, since the local game server deletes the game mode in the same destroy, and a reader on another thread is the race DEC-023 already carries. 22 frees across three game mode classes ran that teardown with it, and none of the game logs kept from 21 of them has an `Exception Detected`, H-12. Taking it out traded that for a list no run had seen, and let F-02's race write much further, H-11.
 
 `src/engine/session_leak_fix.cpp:153`. The memset zeroes the object pointer and the control pointer but
 the vector's size is unchanged, so RemoteGameMode's list keeps a null element. `kRegions` hashes
@@ -608,7 +612,7 @@ install or in the system doc establishes that no such reader exists.
 - found-by: review
 - batch: 3
 - status: wontfix
-- fix: 2026-09-24, on the owner's word. A list over the limit leaves its connection tracked, which raises the held count in the connect lines, and across the 54 on disk it never goes above 2, so 64 is far past anything seen. The limit is also what keeps a walk through garbage short.
+- fix: 2026-09-24, on the owner's word. The census found each list holding its one connection, and a list over the limit would leave its connection tracked and raise the held count in the connect lines, which never goes above 2 across the 54 on disk. The limit is also what keeps a walk through garbage short.
 
 `src/engine/session_leak_fix.cpp:120`. `EntryFor` rejects any list longer than 64 entries and returns
 null, so `FreeFinishedSessions` never selects that control and it stays in `g_connections` forever.
@@ -642,21 +646,82 @@ zeroed bytes. cf65098 caused it.
 - fix: 9f18755, 2026-09-24, the zeroed entry is back.
 
 `src/engine/session_leak_fix.cpp:256` to `:259` at cf65098. The game mode goes in the same destroy, so
-only the teardown ever sees the list, and F-05's tick or broadcast over live game modes could never meet
-the zeroed entry. The 22 frees on disk, 13 `PaintShopGameMode`, 8 `TimeAttackRemote` and 1
-`InstantRaceRemote`, ran that teardown with it and no `Exception Detected`. Teardown code that reads its
+on the game thread only the teardown ever sees the list, and F-05's tick or broadcast over live game modes
+could meet the zeroed entry only from another thread, the race DEC-023 already carries. The 22 frees on
+disk, 13 `PaintShopGameMode`, 8 `TimeAttackRemote` and 1 `InstantRaceRemote`, ran that teardown with it,
+and none of the game logs kept from 21 of them has an `Exception Detected`. Teardown code that reads its
 own connection by position, with `pop_back`, `erase(begin())` or `back`, would do worse on an empty list,
 and nothing shows the game's teardown does not. cf65098 caused it.
 
-### H-13: F-06's reason cited evidence that could never show the failure it closes
+### H-13: F-06's reason leaned on every free finding its entry, which could never show the failure it closes
 - severity: nit
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: 2026-09-24, it cites the held count in the connect lines, which a list over the limit would raise.
+- fix: 2026-09-24, it cites the held count in the connect lines, which a list over the limit would raise. V-36 put the census back beside it.
 
 A list over the limit makes no free and no log line, so every free finding its entry says nothing about
 it. 3198150 wrote it.
+
+The verifier then ran on batch 3. It found the revert exact, F-05 and F-06 closed correctly and every
+count right against the logs, and raised the six below, two of them in DEC-023. The loop stopped there,
+all six being precision in the record, as the first two batches' did.
+
+### V-33: DEC-023 gave a push that moves the list only its 16 zeroed bytes
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 8567fad, 2026-09-24, it names the entry the push carries into the new buffer uncleared as well.
+
+`.agent/decisions/DEC-023-the-session-free-stays-immediate.md:48`. The list's release inside the same
+destroy then takes the count from 0 to minus 1, the state F-02 says the clear is there to prevent. The
+decision stands, since waiting a connect would not close the push either, H-02. 1f85426 wrote it.
+
+### V-34: F-05 and H-12 said all 22 frees ran with no fault, where one run kept no game log
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, none of the game logs kept from 21 of them has an `Exception Detected`.
+
+`logs/render-b4-20260920` holds one `PaintShopGameMode` free and no game log, as H-07 records. f3220f7
+wrote it.
+
+### V-35: F-05 and H-12 said only the teardown sees the zeroed entry, which holds on the game thread alone
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, both name a reader on another thread as the race DEC-023 already carries.
+
+f3220f7 wrote it.
+
+### V-36: H-13's rewrite of F-06's reason dropped the census
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, the reason cites the census and the held count, and H-13's heading names only the half it corrected.
+
+The held count shows no list went over the limit and says nothing about how far below it they sit, which
+only the census shows. f3220f7 wrote it.
+
+### V-37: the reviews index went stale when batch 3 was acked
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, it counts batch 3's findings and says all three batches are closed.
+
+V-32's slip again. 3198150 and f3220f7 each left it.
+
+### V-38: DEC-023 put the longest teardown at 31 ms, where batch 2's run logged 32.4
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 8567fad, 2026-09-24.
 
 ## The runs
 
