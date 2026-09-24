@@ -2,13 +2,17 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-20
+updated: 2026-09-24
 links: [agent-index, spec-bugs]
 ---
 
 # Bugs Index
 
 ## Open
+
+breaks
+
+- [BUG-037-crash-joining-a-session-with-custom-track-mods-installed](BUG-037-crash-joining-a-session-with-custom-track-mods-installed.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, not reproduced, the likeliest lead the mod's smaller loading buffer failing a bigger custom track request
 
 bug
 
