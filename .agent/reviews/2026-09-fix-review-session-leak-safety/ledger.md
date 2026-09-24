@@ -45,7 +45,7 @@ rather than faulting on one. The run showed a session restarted from the pause m
 |---|---|---|---|
 | 1 | the free cannot race a strong copy or a moved vector | closed, runtime confirmed | 2026-09-24 |
 | 2 | the walk and the teardown cannot fault or throw into the game | closed, runtime confirmed | 2026-09-24 |
-| 3 | the leftovers | pending | |
+| 3 | the leftovers | fixing | 2026-09-24 |
 
 ## Findings
 
@@ -591,8 +591,8 @@ wrote it.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: cf65098, 2026-09-24, the entry is taken out of the list the way the vector's own erase leaves it, the entries after it moved down, the place freed at the end cleared and the list one shorter, so nothing the teardown runs can meet an empty entry. Its reference is not released, since the compare and exchange ended it.
 
 `src/engine/session_leak_fix.cpp:153`. The memset zeroes the object pointer and the control pointer but
 the vector's size is unchanged, so RemoteGameMode's list keeps a null element. `kRegions` hashes
@@ -607,8 +607,8 @@ install or in the system doc establishes that no such reader exists.
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-24, on the owner's word. The census found each list holding its one connection, and every free since found its entry, so 64 is far past anything seen, and the limit is what keeps a walk through garbage short.
 
 `src/engine/session_leak_fix.cpp:120`. `EntryFor` rejects any list longer than 64 entries and returns
 null, so `FreeFinishedSessions` never selects that control and it stays in `g_connections` forever.
