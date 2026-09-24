@@ -39,7 +39,8 @@
 //     left alone. A connection kept past its game mode is one of those, since the game mode's destructor
 //     emptied its list, see EntryFor. One whose game mode can no longer be read, or no longer starts with a
 //     vtable of the exe, is let go for good, since it can never be freed without deleting that game mode a
-//     second time. Every read that tells is checked before it is made, and fault guarded as well.
+//     second time. Every read of the game mode and its list is checked readable before it is made, and
+//     fault guarded as well.
 
 #include "acevo/engine/session_leak_fix.h"
 #include "acevo/core/code_patch.h"
