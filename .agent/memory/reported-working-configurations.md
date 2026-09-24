@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports nobody has reproduced and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-09-20
+updated: 2026-09-24
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache]
 ---
@@ -44,13 +44,15 @@ report on one distribution and one Proton build is not a supported platform, whi
 
 ## Open reports
 
-Three reports nobody has reproduced. The hardware is written down only because the reporter gave it, and
-not as a grouping. Nothing in any of them points at the card, and the owner's call of 2026-09-19 on the
-first one is the standing reading for all three: the card and the fault are unrelated. A setting, a
+Three reports, two of which nobody has reproduced. The hardware is written down only because the
+reporter gave it, and not as a grouping. Nothing in any of them points at the card, and the owner's call
+of 2026-09-19 on the first one is the standing reading for all three: the card and the fault are
+unrelated. A setting, a
 leftover shader cache, a driver, or something else local to that machine is at least as likely as either
 the GPU or the mod.
 
-- Fences take on a glass look. Reported once, by someone on a 4090.
+- Fences take on a glass look. Reported once, by someone on a 4090, and seen on the owner's machine on
+  2026-09-24, so it is now BUG-038 and no longer one nobody has reproduced.
 - Cars glowing. Reported once, by someone on a 4070 Ti with a 14700K and 64 GB. The owner's answer was to
   restart the game and send the log if it persisted, and no log came back.
 - Single player improved and multiplayer freezes stayed. Reported once, by someone who said only "Radeon
