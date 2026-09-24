@@ -36,12 +36,12 @@
 //     though not the push, at the cost of a finished session held through a load, and DEC-023 records why
 //     it does not.
 //   - A connection whose game mode is null, whose list does not hold it, or that anything else still holds is
-//     left alone. A connection kept past its game mode is one of those while the block still holds that game
-//     mode, since its destructor emptied the list, see EntryFor, which also says what happens once another
-//     object takes the block. One whose game mode can no longer be read, or no longer starts with a vtable of
-//     the exe, is let go for good, since it can never be freed without deleting that game mode a second time.
-//     Every read of the game mode and its list is checked readable before it is made, and fault guarded as
-//     well.
+//     left alone. A connection kept past its game mode is one of those while nothing has written over the
+//     game mode's memory, since its destructor emptied the list, see EntryFor, which also says what happens
+//     once another object takes that memory. One whose game mode can no longer be read, or no longer starts
+//     with a vtable of the exe, is let go for good, since it can never be freed without deleting that game
+//     mode a second time. Every read of the game mode and its list is checked readable before it is made, and
+//     fault guarded as well.
 
 #include "acevo/engine/session_leak_fix.h"
 #include "acevo/core/code_patch.h"
@@ -193,14 +193,14 @@ static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 
 // The entry of the game mode's connection list that holds this connection, or null. A connection kept past
 // its game mode, which a session restarted from the pause menu might leave, points at freed memory, and
-// freeing it would delete that game mode a second time. While the block still holds the destroyed game mode
-// the walk finds nothing, even though the block still passes GameModeClass, because the game mode's
-// destructor released the list and MSVC's vector leaves its pointers null when it goes. That rests on the
-// vector as MSVC builds it, and the exe's copy was not checked for that. Once another of the exe's objects
-// takes the block, the walk reads that object's words as a list, where a match would need this very
-// connection's control block where an entry's sits, unlikely but not ruled out. `gameModeDead` says the
-// memory can no longer be read or no longer holds one of the exe's objects at all, each read checked before
-// it is made, see Readable.
+// freeing it would delete that game mode a second time. While nothing has written over the destroyed game
+// mode, its memory passes GameModeClass and the walk finds nothing, because the game mode's destructor
+// released the list and MSVC's vector leaves its pointers null when it goes. That rests on the vector as
+// MSVC builds it, and the exe's copy was not checked for that. Once another of the exe's objects takes that
+// memory, the walk reads that object's words as a list, where a match would need this very connection's
+// control block where an entry's sits, unlikely but not ruled out. `gameModeDead` says the memory can no
+// longer be read or no longer holds one of the exe's objects at all, each read checked before it is made,
+// see Readable.
 static BYTE* EntryFor(BYTE* control, bool& gameModeDead)
 {
     BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
