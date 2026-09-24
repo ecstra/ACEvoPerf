@@ -591,8 +591,8 @@ wrote it.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: fixed
-- fix: cf65098, 2026-09-24, the entry is taken out of the list the way the vector's own erase leaves it, the entries after it moved down, the place freed at the end cleared and the list one shorter, so nothing the teardown runs can meet an empty entry. Its reference is not released, since the compare and exchange ended it.
+- status: wontfix
+- fix: cf65098 took the entry out and 9f18755 put the zeroed entry back, 2026-09-24, the owner leaving the choice to the review. The zeroed entry is seen only by the teardown that runs right after, since the local game server deletes the game mode in the same destroy, and 22 frees across three game mode classes ran that teardown with it and no fault, H-12. Taking it out traded that for a list no run had seen, and let F-02's race write much further, H-11.
 
 `src/engine/session_leak_fix.cpp:153`. The memset zeroes the object pointer and the control pointer but
 the vector's size is unchanged, so RemoteGameMode's list keeps a null element. `kRegions` hashes
@@ -608,13 +608,55 @@ install or in the system doc establishes that no such reader exists.
 - found-by: review
 - batch: 3
 - status: wontfix
-- fix: 2026-09-24, on the owner's word. The census found each list holding its one connection, and every free since found its entry, so 64 is far past anything seen, and the limit is what keeps a walk through garbage short.
+- fix: 2026-09-24, on the owner's word. A list over the limit leaves its connection tracked, which raises the held count in the connect lines, and across the 54 on disk it never goes above 2, so 64 is far past anything seen. The limit is also what keeps a walk through garbage short.
 
 `src/engine/session_leak_fix.cpp:120`. `EntryFor` rejects any list longer than 64 entries and returns
 null, so `FreeFinishedSessions` never selects that control and it stays in `g_connections` forever.
 
 Failure: no crash, just the leak the fix exists to remove, silently, on the one configuration where the
 session is biggest, which is a large lobby. Only a successful free logs, so nothing says it happened.
+
+The hunter then ran on batch 3. It found the erase itself right, its bounds, its counts and its writes
+inside what `EntryFor` had checked, and raised the three below, the first two of which turned F-05's fix
+around.
+
+### H-11: taking the entry out read the list's end again after the compare and exchange, so F-02's race could copy across the heap
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 9f18755, 2026-09-24, the zeroed entry is back, so the race writes the 16 bytes DEC-023 weighed.
+
+`src/engine/session_leak_fix.cpp:254` to `:259` at cf65098. A push that moved the list between the walk
+and that read left the entry in the old buffer and the end in the new one, so the move either wrapped to
+a length near 2^64 or copied everything between the two buffers down 16 bytes, heap headers included. A
+push that did not move the list raced the rewrite of its end instead, which could leave the pushed
+connection outside the list with its count never released. DEC-023's consequence still described the 16
+zeroed bytes. cf65098 caused it.
+
+### H-12: every logged free ran its teardown with the zeroed entry, and taking it out gave the teardown a list no run had seen
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 9f18755, 2026-09-24, the zeroed entry is back.
+
+`src/engine/session_leak_fix.cpp:256` to `:259` at cf65098. The game mode goes in the same destroy, so
+only the teardown ever sees the list, and F-05's tick or broadcast over live game modes could never meet
+the zeroed entry. The 22 frees on disk, 13 `PaintShopGameMode`, 8 `TimeAttackRemote` and 1
+`InstantRaceRemote`, ran that teardown with it and no `Exception Detected`. Teardown code that reads its
+own connection by position, with `pop_back`, `erase(begin())` or `back`, would do worse on an empty list,
+and nothing shows the game's teardown does not. cf65098 caused it.
+
+### H-13: F-06's reason cited evidence that could never show the failure it closes
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, it cites the held count in the connect lines, which a list over the limit would raise.
+
+A list over the limit makes no free and no log line, so every free finding its entry says nothing about
+it. 3198150 wrote it.
 
 ## The runs
 
