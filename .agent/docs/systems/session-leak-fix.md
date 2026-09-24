@@ -31,6 +31,11 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
   block's destroy and delete run as they would for a last `std::shared_ptr`. It runs only when the connect is
   on the game thread, the process's first thread, which the mod was loaded on. A connect on any other thread
   tracks its connection and frees nothing.
+- **The game mode has to look live.** Its list is walked only when its first word points at a vtable in the
+  exe's image with a readable class name, the reads fault guarded. A game mode the game already freed fails
+  that, and its connection is let go for good and stays in memory as it would without the fix, since freeing
+  it would delete the game mode a second time. A session restarted from the pause menu is the path that
+  could leave one.
 - **Checks first.** The exe's stamp and size, and seven byte ranges hashed against the 0.9.1 build (the connect,
   the make_shared and its thunk, the destructors of the connection, the local game server and the game mode's
   list, and the list's element release). Any mismatch logs the range and patches nothing.
@@ -51,8 +56,9 @@ connect, which would take away the copy though not the push.
 
 ## Log
 
-A `[sessions]` line per free, with the game mode's class and the time it took, and one per connect with the
-thread and how many connections are held, see [telemetry](../ops/telemetry.md).
+A `[sessions]` line per free, with the game mode's class and the time it took, one per connect with the
+thread and how many connections are held, and one when connections are let go because their game mode no
+longer looks live, see [telemetry](../ops/telemetry.md).
 
 ## What it has run on
 

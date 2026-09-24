@@ -35,8 +35,9 @@
 //     that reads the list was not examined. Waiting a connect before the destroy would take away the copy,
 //     though not the push, at the cost of a finished session held through a load, and DEC-023 records why
 //     it does not.
-//   - A connection whose game mode is gone, whose list does not hold it, or that anything else still holds is
-//     left alone.
+//   - A connection whose game mode is null, whose list does not hold it, or that anything else still holds is
+//     left alone. One whose game mode does not look live, its vtable no longer the exe's, is let go for good,
+//     since freeing it would delete that game mode a second time, and the walk that tells is fault guarded.
 
 #include "acevo/engine/session_leak_fix.h"
 #include "acevo/core/code_patch.h"
@@ -128,40 +129,74 @@ static void ReleaseWeak(BYTE* control)
         Slot(control, control::kSlotDeleteThis)(control);
 }
 
-// The entry of the game mode's connection list that holds this connection, or null.
-static BYTE* EntryFor(BYTE* control)
+static bool InImage(const void* p, size_t length)
 {
-    BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
-    if (!gameMode) return nullptr;
-
-    BYTE* first = At<BYTE*>(gameMode, gamemode::kConnectionsFirst);
-    BYTE* last = At<BYTE*>(gameMode, gamemode::kConnectionsLast);
-    BYTE* end = At<BYTE*>(gameMode, gamemode::kConnectionsEnd);
-    if (!first || last < first || end < last) return nullptr;
-    if ((last - first) % gamemode::kEntrySize || (size_t)(last - first) > gamemode::kMaxEntries * gamemode::kEntrySize) return nullptr;
-
-    for (BYTE* entry = first; entry < last; entry += gamemode::kEntrySize) {
-        if (At<BYTE*>(entry, gamemode::kEntryControl) == control) return entry;
-    }
-    return nullptr;
+    const BYTE* at = (const BYTE*)p;
+    return at >= g_exe && at <= g_exe + kSizeOfImage && length <= (size_t)(g_exe + kSizeOfImage - at);
 }
 
-// The game mode's class from its RTTI, ".?AVTimeAttackRemote@@" read as TimeAttackRemote.
-static void GameModeName(BYTE* control, char* out, size_t size)
+// The class of a live game mode from its RTTI, ".?AVTimeAttackRemote@@" read as TimeAttackRemote. False
+// when the object does not look live, meaning its first word must point at a vtable in the exe's image
+// whose locator and type name are in the image too. A game mode the game has already freed has that word
+// overwritten by the heap or by whatever took the block next, and a fault on the way is caught, since the
+// pointer comes out of memory the game owns.
+static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 {
     strcpy_s(out, size, "unknown");
     __try {
-        BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
-        const BYTE* locator = (const BYTE*)At<void* const*>(gameMode, 0)[-1];
+        const void* const* vtable = At<const void* const*>(gameMode, 0);
+        if (!InImage(vtable - 1, 2 * sizeof(void*))) return false;
+        const BYTE* locator = (const BYTE*)vtable[-1];
+        if (!InImage(locator, 16)) return false;
         const char* name = (const char*)(g_exe + At<int32_t>(locator, 12) + 0x10);
-        if (strncmp(name, ".?AV", 4) != 0) return;
+        if (!InImage(name, 5) || strncmp(name, ".?AV", 4) != 0) return false;
         size_t length = strcspn(name + 4, "@");
         if (length >= size) length = size - 1;
         memcpy(out, name + 4, length);
         out[length] = 0;
+        return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         strcpy_s(out, size, "unknown");
+        return false;
     }
+}
+
+// The entry of the game mode's connection list that holds this connection, or null. The list is walked
+// only when its game mode looks live, since a connection kept past its game mode, which a session
+// restarted from the pause menu might leave, would otherwise send the walk into freed memory, and freeing
+// that connection would delete the game mode a second time. `gameModeDead` says which it was.
+static BYTE* EntryFor(BYTE* control, bool* gameModeDead = nullptr)
+{
+    BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
+    if (!gameMode) return nullptr;
+
+    char name[64];
+    if (!GameModeClass(gameMode, name, sizeof name)) {
+        if (gameModeDead) *gameModeDead = true;
+        return nullptr;
+    }
+
+    __try {
+        BYTE* first = At<BYTE*>(gameMode, gamemode::kConnectionsFirst);
+        BYTE* last = At<BYTE*>(gameMode, gamemode::kConnectionsLast);
+        BYTE* end = At<BYTE*>(gameMode, gamemode::kConnectionsEnd);
+        if (!first || last < first || end < last) return nullptr;
+        if ((last - first) % gamemode::kEntrySize || (size_t)(last - first) > gamemode::kMaxEntries * gamemode::kEntrySize) return nullptr;
+
+        for (BYTE* entry = first; entry < last; entry += gamemode::kEntrySize) {
+            if (At<BYTE*>(entry, gamemode::kEntryControl) == control) return entry;
+        }
+        return nullptr;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (gameModeDead) *gameModeDead = true;
+        return nullptr;
+    }
+}
+
+// The game mode's class for the log, read the same guarded way.
+static void GameModeName(BYTE* control, char* out, size_t size)
+{
+    GameModeClass(At<BYTE*>(control, control::kGameMode), out, size);
 }
 
 // Ends the one strong reference the cycle holds. False when the count is no longer one.
@@ -181,6 +216,7 @@ static bool Free(BYTE* control)
 static void FreeFinishedSessions()
 {
     std::vector<BYTE*> finished;
+    uint32_t leftAlone = 0;
     {
         ExclusiveLock lock;
         // Reserved before anything moves, so a push below cannot throw after earlier connections have been
@@ -195,13 +231,26 @@ static void FreeFinishedSessions()
                 it = g_connections.erase(it);
                 continue;
             }
-            if (uses == 1 && EntryFor(control)) {
+            bool gameModeDead = false;
+            if (uses == 1 && EntryFor(control, &gameModeDead)) {
                 finished.push_back(control);
                 it = g_connections.erase(it);
                 continue;
             }
+            if (gameModeDead) {
+                // Its game mode does not look live, so the connection is let go for good and stays in memory
+                // as it would without the fix, see EntryFor.
+                ReleaseWeak(control);
+                it = g_connections.erase(it);
+                ++leftAlone;
+                continue;
+            }
             ++it;
         }
+    }
+    if (leftAlone) {
+        Log("[sessions] left %u connection(s) alone for good, their game mode does not look live any more, so they "
+            "stay in memory as they would without the fix", leftAlone);
     }
 
     for (BYTE* control : finished) {
