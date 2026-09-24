@@ -244,8 +244,8 @@ since the proxy core review's V-07, and this branch was missed. Older than the b
 - severity: nit
 - found-by: hunter
 - batch: 2
-- status: open
-- fix: F-04's fix line says what the count was and what it should be, and the system doc takes the next run's figure once there is one, V-09.
+- status: fixed
+- fix: 787bf0d, 2026-09-24, F-04's fix line says what the count was and what it should be, and the system doc gives batch 2's run figure, 217 listed and 186 placed on 0.9.1.
 
 String registrations never load a storage slot with `lea rax`, so all 31 of 0.9.0's should be unplaced now, and the
 free roam research of 2026-09-06 had already said the walk should stop at the previous registration.
@@ -335,6 +335,14 @@ Batch 1, one launch on 2026-09-24, `logs/engine-b1-20260924`, 19:44 to 19:47, a 
 The streamer hooked and its line counted up to 142 kicks, 17,630 finer levels wanted and 9,729 loads
 turned away for space, with no `a hook faulted` and no `second hook arrived` line, a clean `detached`
 and no `Exception Detected` in the game's own log.
+
+Batch 2, one launch on 2026-09-24, `logs/engine-b2-20260924`, 21:13 to 21:14, the menu and a quit. The
+scan read `4 ctor candidates, 217 flags (217 typed, 186 with storage)`, so the flag 0.9.1 added is not a
+string. The four shipped flags were written at the same addresses as batch 1's run, `enable_pso_cache`
+at 89C2 and 89C3, `no_intro` at 1DA4 and 1E22, `force_canonical_pool_sizes` at 83D8 and 83D9 and
+`tile_pool_mb` at 83D0 and 83D4 with 1024 from auto, in every pass. No refusal line, no `ini:` note, the
+game's own `[Tile Pool] sized to 1024 MB (16384 tiles)` and `canonical sizes forced`, a clean `detached`
+and no `Exception Detected`.
 
 ## Checked and clean
 
