@@ -69,7 +69,8 @@
 //     is left to finish, and the next kick asks for the rest.
 //   - Kicks are serialised, the scheduler waits on the previous kick's job before it queues the
 //     next one, so the per texture state below needs no lock. A second hook arriving while one is
-//     running would mean that is wrong, and everything then passes straight to the engine.
+//     running would mean that is wrong, and that one call then goes straight to the engine, logged
+//     the first time, with the fixes left on.
 //   - A refused drop keeps tiles the engine would have freed, and the engine's tile allocator
 //     stalls rather than evicts when the pool runs dry. The pool is a fixed heap that sits full in
 //     normal play, parked the streamer turns about 120 loads away for space on every kick, so
