@@ -37,9 +37,9 @@
 //     it does not.
 //   - A connection whose game mode is null, whose list does not hold it, or that anything else still holds is
 //     left alone. A connection kept past its game mode is one of those, since the game mode's destructor
-//     emptied its list, see EntryFor. One whose game mode no longer starts with a vtable of the exe is let go
-//     for good, since it can never be freed without deleting that game mode a second time, and the walk that
-//     tells is fault guarded.
+//     emptied its list, see EntryFor. One whose game mode can no longer be read, or no longer starts with a
+//     vtable of the exe, is let go for good, since it can never be freed without deleting that game mode a
+//     second time. Every read that tells is checked before it is made, and fault guarded as well.
 
 #include "acevo/engine/session_leak_fix.h"
 #include "acevo/core/code_patch.h"
@@ -137,14 +137,37 @@ static bool InImage(const void* p, size_t length)
     return at >= g_exe && at <= g_exe + kSizeOfImage && length <= (size_t)(g_exe + kSizeOfImage - at);
 }
 
+// True when all of [p, p + length) is committed memory that can be read. Asked before each read of a game
+// mode's memory, which the heap may have given back since, because the game's crash handler logs every fault
+// as a crash, naming the mod when the read is the mod's, and stalls the thread while it does, even for one a
+// __try then handles, BUG-022.
+static bool Readable(const void* p, size_t length)
+{
+    const uintptr_t start = (uintptr_t)p;
+    if (length > UINTPTR_MAX - start) return false;
+
+    for (uintptr_t at = start; at < start + length;) {
+        MEMORY_BASIC_INFORMATION info;
+        if (!VirtualQuery((const void*)at, &info, sizeof info)) return false;
+        const DWORD access = info.Protect & 0xFF;
+        const bool canRead = access == PAGE_READONLY || access == PAGE_READWRITE || access == PAGE_WRITECOPY ||
+                             access == PAGE_EXECUTE_READ || access == PAGE_EXECUTE_READWRITE || access == PAGE_EXECUTE_WRITECOPY;
+        if (info.State != MEM_COMMIT || !canRead || (info.Protect & PAGE_GUARD)) return false;
+        at = (uintptr_t)info.BaseAddress + info.RegionSize;
+    }
+    return true;
+}
+
 // The class of a game mode from its RTTI, ".?AVTimeAttackRemote@@" read as TimeAttackRemote. False when its
 // first word is not a vtable in the exe's image whose locator and type name are in the image too, which is
 // how a game mode shows once the heap or the block's next owner has written over it. One the game destroyed
 // with nothing written over it since still passes, with the vtable of the last base class its destructor
-// reached, see EntryFor. A fault on the way is caught, since the pointer comes out of memory the game owns.
+// reached, see EntryFor. The game mode's word is checked readable before it is read, the rest lies in the
+// exe's image, and a fault on the way is still caught, since the pointer comes out of memory the game owns.
 static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 {
     strcpy_s(out, size, "unknown");
+    if (!Readable(gameMode, sizeof(void*))) return false;
     __try {
         const void* const* vtable = At<const void* const*>(gameMode, 0);
         if (!InImage(vtable - 1, 2 * sizeof(void*))) return false;
@@ -168,15 +191,16 @@ static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
 // freeing it would delete that game mode a second time. It is not freed, because the game mode's destructor
 // released the list, and MSVC's vector leaves its pointers null when it goes, so the walk finds nothing even
 // when the freed memory still passes GameModeClass. That rests on the vector as MSVC builds it, and the
-// exe's copy was not read. `gameModeDead` says the memory no longer holds one of the exe's objects at all.
-static BYTE* EntryFor(BYTE* control, bool* gameModeDead = nullptr)
+// exe's copy was not read. `gameModeDead` says the memory can no longer be read or no longer holds one of
+// the exe's objects at all, each read checked before it is made, see Readable.
+static BYTE* EntryFor(BYTE* control, bool& gameModeDead)
 {
     BYTE* gameMode = At<BYTE*>(control, control::kGameMode);
     if (!gameMode) return nullptr;
 
     char name[64];
-    if (!GameModeClass(gameMode, name, sizeof name)) {
-        if (gameModeDead) *gameModeDead = true;
+    if (!GameModeClass(gameMode, name, sizeof name) || !Readable(gameMode + gamemode::kConnectionsFirst, 3 * sizeof(BYTE*))) {
+        gameModeDead = true;
         return nullptr;
     }
 
@@ -186,13 +210,17 @@ static BYTE* EntryFor(BYTE* control, bool* gameModeDead = nullptr)
         BYTE* end = At<BYTE*>(gameMode, gamemode::kConnectionsEnd);
         if (!first || last < first || end < last) return nullptr;
         if ((last - first) % gamemode::kEntrySize || (size_t)(last - first) > gamemode::kMaxEntries * gamemode::kEntrySize) return nullptr;
+        if (!Readable(first, (size_t)(last - first))) {
+            gameModeDead = true;
+            return nullptr;
+        }
 
         for (BYTE* entry = first; entry < last; entry += gamemode::kEntrySize) {
             if (At<BYTE*>(entry, gamemode::kEntryControl) == control) return entry;
         }
         return nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        if (gameModeDead) *gameModeDead = true;
+        gameModeDead = true;
         return nullptr;
     }
 }
@@ -206,7 +234,8 @@ static void GameModeName(BYTE* control, char* out, size_t size)
 // Ends the one strong reference the cycle holds. False when the count is no longer one.
 static bool Free(BYTE* control)
 {
-    BYTE* entry = EntryFor(control);
+    bool gameModeDead = false;
+    BYTE* entry = EntryFor(control, gameModeDead);
     if (!entry) return false;
     if (_InterlockedCompareExchange((long*)(control + control::kUses), 0, 1) != 1) return false;
 
@@ -236,7 +265,7 @@ static void FreeFinishedSessions()
                 continue;
             }
             bool gameModeDead = false;
-            if (uses == 1 && EntryFor(control, &gameModeDead)) {
+            if (uses == 1 && EntryFor(control, gameModeDead)) {
                 finished.push_back(control);
                 it = g_connections.erase(it);
                 continue;

@@ -36,11 +36,13 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
   game mode a second time. The walk cannot find it there, since the game mode's destructor released the
   list, and MSVC's `std::vector` leaves its pointers null when it goes. That rests on the vector as MSVC
   builds it, and the exe's copy was not read.
-- **Its memory is checked before the walk.** The game mode's first word has to point at a vtable in the
-  exe's image with a readable class name, the reads fault guarded. A freed game mode can still pass, since
-  the heap does not always write into a freed block and its destructor leaves a base class's vtable there,
-  so the check is not what keeps the free off it. One that fails, written over or gone, has its connection
-  let go for good, which then stays in memory as it would without the fix.
+- **Its memory is checked before the walk.** Every read of the game mode and its list is checked readable
+  with the system first, since the game's crash handler logs any fault as a crash in the mod even when the
+  mod catches it, and is fault guarded as well. The game mode's first word has to point at a vtable in the
+  exe's image with a readable class name. A freed game mode can still pass, since the heap does not always
+  write into a freed block and its destructor leaves a base class's vtable there, so the check is not what
+  keeps the free off it. One that fails, unreadable or written over, has its connection let go for good,
+  which then stays in memory as it would without the fix.
 - **Checks first.** The exe's stamp and size, and seven byte ranges hashed against the 0.9.1 build (the connect,
   the make_shared and its thunk, the destructors of the connection, the local game server and the game mode's
   list, and the list's element release). Any mismatch logs the range and patches nothing.
