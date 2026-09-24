@@ -1,7 +1,7 @@
 ---
 name: TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track
 kind: todo
-description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes
+description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes, which the player's own finding that [dxgi] enabled=0 cures it on 0.3.2 points at, since that switch also skipped the mod's sizes there
 updated: 2026-09-24
 links: [DEC-003-staging-buffer-128mb, BUG-003-menu-icons-stop-rendering, BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup, directstorage-streaming, session-leak-fix, package-override-layer, DEC-023-the-session-free-stays-immediate]
 status: open
@@ -43,6 +43,28 @@ content the mod has never been run against. The leads, in the order they are wor
 4. **The package override layer**, if the track's installer repacks `content.kspkg`. 0.3.2
    recognised the package's table by one empty slot alone, fixed on 0.4 by H-14 of the override
    layer review. `enabled=0` under `[overlay]`.
+
+## The player's second report, 2026-09-24
+
+On the same reddit thread, as the owner passed it on:
+
+> Thanks i just want to say that i noticed when i change dxgi to enabled=0 it works
+
+On 0.3.2 that switch did more than its name says. The mod filled in every size set to `auto`, the
+staging buffer and the tile pool, from `ResolveAutoSizes`, and the only caller was the DXGI factory
+hook (`src/render/dxgi_hooks.cpp` and `src/render/adapter.cpp` at `v0.3.2`). With `[dxgi] enabled=0`
+it never ran, so `stagingMb` stayed 0 and the proxy passed the game's own 1024 MB through, and
+`tile_pool_mb` was never written either. That fits lead 1, and it cannot tell it apart from the tile
+pool, which it lifted at the same time.
+
+The same player's first comment on that thread says the mod cured a freeze on every car change they
+had had since the game's 0.8, which is BUG-004's shape and the reason the cap exists, so lifting it
+for good would likely bring that back.
+
+On 0.4 the switch no longer does this, since the auto sizes are read at the first DirectStorage call
+when the DXGI hooks are off, so the player's workaround does not carry over. The test that separates
+the two leads on their machine is `[dxgi] enabled=1` with `staging_buffer_mb=0`, then with
+`tile_pool_mb=0` instead.
 
 ## Done when
 
