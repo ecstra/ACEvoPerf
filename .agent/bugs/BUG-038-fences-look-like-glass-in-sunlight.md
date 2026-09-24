@@ -1,7 +1,7 @@
 ---
 name: BUG-038-fences-look-like-glass-in-sunlight
 kind: bug
-description: the wire catch fences show as flat see through sheets that read as glass in sunlight, the gaps between the wires filling in as the car gets closer and some fences blocked solid even far off, much less in shade, first reported by a player on a 4090 and seen on the owner's machine on 2026-09-24, most likely how the fence is drawn and lit rather than texture streaming
+description: the wire catch fences show as flat see through sheets that read as glass in sunlight, the gaps between the wires filling in as the car gets closer and some fences blocked solid even far off, much less in shade, first reported by a player on a 4090 and seen on the owner's machine on 2026-09-24, most likely how the fence is drawn and lit rather than texture streaming, and cleared by a game restart with nothing changed
 updated: 2026-09-24
 links: [reported-working-configurations, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, engine-flags]
 area: render
