@@ -82,17 +82,26 @@ static void ScanFlags()
     // pass 2: every call to a candidate ctor -> name (last lea rdx) + storages (lea rax; mov [rsp+20h/28h],rax)
     struct Site { BYTE* ctor; std::string name; std::vector<BYTE*> st; std::string file; };
     std::vector<Site> sites;
+    auto callsCtor = [&](const BYTE* call) {
+        const BYTE* target = call + 5 + *(const int32_t*)(call + 1);
+        for (auto& c : good) if (c.addr == target) return true;
+        return false;
+    };
     for (p = text.lo; p < end; ++p) {
-        if (*p != 0xE8) continue;
+        if (*p != 0xE8 || !callsCtor(p)) continue;
         BYTE* ct = p + 5 + *(int32_t*)(p + 1);
-        bool isCtor = false;
-        for (auto& c : good) if (c.addr == ct) { isCtor = true; break; }
-        if (!isCtor) continue;
         Site site; site.ctor = ct;
         BYTE* lo = p - 220; if (lo < text.lo) lo = text.lo;
         BYTE* nameLea = nullptr; BYTE* fileLea = nullptr;
         BYTE* curStorage = nullptr; BYTE* defStorage = nullptr;   // last [rsp+20h] / [rsp+28h] before the call
         for (BYTE* q = lo; q + 7 <= p; ++q) {
+            // Only what follows the previous registration belongs to this one. The window reaches back
+            // across several of them, and a site whose own storage lea is not in it used to take the one
+            // before's and have the right value written to the wrong global under its own name.
+            if (q[0] == 0xE8 && callsCtor(q)) {
+                nameLea = fileLea = curStorage = defStorage = nullptr;
+                continue;
+            }
             if (q[1] != 0x8D) continue;
             if (q[0] == 0x48 && q[2] == 0x15) nameLea = q;                    // lea rdx
             else if (q[0] == 0x4C && q[2] == 0x0D) fileLea = q;               // lea r9
