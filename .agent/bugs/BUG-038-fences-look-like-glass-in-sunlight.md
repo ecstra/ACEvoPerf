@@ -51,11 +51,26 @@ observations rule it out.
 
 ## Logs
 
-The session's mod log, ini and game log are kept in `logs/glass-fence-20260924`, copied at 16:02 while
-the game still ran. The game log has no `PSO Cache` warning.
+The session's mod log, ini and game log are kept in `logs/glass-fence-20260924`, the whole session from
+15:52 to the quit at 16:16. The game log has no `PSO Cache` warning, and its errors and warnings match
+the day's two other sessions, category for category, with nothing from the renderer beyond the one
+empty `[rendering] [error]` line every session has at start.
+
+## A restart cleared it, 2026-09-24
+
+A session restart from the pause menu left the fences as they were. The owner then quit and started the
+game again with nothing changed, the only difference a build that adds one log line at quit, and the
+fences were right, with `enable_pso_cache` still on. The owner: "lol. it went away now."
+
+So no setting draws fences this way by itself. Something went wrong inside that one process and stayed
+until it ended, which fits the one report before it too. The pipeline cache stays a candidate for that,
+since BUG-015 saw pipeline requests go uncompleted in some sessions and not in others, but this session
+logged none.
 
 ## What would settle it
 
-The same fence in the sun with `enable_pso_cache=false` for one session. Right with it off makes the cache
-the cause, and puts BUG-015's mechanism, which was never understood, back in question. Still glass with it
-off, the same spot without the mod, the game restored by Steam's file check, tells the mod from the game.
+It has to be caught while it is happening, since a restart clears it. Next time, before restarting the
+game, go back to the menu and load the track again, which this time was skipped. Cleared by that, the
+bad state belongs to one session. Still there, it belongs to the process, and the session's logs are
+worth saving before the quit. A run with `enable_pso_cache=false` can only show anything over enough
+sessions to have seen it come back with the flag on.
