@@ -170,7 +170,7 @@ static void SplitFlag(const std::wstring& f, std::string& name, std::string& val
 {
     size_t eq = f.find(L'=');
     std::wstring wname = f.substr(0, eq);
-    std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
+    std::wstring wval = (eq == std::wstring::npos) ? L"" : f.substr(eq + 1);
     name = Utf8(wname);
     val = Utf8(wval);
     // Lowercased here so the two `auto` comparisons below both see it. Written as `Auto`, the flag
@@ -222,11 +222,16 @@ static void WriteFlag(const std::string& name, const std::string& val, const cha
     if (fi->type < 0) { Log("flag %s: unknown type (ignored)", name.c_str()); return; }
 
     // Read once before any storage, so a refused value is said once and never ends in the line about
-    // storage, which sends a reader after a scan fault that is not there.
+    // storage, which sends a reader after a scan fault that is not there. A name with no value is
+    // gflags' way of saying true, which only a bool can take.
+    if (val.empty() && fi->type != 0) {
+        Log("flag %s: has no value, left alone", name.c_str());
+        return;
+    }
     bool asBool = false;
     int asInt = 0;
     double asDouble = 0;
-    if (fi->type == 0 && !ParseBool(val, &asBool)) {
+    if (fi->type == 0 && !ParseBool(val.empty() ? "true" : val, &asBool)) {
         Log("flag %s: '%s' is not one of 1, 0, true, false, yes, no, on or off, left alone", name.c_str(), val.c_str());
         return;
     }
