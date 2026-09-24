@@ -311,6 +311,7 @@ static BYTE* g_brokenFlag = nullptr;                // the partial load stub's c
 static std::atomic<uint64_t> g_rankSorts{0};
 static std::atomic<bool> g_broken{false};
 static std::atomic<bool> g_inHook{false};
+static std::atomic<bool> g_overlapSaid{false};
 
 // The tile pool as the last kick read it, for the report. The report runs on the timeline thread,
 // which outlives the engine's allocator at exit, and catching a fault there is not enough, the
@@ -558,16 +559,28 @@ static TextureState& Touch(const BYTE* tex, uint64_t now)
     return state;
 }
 
+// An access violation the hooks' __except catches leaves g_inHook set, since /EHsc runs no destructor for
+// it, which does not matter while Broken latches every hook off on the same path.
 struct HookGuard {
     bool entered;
     HookGuard() : entered(!g_inHook.exchange(true)) {}
     ~HookGuard() { if (entered) g_inHook.store(false); }
 };
 
+// Two hooks at once would share the texture table and the tally unguarded, so the second goes straight to
+// the engine for that one call. It once switched every fix off for the session instead, which cost far
+// more than the one event it loses.
+static void SkipOverlap(const char* where)
+{
+    if (!g_overlapSaid.exchange(true))
+        Log("[streamer] a second hook arrived in %s while one was running, so that call went straight to the engine "
+            "and the fixes stay on. Only the first time is logged.", where);
+}
+
 static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* context)
 {
     HookGuard guard;
-    if (!guard.entered) { Broken("S2, a second hook while one was running"); return; }
+    if (!guard.entered) { SkipOverlap("S2"); return; }
 
     const BYTE* frame = context + kick::kContextToFrame;
     const BYTE* str = At<BYTE*>(context, kick::kContextStreamer);
@@ -621,7 +634,7 @@ static Verdict Judge(const TextureState& state, int keep, int current, const Fee
 static bool OnDrop(const BYTE* tex, int keep, const BYTE* str, const BYTE* frame, bool admitted)
 {
     HookGuard guard;
-    if (!guard.entered) { Broken(admitted ? "S3, a second hook while one was running" : "S4, a second hook while one was running"); return false; }
+    if (!guard.entered) { SkipOverlap(admitted ? "S3" : "S4"); return false; }
     if (At<BYTE*>(frame, kick::kStreamer) != str) {
         Broken(admitted ? "S3, the kick frame is not where it should be" : "S4, the kick frame is not where it should be");
         return false;
