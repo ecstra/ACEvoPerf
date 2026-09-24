@@ -31,7 +31,7 @@ from its hunter and five from its verifier, all in the wording.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
-| 2 | the flag writer cannot land on the wrong global | pending | |
+| 2 | the flag writer cannot land on the wrong global | fixing | 2026-09-24 |
 | 3 | the throw log cannot eat the game's own exception | pending | |
 | 4 | the leftovers | pending | |
 
@@ -169,8 +169,8 @@ for any of the three fixes.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 7e8b058, 2026-09-24, the backward walk from each registration forgets what it found before the call to a registration that precedes it, so a site takes only what follows the one before, and a site with no storage of its own there is skipped rather than handed the last one's. Before the fix the scan found 204 flags on 0.9.1.
 
 `src/engine/flags.cpp:99`. Pass 2 walks back up to 220 bytes from each `FlagRegisterer` call and keeps
 the last `lea rax` paired with `mov [rsp+20h],rax`. Registrations in a dynamic initializer sit tens of
@@ -215,8 +215,8 @@ a disassembler. If it is a count, nothing is wrong here and this closes as wontf
 - severity: nit
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 7028979, 2026-09-24, flag names and values go through `WideCharToMultiByte` to UTF-8 the way the streamer's and the load sampler's text does, and the build now has no warnings at all.
 
 `src/engine/flags.cpp:152` and `:153`, `name.assign(wname.begin(), wname.end())`. This is the only
 compiler warning in the entire build, C4244 in xutility instantiated from here. Harmless for ASCII flag
