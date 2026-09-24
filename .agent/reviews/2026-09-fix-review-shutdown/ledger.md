@@ -38,7 +38,7 @@ for a thread Windows had already ended.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | nothing blocks on a lock a dead thread may own | closed, runtime confirmed | 2026-09-24 |
-| 2 | the threads the mod starts have a stop | pending | |
+| 2 | the threads the mod starts have a stop | fixing | 2026-09-24 |
 
 ## Findings
 
@@ -233,8 +233,8 @@ heap's lock being a critical section is how Windows builds it rather than anythi
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-24, with the owner's ack of the batch. With the default settings every tick the thread runs reads only the mod's own counters, `StreamerTick` since BUG-022, and the others return at once. The ticks that read what the game owns are developer switches, the census's heap walk and import patching above all, and the heap walk's reads are fault guarded, so the worst left is a caught fault and the crash logger's report at exit in a developer run.
 
 `src/telemetry/timeline.cpp:143` creates the thread and nothing anywhere signals it. DllMain's detach
 does not stop it.
@@ -263,6 +263,13 @@ stylesheet parse or image decode holding a heap or Cohtml lock. That ledger call
 hang, which F-01's H-02 has since shown ends the process instead, and after b7dca1e the log no longer
 waits on a lock at all. What is left is the heap lock of H-01 and the game's own teardown running beside
 a live thread, F-03's shape.
+
+That ledger also concluded the stop never runs at exit, from no drain line in any session. The drain's
+lines are written only when work was left over or a call never came back, so their absence says nothing,
+and the game's own log of batch 1's run shows `Uninitializing COHTML library!` at 15:47:14, two seconds
+before the mod's detach. e2887ec has `Hook_Uninitialize` say so every time, so the next quit shows
+whether the game's uninitialise goes through the hooked slot and leaves the thread parked on its
+semaphore, holding nothing, when Windows ends it.
 
 ## The runs
 
