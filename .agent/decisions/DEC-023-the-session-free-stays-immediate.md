@@ -43,11 +43,13 @@ are its later batches.
 If another thread ever touches a finished session at the moment of the free, it can race it. A
 plain copy of the list's entry raises the count on a connection the free is tearing down, or on a
 block the free has already deleted, which is itself a write into freed memory. If that copy lets go
-while the teardown runs, 0.2 to 31 ms in the logs, its release runs the destructor a second time
+while the teardown runs, 0.2 to 32.4 ms in the logs, its release runs the destructor a second time
 and the crash can land on either thread, inside the free included. If it lets go later, its release
 writes freed memory on its own thread. A push that moves the list leaves the free's 16 zeroed bytes
-in a freed buffer, which shows up as heap corruption wherever that block is used next. Any of these
-can hang the game as well as crash it. Every free across the logs ran on `GameThread` a whole session
+in a freed buffer, which shows up as heap corruption wherever that block is used next. It also
+carries the freed connection's entry into the new buffer uncleared, so the list's release inside the
+same destroy takes the count from 0 to minus 1, and a weak lock later in that teardown would then
+succeed on an object being destroyed. Any of these can hang the game as well as crash it. Every free across the logs ran on `GameThread` a whole session
 after the freed one ended, with no fault in any game log kept from those runs.
 
 What reopens this is any `Exception Detected`, unexplained exit or freeze at or after a load in a
