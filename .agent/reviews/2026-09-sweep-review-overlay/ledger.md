@@ -41,7 +41,7 @@ readers. The verifier's findings were all wording, one of them a changelog line 
 |---|---|---|---|
 | 1 | the table is built once and published safely | closed, runtime confirmed | 2026-09-23 |
 | 2 | a redirect that cannot be served fails visibly | closed, runtime confirmed | 2026-09-23 |
-| 3 | the slot layout and the leftovers | pending | |
+| 3 | the slot layout and the leftovers | fixing | 2026-09-24 |
 
 ## Findings
 
@@ -628,8 +628,8 @@ A third pass ran on 5765337 and found nothing false. It raised one more, the loo
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 322a6aa, 2026-09-24, the comment, the log line and the doc say the layer reads only the 64 MB table of 0.9.0 and 0.9.1 and that nothing applies when the table is not recognised. The hardcoded size became `TABLE_SIZE` in a5cc278.
 
 `src/overlay/overlay.cpp:413`. The comment `// older layout: 32 MB table` sits directly above a log
 line saying the 64 MB table was not recognised and a return. `g_tocSize = 0x4000000` is hardcoded at
@@ -641,8 +641,8 @@ reads that comment as a handled path.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: a5cc278, 2026-09-24, the slot fields, the cipher bit, the path limit and the table size are named constants, and the search by hash is one function with a second that reads a path's own entry.
 
 `src/overlay/overlay.cpp:213` and about fifteen other places read slot fields as raw numbers: 0xE8 for
 the hash at 213, 323, 417 and 441, 0xE4 for flags at 224, 334, 444 and 446, 0xE6 for the path length at
@@ -651,12 +651,16 @@ the hash at 213, 323, 417 and 441, 0xE4 for flags at 224, 334, 444 and 446, 0xE6
 times. `tools/kspkg.py`'s docstring lays the same slot out field by field, so the knowledge is in the
 repo, just not in the file that writes into the structure.
 
+Also found on the same reading and fixed with it. The doc gave the path limit as 227 bytes, which
+is what the field holds with its NUL, while the code skips any path past 223. The doc says 223 now,
+and the code is left as it was.
+
 ### F-10: the package range check can wrap before it rejects
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 821c34a, 2026-09-24, both checks, the big screen header's and the stylesheet's, test `offset > g_pkgSize - size`.
 
 `src/overlay/overlay.cpp:227`. `offset + size > g_pkgSize` overflows when offset is within 16 MB of
 2^64. Not reachable today, because both call sites clamp size first and the negative LONGLONG then
@@ -666,8 +670,8 @@ fails `SetFilePointerEx`. `offset > g_pkgSize - size` is the ordering that canno
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: e26c73a, 2026-09-24, each count is named for the call it counts.
 
 `src/overlay/overlay.cpp:586` to 591, skipping e. The rest of the file names things properly.
 
