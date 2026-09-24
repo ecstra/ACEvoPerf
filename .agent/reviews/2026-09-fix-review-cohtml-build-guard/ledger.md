@@ -28,7 +28,7 @@ one bug, two debt, one nit.
 | 1 | the vtable calls honour the build check the byte patches already do | done | 2026-09-20, ack, runtime confirmed |
 | 2 | the menu view is found by identity rather than by a counter | done | 2026-09-20, ack, runtime confirmed |
 | 3 | the page fixes script survives its own error paths | done | 2026-09-20, ack, runtime confirmed |
-| 4 | the moved work thread and its stop flag | done, and the path it fixes never runs | 2026-09-20, ack, runtime confirmed |
+| 4 | the moved work thread and its stop flag | done, and the path it fixes was thought never to run, corrected in H-23 | 2026-09-20, ack, runtime confirmed |
 | 5 | what the page fixes script costs, and saying when it is not there | done | 2026-09-20, ack, runtime confirmed |
 
 ## Findings
@@ -873,6 +873,12 @@ method the drain line would have appeared. Whatever those two slots are, nothing
 them. The finding stays open because the numbers are still unproven, at a severity the evidence no longer
 supports treating as urgent.
 
+**Corrected on 2026-09-24.** The drain line is written only when work was left over or a call never came
+back, so the quit above says nothing about whether either hook ran, and the game's own log has
+`Uninitializing COHTML library!` 0.8 to 4.5 s before `detached` in every session that kept both logs.
+`fix/review-shutdown` F-05 has `Hook_Uninitialize` write a line every time, so the next quit shows whether
+slot 3 fires as the game uninitialises.
+
 ### V-12: giving up on a call was permanent, so every later teardown destroyed the library under a live one
 - severity: bug
 - found-by: verifier
@@ -997,6 +1003,10 @@ single launch a question twelve recorded sessions could not.
 
 The lesson for the batches that follow: when a fix's whole surface is a path with no evidence of ever
 running, log it first and weigh it second.
+
+**Corrected on 2026-09-24, from `fix/review-shutdown`.** The line added here is written only when work was
+left over or a call never came back, so its absence did not show the stop never ran, and the lesson
+applies to it too, a line that proves a path runs has to be written every time it does. See H-23.
 
 Batch 4 is done.
 

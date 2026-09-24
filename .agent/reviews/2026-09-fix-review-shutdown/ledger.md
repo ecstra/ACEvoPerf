@@ -268,8 +268,42 @@ That ledger also concluded the stop never runs at exit, from no drain line in an
 lines are written only when work was left over or a call never came back, so their absence says nothing,
 and the game's own log of batch 1's run shows `Uninitializing COHTML library!` at 15:47:14, two seconds
 before the mod's detach. e2887ec has `Hook_Uninitialize` say so every time, so the next quit shows
-whether the game's uninitialise goes through the hooked slot and leaves the thread parked on its
-semaphore, holding nothing, when Windows ends it.
+whether the game's uninitialise goes through the hooked slot. Since d2896ad the line says the work is
+stopped only when no moved call is still out, which is when the thread is parked on its semaphore,
+holding nothing, as Windows ends it.
+
+The hunter then ran on batch 2. It found F-03's reason right claim by claim, every default tick reading
+only the mod's own state, and the moved thread parked and holding nothing after a stop that did not give
+up, and raised the three below.
+
+### H-05: the new line said the moved work was stopped even when the stop had given up on a call
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: d2896ad, 2026-09-24, `StopMovingWork` says whether a call is still out, and the line says so instead of stopped.
+
+`src/ui/responsive_ui.cpp:488`. After a 5000 ms give up, the log would have read that the call did not
+finish, that one never came back, and then that the work was stopped, while the original `Uninitialize`
+freed the library under the live call. e2887ec caused it.
+
+### H-06: the Cohtml ledger still said the game never calls the stop hooks
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, that ledger's H-23, its batch table and its note on the stop never running each carry a correction.
+
+Its H-23 stayed low on the premise that nothing in a normal session calls slots 2 and 3, drawn from a
+drain line that is written only when work was left over. All 52 sessions under `logs/` with both logs
+show the game's `Uninitializing COHTML library!` 0.8 to 4.5 s before `detached`.
+
+### H-07: the reviews index line did not move with batch 2
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
 
 ## The runs
 
