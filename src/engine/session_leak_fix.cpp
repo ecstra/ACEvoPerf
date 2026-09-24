@@ -174,7 +174,8 @@ static bool GameModeClass(const BYTE* gameMode, char* out, size_t size)
         const BYTE* locator = (const BYTE*)vtable[-1];
         if (!InImage(locator, 16)) return false;
         const char* name = (const char*)(g_exe + At<int32_t>(locator, 12) + 0x10);
-        if (!InImage(name, 5) || strncmp(name, ".?AV", 4) != 0) return false;
+        // A class's type name starts .?AV and a struct's .?AU.
+        if (!InImage(name, 5) || (strncmp(name, ".?AV", 4) != 0 && strncmp(name, ".?AU", 4) != 0)) return false;
         size_t length = strcspn(name + 4, "@");
         if (length >= size) length = size - 1;
         memcpy(out, name + 4, length);
