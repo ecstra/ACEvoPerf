@@ -273,15 +273,15 @@ Older than the batch.
 
 The verifier then ran on batch 2. It found F-04, F-07, H-03, H-05 and H-06 closed in the source and the
 object code and every value the shipped ini and the docs pass still accepted, and raised the six below,
-one of them a bug the strict check caused. The loop stopped there, the rest being precision in the
-record.
+one of them a bug the strict check caused. V-06 and V-07 were fixed in the code and V-08 to V-11 in the
+record, and a second pass then ran over the two code fixes.
 
 ### V-06: a tile_pool_mb the strict check refuses was never written, and the engine took the whole define
 - severity: bug
 - found-by: verifier
 - batch: 2
 - status: fixed
-- fix: 30f7232, 2026-09-24, a value that is neither a number nor auto falls back to auto with a note, as `staging_buffer_mb` does since the proxy core review's H-09.
+- fix: 30f7232, 2026-09-24, a value that is neither a number nor auto falls back to auto with a note, as `staging_buffer_mb` does since the proxy core review's H-12. db3e0f9 added digits too many for an int32, V-12, and matched the name exactly, V-13.
 
 With the shipped `force_canonical_pool_sizes=true` an unwritten tile pool takes the `texturePoolSize`
 define, 1433 MB at Low up to 6144 MB at Ultra, the failure DEC-022 and the auto sizes exist to prevent.
@@ -322,12 +322,70 @@ either. 03b6987 wrote it.
 - status: fixed
 - fix: 2026-09-24.
 
-### V-11: H-05 said 7e8b058 added the skip, which has been there since 57b43fb
+### V-11: H-05 said 7e8b058 added the skip, which has been there since 0140743, the first commit
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24. The title first gave 57b43fb, which only moved the skip into `flags.cpp`, V-16.
+
+The second verifier pass ran on 30f7232 and 552fb01. It found every other way to write `tile_pool_mb`
+ending where it should, no other flag changed and V-07 to V-10 gone, and raised the seven below.
+
+### V-12: a tile_pool_mb of plain digits too big for an int32 was still refused and never written
+- severity: bug
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: db3e0f9, 2026-09-24, more than nine digits falls back to auto as well, and the doc says so.
+
+`tile_pool_mb=3221225472`, a byte count typed where MB is asked, passed the digits test, reached
+`WholeInt`, was refused above INT_MAX and left the engine the whole define, V-06's own failure. 30f7232
+caused it.
+
+### V-13: a key typed in another case got a note promising auto that the flag writer then refused
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: db3e0f9, 2026-09-24, the name is matched exactly, as the flag writer and the auto passes match it.
+
+`Tile_Pool_MB=2GB` logged the note, then `auto has no rule for this flag`. 30f7232 caused it.
+
+### V-14: V-06's fix line cited the proxy core review's H-09, where the fallback of an unknown word is its H-12
 - severity: nit
 - found-by: verifier
 - batch: 2
 - status: fixed
 - fix: 2026-09-24.
+
+### V-15: H-03's sentence claimed every value the strict check refuses falls back to auto, which V-12 showed short
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: db3e0f9, 2026-09-24, the code now makes it true, so the sentence stands.
+
+### V-16: V-11's title dated the skip to 57b43fb, which only moved it
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, 0140743, the first commit.
+
+### V-17: the first pass's paragraph said the loop stopped on precision in the record, with a code fix among them and a second pass still to run
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-18: the reviews index and the batch table disagreed on batch 2's state
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, both say closed once the batch closes.
 
 ## The runs
 
