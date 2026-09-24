@@ -109,8 +109,8 @@ ledger.
 
 - [2026-09-fix-review-session-leak-safety](2026-09-fix-review-session-leak-safety/ledger.md), the hand
   rolled shared_ptr surgery and what it does not guard against, 6 findings, 3 breaks, plus 22 from
-  batch 1's two hunters and four verifier passes. Batch 1 closed and runtime confirmed, its two
-  findings left open on the owner's choice in DEC-023
+  batch 1's two hunters and four verifier passes and 3 from batch 2's hunters. Batch 1 closed and
+  runtime confirmed, its two findings left open on the owner's choice in DEC-023, batch 2 fixing
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
   still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all

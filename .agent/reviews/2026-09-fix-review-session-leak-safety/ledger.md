@@ -330,7 +330,7 @@ loop stopped there, both being precision in the record rather than anything abou
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: a05bdd5, 2026-09-24, the list is walked only when the game mode looks live, its vtable in the exe's image with a readable class name, every read of the game mode is fault guarded, and a connection that fails is let go for good.
+- fix: a05bdd5, 2026-09-24, every read of the game mode is fault guarded, and a connection whose game mode no longer starts with a vtable of the exe is let go for good. The hunters found the check is not what keeps the free off a destroyed game mode, H-08, and that the guard still let the game log a crash, H-09.
 
 `src/engine/session_leak_fix.cpp:113`. The cycle guarantees that the game mode holds the connection, not
 the reverse.
@@ -348,12 +348,13 @@ Noted by batch 1's hunter for this batch. The guard belongs around each control 
 whole loop, since a loop left partway leaves every later control in `finished` already taken out of
 `g_connections`, never freed and still holding the hook's weak reference.
 
-The guard alone would not have been enough. A game mode the game freed is most likely still committed
-heap, so the walk reads stale data rather than faulting, and could find the connection in the old list,
-free it, and delete the game mode a second time inside the destroy. The liveness check is what stops
-that, since the heap or the block's next owner overwrites the vtable word. The guard is a backstop for a
-page that was decommitted. A fault it catches still stalls the thread while the game's crash logger
-symbolizes it, and shows as an `Exception Detected`, which DEC-023 counts as a reason to look again.
+The guard alone would not have been enough, since a game mode the game freed is most likely still
+committed heap, and the walk reads stale data there rather than faulting. This note first said the new
+check stops the walk finding the connection in the old list, because the heap or the block's next owner
+overwrites the vtable word, which H-08 showed wrong. What stops it is the list itself, emptied by the game
+mode's destructor. A fault the guard catches still stalls the thread while the game's crash logger
+symbolizes it and shows as an `Exception Detected`, which DEC-023 counts as a reason to look again, so
+since H-09 each read is checked before it is made and the guard is the last resort.
 
 ### F-04: the connection destructor runs inline inside the game's connect, and a throw from it escapes into make_shared's call site
 - severity: bug
@@ -378,6 +379,52 @@ Noted by batch 1's hunter for this batch, probably not reachable as written. MSV
 throw from the teardown calls `std::terminate` inside the game's frames and never reaches the hook,
 where a catch would have nothing to catch. An access violation, F-03's, does pass through `noexcept`
 frames, so a `__try` would see that. The exe's own build flags could not be read to confirm it.
+
+Two hunters then ran on batch 2 in parallel, one on the check and one on the guard. They found the
+image bounds, the three logged classes, the drop's weak release and every unguarded read right, and
+raised the three below.
+
+### H-08: a game mode the game destroyed still passes the check while nothing has written over its block
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 0471ce3, 2026-09-24, the comments, the system doc and F-03's note say the emptied list keeps the free off a destroyed game mode, and what that rests on.
+
+`src/engine/session_leak_fix.cpp:147`. The low fragmentation heap writes nothing into a freed slot, and
+the game mode's destructors leave the vtable of the last base class they reached at +0, a real vtable of
+the exe with a real class name, so a destroyed game mode passes. The comments, the doc and F-03's note
+all said it fails.
+
+No wrong free follows. The game mode's destructor released its list (0x19150D1 into 0x1921B10), and
+MSVC's vector leaves its pointers null when it goes, so the walk finds nothing and the connection stays
+tracked, never freed. That rests on the vector as MSVC builds it, since the exe's copy was not read. Once
+another object takes the slot, the walk reads that object's words as a list, and a fault there was only
+caught, H-09.
+
+### H-09: a game mode whose memory the heap gave back was found by faulting on it
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: bcde4b4, 2026-09-24, every read of the game mode and its list is checked readable with the system first, and such a connection is let go without a fault.
+
+`src/engine/session_leak_fix.cpp:147` and `:180` to `:187`. The guard caught the fault, but the game's
+crash handler sees it first. It writes an `Exception Detected` naming `DSTORAGE.dll` into the player's
+game log, the report BUG-022 was fixed to stop, and holds the game thread about 200 ms with `g_lock`
+held. The drop that followed was the same one a failed check gives.
+
+### H-10: a live game mode declared as a struct failed the check
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: f921d8c, 2026-09-24, a type name starting `.?AU` passes as well as `.?AV`.
+
+`src/engine/session_leak_fix.cpp:152`. MSVC names a struct `.?AU`. Before a05bdd5 the prefix only chose
+the log's name, and after it such a game mode's connections were let go at the first connect, so its
+sessions leaked again. The 20 logged frees name only classes, and game modes the logs have never shown,
+such as Cruise mode's, have not run under the fix.
 
 ### F-05: the cleared entry leaves a null shared_ptr inside a live vector whose other readers were never checked
 - severity: debt
