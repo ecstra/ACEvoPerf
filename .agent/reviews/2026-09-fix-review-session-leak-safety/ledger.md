@@ -2,8 +2,8 @@
 name: review-2026-09-fix-review-session-leak-safety
 kind: review
 description: the session leak fix angle of the full review of main, the hand rolled shared_ptr surgery and what it does not guard against, six findings, three breaks
-updated: 2026-09-20
-links: [spec-reviews, house-rules-agent, session-leak-fix, BUG-016-vram-overhead-grows-across-scene-loads, reviews-index]
+updated: 2026-09-24
+links: [spec-reviews, house-rules-agent, session-leak-fix, BUG-016-vram-overhead-grows-across-scene-loads, reviews-index, DEC-023-the-session-free-stays-immediate]
 branch: fix/review-session-leak-safety
 status: open
 ---
@@ -33,7 +33,7 @@ Six findings, three breaks, one bug, one debt, one nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the free cannot race a strong copy or a moved vector | pending | |
+| 1 | the free cannot race a strong copy or a moved vector | fixing | 2026-09-24 |
 | 2 | the walk and the teardown cannot fault or throw into the game | pending | |
 | 3 | the leftovers | pending | |
 
@@ -43,8 +43,8 @@ Six findings, three breaks, one bug, one debt, one nit.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: wontfix
+- fix: b89e2d9, 2026-09-24, not closed. The header and the doc now state the assumption the free rests on, that only the game thread touches a finished session, and DEC-023 records the owner's choice not to wait a connect before the destroy.
 
 `src/engine/session_leak_fix.cpp:151`. `weak_ptr::lock` is genuinely safe here, because `_Incref_nz`
 refuses at zero, and `shared_from_this` goes through lock, so that path is closed. A plain copy of a
@@ -62,12 +62,24 @@ The header's claim at line 28, that a strong copy could only come from the entry
 about the source and does not close the window, because the clear happens after the point of no
 return.
 
+Why it stays open. Closing it needs either the game's own lock around the list, which needs the
+game's code that reads the list, or a free that waits a connect and backs off if the count was
+raised in between. The code could not be examined here, since an agent's script reading the exe's
+class tables was stopped by a safety check and that route was left alone. The wait would hold one
+finished session through the next load, about 50 MB at the Red Bull Ring and likely 100 to 200 MB
+at bigger tracks, and the owner's bar was 50 MB and no pile up. What the logs show, from a second
+agent on 2026-09-24, is 43 connects and 15 frees, every one on `GameThread`, the game's main thread,
+which also builds every connection, local server and game mode. Every freed session had ended a
+whole session earlier, 14 to 144 s before, and no game log holds an exception after a free. The
+game does take a physics lock when a session changes, so a second thread in that path is not ruled
+out.
+
 ### F-02: the entry pointer is captured before the compare exchange and written through after it, with no engine lock
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: wontfix
+- fix: b89e2d9, 2026-09-24, not closed, for F-01's reasons. Finding the entry again right before the clear was weighed and dropped, since the gap it would close is already a few instructions long.
 
 `src/engine/session_leak_fix.cpp:149` and `:153`. `EntryFor` returns a raw pointer into the game mode's
 vector buffer, then the compare exchange runs, then `memset` writes 16 bytes through that pointer.
