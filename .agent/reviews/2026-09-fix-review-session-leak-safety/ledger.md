@@ -330,7 +330,7 @@ loop stopped there, both being precision in the record rather than anything abou
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: a05bdd5, 2026-09-24, every read of the game mode is fault guarded, and a connection whose game mode no longer starts with a vtable of the exe is let go for good. The hunters found the check is not what keeps the free off a destroyed game mode, H-08, and that the guard still let the game log a crash, H-09.
+- fix: a05bdd5, 2026-09-24, every read of the game mode is fault guarded, and a connection whose game mode no longer starts with a vtable of the exe is let go for good. The hunters found the check is not what keeps the free off a destroyed game mode, H-08, and that the guard still let the game log a crash, H-09. The memset stays unguarded, since it writes the 16 bytes the walk read a few instructions earlier, which only F-02's race could move, and the destroy is F-04's.
 
 `src/engine/session_leak_fix.cpp:113`. The cycle guarantees that the game mode holds the connection, not
 the reverse.
@@ -352,7 +352,8 @@ The guard alone would not have been enough, since a game mode the game freed is 
 committed heap, and the walk reads stale data there rather than faulting. This note first said the new
 check stops the walk finding the connection in the old list, because the heap or the block's next owner
 overwrites the vtable word, which H-08 showed wrong. What stops it is the list itself, emptied by the game
-mode's destructor. A fault the guard catches still stalls the thread while the game's crash logger
+mode's destructor, which rests on MSVC's vector leaving its pointers null, H-08. A fault the guard catches
+still stalls the thread while the game's crash logger
 symbolizes it and shows as an `Exception Detected`, which DEC-023 counts as a reason to look again, so
 since H-09 each read is checked before it is made and the guard is the last resort.
 
@@ -361,7 +362,7 @@ since H-09 each read is checked before it is made and the guard is the last reso
 - found-by: review
 - batch: 2
 - status: wontfix
-- fix: 2026-09-24, not reachable as written, and nothing the mod could add would help. A throw ends the game in the teardown's own noexcept frames before it can reach the hook, and a fault caught inside the game's destructor would leave a half destroyed session to run on.
+- fix: 2026-09-24, probably not reachable as written, going by MSVC's defaults, since the exe's build flags could not be read, and nothing the mod could add would help. A throw would end the game in the teardown's own noexcept frames before it reached the hook, and a fault caught inside the game's destructor would leave a half destroyed session to run on.
 
 `src/engine/session_leak_fix.cpp:154`. The census research doc states plainly that these destructors
 have never run in the shipped game, because nothing ever freed a connection. `Free` calls `_Destroy`
@@ -389,7 +390,7 @@ raised the three below.
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: 0471ce3, 2026-09-24, the comments, the system doc and F-03's note say the emptied list keeps the free off a destroyed game mode, and what that rests on.
+- fix: 0471ce3 for the comments and the system doc, 2026-09-24 for F-03's note, which now say the emptied list keeps the free off a destroyed game mode, and what that rests on.
 
 `src/engine/session_leak_fix.cpp:147`. The low fragmentation heap writes nothing into a freed slot, and
 the game mode's destructors leave the vtable of the last base class they reached at +0, a real vtable of
@@ -398,9 +399,10 @@ all said it fails.
 
 No wrong free follows. The game mode's destructor released its list (0x19150D1 into 0x1921B10), and
 MSVC's vector leaves its pointers null when it goes, so the walk finds nothing and the connection stays
-tracked, never freed. That rests on the vector as MSVC builds it, since the exe's copy was not read. Once
-another object takes the slot, the walk reads that object's words as a list, and a fault there was only
-caught, H-09.
+tracked, never freed. That rests on the vector as MSVC builds it, and the exe's copy was not checked for
+that, though the mod's own build of a vector destructor keeps all three null stores. Once another object
+takes the slot, the walk reads that object's words as a list, where a match is unlikely but not ruled out,
+V-17, and a fault was only caught, H-09.
 
 ### H-09: a game mode whose memory the heap gave back was found by faulting on it
 - severity: debt
@@ -411,7 +413,7 @@ caught, H-09.
 
 `src/engine/session_leak_fix.cpp:147` and `:180` to `:187`. The guard caught the fault, but the game's
 crash handler sees it first. It writes an `Exception Detected` naming `DSTORAGE.dll` into the player's
-game log, the report BUG-022 was fixed to stop, and holds the game thread about 200 ms with `g_lock`
+game log, the report BUG-022 was fixed to stop, and holds the game thread 120 to 210 ms with `g_lock`
 held. The drop that followed was the same one a failed check gives.
 
 ### H-10: a live game mode declared as a struct failed the check
@@ -422,9 +424,101 @@ held. The drop that followed was the same one a failed check gives.
 - fix: f921d8c, 2026-09-24, a type name starting `.?AU` passes as well as `.?AV`.
 
 `src/engine/session_leak_fix.cpp:152`. MSVC names a struct `.?AU`. Before a05bdd5 the prefix only chose
-the log's name, and after it such a game mode's connections were let go at the first connect, so its
-sessions leaked again. The 20 logged frees name only classes, and game modes the logs have never shown,
-such as Cruise mode's, have not run under the fix.
+the log's name, and after it such a game mode's connections were let go at the connect that would have
+freed them, so its sessions leaked again. The 20 logged frees name only classes, and game modes the logs
+have never shown, such as Cruise mode's, have not run under the fix.
+
+The verifier then ran on batch 2 as two agents in parallel, one on the code and one on everything written
+about it. The code verifier found F-03, H-08, H-09 and H-10 gone, F-04's reason still holding and nothing
+new, and noted that the mod's own build of a vector destructor keeps the three null stores H-08 rests on.
+The wording verifier raised the ten below.
+
+### V-16: the check's comment said a block the next owner took fails it
+- severity: debt
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 933f930, 2026-09-24, it fails only once the memory is given back, the heap's links are written over its start, or the block went to something that is not one of the exe's objects, and a block another of the exe's objects took passes with that object's class.
+
+`src/engine/session_leak_fix.cpp:162`. Another of the game's objects with a vtable starts with a vtable of
+the exe that has its type information, so it passes, as `EntryFor`'s comment and H-08 both said. 0471ce3
+wrote it.
+
+### V-17: "never freed" held only while nothing has taken the block
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 933f930, 2026-09-24, the header, `EntryFor` and the system doc say the emptied list protects while the block still holds the destroyed game mode, and that once another object takes it, a match in that object's words is unlikely but not ruled out.
+
+`.agent/docs/systems/session-leak-fix.md:34` and `src/engine/session_leak_fix.cpp:39`. H-09 covered a
+fault in such a walk and nothing covered a match. 0471ce3 wrote it.
+
+### V-18: the readable check's comment cited BUG-022 for the stall, which BUG-022 does not record
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: ada4b3d, 2026-09-24, BUG-022 for the report and the telemetry doc's game log section for the 120 to 210 ms stall.
+
+### V-19: H-09 put the stall at about 200 ms, where the rest of the repo says 120 to 210
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-20: H-08's fix line credited 0471ce3 with F-03's note, and the note left out what the list rests on
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, the fix line names 9643715's date for the note, and the note names MSVC's vector.
+
+### V-21: F-04's fix line called settled what its own note calls probable
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, probably not reachable as written, going by MSVC's defaults.
+
+The guard hunter had named the one way a throw could still reach the hook, from an `extern "C"` callee in
+a build without `/EHr`, and found the mod would stay consistent then, since the destroy runs outside both
+lock scopes.
+
+### V-22: H-10 had struct game modes let go at the first connect
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, at the connect that would have freed them.
+
+`EntryFor` runs only at a count of 1, and the manager still holds a session at the next connect, so the
+drop came one connect later.
+
+### V-23: "the exe's copy was not read" when the census read it and the patch hashes it
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 933f930 for the comment and the doc, 2026-09-24 for H-08, not checked for that.
+
+The census read 0x1921B10 as the release of the list's use counts. What nobody recorded is whether it
+leaves the three pointers null.
+
+### V-24: "left alone" meant a tracked connection in the header and a dropped one in the log
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 6bb42e0, 2026-09-24, the log line and the telemetry doc say `let go of N connection(s) for good`, as the header and the system doc already did.
+
+### V-25: F-03 was marked fixed with the memset its body names unaccounted for
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, F-03's fix line says the memset stays unguarded and why.
 
 ### F-05: the cleared entry leaves a null shared_ptr inside a live vector whose other readers were never checked
 - severity: debt
