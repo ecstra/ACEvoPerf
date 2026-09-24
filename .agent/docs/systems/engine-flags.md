@@ -21,7 +21,8 @@ and 204 on 0.9.1 counted string flags holding a neighbour's two addresses, never
 Any bool, int32 or double name from the table works in the `[flags]` section of the ini as
 `name=value`. Unknown names, string flags, and a value that is not a whole number for an int32, a number
 for a double or one of 1, 0, true, false, yes, no, on or off for a bool are reported in `acevo_perf.log`
-and skipped. A `tile_pool_mb` that is neither a number nor `auto` falls back to `auto`.
+and skipped. A `tile_pool_mb` that is not `auto` or plain digits few enough for an int32 falls back to
+`auto`, since an unwritten pool with the canonical flag on takes the whole define.
 
 ## Flags that matter for performance
 
