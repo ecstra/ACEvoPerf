@@ -62,9 +62,9 @@ had had since the game's 0.8, which is BUG-004's shape and the reason the cap ex
 for good would likely bring that back.
 
 On 0.4 the switch no longer does this, since the auto sizes are read at the first DirectStorage call
-when the DXGI hooks are off, so the player's workaround does not carry over. The test that separates
-the two leads on their machine is `[dxgi] enabled=1` with `staging_buffer_mb=0`, then with
-`tile_pool_mb=0` instead.
+when the DXGI hooks are off, so the player's workaround does not carry over. Players are not asked to
+test, the owner's word of 2026-09-24, "No need to ask users to debug.", so the two leads are told apart
+here, with `staging_buffer_mb=0` and then `tile_pool_mb=0` on a custom track that crashes.
 
 ## Done when
 
@@ -74,4 +74,5 @@ since an installer that repacks `content.kspkg` changes what the override layer 
 - If it crashes, the mod's `acevo_perf.log` and the game's own log of that launch are kept, the
   leads above are tried one setting at a time, starting with `staging_buffer_mb=0`, and the defect
   moves to bugs/ with that evidence.
-- If it loads clean, the leads go back to the player with a request for their two logs.
+- If it loads clean, a custom track with a single file bigger than the loading buffer is found and
+  tried, since that is what lead 1 needs.
