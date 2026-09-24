@@ -123,7 +123,9 @@ static void ScanFlags()
         if (!rdata.has(nt2) || !ReadCString(nt2, rdata, site.name, 120)) continue;
         bool ident = true;
         for (char c : site.name) if (!(isalnum((unsigned char)c) || c == '_')) { ident = false; break; }
-        if (!ident || site.st.empty()) continue;
+        // Kept with no storage too, so a flag the scan could not place, every string flag among them,
+        // is refused for the true reason rather than reported missing from the game.
+        if (!ident) continue;
         if (fileLea) { BYTE* ft = fileLea + 7 + *(int32_t*)(fileLea + 3); if (rdata.has(ft)) ReadCString(ft, rdata, site.file, 300); }
         sites.push_back(site);
     }
@@ -138,12 +140,14 @@ static void ScanFlags()
         for (auto& c : good) if (c.addr == si.ctor) fi.type = c.type;
         size_t sl = si.file.find_last_of('\\');
         fi.file = (sl == std::string::npos) ? si.file : si.file.substr(sl + 1);
-        bool dup = false;
-        for (auto& f : g_flags) if (f.name == fi.name) { dup = true; break; }
-        if (!dup) g_flags.push_back(fi);
+        FlagInfo* same = nullptr;
+        for (auto& f : g_flags) if (f.name == fi.name) { same = &f; break; }
+        if (!same) g_flags.push_back(fi);
+        else if (same->storages.empty() && !fi.storages.empty()) *same = fi;   // a placed site wins over an unplaced one
     }
-    int typed = 0; for (auto& f : g_flags) if (f.type >= 0) typed++;
-    Log("flags: scanned exe in %llu ms: %zu ctor candidates, %zu flags (%d typed)", GetTickCount64() - t0, good.size(), g_flags.size(), typed);
+    int typed = 0, placed = 0;
+    for (auto& f : g_flags) { if (f.type >= 0) typed++; if (!f.storages.empty()) placed++; }
+    Log("flags: scanned exe in %llu ms: %zu ctor candidates, %zu flags (%d typed, %d with storage)", GetTickCount64() - t0, good.size(), g_flags.size(), typed, placed);
 }
 
 static bool Writable(const void* p)
