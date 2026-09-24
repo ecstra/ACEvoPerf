@@ -275,8 +275,10 @@ void ApplyFlags(const char* phase)
         std::string name, val;
         SplitFlag(f, name, val);
         if (val == "auto") {
+            // Promised only for the one flag with an auto rule, ApplyAutoFlags says the rest have none.
+            if (name != "tile_pool_mb") continue;
             if (strcmp(phase, "early") == 0) Log("flag %s: auto, written once the game creates its DXGI factory and the card is known", name.c_str());
-            else if (name == "tile_pool_mb" && g_autoTilePoolMb > 0) WriteFlag(name, std::to_string(g_autoTilePoolMb), phase);
+            else if (g_autoTilePoolMb > 0) WriteFlag(name, std::to_string(g_autoTilePoolMb), phase);
             continue;
         }
         WriteFlag(name, val, phase);
