@@ -170,7 +170,7 @@ for any of the three fixes.
 - found-by: review
 - batch: 2
 - status: fixed
-- fix: 7e8b058, 2026-09-24, the backward walk from each registration forgets what it found before the call to a registration that precedes it, so a site takes only what follows the one before, and a site with no storage of its own there is skipped rather than handed the last one's. Before the fix the scan found 204 flags on 0.9.1.
+- fix: 7e8b058, 2026-09-24, the backward walk from each registration forgets what it found before the call to a registration that precedes it, so a site takes only what follows the one before, and a site with no storage of its own there is left unplaced rather than handed the last one's. Before the fix the scan found 204 flags on 0.9.1, which the hunter showed were 185 or 186 real ones and 18 string flags pinned to a neighbour's two addresses, so F-04 fired on every run, harmless only because string flags are never written, H-04. Since 934d6c0 the scan logs how many it placed, and on 0.9.1 that should be those 185 or 186.
 
 `src/engine/flags.cpp:99`. Pass 2 walks back up to 220 bytes from each `FlagRegisterer` call and keeps
 the last `lea rax` paired with `mov [rsp+20h],rax`. Registrations in a dynamic initializer sit tens of
@@ -223,6 +223,51 @@ compiler warning in the entire build, C4244 in xutility instantiated from here. 
 names, which is all of them, and it silently mangles anything else. Worth closing because it is the
 one thing standing between the build and a clean `/W4` run, which the tools branch wants in order to
 turn warnings into errors.
+
+The hunter then ran on batch 2. It found the reset right under the x64 calling convention and in the
+object code, a false reset from a stray byte about one in a million scans and only ever dropping a
+site, never moving one, and the conversion sound, and raised the four below.
+
+### H-03: numeric flags took any text through atoi and atof, so a badly typed size reached the engine as a tiny number
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 4f94029, 2026-09-24, an int32 or a double is written only when the whole value is one, through `strtoll` and `strtod`, and refused otherwise.
+
+`src/engine/flags.cpp:201` and `:204`. `tile_pool_mb=1,024`, `=1.5` or `=2 GB` wrote 1 or 2 MB into the
+engine's tile pool at both slots, logged like any success. The bool branch has refused unknown words
+since the proxy core review's V-07, and this branch was missed. Older than the batch.
+
+### H-04: the fix drops every string flag from the count, and nothing said a drop was expected
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, F-04's fix line says what the count was and what it should be, and the system doc takes the next run's figure.
+
+String registrations never load a storage slot with `lea rax`, so all 31 are unplaced now, and the
+free roam research of 2026-09-06 had already said the walk should stop at the previous registration.
+Its run then found all 216.
+
+### H-05: a string flag set in the ini was reported missing from the game
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 934d6c0, 2026-09-24, an unplaced site stays listed, a placed one wins over it on a repeated name, and the string flag is refused as a string.
+
+7e8b058 caused it, by skipping every site with no storage before it was typed.
+
+### H-06: a refused bool typo ended with no writable storage found
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 4f94029, 2026-09-24, the value is read once before any storage, so a refusal is said once and returns.
+
+`logs/proxycore-b2-20260920` shows `left alone` once per slot and then `no writable storage found`.
+Older than the batch.
 
 ## The runs
 
