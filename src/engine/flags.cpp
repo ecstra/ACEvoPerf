@@ -11,6 +11,7 @@
 #include "acevo/engine/flags.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include <cmath>
 
 struct FlagInfo {
     std::string name;
@@ -174,6 +175,40 @@ static void SplitFlag(const std::wstring& f, std::string& name, std::string& val
     for (auto& ch : val) ch = (char)tolower((unsigned char)ch);
 }
 
+// The same rule the ini reader uses: a word that is in neither list is a typo, not a no. Answering it
+// with false writes false into the engine, and for the bool flags the mod ships on that is the fix
+// simply not landing.
+static bool ParseBool(const std::string& text, bool* out)
+{
+    std::string v = text;
+    for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
+    if (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t") { *out = true; return true; }
+    if (v == "0" || v == "false" || v == "no" || v == "off" || v == "f") { *out = false; return true; }
+    return false;
+}
+
+// A number only when the whole value is one. atoi and atof stop at the first stray character, so
+// "1,024" or "2 GB" reached the engine as 1 or 2 and was logged like any other write.
+static bool WholeInt(const std::string& text, int* out)
+{
+    char* end = nullptr;
+    errno = 0;
+    long long v = strtoll(text.c_str(), &end, 10);
+    if (end == text.c_str() || *end || errno == ERANGE || v < INT_MIN || v > INT_MAX) return false;
+    *out = (int)v;
+    return true;
+}
+
+static bool WholeDouble(const std::string& text, double* out)
+{
+    char* end = nullptr;
+    errno = 0;
+    double v = strtod(text.c_str(), &end);
+    if (end == text.c_str() || *end || errno == ERANGE || !std::isfinite(v)) return false;
+    *out = v;
+    return true;
+}
+
 static void WriteFlag(const std::string& name, const std::string& val, const char* phase)
 {
     FlagInfo* fi = nullptr;
@@ -181,28 +216,37 @@ static void WriteFlag(const std::string& name, const std::string& val, const cha
     if (!fi) { Log("flag %s: not found in this game build (ignored)", name.c_str()); return; }
     if (fi->type == 3) { Log("flag %s: string flags are not supported (ignored)", name.c_str()); return; }
     if (fi->type < 0) { Log("flag %s: unknown type (ignored)", name.c_str()); return; }
+
+    // Read once before any storage, so a refused value is said once and never ends in the line about
+    // storage, which sends a reader after a scan fault that is not there.
+    bool asBool = false;
+    int asInt = 0;
+    double asDouble = 0;
+    if (fi->type == 0 && !ParseBool(val, &asBool)) {
+        Log("flag %s: '%s' is not one of 1, 0, true, false, yes, no, on or off, left alone", name.c_str(), val.c_str());
+        return;
+    }
+    if (fi->type == 1 && !WholeInt(val, &asInt)) {
+        Log("flag %s: '%s' is not a whole number, left alone", name.c_str(), val.c_str());
+        return;
+    }
+    if (fi->type == 2 && !WholeDouble(val, &asDouble)) {
+        Log("flag %s: '%s' is not a number, left alone", name.c_str(), val.c_str());
+        return;
+    }
+
     int written = 0;
     for (BYTE* st : fi->storages) {
         if (!Writable(st)) continue;
         if (fi->type == 0) {
-            // The same rule the ini reader uses: a word that is in neither list is a typo, not a
-            // no. Answering it with false here writes false into the engine, and for the three
-            // bool flags the mod ships on that is the fix simply not landing.
-            std::string v = val; for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
-            bool yes = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
-            bool no = (v == "0" || v == "false" || v == "no" || v == "off" || v == "f");
-            if (!yes && !no) {
-                Log("flag %s: '%s' is not one of 1, 0, true, false, yes, no, on or off, left alone", name.c_str(), val.c_str());
-                continue;
-            }
-            bool old = *(bool*)st; *(bool*)st = yes;
-            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), yes ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
+            bool old = *(bool*)st; *(bool*)st = asBool;
+            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), asBool ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
         } else if (fi->type == 1) {
-            int v = atoi(val.c_str()); int old = *(int*)st; *(int*)st = v;
-            Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+            int old = *(int*)st; *(int*)st = asInt;
+            Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), asInt, old, st, fi->file.c_str(), phase);
         } else if (fi->type == 2) {
-            double v = atof(val.c_str()); double old = *(double*)st; *(double*)st = v;
-            Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+            double old = *(double*)st; *(double*)st = asDouble;
+            Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), asDouble, old, st, fi->file.c_str(), phase);
         }
         ++written;
     }
