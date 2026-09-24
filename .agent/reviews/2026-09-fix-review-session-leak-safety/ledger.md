@@ -79,7 +79,7 @@ out.
 - found-by: review
 - batch: 1
 - status: wontfix
-- fix: b89e2d9, 2026-09-24, not closed, for F-01's reasons. Finding the entry again right before the clear was weighed and dropped, since the gap it would close is already a few instructions long.
+- fix: b89e2d9, 2026-09-24, not closed. Waiting a connect before the destroy would not close it either, since the entry is still found and cleared at the first connect, H-02. It needs the game's lock or no write into the list, and the write has to stay. Finding the entry again right before the clear was weighed and dropped, since the gap it would close is already a few instructions long.
 
 `src/engine/session_leak_fix.cpp:149` and `:153`. `EntryFor` returns a raw pointer into the game mode's
 vector buffer, then the compare exchange runs, then `memset` writes 16 bytes through that pointer.
@@ -91,6 +91,86 @@ three separate eight byte loads, so a concurrent push_back can hand the loop an 
 last. The modulo 16 and 64 entry bounds keep the walk short and do not make it point at live memory.
 
 Found independently by two reviewers.
+
+The clear cannot simply go. Without it the list's own release, run inside the destroy when the game
+mode goes, takes the count from 0 to minus 1, and MSVC's weak lock refuses only at exactly 0, so a
+lock later in the same teardown would succeed on an object being destroyed. A hunter asked on
+2026-09-24 whether the write was needed at all, and that is why it stays.
+
+### H-01: the free ran on whatever thread called the connect, and nothing checked it was the game thread
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef53db1, 2026-09-24, the free runs only when the connect is on the thread the mod was loaded on, the process's first, and a connect anywhere else tracks its connection and says it freed nothing.
+
+The header stated it as fact. A connect from another thread, on a path no log covers such as the
+untested pause menu restart or in a later build, would have destroyed a finished session there
+while `GameThread` ran its frame, the race DEC-023 assumes away, and two connects at once would have
+run two teardowns in parallel, since `g_lock` covers the pick and not the destroy. All 43 connect
+lines and all 208 of the game's own `Server connection` steps across 64 game logs name `GameThread`,
+so no logged path changes.
+
+### H-02: DEC-023 said waiting a connect before the destroy closes both races, and it closes only the copy
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef53db1 for the header and the doc, 2026-09-24 for DEC-023 and F-02's fix line.
+
+In that design the entry is still found and cleared at the first connect, so a push that moves the
+list between the two still writes into a freed buffer. A reopen would have picked it believing both
+were closed.
+
+### H-03: DEC-023's consequence and its reopen trigger did not match how the two races fail
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, DEC-023 says where each race fails and names triggers that can fire.
+
+Neither race faults in the free. The copy leaves another thread holding a count on a deleted block,
+and the push leaves zeroed bytes in a freed buffer, so a crash, if one comes, names that thread or
+the heap and never the free. The trigger is now any `Exception Detected` or unexplained exit after a
+`[sessions] freed` line, a connect line saying it was not the game thread, or evidence of another
+thread touching the list.
+
+### H-04: an out of memory throw from a push under g_lock left the lock held
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef53db1, 2026-09-24, a scoped guard holds the lock, the pick reserves its vector before anything moves, and `Track` pushes before it takes the weak reference.
+
+Both hunters raised it. The next connect would have hung the game thread in
+`AcquireSRWLockExclusive`, since SRW locks are not recursive, and a throw partway through the pick
+lost the connections already moved, with their weak references.
+
+### H-05: the freed count was raised and read with no lock
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef53db1, 2026-09-24, an atomic.
+
+Reachable only with two connects freeing at once, which H-01's check now rules out.
+
+### H-06: DEC-023 said the free relies on nothing but the game thread touching a finished session
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it names the connect's thread and the manager still holding the session before last as well.
+
+### H-07: "with no fault" was stronger than the logs kept
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef53db1 for the header and the doc, 2026-09-24 for DEC-023, "with no fault in any game log kept from those runs".
+
+`logs/render-b4-20260920` kept no game log, and the 2026-09-18 play session's mod log was
+overwritten, so its seven frees exist only in BUG-016's notes.
 
 ### F-03: EntryFor walks three engine pointers with no fault guard and nothing proves the game mode is still live
 - severity: breaks
@@ -111,6 +191,10 @@ the game thread takes an unhandled access violation and the game dies with the m
 `GameModeName` immediately above has a `__try`. `EntryFor`, the memset and `Free` have none, so the file
 is inconsistent with its own neighbour and with every hook in streamer.cpp.
 
+Noted by batch 1's hunter for this batch. The guard belongs around each control rather than the
+whole loop, since a loop left partway leaves every later control in `finished` already taken out of
+`g_connections`, never freed and still holding the hook's weak reference.
+
 ### F-04: the connection destructor runs inline inside the game's connect, and a throw from it escapes into make_shared's call site
 - severity: bug
 - found-by: review
@@ -128,6 +212,12 @@ RigidBodyODE and the whole parsed track scene, one of which was measured at 29 m
 Failure: any of it throws. The exception unwinds out of `HookMakeConnection` through a call site the
 game wrote as an infallible make_shared, and the connect unwinds leaving the session it was building
 half constructed. Nothing in `Free` catches, logs or reports it.
+
+Noted by batch 1's hunter for this batch, probably not reachable as written. MSVC's
+`_Ref_count_obj2::_Destroy` is `noexcept`, and so are destructors unless declared otherwise, so a C++
+throw from the teardown calls `std::terminate` inside the game's frames and never reaches the hook,
+where a catch would have nothing to catch. An access violation, F-03's, does pass through `noexcept`
+frames, so a `__try` would see that. The exe's own build flags could not be read to confirm it.
 
 ### F-05: the cleared entry leaves a null shared_ptr inside a live vector whose other readers were never checked
 - severity: debt
