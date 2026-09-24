@@ -99,7 +99,8 @@ rebuild costs 80 ms at startup (64 MB read and decoded once).
 
 - Only the 64 MB table of 0.9.0 and 0.9.1 is read. A package whose table is not recognised, such
   as the 32 MB one the public package tools read, is left alone with a line in the log.
-- Paths longer than 227 bytes do not fit a slot and are skipped with a log line.
+- Paths longer than 223 bytes are skipped with a log line. The path field of a slot runs to 227
+  bytes and a NUL, and the layer keeps four bytes spare.
 - The `.texturemips` tile files are streamed by 64 KB tile, an override must keep the cooked
   layout the engine expects, only same layout replacements make sense there.
 - Files are collected once at startup, adding a file needs a restart.

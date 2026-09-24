@@ -22,8 +22,22 @@
 namespace overlay {
 
 static const BYTE XOR_KEY[8] = { 0xC1, 0x35, 0x11, 0x7D, 0xA9, 0x21, 0x97, 0x9F };
-static const uint64_t SLOT = 256;
 static const uint64_t VIRT_ALIGN = 65536;
+
+// The table is the package's last 64 MB on 0.9.0 and 0.9.1, the only layout this layer reads.
+static const uint64_t TABLE_SIZE = 0x4000000;
+
+// One slot of the table, laid out as tools/kspkg.py reads it. The path is UTF-8 and NUL padded, and
+// the hash is FNV-1a 64 over the path as UTF-16. Used slots come first, sorted by hash, and the rest
+// are zero.
+static const uint64_t SLOT = 256;
+static const size_t SLOT_FLAGS = 0xE4;         // u16
+static const size_t SLOT_PATH_LENGTH = 0xE6;   // u16
+static const size_t SLOT_HASH = 0xE8;          // u64
+static const size_t SLOT_SIZE = 0xF0;          // u64
+static const size_t SLOT_OFFSET = 0xF8;        // u64
+static const uint16_t FLAG_XOR = 0x100;        // the payload is XOR ciphered
+static const size_t PATH_LIMIT = 0xE0;         // a path this long or longer is skipped, the field runs to 0xE4
 
 struct Override {
     std::wstring loosePath;     // full path of the loose file
@@ -126,9 +140,9 @@ static void TrackHandle(HANDLE h, const wchar_t* path, bool overlapped, void* ca
     g_pkgHandleCount.store(g_pkgHandles.size());
     if (g_pkgSize == 0) {
         LARGE_INTEGER sz = {};
-        if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0x4000000) {
+        if (GetFileSizeEx(h, &sz) && (uint64_t)sz.QuadPart > TABLE_SIZE) {
             g_pkgSize = (uint64_t)sz.QuadPart;
-            g_tocSize = 0x4000000;
+            g_tocSize = TABLE_SIZE;
             g_tocStart = g_pkgSize - g_tocSize;
         }
     }
@@ -219,6 +233,45 @@ static int FindVarintField(const std::vector<BYTE>& data, int wanted)
     return -1;
 }
 
+static uint64_t SlotHash(size_t slot)
+{
+    uint64_t hash;
+    memcpy(&hash, g_toc.data() + slot * SLOT + SLOT_HASH, 8);
+    return hash;
+}
+
+// The first used slot whose hash is not below the one given. The used slots are sorted by hash, so
+// that is where a path's entry sits when the package has one, and where a new one goes when not.
+static size_t LowerBoundByHash(size_t used, uint64_t hash)
+{
+    size_t lo = 0, hi = used;
+    while (lo < hi) {
+        const size_t mid = (lo + hi) / 2;
+        if (SlotHash(mid) < hash) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+}
+
+struct PackageEntry {
+    uint16_t flags = 0;
+    uint64_t size = 0;
+    uint64_t offset = 0;
+};
+
+// The package's own entry for a path, read from the decoded table before any override is applied.
+static bool FindEntry(const std::string& pkgPath, size_t used, PackageEntry& entry)
+{
+    const uint64_t hash = Fnv1a64Utf16(pkgPath);
+    const size_t slot = LowerBoundByHash(used, hash);
+    if (slot >= used || SlotHash(slot) != hash) return false;
+
+    const BYTE* raw = g_toc.data() + slot * SLOT;
+    memcpy(&entry.flags, raw + SLOT_FLAGS, 2);
+    memcpy(&entry.size, raw + SLOT_SIZE, 8);
+    memcpy(&entry.offset, raw + SLOT_OFFSET, 8);
+    return true;
+}
+
 static bool ReadPackageRange(uint64_t offset, uint64_t size, std::vector<BYTE>& out)
 {
     std::wstring pkg = g_dir + L"content.kspkg";
@@ -253,30 +306,20 @@ static void AddBigScreenFix(size_t used)
         Log("overlay: the mods folder has its own %s, served as it is, so the big screen fix is not applied to it", pkgPath.c_str());
         return;
     }
-    const uint64_t hash = Fnv1a64Utf16(pkgPath);
-    auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
-    size_t lo = 0, hi = used;
-    while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
-    if (lo >= used || hashAt(lo) != hash) {
+    PackageEntry entry;
+    if (!FindEntry(pkgPath, used, entry)) {
         Log("overlay: the big screen flipbook is not in this package, that fix is skipped");
         return;
     }
-
-    const BYTE* entry = g_toc.data() + lo * SLOT;
-    uint16_t flags = 0;
-    uint64_t size = 0, offset = 0;
-    memcpy(&flags, entry + 0xE4, 2);
-    memcpy(&size, entry + 0xF0, 8);
-    memcpy(&offset, entry + 0xF8, 8);
-    if (size < 8 || size > 4096 || offset > g_pkgSize - size) {   // the order that cannot wrap
+    if (entry.size < 8 || entry.size > 4096 || entry.offset > g_pkgSize - entry.size) {   // the order that cannot wrap
         Log("overlay: the big screen flipbook header is %llu bytes at %llu, not what this expects, skipped",
-            (unsigned long long)size, (unsigned long long)offset);
+            (unsigned long long)entry.size, (unsigned long long)entry.offset);
         return;
     }
 
     std::vector<BYTE> header;
-    if (!ReadPackageRange(offset, size, header)) { Log("overlay: cannot read the big screen flipbook header, skipped"); return; }
-    if (flags & 0x100) XorRange(header.data(), 0, header.size());
+    if (!ReadPackageRange(entry.offset, entry.size, header)) { Log("overlay: cannot read the big screen flipbook header, skipped"); return; }
+    if (entry.flags & FLAG_XOR) XorRange(header.data(), 0, header.size());
 
     const int at = FindVarintField(header, 3);   // TextureMetadata.mipLevels
     if (at < 0 || (header[at] & 0x80)) {
@@ -367,30 +410,20 @@ static void AddUiStyleFix(size_t used)
         Log("overlay: the mods folder has its own %s, served as it is, so the responsive UI's stylesheet fix is not applied to it", pkgPath.c_str());
         return;
     }
-    const uint64_t hash = Fnv1a64Utf16(pkgPath);
-    auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
-    size_t lo = 0, hi = used;
-    while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
-    if (lo >= used || hashAt(lo) != hash) {
+    PackageEntry entry;
+    if (!FindEntry(pkgPath, used, entry)) {
         Log("overlay: the UI stylesheet is not in this package, the responsive UI serves it untouched");
         return;
     }
-
-    const BYTE* entry = g_toc.data() + lo * SLOT;
-    uint16_t flags = 0;
-    uint64_t size = 0, offset = 0;
-    memcpy(&flags, entry + 0xE4, 2);
-    memcpy(&size, entry + 0xF0, 8);
-    memcpy(&offset, entry + 0xF8, 8);
-    if (size < 0x40000 || size > 0x1000000 || offset > g_pkgSize - size) {   // the order that cannot wrap
+    if (entry.size < 0x40000 || entry.size > 0x1000000 || entry.offset > g_pkgSize - entry.size) {   // the order that cannot wrap
         Log("overlay: the UI stylesheet is %llu bytes at %llu, not what this expects, served untouched",
-            (unsigned long long)size, (unsigned long long)offset);
+            (unsigned long long)entry.size, (unsigned long long)entry.offset);
         return;
     }
 
     std::vector<BYTE> raw;
-    if (!ReadPackageRange(offset, size, raw)) { Log("overlay: cannot read the UI stylesheet, served untouched"); return; }
-    if (flags & 0x100) XorRange(raw.data(), 0, raw.size());
+    if (!ReadPackageRange(entry.offset, entry.size, raw)) { Log("overlay: cannot read the UI stylesheet, served untouched"); return; }
+    if (entry.flags & FLAG_XOR) XorRange(raw.data(), 0, raw.size());
     std::string css(raw.begin(), raw.end());
 
     for (const StyleEdit& edit : kStyleEdits) {
@@ -501,7 +534,6 @@ static void BuildToc()
         Log("overlay: the 64 MB table was not recognised (used=%zu), so no override applies this session", used);
         return;
     }
-    auto hashAt = [&](size_t i) { uint64_t v; memcpy(&v, g_toc.data() + i * SLOT + 0xE8, 8); return v; };
 
     // The mod's own corrections join the list before it is applied, so they get a virtual offset
     // and a table slot exactly like a loose file the player put there.
@@ -512,28 +544,27 @@ static void BuildToc()
     uint64_t next = g_virtBase;
     int replaced = 0, inserted = 0;
     for (auto& o : g_files) {
-        if (o.pkgPath.size() >= 0xE0) { Log("overlay: path too long, skipped: %s", o.pkgPath.c_str()); continue; }
+        if (o.pkgPath.size() >= PATH_LIMIT) { Log("overlay: path too long, skipped: %s", o.pkgPath.c_str()); continue; }
         uint64_t hash = Fnv1a64Utf16(o.pkgPath);
-        size_t lo = 0, hi = used;
-        while (lo < hi) { size_t mid = (lo + hi) / 2; if (hashAt(mid) < hash) lo = mid + 1; else hi = mid; }
+        const size_t lo = LowerBoundByHash(used, hash);
         BYTE* e = g_toc.data() + lo * SLOT;
-        bool exists = lo < used && hashAt(lo) == hash;
+        bool exists = lo < used && SlotHash(lo) == hash;
         if (!exists) {
             if (used + 1 >= slots) { Log("overlay: table full, cannot add %s", o.pkgPath.c_str()); continue; }
             memmove(e + SLOT, e, (used - lo) * SLOT);
             memset(e, 0, SLOT);
             memcpy(e, o.pkgPath.data(), o.pkgPath.size());
             uint16_t plen = (uint16_t)o.pkgPath.size();
-            memcpy(e + 0xE6, &plen, 2);
-            memcpy(e + 0xE8, &hash, 8);
+            memcpy(e + SLOT_PATH_LENGTH, &plen, 2);
+            memcpy(e + SLOT_HASH, &hash, 8);
             ++used; ++inserted;
         } else ++replaced;
-        uint16_t flags; memcpy(&flags, e + 0xE4, 2);
-        if (g_cfg.overlayClearXor) flags &= (uint16_t)~0x100;
-        memcpy(e + 0xE4, &flags, 2);
+        uint16_t flags; memcpy(&flags, e + SLOT_FLAGS, 2);
+        if (g_cfg.overlayClearXor) flags &= (uint16_t)~FLAG_XOR;
+        memcpy(e + SLOT_FLAGS, &flags, 2);
         o.virtOffset = next;
-        memcpy(e + 0xF0, &o.size, 8);
-        memcpy(e + 0xF8, &o.virtOffset, 8);
+        memcpy(e + SLOT_SIZE, &o.size, 8);
+        memcpy(e + SLOT_OFFSET, &o.virtOffset, 8);
         next = (next + o.size + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
         Log("overlay: %s %s (%llu bytes) -> virtual offset %llu%s", exists ? "replace" : "add", o.pkgPath.c_str(),
             (unsigned long long)o.size, (unsigned long long)o.virtOffset, g_cfg.overlayClearXor ? "" : " (xor flag kept)");
