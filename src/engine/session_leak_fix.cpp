@@ -141,8 +141,8 @@ static bool InImage(const void* p, size_t length)
 
 // True when all of [p, p + length) is committed memory that can be read. Asked before each read of a game
 // mode's memory, which the heap may have given back since, because the game's crash handler logs every fault
-// as a crash, naming the mod when the read is the mod's, and stalls the thread while it does, even for one a
-// __try then handles, BUG-022.
+// as a crash, naming the mod when the read is the mod's, even for one a __try then handles, BUG-022, and
+// stalls the thread 120 to 210 ms while it writes it, see the game log section of the telemetry doc.
 static bool Readable(const void* p, size_t length)
 {
     const uintptr_t start = (uintptr_t)p;
