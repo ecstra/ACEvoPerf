@@ -59,7 +59,7 @@ void Log(const char* fmt, ...)
     n += m;
     buf[n++] = '\r'; buf[n++] = '\n';
     if (!EnterLog()) return;
-    DWORD w; WriteFile(g_log, buf, (DWORD)n, &w, nullptr);
+    if (g_log != INVALID_HANDLE_VALUE) { DWORD w; WriteFile(g_log, buf, (DWORD)n, &w, nullptr); }
     LeaveCriticalSection(&g_logCs);
 }
 
@@ -72,6 +72,10 @@ void LogClose()
 {
     if (g_log == INVALID_HANDLE_VALUE) return;
     Log("detached");
+    // Closed under the lock Log writes under, so no line can go to a handle value the system has already
+    // given to another file. Left open when the lock is not free, and the system closes it at exit.
+    if (!EnterLog()) return;
     CloseHandle(g_log);
     g_log = INVALID_HANDLE_VALUE;
+    LeaveCriticalSection(&g_logCs);
 }
