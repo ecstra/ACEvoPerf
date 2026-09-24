@@ -1,8 +1,8 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes
-updated: 2026-09-23
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes and seventeen from batch 2's hunter and three
+updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
 status: open
@@ -30,12 +30,17 @@ either asset the mod corrects never reaching the game. Two were code slips of th
 fixes, V-01 and V-03, and most of the rest were slips in this ledger's and the doc's own wording.
 The fifth pass found nothing false and the loop stopped there.
 
+Batch 2 added seventeen, seven from its hunter and ten from three verifier passes, two bug, two
+debt and the rest nit. Both bugs were the hunter's and both sat in the startup check F-04's fix
+added, which read sizes from the folder listing and allowed more sharing than the files' real
+readers. The verifier's findings were all wording, one of them a changelog line owed.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the table is built once and published safely | closed, runtime confirmed | 2026-09-23 |
-| 2 | a redirect that cannot be served fails visibly | fixing | 2026-09-23 |
+| 2 | a redirect that cannot be served fails visibly | closed, runtime confirmed | 2026-09-23 |
 | 3 | the slot layout and the leftovers | pending | |
 
 ## Findings
@@ -683,6 +688,17 @@ game folder into that session afterwards. The log shows `1 loose file(s)`, the s
 stylesheet fix, and `replace uiresources\css\uicomponents.css` once, where before H-01's fix it came
 twice and the mod's copy took the slot. The stylesheet was redirected three times, to the player's
 file, the only override left for that entry. No note and no exception.
+
+Batch 2, one launch on 2026-09-24, `logs/overlay-b2-lock-20260924`, the main menu only. A copy of the
+mod's narrowed stylesheet sat at `acevo_mods\uiresources\css\uicomponents.css`, held open for writing
+by a helper process through the whole startup, which is a mod still being copied in. The startup
+check refused it with error 32, a sharing violation, left it out, and the override count read 0.
+The mod's own stylesheet correction then took the entry, since the player's file no longer counted,
+and was served, `replace uiresources\css\uicomponents.css` once and seven redirects in all.
+`file hooks installed` printed with the new hook order, each DirectStorage open was logged once,
+and the game's own log has no exception. Before F-04's fix the table would have pointed at the locked file
+and every stylesheet read would have failed. The paths that need an overlapped handle, a missing
+factory or a file lost after the build never happen on 0.9.1 and were not forced.
 
 ## Checked and clean
 
