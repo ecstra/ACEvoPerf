@@ -462,7 +462,7 @@ static bool StopMovingWork()
     if (gaveUpNow)
         Log("[responsive ui] a moved resource work call did not finish within %u ms, going on without it", kStopWaitMs);
     if (pendingCount || stillOut)
-        Log("[responsive ui] the UI engine stopped, %d moved job(s) run here%s", pendingCount, stillOut ? ", one never came back" : "");
+        Log("[responsive ui] the UI engine is stopping, %d moved job(s) run here%s", pendingCount, stillOut ? ", one never came back" : "");
     for (int i = 0; i < pendingCount; ++i) g_origExecuteWork(pending[i].library, kResourceWork, pending[i].mode, pending[i].family);
     return !stillOut;
 }
@@ -485,8 +485,8 @@ static void Hook_StopWorkers(void* library)
 static void Hook_Uninitialize(void* library, uint64_t arg)
 {
     const bool stopped = StopMovingWork();
-    // Said every time, since the stop's own lines appear only when work was left over, and their absence
-    // was once read as the stop never running at exit.
+    // Said every time, since the stop's own lines appear only when work was left over or a call is still out,
+    // and their absence was once read as the stop never running at exit.
     Log("[responsive ui] the UI engine is shutting down, %s",
         stopped ? "the moved resource work is stopped" : "with a moved resource work call still out");
     g_origUninitialize(library, arg);

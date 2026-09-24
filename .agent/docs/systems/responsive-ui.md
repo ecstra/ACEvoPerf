@@ -152,8 +152,8 @@ queued jobs while its UI frame end waits, and on some page loads it picked up th
 hook on slot 5 hands type 0 work called on the frame thread (the thread of EvoUi slot 8) to one mod thread
 that makes the same call through the vtable, and runs any handed over work on the calling thread before
 Cohtml's `StopWorkers` (slot 2) or `Uninitialize` (slot 3). Style and layout work (type 1) stays, the frame
-waits for its result. Every `Uninitialize` writes a `[responsive ui] the UI engine is shutting down` line,
-since the drain's own lines appear only when work was left over.
+waits for its result. The hook on slot 3 writes a `[responsive ui] the UI engine is shutting down` line
+every time it runs, since the drain's own lines appear only when work was left over or a call is still out.
 
 This part needs both checks to have passed, not only the UI engine one, because the frame thread it moves
 work away from is learned from the frame end wrapper. On a build where the frame slots stood down it
