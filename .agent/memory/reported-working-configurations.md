@@ -1,7 +1,7 @@
 ---
 name: reported-working-configurations
 kind: memory
-description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports nobody has reproduced and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
+description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, the glass fences since seen here as BUG-038, and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
 updated: 2026-09-24
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache]
