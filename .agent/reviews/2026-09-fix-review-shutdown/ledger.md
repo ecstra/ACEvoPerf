@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-fix-review-shutdown
 kind: review
-description: the teardown angle of the full review of main, the log lock a terminated thread can still own when DllMain logs, four findings, one breaks, found by three reviewers independently, and one handed over from the Cohtml build guard angle
+description: the teardown angle of the full review of main, the log lock a terminated thread can still own when DllMain logs, four findings, one breaks, found by three reviewers independently, and one handed over from the Cohtml build guard angle, plus twenty from the hunters and verifiers across two batches, merged into 0.4 on 2026-09-24
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, reviews-index]
 branch: fix/review-shutdown
-status: open
+status: closed
 ---
 
 # Review of the teardown path
@@ -26,7 +26,8 @@ This branch owns the teardown path in `src/core/log.cpp`, `src/telemetry/timelin
 about teardown belong to their own surface branches and are not repeated here.
 
 Four findings, one breaks, two bug, one debt, and a fifth, debt, handed over from the Cohtml build
-guard angle.
+guard angle. With the 20 the hunters and verifiers added across the two batches, 25 in all, and the
+branch merged into 0.4 on 2026-09-24.
 
 Batch 1 closed with its three findings fixed, F-01 lighter than written since Windows ends a process
 whose exit would wait on an abandoned lock rather than hanging it. It added four from its hunter and
