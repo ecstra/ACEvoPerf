@@ -58,7 +58,6 @@ uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
 HANDLE g_thread = nullptr;
 HANDLE g_csv = INVALID_HANDLE_VALUE;
 volatile LONG g_stop = 0;
-volatile LONG g_exited = 0;
 
 typedef HRESULT (WINAPI *PFN_GetThreadDescription)(HANDLE, PWSTR*);
 PFN_GetThreadDescription g_getThreadDescription = nullptr;
@@ -424,7 +423,6 @@ DWORD WINAPI SamplerThread(void*)
             lastSummary = now.QuadPart;
         }
     }
-    InterlockedExchange(&g_exited, 1);
     return 0;
 }
 
@@ -442,12 +440,10 @@ void StartLoadSampler()
 void StopLoadSampler()
 {
     if (!g_thread) return;
+    // At process exit Windows has already ended the sampler thread by the time DllMain runs, so the flag
+    // only matters to one still running, and nothing waits for it. The samples since its last summary are
+    // in the CSV only.
     InterlockedExchange(&g_stop, 1);
-    // This runs from DllMain on detach, under the loader lock, so the sampler thread is
-    // never joined: a join there is how a DLL hangs a process on the way out. Poll its
-    // own flag for a moment instead and skip the last summary if it does not answer.
-    for (int i = 0; i < 40 && !g_exited; ++i) Sleep(5);
-    if (g_exited) LogSummary("final window");
     Log("[loadsampler] %llu samples in total", (unsigned long long)(g_grandTotal + g_total));
     if (g_csv != INVALID_HANDLE_VALUE) CloseHandle(g_csv);
     g_csv = INVALID_HANDLE_VALUE;
