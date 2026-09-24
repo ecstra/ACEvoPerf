@@ -63,8 +63,9 @@ about the source and does not close the window, because the clear happens after 
 return.
 
 Why it stays open. Closing it needs either the game's own lock around the list, which needs the
-game's code that reads the list, or a free that waits a connect and backs off if anything touched
-the connection in between, which the count alone cannot show, so the weak count has to be read too. The code could not be examined here, since an agent's script reading the exe's
+game's code that reads the list, or a free that waits a connect while the hook holds the list's
+strong reference itself, releasing it the normal way at the next connect so a racing copy only ever
+raises a live count. The code could not be examined here, since an agent's script reading the exe's
 class tables was stopped by a safety check and that route was left alone. The wait would hold one
 finished session through the next load, about 50 MB at the Red Bull Ring and likely 100 to 200 MB
 at bigger tracks, and the owner's bar was 50 MB and no pile up. What the logs show, from a second
@@ -192,20 +193,79 @@ once `Free` returns, so a crash in a run's first free leaves no freed line to fo
 - found-by: verifier
 - batch: 1
 - status: fixed
-- fix: 2026-09-24, DEC-023 and F-01 say the wait has to read the weak count as well as the count.
+- fix: 2026-09-24, then V-04's correction the same day.
 
 A copy that raises the count from 0 to 1 and lets go leaves it at 0 again, after the game's own
 release has already destroyed the connection on that thread, so a deferred destroy that checked the
-count alone would run a second time on a dead connection. That release lowers the weak count, which
-is the second signal the design needs. It changes the record of the rejected design, not the
+count alone would run a second time on a dead connection. The first fix said reading the weak count
+as well would do, which V-04 showed wrong. It changes the record of the rejected design, not the
 decision.
 
-### V-03: the hook's new comment put back the wording H-06 had taken out of DEC-023
+### V-03: the hook's new comment used the wording H-06 took out of DEC-023
 - severity: nit
 - found-by: verifier
 - batch: 1
 - status: fixed
-- fix: 2026-09-24, it names the manager holding the session before last as well and points at the header.
+- fix: 2026-09-24, it names the manager holding the session before last as well and points at the comment at the top of the file.
+
+The comment landed in ef53db1 a minute before H-06's fix took the same words out of DEC-023 in
+1f85426.
+
+A second verifier pass ran on 1d1b723. It found the code right and raised the six below, one of
+them against the wait's record again and one against the reopen trigger.
+
+### V-04: reading the weak count as well still would not close F-01
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, DEC-023 and F-01 describe the design that does, the hook holding the list's strong reference through the wait and releasing it the normal way.
+
+MSVC's last release takes the count to 0, runs the destroy, and only then drops the weak count, so a
+racing copy that lets go just before the next connect's check leaves both counts looking untouched
+while its destroy is still running, and the deferred destroy would run beside it. No read of the
+counts can see a release in progress. Holding the strong reference means a racing copy only ever
+raises a live count.
+
+### V-05: the reopen trigger had no word for a freeze, and the one freeze on record after frees was cleared by timing alone
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, the trigger counts a freeze, DEC-023 names BUG-032, and BUG-032 and BUG-016 say the 76 s gap does not settle it alone.
+
+A double destroy or a corrupted heap can hang the game rather than crash it. BUG-032 froze at a
+thirty AI race start in the launch that had freed seven sessions, and ruled the free out because the
+last free was 76 s earlier, which the corrected consequences say proves nothing. Video memory was
+over budget there, the likelier cause, so it is linked rather than taken as a reopen.
+
+### V-06: two paragraphs were left unwrapped
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, F-01's paragraph and DEC-023's first alternative rewrapped. V-15's slip of the overlay ledger, here too.
+
+### V-07: the hook's comment said see the header, which in this file means the .h, and the assumption is in the top comment
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it says the comment at the top of this file.
+
+### V-08: DEC-023 had the copy raise the count only while the teardown runs
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, it names a raise on a block already deleted, which is itself a write into freed memory.
+
+### V-09: V-03 said the comment put back wording H-06 had taken out, when git has the comment first
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-24.
 
 ### F-03: EntryFor walks three engine pointers with no fault guard and nothing proves the game mode is still live
 - severity: breaks

@@ -245,9 +245,9 @@ static void* HookMakeConnection(BYTE* out, void* a2, void* a3, void* a4, void* a
     void* result = g_makeConnection(out, a2, a3, a4, a5, a6);
 
     // The free rests on only the game thread touching a finished session, which holds only while the free
-    // runs on that thread too, and on the manager still holding the session before last, see the header. A
-    // connect from any other thread still tracks its connection, and the sessions it would have freed wait
-    // for the next connect on the game thread.
+    // runs on that thread too, and on the manager still holding the session before last, see the comment at
+    // the top of this file. A connect from any other thread still tracks its connection, and the sessions it
+    // would have freed wait for the next connect on the game thread.
     const bool onGameThread = GetCurrentThreadId() == g_gameThread;
     if (onGameThread) FreeFinishedSessions();
     size_t tracked = Track(At<BYTE*>(out, 8));

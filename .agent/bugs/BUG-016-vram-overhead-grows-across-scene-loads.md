@@ -2,7 +2,7 @@
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
 description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, a fix on its branch that freed every practice and menu session of a six visit run and cut the growth to about 5 MB a visit, while the VRAM side is placement the next load reuses
-updated: 2026-09-16
+updated: 2026-09-24
 links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
 status: fixed
@@ -372,8 +372,9 @@ is kept here was read on the day.
 - **The race session was never freed.** It was the last session of the launch, and the next launch's race
   froze on the memory census with nothing freed at all, so the destructors of `InstantRaceRemote` and of a
   race with AI cars had still never run.
-- **The freeze at the race start is not the fix.**
-  [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was.
+- **The freeze at the race start is probably not the fix.**
+  [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was, and why the 76 s since
+  the last free does not settle it alone.
 
 ## A race session freed, 2026-09-18
 
