@@ -252,6 +252,18 @@ static size_t LowerBoundByHash(size_t used, uint64_t hash)
     return lo;
 }
 
+// Whether slot 0 of the decoded table holds a real entry, a path as long as the length stored
+// beside it and hashing to the hash stored. Entry data read as a table fails that.
+static bool FirstSlotIsEntry()
+{
+    const BYTE* slot = g_toc.data();
+    const size_t length = strnlen((const char*)slot, SLOT_FLAGS);   // the path field ends where the flags start
+    uint16_t storedLength = 0;
+    memcpy(&storedLength, slot + SLOT_PATH_LENGTH, 2);
+    if (length == 0 || length != storedLength) return false;
+    return SlotHash(0) == Fnv1a64Utf16(std::string((const char*)slot, length));
+}
+
 struct PackageEntry {
     uint16_t flags = 0;
     uint64_t size = 0;
@@ -527,10 +539,11 @@ static void BuildToc()
         const BYTE* e = g_toc.data() + used * SLOT;
         if (e[0] == 0) break;
     }
-    if (used == 0 || used == slots) {
-        // Not a table this layer reads. It knows only the 64 MB table of 0.9.0 and 0.9.1. The public
-        // package tools read a 32 MB one, presumably from earlier builds, and tools/kspkg.py falls
-        // back to that size, but nothing here does, so a package laid out that way gives up here.
+    // Not a table this layer reads unless the first slot is a real entry. It knows only the 64 MB
+    // table of 0.9.0 and 0.9.1. The public package tools read a 32 MB one, presumably from earlier
+    // builds, and on such a package this window starts in entry data, which the test for a zero slot
+    // alone took for a table, logging it rebuilt while nothing applied.
+    if (used == 0 || used == slots || !FirstSlotIsEntry()) {
         Log("overlay: the 64 MB table was not recognised (used=%zu), so no override applies this session", used);
         return;
     }

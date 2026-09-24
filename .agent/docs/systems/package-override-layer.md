@@ -2,7 +2,7 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-23
+updated: 2026-09-24
 links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
 ---
 
@@ -97,8 +97,10 @@ rebuild costs 80 ms at startup (64 MB read and decoded once).
 
 ## Limits
 
-- Only the 64 MB table of 0.9.0 and 0.9.1 is read. A package whose table is not recognised, such
-  as the 32 MB one the public package tools read, is left alone with a line in the log.
+- Only the 64 MB table of 0.9.0 and 0.9.1 is read. It is recognised by its first slot, a path as
+  long as its stored length that hashes to its stored hash. A package whose table is not
+  recognised, such as the 32 MB one the public package tools read, is left alone with a line in the
+  log.
 - Paths longer than 223 bytes are skipped with a log line. The path field of a slot runs to 227
   bytes and a NUL, and the layer keeps four bytes spare.
 - The `.texturemips` tile files are streamed by 64 KB tile, an override must keep the cooked
