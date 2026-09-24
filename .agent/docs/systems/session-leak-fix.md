@@ -31,11 +31,16 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
   block's destroy and delete run as they would for a last `std::shared_ptr`. It runs only when the connect is
   on the game thread, the process's first thread, which the mod was loaded on. A connect on any other thread
   tracks its connection and frees nothing.
-- **The game mode has to look live.** Its list is walked only when its first word points at a vtable in the
-  exe's image with a readable class name, the reads fault guarded. A game mode the game already freed fails
-  that, and its connection is let go for good and stays in memory as it would without the fix, since freeing
-  it would delete the game mode a second time. A session restarted from the pause menu is the path that
-  could leave one.
+- **A connection whose game mode is gone is never freed.** A connection kept past its game mode, which a
+  session restarted from the pause menu might leave, points at freed memory, and freeing it would delete the
+  game mode a second time. The walk cannot find it there, since the game mode's destructor released the
+  list, and MSVC's `std::vector` leaves its pointers null when it goes. That rests on the vector as MSVC
+  builds it, and the exe's copy was not read.
+- **Its memory is checked before the walk.** The game mode's first word has to point at a vtable in the
+  exe's image with a readable class name, the reads fault guarded. A freed game mode can still pass, since
+  the heap does not always write into a freed block and its destructor leaves a base class's vtable there,
+  so the check is not what keeps the free off it. One that fails, written over or gone, has its connection
+  let go for good, which then stays in memory as it would without the fix.
 - **Checks first.** The exe's stamp and size, and seven byte ranges hashed against the 0.9.1 build (the connect,
   the make_shared and its thunk, the destructors of the connection, the local game server and the game mode's
   list, and the list's element release). Any mismatch logs the range and patches nothing.
