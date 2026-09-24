@@ -52,8 +52,8 @@ names each finished session the fix frees when a later one connects, its game mo
 many have been freed so far, and another at every connect names the thread that connected and how many
 connections the fix is still holding a weak reference on. A connect on any thread but the game thread,
 which the install line names by id, ends that line with `not the game thread, so nothing was freed`. A
-connection whose game mode no longer looks live is let go for good with a `left N connection(s) alone`
-line.
+connection whose game mode no longer looks live is let go for good with a
+`let go of N connection(s) for good` line.
 
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the game's own code throws is counted by throw site (the return address as an RVA)

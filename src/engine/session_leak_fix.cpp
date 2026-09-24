@@ -257,7 +257,7 @@ static bool Free(BYTE* control)
 static void FreeFinishedSessions()
 {
     std::vector<BYTE*> finished;
-    uint32_t leftAlone = 0;
+    uint32_t letGo = 0;
     {
         ExclusiveLock lock;
         // Reserved before anything moves, so a push below cannot throw after earlier connections have been
@@ -283,15 +283,15 @@ static void FreeFinishedSessions()
                 // as it would without the fix, see EntryFor.
                 ReleaseWeak(control);
                 it = g_connections.erase(it);
-                ++leftAlone;
+                ++letGo;
                 continue;
             }
             ++it;
         }
     }
-    if (leftAlone) {
-        Log("[sessions] left %u connection(s) alone for good, their game mode does not look live any more, so they "
-            "stay in memory as they would without the fix", leftAlone);
+    if (letGo) {
+        Log("[sessions] let go of %u connection(s) for good, their game mode does not look live any more, so they "
+            "stay in memory as they would without the fix", letGo);
     }
 
     for (BYTE* control : finished) {
