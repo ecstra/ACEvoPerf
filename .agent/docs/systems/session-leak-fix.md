@@ -28,7 +28,9 @@ process ends. At the Red Bull Ring that is about 57 MB a visit. How it was found
   block the game frees by itself stays readable until the hook lets go of it.
 - **The free.** An earlier connection whose use count is 1 and whose own game mode's list holds it has nothing
   else left. The count goes from 1 to 0 by compare and exchange, the list entry is cleared, and the control
-  block's destroy and delete run as they would for a last `std::shared_ptr`.
+  block's destroy and delete run as they would for a last `std::shared_ptr`. It runs only when the connect is
+  on the game thread, the process's first thread, which the mod was loaded on. A connect on any other thread
+  tracks its connection and frees nothing.
 - **Checks first.** The exe's stamp and size, and seven byte ranges hashed against the 0.9.1 build (the connect,
   the make_shared and its thunk, the destructors of the connection, the local game server and the game mode's
   list, and the list's element release). Any mismatch logs the range and patches nothing.
@@ -38,13 +40,14 @@ and the one before it, and each is freed one load later.
 
 ## What it rests on
 
-The free runs on the connecting thread inside the connect, and nothing else of the game touches a finished
-session there. A plain copy of the list's entry, which raises the count without looking, or a push that moves
-the list between the entry being found and cleared, would race it if another thread made one at that moment.
-Every free logged so far ran on `GameThread` a whole session after the freed one ended, with no fault, but the
-game's code that reads the list was not examined.
+The free runs on the game thread inside the connect, and nothing else of the game touches a finished session
+there. A plain copy of the list's entry, which raises the count without looking, or a push that moves the list
+between the entry being found and cleared, would race it if another thread made one at that moment. It also
+rests on the manager still holding the session before last at each connect, which is why every free comes a
+whole session after the freed one ended. Every free logged so far ran on `GameThread` that late, with no fault
+in any game log kept from those runs, but the game's code that reads the list was not examined.
 [DEC-023](../../decisions/DEC-023-the-session-free-stays-immediate.md) records why the free does not wait a
-connect to take that assumption away.
+connect, which would take away the copy though not the push.
 
 ## Log
 

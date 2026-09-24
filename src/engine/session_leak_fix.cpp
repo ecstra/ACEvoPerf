@@ -26,13 +26,15 @@
 //     control block the game frees by itself stays readable until the hook lets go of it.
 //   - The count moves from one to zero only by compare and exchange, so a std::weak_ptr lock elsewhere cannot
 //     revive it after that.
-//   - What it rests on is that only the game thread touches a finished session. The free runs on that thread,
-//     inside the connect, so a plain copy of the list's entry, which raises the count without looking, or a
-//     push that moves the list between the entry being found and cleared, would have to come from another
-//     thread at that moment. Every free logged so far ran on GameThread a whole session after the freed one
-//     ended, with no fault, but the game's code that reads the list was not examined. Waiting a connect
-//     before the destroy would take the assumption away at the cost of a finished session held through a
-//     load, and DEC-023 records why it does not.
+//   - What it rests on is that only the game thread touches a finished session. The free runs only on that
+//     thread, inside the connect, so a plain copy of the list's entry, which raises the count without looking,
+//     or a push that moves the list between the entry being found and cleared, would have to come from another
+//     thread at that moment. It also rests on the manager still holding the session before last at each
+//     connect, which is why every free comes a whole session after the freed one ended. Every free logged so
+//     far ran on GameThread that late, with no fault in any game log kept from those runs, but the game's code
+//     that reads the list was not examined. Waiting a connect before the destroy would take away the copy,
+//     though not the push, at the cost of a finished session held through a load, and DEC-023 records why
+//     it does not.
 //   - A connection whose game mode is gone, whose list does not hold it, or that anything else still holds is
 //     left alone.
 
@@ -101,7 +103,19 @@ static const void* g_controlBlockVtable = nullptr;
 static MakeConnectionFn g_makeConnection = nullptr;
 static SRWLOCK g_lock = SRWLOCK_INIT;
 static std::vector<BYTE*> g_connections;     // control blocks the hook holds a weak reference on, under g_lock
-static uint32_t g_freed = 0;
+static std::atomic<uint32_t> g_freed{0};
+// The thread the mod was loaded on, the process's first, which the game names GameThread and runs its main
+// loop and every connect on. The free runs only there, see HookMakeConnection.
+static DWORD g_gameThread = 0;
+
+// Holds g_lock for a scope. A push_back can throw only when memory has run out, and a throw that left the
+// lock held would hang the next connect in AcquireSRWLockExclusive.
+struct ExclusiveLock {
+    ExclusiveLock() { AcquireSRWLockExclusive(&g_lock); }
+    ~ExclusiveLock() { ReleaseSRWLockExclusive(&g_lock); }
+    ExclusiveLock(const ExclusiveLock&) = delete;
+    ExclusiveLock& operator=(const ExclusiveLock&) = delete;
+};
 
 static ControlBlockFn Slot(BYTE* control, int slot)
 {
@@ -167,24 +181,28 @@ static bool Free(BYTE* control)
 static void FreeFinishedSessions()
 {
     std::vector<BYTE*> finished;
-    AcquireSRWLockExclusive(&g_lock);
-    for (auto it = g_connections.begin(); it != g_connections.end();) {
-        BYTE* control = *it;
-        long uses = At<long>(control, control::kUses);
-        if (uses == 0) {
-            // The game freed this one by itself.
-            ReleaseWeak(control);
-            it = g_connections.erase(it);
-            continue;
+    {
+        ExclusiveLock lock;
+        // Reserved before anything moves, so a push below cannot throw after earlier connections have been
+        // taken out of g_connections, which would lose them with this vector.
+        finished.reserve(g_connections.size());
+        for (auto it = g_connections.begin(); it != g_connections.end();) {
+            BYTE* control = *it;
+            long uses = At<long>(control, control::kUses);
+            if (uses == 0) {
+                // The game freed this one by itself.
+                ReleaseWeak(control);
+                it = g_connections.erase(it);
+                continue;
+            }
+            if (uses == 1 && EntryFor(control)) {
+                finished.push_back(control);
+                it = g_connections.erase(it);
+                continue;
+            }
+            ++it;
         }
-        if (uses == 1 && EntryFor(control)) {
-            finished.push_back(control);
-            it = g_connections.erase(it);
-            continue;
-        }
-        ++it;
     }
-    ReleaseSRWLockExclusive(&g_lock);
 
     for (BYTE* control : finished) {
         char name[64];
@@ -198,28 +216,26 @@ static void FreeFinishedSessions()
 
         if (!freed) {
             // Something took a reference between the look and the free, so it stays tracked.
-            AcquireSRWLockExclusive(&g_lock);
+            ExclusiveLock lock;
             g_connections.push_back(control);
-            ReleaseSRWLockExclusive(&g_lock);
             continue;
         }
-        g_freed++;
+        const uint32_t freedSoFar = ++g_freed;
         Log("[sessions] freed a finished %s session the game kept in memory, %.1f ms, %u freed so far",
-            name, (stopped.QuadPart - started.QuadPart) * 1000.0 / frequency.QuadPart, g_freed);
+            name, (stopped.QuadPart - started.QuadPart) * 1000.0 / frequency.QuadPart, freedSoFar);
     }
 }
 
 // Returns how many connections are tracked with this one.
 static size_t Track(BYTE* control)
 {
-    AcquireSRWLockExclusive(&g_lock);
+    ExclusiveLock lock;
     if (control && At<const void*>(control, 0) == g_controlBlockVtable) {
-        _InterlockedIncrement((long*)(control + control::kWeaks));
+        // Pushed before the weak reference is taken, so a push that throws leaves nothing untracked.
         g_connections.push_back(control);
+        _InterlockedIncrement((long*)(control + control::kWeaks));
     }
-    size_t tracked = g_connections.size();
-    ReleaseSRWLockExclusive(&g_lock);
-    return tracked;
+    return g_connections.size();
 }
 
 // Replaces the one call of the connection's make_shared. The finished sessions are freed once the new
@@ -227,14 +243,20 @@ static size_t Track(BYTE* control)
 static void* HookMakeConnection(BYTE* out, void* a2, void* a3, void* a4, void* a5, void* a6)
 {
     void* result = g_makeConnection(out, a2, a3, a4, a5, a6);
-    FreeFinishedSessions();
+
+    // The free rests on nothing but the game thread touching a finished session, which holds only while
+    // the free runs on that thread too. A connect from any other thread still tracks its connection, and
+    // the sessions it would have freed wait for the next connect on the game thread.
+    const bool onGameThread = GetCurrentThreadId() == g_gameThread;
+    if (onGameThread) FreeFinishedSessions();
     size_t tracked = Track(At<BYTE*>(out, 8));
 
     // Which thread connects decides what else could still be touching a freed session, so the log names it.
     wchar_t* thread = nullptr;
     bool named = SUCCEEDED(GetThreadDescription(GetCurrentThread(), &thread)) && thread && thread[0];
-    Log("[sessions] a session connected on thread '%ls' (%lu), %zu connections held with it, %u freed so far",
-        named ? thread : L"unnamed", GetCurrentThreadId(), tracked, g_freed);
+    Log("[sessions] a session connected on thread '%ls' (%lu), %zu connections held with it, %u freed so far%s",
+        named ? thread : L"unnamed", GetCurrentThreadId(), tracked, g_freed.load(),
+        onGameThread ? "" : ", not the game thread, so nothing was freed");
     if (thread) LocalFree(thread);
     return result;
 }
@@ -285,9 +307,12 @@ void InstallSessionLeakFix()
     g_exe = base;
     g_controlBlockVtable = base + kRvaControlBlockVtable;
     g_makeConnection = (MakeConnectionFn)(base + kRvaMakeConnection);
+    // DllMain of a DLL the exe imports runs on the process's first thread, the one the game names GameThread.
+    g_gameThread = GetCurrentThreadId();
     if (!WriteCode(base + kRvaMakeConnectionCall, call, sizeof call)) {
         Log("[sessions] could not patch the exe at rva 0x%07X, nothing patched", (unsigned)kRvaMakeConnectionCall);
         return;
     }
-    Log("[sessions] session leak fix on, a finished session the game keeps in memory is freed when a later one connects");
+    Log("[sessions] session leak fix on, a finished session the game keeps in memory is freed when a later one connects "
+        "on the game thread (%lu)", g_gameThread);
 }
