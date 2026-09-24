@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-overlay
 kind: review
-description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and seventeen from batch 3's hunter and two verifier passes
+description: the package override layer angle of the full review of main, an unlocked lazy build of a 64 MB table reached from a hook in every module, eleven findings, one breaks, plus twenty three from batch 1's hunter and five verifier passes, seventeen from batch 2's hunter and three, and eighteen from batch 3's hunter and three verifier passes
 updated: 2026-09-24
 links: [spec-reviews, house-rules-agent, package-override-layer, reviews-index]
 branch: sweep/review-overlay
@@ -820,12 +820,22 @@ The 131 offsets are 4 KB pieces, 78 runs of them in the traced session, so far f
 
 A second pass ran on 66d5eb5 and cd44f88. It found the code right and raised one more.
 
-### V-33: three lines cd44f88 wrote were false in a small way
+### V-33: three lines were left false in a small way after cd44f88
 - severity: nit
 - found-by: verifier
 - batch: 3
 - status: fixed
 - fix: 2026-09-24, the pass paragraph names 809d4ff beside 882c352 as intended changes, H-21's fix line carries 66d5eb5, and V-30's heading says the lines lacked later commits, since F-08's already named a5cc278.
+
+A third pass ran on 2212431, found one heading wrong and nothing else false, and the loop stopped
+there.
+
+### V-34: V-33's heading said cd44f88 wrote all three lines, when H-21's came from d5e2dc5
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-24, the heading says the lines were left false after cd44f88.
 
 ## The runs
 
