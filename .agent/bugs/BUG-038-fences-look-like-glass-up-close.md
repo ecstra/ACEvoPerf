@@ -23,9 +23,10 @@ player on a 4090, in [reported-working-configurations](../memory/reported-workin
 
 ## What the log showed at the time
 
-The live `acevo_perf.log` of that session, 15:57 to 15:58. The tile pool sat at 15,190 to 15,360 of
-16,384 used, 1024 MB, the auto size for this 6 GB card. Loads turned away for space climbed from 13,859
-to 19,375 in 70 s, about 80 a second, and the reload fix's refused drops went from 94 to 132.
+The session's mod log, ini and game log are kept in `logs/glass-fence-20260924`, copied at 16:02 while
+the game still ran. At 15:57 to 15:58 the tile pool sat at 15,190 to 15,360 of 16,384 used, 1024 MB,
+the auto size for this 6 GB card. Loads turned away for space climbed from 13,859 to 19,375 in 70 s,
+about 80 a second, and the reload fix's refused drops went from 94 to 132.
 
 ## Reading
 
