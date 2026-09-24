@@ -875,7 +875,7 @@ supports treating as urgent.
 
 **Corrected on 2026-09-24.** The drain line is written only when work was left over or a call never came
 back, so the quit above says nothing about whether either hook ran, and the game's own log has
-`Uninitializing COHTML library!` 0.8 to 4.5 s before `detached` in every session that kept both logs.
+`Uninitializing COHTML library!` 0.8 to 5.9 s before `detached` in every session that reached `detached`.
 `fix/review-shutdown` F-05 has `Hook_Uninitialize` write a line every time, so the next quit shows whether
 slot 3 fires as the game uninitialises.
 

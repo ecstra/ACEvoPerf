@@ -295,8 +295,10 @@ freed the library under the live call. e2887ec caused it.
 - fix: 2026-09-24, that ledger's H-23, its batch table and its note on the stop never running each carry a correction.
 
 Its H-23 stayed low on the premise that nothing in a normal session calls slots 2 and 3, drawn from a
-drain line that is written only when work was left over. All 52 sessions under `logs/` with both logs
-show the game's `Uninitializing COHTML library!` 0.8 to 4.5 s before `detached`.
+drain line that is written only when work was left over or a call is still out. Every one of the 86
+sessions under `logs/` that reached `detached`, counting the runs one folder deeper and the early ones
+with a dated game log, shows the game's `Uninitializing COHTML library!` 0.8 to 5.9 s before it. The six
+that kept both logs without it never reached detach.
 
 ### H-07: the reviews index line did not move with batch 2
 - severity: nit
@@ -304,6 +306,48 @@ show the game's `Uninitializing COHTML library!` 0.8 to 4.5 s before `detached`.
 - batch: 2
 - status: fixed
 - fix: 2026-09-24.
+
+The verifier then ran on batch 2. It found no code defect, `StopMovingWork` reading whether a call is
+still out under its lock and the object code doing the same, F-03's reason right tick by tick, and
+raised the four below. The loop stopped there, all four being precision in the record and one line's
+tense.
+
+### V-10: H-06's recount held only for part of logs/
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24, 86 sessions that reached `detached`, 0.8 to 5.9 s.
+
+It counted the top level folders that reached `detached` and left out the runs one folder deeper, the
+slip V-04 caught in batch 1, and the early runs whose game log carries a date in its name. The longest
+gap, 5.86 s, is `frametime-20260913/P3-meshes-366`. a2b182a wrote it.
+
+### V-11: the Cohtml ledger's H-23 correction repeated the same numbers
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-24.
+
+### V-12: three places said the stop's lines appear only when work was left over
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 4e15164 for the comment and the doc, 2026-09-24 for H-06, each adds a call still out.
+
+The doc also said every `Uninitialize` writes the line, which is what the next quit has to show, and now
+says the hook on slot 3 writes it each time it runs.
+
+### V-13: with work left over the log said the engine stopped and then that it is shutting down
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 4e15164, 2026-09-24, the older line says the engine is stopping.
+
+Both are written before the original `Uninitialize` runs, the past tense one since d10cb26.
 
 ## The runs
 
