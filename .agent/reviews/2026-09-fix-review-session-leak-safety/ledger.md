@@ -39,7 +39,7 @@ mostly how DEC-023 described the race it leaves open.
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | the free cannot race a strong copy or a moved vector | closed, runtime confirmed | 2026-09-24 |
-| 2 | the walk and the teardown cannot fault or throw into the game | pending | |
+| 2 | the walk and the teardown cannot fault or throw into the game | fixing | 2026-09-24 |
 | 3 | the leftovers | pending | |
 
 ## Findings
@@ -329,8 +329,8 @@ loop stopped there, both being precision in the record rather than anything abou
 - severity: breaks
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: a05bdd5, 2026-09-24, the list is walked only when the game mode looks live, its vtable in the exe's image with a readable class name, every read of the game mode is fault guarded, and a connection that fails is let go for good.
 
 `src/engine/session_leak_fix.cpp:113`. The cycle guarantees that the game mode holds the connection, not
 the reverse.
@@ -348,12 +348,19 @@ Noted by batch 1's hunter for this batch. The guard belongs around each control 
 whole loop, since a loop left partway leaves every later control in `finished` already taken out of
 `g_connections`, never freed and still holding the hook's weak reference.
 
+The guard alone would not have been enough. A game mode the game freed is most likely still committed
+heap, so the walk reads stale data rather than faulting, and could find the connection in the old list,
+free it, and delete the game mode a second time inside the destroy. The liveness check is what stops
+that, since the heap or the block's next owner overwrites the vtable word. The guard is a backstop for a
+page that was decommitted. A fault it catches still stalls the thread while the game's crash logger
+symbolizes it, and shows as an `Exception Detected`, which DEC-023 counts as a reason to look again.
+
 ### F-04: the connection destructor runs inline inside the game's connect, and a throw from it escapes into make_shared's call site
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-24, not reachable as written, and nothing the mod could add would help. A throw ends the game in the teardown's own noexcept frames before it can reach the hook, and a fault caught inside the game's destructor would leave a half destroyed session to run on.
 
 `src/engine/session_leak_fix.cpp:154`. The census research doc states plainly that these destructors
 have never run in the shipped game, because nothing ever freed a connection. `Free` calls `_Destroy`
