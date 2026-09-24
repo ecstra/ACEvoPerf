@@ -89,7 +89,8 @@ ledger says which findings it owns.
 - the session free can race a plain shared_ptr copy, write through a reallocated vector, and walk a
   freed game mode with no fault guard, `fix/review-session-leak-safety` F-01, F-02 and F-03
 - the detach path logs through a lock a terminated thread can still own, so the game never exits,
-  `fix/review-shutdown` F-01
+  `fix/review-shutdown` F-01, which Microsoft documents as ending the process there instead, as its
+  hunter found on 2026-09-24
 - the memory census leaves its import hooks in every module when it cannot open its file,
   `sweep/review-telemetry` F-01
 - the UI probe can fault while it holds a game thread suspended, `sweep/review-ui-probe` F-01
@@ -107,8 +108,8 @@ ledger.
 ## Active
 
 - [2026-09-fix-review-shutdown](2026-09-fix-review-shutdown/ledger.md), the log lock a dead thread can
-  still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks, batch 1
-  fixing
+  still own when DllMain logs, found by three reviewers independently, 4 findings, 1 breaks, plus 4
+  from batch 1's hunter, batch 1 fixing
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when

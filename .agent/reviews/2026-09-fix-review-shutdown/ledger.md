@@ -41,7 +41,7 @@ Four findings, one breaks, two bug, one debt.
 - found-by: review
 - batch: 1
 - status: fixed
-- fix: b7dca1e, 2026-09-24, `LogDetaching` runs first on detach, and from then on `Log` takes its lock only when it is free and drops the line otherwise, the way `TraceFinalFlush` takes its own. Whether a wait on an abandoned critical section at exit hangs the game, as below, or has Windows end the process there was not checked, and the fix is the same either way.
+- fix: b7dca1e, 2026-09-24, `LogDetaching` runs first on detach, and from then on `Log` takes its lock only when it is free and drops the line otherwise, the way `TraceFinalFlush` takes its own. The failure below was lighter than written, H-02. Microsoft documents that an `EnterCriticalSection` that would block while a process exits ends the process instead, so the game did exit, without its last two log lines and the rest of the teardown, and the fix keeps both.
 
 At `ExitProcess` the kernel terminates every thread except the one running DllMain, and it does not
 release the critical sections those threads held. `Log` at `src/core/log.cpp:26` holds `g_logCs`
@@ -76,6 +76,71 @@ Found independently by three reviewers, from streamer.cpp, from log.cpp and from
 Failure: a live thread reads the handle, `LogClose` closes it, Windows reuses that handle value for
 another file, and the live thread's `WriteFile` writes a log line into somebody else's file.
 
+### F-04: StopLoadSampler reasons about a thread that will not answer and then calls Log regardless
+- severity: debt
+- found-by: review
+- batch: 1
+- status: fixed
+- fix: b7dca1e, 2026-09-24, with F-01's fix the line after the poll takes the lock only when it is free, like every other line on detach.
+
+`src/telemetry/load_sampler.cpp:446` to 450 already handle the case where the sampler thread does not
+answer within 200 ms, and correctly skip `LogSummary`. Line 451 then calls `Log` unconditionally. The
+code has the right instinct one line too early. Part of F-01's fix, recorded separately because the
+reasoning next to it shows the hazard was half seen.
+
+The hunter then ran on batch 1. It found nothing wrong in the two fixes and raised the four below, all
+older than the batch, one of them lightening F-01.
+
+### H-01: after DllMain returns, the mod's static CRT frees its containers under the heap lock, and with the streaming trace on a killed append can leave a string freed twice
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: wontfix
+- fix: 2026-09-24. With the default settings the most it does is end the process at a free after every log line is written, which is what exiting does anyway. The double free needs a thread killed within a few instructions of an append, with a developer switch on.
+
+`src/dllmain.cpp:151`. vcruntime's detach runs `_cexit` after DllMain, which runs the mod's 24 static
+destructors, `g_toc`'s 64 MB block among them, then frees the CRT's per thread data. A dead thread
+holding the process heap lock makes the first of those frees end the process, as the heap lock is a
+critical section too. With `streaming_trace=1`, a job thread killed inside `TraceRow`'s append after the
+string freed its old buffer and before it stored the new one leaves `g_pending` pointing at freed
+memory, which `TraceFinalFlush` rightly leaves alone and its static destructor then frees again, a heap
+corruption stop or an access violation the game's crash logger reports. How ntdll guards its fiber local
+storage at exit is not documented.
+
+### H-02: F-01's "the game never exits" does not match Microsoft's documentation
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 2026-09-24, F-01's fix line and the reviews index say what happens instead.
+
+The `EnterCriticalSection` page says that while a process is exiting, a call that would block ends the
+process instead. So before b7dca1e the first log line on detach ended the process there, losing the
+`[streamer] at exit` and `detached` lines and the rest of the teardown, and the game still left the task
+list. Every one of the 60 newest session logs ends in `detached` except `airace-hang`, which never
+reached detach. No player saw anything, so no CHANGELOG line is owed.
+
+### H-03: with the streaming trace on, TraceFinalFlush still frees on the heap inside DllMain
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: wontfix
+- fix: 2026-09-24. A developer switch, and the documented outcome is the process ending at that free with the `detached` line lost.
+
+`src/telemetry/streaming_trace.cpp:87` and `:49`. The rows it writes can be too big for the heap's small
+block path, so freeing them takes the heap lock, which a thread killed inside a heap call holds.
+
+### H-04: the load sampler's poll at exit could never succeed, so every exit with it on waited 200 ms
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: ef69729, 2026-09-24, the poll, the summary it waited for and its flag are gone.
+
+`src/telemetry/load_sampler.cpp:446` to `:450`. Windows ends the sampler thread before DllMain's detach,
+so its exit flag stayed 0 and DllMain slept 40 times 5 ms under the loader lock. Both load sampler logs
+on disk end with `samples in total` and then `detached`, with no final summary.
+
 ### F-03: the timeline thread has no stop path, so its ticks run through the game's own teardown
 - severity: bug
 - found-by: review
@@ -92,15 +157,3 @@ game has just destroyed, or `PatchEverywhere` walks a module being unloaded. The
 violation still stalls that thread 120 to 210 ms and still makes the game's crash logger write a report
 naming the mod, which is exactly what BUG-022 was. Only the per tick caching of what each report prints
 keeps this from being worse.
-
-### F-04: StopLoadSampler reasons about a thread that will not answer and then calls Log regardless
-- severity: debt
-- found-by: review
-- batch: 1
-- status: fixed
-- fix: b7dca1e, 2026-09-24, with F-01's fix the line after the poll takes the lock only when it is free, like every other line on detach.
-
-`src/telemetry/load_sampler.cpp:446` to 450 already handle the case where the sampler thread does not
-answer within 200 ms, and correctly skip `LogSummary`. Line 451 then calls `Log` unconditionally. The
-code has the right instinct one line too early. Part of F-01's fix, recorded separately because the
-reasoning next to it shows the hazard was half seen.
