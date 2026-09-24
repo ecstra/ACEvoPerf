@@ -37,8 +37,8 @@ static const uint64_t SLOT = 256;
 static const size_t SLOT_FLAGS = 0xE4;         // u16
 static const size_t SLOT_PATH_LENGTH = 0xE6;   // u16
 static const size_t SLOT_HASH = 0xE8;          // u64
-static const size_t SLOT_SIZE = 0xF0;          // u64
-static const size_t SLOT_OFFSET = 0xF8;        // u64
+static const size_t SLOT_DATA_SIZE = 0xF0;     // u64, the size of the entry's data
+static const size_t SLOT_DATA_OFFSET = 0xF8;   // u64, where the entry's data starts in the package
 static const uint16_t FLAG_XOR = 0x100;        // the payload is XOR ciphered
 static const size_t PATH_LIMIT = 0xE0;         // a path this long or longer is skipped, the field runs to 0xE4
 
@@ -76,6 +76,7 @@ static std::vector<PackageHandle> g_pkgHandles;
 // opened while other threads are already reading files.
 static std::atomic<size_t> g_pkgHandleCount{0};
 static std::atomic<uint64_t> g_redirected{0};
+static const int TRACE_LINES = 200;         // package reads trace_file_io logs, the doc says the same
 static std::atomic<int> g_traceLines{0};   // any thread reading the package can take a line
 
 typedef HANDLE (WINAPI *PFN_CreateFileW)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
@@ -97,11 +98,18 @@ static uint64_t Fnv1a64Utf16(const std::string& path)
     return h;
 }
 
-// The key phase restarts at every entry. The table starts on an 8 byte boundary, so
-// for the table the entry relative and the absolute offset agree.
-static void XorRange(BYTE* data, uint64_t relOffset, size_t len)
+// The key phase restarts at every entry, and everything ciphered here is a whole entry or the whole
+// table, which starts on an 8 byte boundary, so the phase is always the byte's place in the buffer.
+static void XorRange(BYTE* data, size_t len)
 {
-    for (size_t i = 0; i < len; ++i) data[i] ^= XOR_KEY[(relOffset + i) & 7];
+    for (size_t i = 0; i < len; ++i) data[i] ^= XOR_KEY[i & 7];
+}
+
+// The event of an OVERLAPPED. Its low bit is a flag asking the kernel to queue no completion packet
+// for that read, not part of the handle.
+static HANDLE EventOf(const OVERLAPPED* ov)
+{
+    return (HANDLE)((uintptr_t)ov->hEvent & ~(uintptr_t)1);
 }
 
 static const char* CallerModule(void* retAddr, char* buf, size_t n)
@@ -159,10 +167,12 @@ static void TrackHandle(HANDLE h, const wchar_t* path, bool overlapped, void* ca
 // Depth is bounded because a directory junction that points at one of its own ancestors makes this
 // recurse until the stack ends, and it runs from DllMain. Nothing legitimate nests this far: the
 // deepest path in the game's own package is well under it.
+static const int COLLECT_DEPTH = 16;
+
 static void CollectFiles(const std::wstring& dir, const std::string& rel, int depth = 0)
 {
-    if (depth > 16) {
-        Log("overlay: %ls is nested deeper than 16 folders, not descending further", PublicPath(dir).c_str());
+    if (depth > COLLECT_DEPTH) {
+        Log("overlay: %ls is nested deeper than %d folders, not descending further", PublicPath(dir).c_str(), COLLECT_DEPTH);
         return;
     }
     WIN32_FIND_DATAW fd;
@@ -282,8 +292,8 @@ static bool FindEntry(const std::string& pkgPath, size_t used, PackageEntry& ent
 
     const BYTE* raw = g_toc.data() + slot * SLOT;
     memcpy(&entry.flags, raw + SLOT_FLAGS, 2);
-    memcpy(&entry.size, raw + SLOT_SIZE, 8);
-    memcpy(&entry.offset, raw + SLOT_OFFSET, 8);
+    memcpy(&entry.size, raw + SLOT_DATA_SIZE, 8);
+    memcpy(&entry.offset, raw + SLOT_DATA_OFFSET, 8);
     return true;
 }
 
@@ -326,7 +336,9 @@ static void AddBigScreenFix(size_t used)
         Log("overlay: the big screen flipbook is not in this package, that fix is skipped");
         return;
     }
-    if (entry.size < 8 || entry.size > 4096 || entry.offset > g_pkgSize - entry.size) {   // the order that cannot wrap
+    // The header is 243 bytes on 0.9.1, so a size outside these bounds is some other asset under
+    // the same name. The offset test is written the order that cannot wrap.
+    if (entry.size < 8 || entry.size > 4096 || entry.offset > g_pkgSize - entry.size) {
         Log("overlay: the big screen flipbook header is %llu bytes at %llu, not what this expects, skipped",
             (unsigned long long)entry.size, (unsigned long long)entry.offset);
         return;
@@ -334,7 +346,7 @@ static void AddBigScreenFix(size_t used)
 
     std::vector<BYTE> header;
     if (!ReadPackageRange(entry.offset, entry.size, header)) { Log("overlay: cannot read the big screen flipbook header, skipped"); return; }
-    if (entry.flags & FLAG_XOR) XorRange(header.data(), 0, header.size());
+    if (entry.flags & FLAG_XOR) XorRange(header.data(), header.size());
 
     const int at = FindVarintField(header, 3);   // TextureMetadata.mipLevels
     if (at < 0 || (header[at] & 0x80)) {
@@ -349,7 +361,7 @@ static void AddBigScreenFix(size_t used)
     header[at] = 1;
 
     // The file has to carry the encoding the rebuilt table will claim for it.
-    if (!g_cfg.overlayClearXor) XorRange(header.data(), 0, header.size());
+    if (!g_cfg.overlayClearXor) XorRange(header.data(), header.size());
 
     const std::wstring loose = g_dir + kBigScreenLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -430,7 +442,9 @@ static void AddUiStyleFix(size_t used)
         Log("overlay: the UI stylesheet is not in this package, the responsive UI serves it untouched");
         return;
     }
-    if (entry.size < 0x40000 || entry.size > 0x1000000 || entry.offset > g_pkgSize - entry.size) {   // the order that cannot wrap
+    // The stylesheet is about 1.1 MB on 0.9.1, so a size outside 256 KB to 16 MB is some other file
+    // under the same name. The offset test is written the order that cannot wrap.
+    if (entry.size < 0x40000 || entry.size > 0x1000000 || entry.offset > g_pkgSize - entry.size) {
         Log("overlay: the UI stylesheet is %llu bytes at %llu, not what this expects, served untouched",
             (unsigned long long)entry.size, (unsigned long long)entry.offset);
         return;
@@ -438,7 +452,7 @@ static void AddUiStyleFix(size_t used)
 
     std::vector<BYTE> raw;
     if (!ReadPackageRange(entry.offset, entry.size, raw)) { Log("overlay: cannot read the UI stylesheet, served untouched"); return; }
-    if (entry.flags & FLAG_XOR) XorRange(raw.data(), 0, raw.size());
+    if (entry.flags & FLAG_XOR) XorRange(raw.data(), raw.size());
     std::string css(raw.begin(), raw.end());
 
     for (const StyleEdit& edit : kStyleEdits) {
@@ -452,7 +466,7 @@ static void AddUiStyleFix(size_t used)
 
     std::vector<BYTE> corrected(css.begin(), css.end());
     // The file has to carry the encoding the rebuilt table will claim for it.
-    if (!g_cfg.overlayClearXor) XorRange(corrected.data(), 0, corrected.size());
+    if (!g_cfg.overlayClearXor) XorRange(corrected.data(), corrected.size());
 
     const std::wstring loose = g_dir + kUiStylesheetLooseFile;
     HANDLE w = g_origCreateFileW(loose.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -535,7 +549,7 @@ static void BuildToc()
     }
     g_origCloseHandle(h);
     if (done != g_tocSize) { Log("overlay: short table read (%llu of %llu)", (unsigned long long)done, (unsigned long long)g_tocSize); return; }
-    XorRange(g_toc.data(), 0, (size_t)g_tocSize);
+    XorRange(g_toc.data(), (size_t)g_tocSize);
 
     // count used slots: they are contiguous from the start, sorted by hash, empty slots are zero
     size_t slots = (size_t)(g_tocSize / SLOT), used = 0;
@@ -580,14 +594,14 @@ static void BuildToc()
         if (g_cfg.overlayClearXor) flags &= (uint16_t)~FLAG_XOR;
         memcpy(e + SLOT_FLAGS, &flags, 2);
         o.virtOffset = next;
-        memcpy(e + SLOT_SIZE, &o.size, 8);
-        memcpy(e + SLOT_OFFSET, &o.virtOffset, 8);
+        memcpy(e + SLOT_DATA_SIZE, &o.size, 8);
+        memcpy(e + SLOT_DATA_OFFSET, &o.virtOffset, 8);
         next = (next + o.size + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
         Log("overlay: %s %s (%llu bytes) -> virtual offset %llu%s", exists ? "replace" : "add", o.pkgPath.c_str(),
             (unsigned long long)o.size, (unsigned long long)o.virtOffset, g_cfg.overlayClearXor ? "" : " (xor flag kept)");
     }
     g_virtEnd = next;
-    XorRange(g_toc.data(), 0, (size_t)g_tocSize);
+    XorRange(g_toc.data(), (size_t)g_tocSize);
     g_tocBuilt.store(true);
     Log("overlay: table rebuilt, %zu entries used, %d replaced, %d added, virtual range %llu..%llu", used, replaced, inserted,
         (unsigned long long)g_virtBase, (unsigned long long)g_virtEnd);
@@ -737,10 +751,10 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
                 g_origSetFilePointerEx(h, np, nullptr, FILE_BEGIN);
                 if (ov) {
                     ov->Internal = 0; ov->InternalHigh = got;
-                    HANDLE ev = (HANDLE)((uintptr_t)ov->hEvent & ~(uintptr_t)1);
+                    HANDLE ev = EventOf(ov);
                     if (ev) SetEvent(ev);
                 }
-                if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < 200) {
+                if (g_cfg.traceFileIo && g_traceLines.fetch_add(1) < TRACE_LINES) {
                     Log("overlay: ReadFile off=%llu len=%lu -> %lu bytes from loose file%s by %s", (unsigned long long)off, n, got,
                         ov ? " (offset in an OVERLAPPED)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod));
                 }
@@ -759,12 +773,12 @@ static BOOL WINAPI Hook_ReadFile(HANDLE h, LPVOID buf, DWORD n, LPDWORD read, LP
     // whose read went pending decides what to do next from ERROR_IO_PENDING.
     const DWORD readError = ok ? ERROR_SUCCESS : GetLastError();
     DWORD got = read ? *read : local;
-    if (g_cfg.traceFileIo && (!inTable || off == g_tocStart) && g_traceLines.fetch_add(1) < 200) {
+    if (g_cfg.traceFileIo && (!inTable || off == g_tocStart) && g_traceLines.fetch_add(1) < TRACE_LINES) {
         Log("overlay: ReadFile off=%llu len=%lu -> %s got=%lu%s by %s%s", (unsigned long long)off, n, ok ? "ok" : "FAIL", got,
             readError == ERROR_IO_PENDING ? " (async pending)" : "", CallerModule(_ReturnAddress(), mod, sizeof mod),
             inTable ? " (table, further table chunks not traced)" : "");
     }
-    const bool othersHear = overlappedHandle || (ov && ((uintptr_t)ov->hEvent & ~(uintptr_t)1));
+    const bool othersHear = overlappedHandle || (ov && EventOf(ov));
     if (ok && got && g_active && inTable && !othersHear) PatchTableRead(off, (BYTE*)buf, got);
     if (othersHear && g_active && inTable) NoteUneditableTableRead();
     if (!ok) SetLastError(readError);
