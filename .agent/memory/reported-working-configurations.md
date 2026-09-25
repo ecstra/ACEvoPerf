@@ -57,7 +57,8 @@ least as likely as either the GPU or the mod.
 - Single player improved and multiplayer freezes stayed. Reported once, by someone who said only "Radeon
   here". There is no Radeon on hand to look into it.
 - Worse performance, stutters at fixed places on a track and trees bright white in night races, on the
-  game's 0.9. Reported once, on 2026-09-25, with no card and no log, and added to BUG-015.
+  game's 0.9. Reported once, on 2026-09-25, with no card, no settings, no numbers and no log, so the
+  owner's word is that nobody knows yet whether it is a bug at all, and it is filed nowhere else.
 
 These are not in the readme list, because nobody on those machines said the mod worked for them, not
 because the cards are suspect. Reading a list of faults as a list of bad cards is exactly the inference to

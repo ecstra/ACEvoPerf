@@ -2,8 +2,8 @@
 name: BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache
 kind: bug
 description: two users on the Overtake listing report that at night the car's own headlights do not light trees at the Nurburgring and light nothing at Oulton Park, and that enable_pso_cache=false cures it, a default the mod turned off for a while and turned back on at the owner's word on 2026-09-15
-updated: 2026-09-25
-links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release, BUG-038-fences-look-like-glass-in-sunlight]
+updated: 2026-09-15
+links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release]
 area: render
 status: wontfix
 severity: bug
@@ -154,14 +154,3 @@ The owner asked for the cache back on: "enable pso cache back again", saying the
 `dist/acevo_perf.ini` ships `enable_pso_cache=true` again, the 0.3.1 value, and the unreleased changelog
 entry for the avoidance is gone. Nothing on the reference machine shows the cache breaking the scene, so
 the flag stays on until a user report with a game log shows it.
-
-## A third report, 2026-09-25
-
-A player's comment, as the owner passed it on, with no log:
-
-> This mod made my performance worse. I would get random stutters at specific track locations. In night races the trees were bright white. I'm on 0.9.
-
-Over bright rather than unlit, but the same thing, trees lit wrong at night with the mod on, and the
-owner saw fences drawn as glass in sunlight the day before, BUG-038, which a game restart cleared. Trees
-and fences are both sheets with cut out holes. It stays won't fix until a report comes with a game log, as
-above.
