@@ -10,7 +10,7 @@ typedef void (__stdcall *PFN_CxxThrowException)(void*, void*);
 static PFN_CxxThrowException g_origThrow = nullptr;
 static uintptr_t g_exeBase = 0;
 
-struct ThrowSite { uintptr_t returnRva; uint32_t count; char type[96]; char message[128]; };
+struct ThrowSite { uintptr_t returnRva; uint32_t count; bool asked; char type[96]; char message[128]; };
 static const int kMaxSites = 256;
 static ThrowSite g_sites[kMaxSites];
 static int g_siteCount = 0;
@@ -91,6 +91,7 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
 {
     uintptr_t returnRva = (uintptr_t)_ReturnAddress() - g_exeBase;
     g_throwsTotal++;
+    bool ask = false;
     EnterCriticalSection(&g_cs);
     ThrowSite* site = nullptr;
     for (int i = 0; i < g_siteCount; ++i) if (g_sites[i].returnRva == returnRva) { site = &g_sites[i]; break; }
@@ -98,14 +99,28 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
         site = &g_sites[g_siteCount++];
         site->returnRva = returnRva;
         site->count = 0;
+        site->asked = false;
         strncpy_s(site->type, TypeName(throwInfo), _TRUNCATE);
         site->message[0] = 0;
     }
     if (site) {
         site->count++;
-        if (!site->message[0]) Message(object, throwInfo, site->message, sizeof site->message);
+        // Asked once per site whatever comes back, so a what() that faults, or throws back through here,
+        // is not asked again on every later throw from that site.
+        ask = !site->asked;
+        site->asked = true;
     }
     LeaveCriticalSection(&g_cs);
+
+    // Outside the lock, since what() is the game's own code and may take the game's own locks, which
+    // another thread could hold while it waits here to count a throw of its own.
+    if (ask) {
+        char message[sizeof site->message];
+        Message(object, throwInfo, message, sizeof message);
+        EnterCriticalSection(&g_cs);
+        strncpy_s(site->message, message, _TRUNCATE);
+        LeaveCriticalSection(&g_cs);
+    }
     g_origThrow(object, throwInfo);
 }
 
