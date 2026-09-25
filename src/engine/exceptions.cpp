@@ -40,11 +40,31 @@ static const char* TypeName(void* throwInfo)
     }
 }
 
-// std::exception and its children keep what() in the second vtable slot
-static const char* Message(void* object, const char* typeName)
+// True when the thrown object can be caught as std::exception, which the throw info says by listing every
+// type the object can be caught as. A name with "exception" or "error" in it said nothing of the kind, and
+// a game type named so had an unrelated virtual called in place of what().
+static bool IsStdException(void* throwInfo)
 {
     __try {
-        if (!object || !strstr(typeName, "exception") && !strstr(typeName, "error")) return "";
+        auto info = (const ThrowInfoRva*)throwInfo;
+        if (!info || !info->catchableTypeArray) return false;
+        auto types = (const CatchableTypeArrayRva*)(g_exeBase + info->catchableTypeArray);
+        for (int i = 0; i < types->count; ++i) {
+            auto type = (const CatchableTypeRva*)(g_exeBase + types->types[i]);
+            auto descriptor = (const TypeDescriptorRaw*)(g_exeBase + type->typeDescriptor);
+            if (strcmp(descriptor->name, ".?AVexception@std@@") == 0) return true;
+        }
+        return false;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// std::exception and its children keep what() in the second vtable slot
+static const char* Message(void* object, void* throwInfo)
+{
+    if (!object || !IsStdException(throwInfo)) return "";
+    __try {
         void** vtable = *(void***)object;
         typedef const char* (__thiscall *PFN_What)(void*);
         const char* text = ((PFN_What)vtable[1])(object);
@@ -70,7 +90,7 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
     }
     if (site) {
         site->count++;
-        if (!site->message[0]) strncpy_s(site->message, Message(object, site->type), _TRUNCATE);
+        if (!site->message[0]) strncpy_s(site->message, Message(object, throwInfo), _TRUNCATE);
     }
     LeaveCriticalSection(&g_cs);
     g_origThrow(object, throwInfo);
