@@ -22,7 +22,8 @@ static CRITICAL_SECTION g_cs;
 // x64 throw info: every pointer is an RVA from the throwing module's base
 struct ThrowInfoRva { unsigned attributes; int unwind; int forwardCompat; int catchableTypeArray; };
 struct CatchableTypeArrayRva { int count; int types[1]; };
-struct CatchableTypeRva { unsigned properties; int typeDescriptor; };
+struct Pmd { int mdisp; int pdisp; int vdisp; };   // where a base sits in the thrown object
+struct CatchableTypeRva { unsigned properties; int typeDescriptor; Pmd thisDisplacement; };
 struct TypeDescriptorRaw { void* vtable; void* spare; char name[1]; };
 
 static const char* TypeName(void* throwInfo)
@@ -40,37 +41,49 @@ static const char* TypeName(void* throwInfo)
     }
 }
 
-// True when the thrown object can be caught as std::exception, which the throw info says by listing every
-// type the object can be caught as. A name with "exception" or "error" in it said nothing of the kind, and
-// a game type named so had an unrelated virtual called in place of what().
-static bool IsStdException(void* throwInfo)
+// The thrown object's std::exception part, or null when it cannot be caught as one. The throw info lists
+// every type the object can be caught as, each with where that part sits, which is not the object's start
+// when std::exception is not its first base or is a virtual one, and this is the arithmetic of vcruntime's
+// __AdjustPointer. A name with "exception" or "error" in it said nothing of the kind, and reading the
+// vtable at the object's start called whatever sat in its second slot, a rethrow in one Boost type.
+static void* StdExceptionPart(void* object, void* throwInfo)
 {
     __try {
         auto info = (const ThrowInfoRva*)throwInfo;
-        if (!info || !info->catchableTypeArray) return false;
+        if (!object || !info || !info->catchableTypeArray) return nullptr;
         auto types = (const CatchableTypeArrayRva*)(g_exeBase + info->catchableTypeArray);
         for (int i = 0; i < types->count; ++i) {
             auto type = (const CatchableTypeRva*)(g_exeBase + types->types[i]);
             auto descriptor = (const TypeDescriptorRaw*)(g_exeBase + type->typeDescriptor);
-            if (strcmp(descriptor->name, ".?AVexception@std@@") == 0) return true;
+            if (strcmp(descriptor->name, ".?AVexception@std@@") != 0) continue;
+            const Pmd& at = type->thisDisplacement;
+            char* part = (char*)object + at.mdisp;
+            if (at.pdisp >= 0) {
+                const char* vbtable = *(const char* const*)((const char*)object + at.pdisp);
+                part += *(const int32_t*)(vbtable + at.vdisp) + at.pdisp;
+            }
+            return part;
         }
-        return false;
+        return nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return false;
+        return nullptr;
     }
 }
 
-// std::exception and its children keep what() in the second vtable slot
-static const char* Message(void* object, void* throwInfo)
+// std::exception keeps what() in the second slot of its own vtable. The text is copied inside the guard,
+// so a pointer what() hands back that cannot be read faults here and not in the caller.
+static void Message(void* object, void* throwInfo, char* out, size_t size)
 {
-    if (!object || !IsStdException(throwInfo)) return "";
+    out[0] = 0;
+    void* part = StdExceptionPart(object, throwInfo);
+    if (!part) return;
     __try {
-        void** vtable = *(void***)object;
+        void** vtable = *(void***)part;
         typedef const char* (__thiscall *PFN_What)(void*);
-        const char* text = ((PFN_What)vtable[1])(object);
-        return text ? text : "";
+        const char* text = ((PFN_What)vtable[1])(part);
+        if (text) strncpy_s(out, size, text, _TRUNCATE);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return "";
+        out[0] = 0;
     }
 }
 
@@ -90,7 +103,7 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
     }
     if (site) {
         site->count++;
-        if (!site->message[0]) strncpy_s(site->message, Message(object, throwInfo), _TRUNCATE);
+        if (!site->message[0]) Message(object, throwInfo, site->message, sizeof site->message);
     }
     LeaveCriticalSection(&g_cs);
     g_origThrow(object, throwInfo);
