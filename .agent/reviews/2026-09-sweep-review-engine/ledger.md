@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-engine
 kind: review
 description: the engine hooks angle of the full review of main, one null pointer that retires all three streamer fixes and a flag writer that can inherit the wrong storage, seven findings
-updated: 2026-09-24
+updated: 2026-09-25
 links: [spec-reviews, house-rules-agent, directstorage-streaming, engine-flags, reviews-index]
 branch: sweep/review-engine
 status: open
@@ -37,7 +37,7 @@ bug, a typed tile pool size refused and left to the engine's whole define, now a
 |---|---|---|---|
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | closed, runtime confirmed | 2026-09-24 |
-| 3 | the throw log cannot eat the game's own exception | pending | |
+| 3 | the throw log cannot eat the game's own exception | fixing | 2026-09-25 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -63,8 +63,8 @@ access violation before our filter does.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 23fa30c, 2026-09-25, `what()` is called only when the throw info's catchable types list `.?AVexception@std@@`, so a game type whose name merely says error or exception never has an unrelated virtual called.
 
 `src/engine/exceptions.cpp:50`. Line 47 matches on the mangled name, so any game type whose name
 contains "error" or "exception" qualifies, not only descendants of std::exception. `vtable[1]` of such

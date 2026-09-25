@@ -111,7 +111,8 @@ ledger.
 
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings, plus 7 from
-  batch 1's hunter and verifier and 22 from batch 2's, batches 1 and 2 closed and runtime confirmed
+  batch 1's hunter and verifier and 22 from batch 2's, batches 1 and 2 closed and runtime confirmed,
+  batch 3 fixing
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
   the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
   from other angles' sub agents, 1 breaks
