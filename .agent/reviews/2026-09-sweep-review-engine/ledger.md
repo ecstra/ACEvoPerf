@@ -64,7 +64,7 @@ access violation before our filter does.
 - found-by: review
 - batch: 3
 - status: fixed
-- fix: 23fa30c, 2026-09-25, `what()` is called only when the throw info's catchable types list `.?AVexception@std@@`, so a game type whose name merely says error or exception never has an unrelated virtual called.
+- fix: 23fa30c, 2026-09-25, `what()` is called only when the throw info's catchable types list `.?AVexception@std@@`, so a game type whose name merely says error or exception never has an unrelated virtual called. That alone left the call on the object's start, H-07, and cf0cc96 makes it on the std::exception part where the throw info says it sits.
 
 `src/engine/exceptions.cpp:50`. Line 47 matches on the mangled name, so any game type whose name
 contains "error" or "exception" qualifies, not only descendants of std::exception. `vtable[1]` of such
@@ -437,6 +437,44 @@ pass promises an auto write for.
 `TILE_POOL_MB=auto` or `no_intro=auto` logged the promise and then `auto has no rule for this flag`.
 Older than the batch, 755b6cc.
 
+The hunter then ran on batch 3. It found the catchable types list every public base, std::exception's
+decorated name exact and the throw info the exe's own for every throw that reaches the hook, and raised
+the three below, the first of them showing F-02 still open.
+
+### H-07: what() was called through the vtable at the object's start, which is not std::exception's when that base is not first or is virtual
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: cf0cc96, 2026-09-25, the object pointer is moved to the std::exception part by the catchable type's displacement, as vcruntime's `__AdjustPointer` moves it, and the text is copied inside the guard.
+
+`src/engine/exceptions.cpp:68` to `:70`. `boost::wrapexcept<E>` puts `clone_base` first, whose second
+slot is `rethrow`, so the call threw back through the hook, which called it again until the game thread's
+stack ran out. A class with std::exception as a virtual base has a vbptr at its start, and one that lists
+an interface first gets that interface's second virtual. 23fa30c also let in std::exception children
+whose names have neither word. Older than the batch, 3c87596, and only with `throw_log=1`.
+
+### H-08: what() ran with the site table's lock held
+- severity: debt
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: e03da2a, 2026-09-25, each site is asked for its message once, outside the lock, and the text is stored under it after.
+
+`src/engine/exceptions.cpp:81` to `:95`. A `what()` that takes a game mutex, on a thread holding the
+lock, and a thread holding that mutex, throwing and waiting for the lock, would stop both for good, and
+the timeline thread with them at its next tick. Older than the batch, 3c87596.
+
+### H-09: the file's comment and the telemetry doc promised every exception the game's code throws
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 9e3d3a4, 2026-09-25.
+
+The standard library's helpers in `msvcp140.dll` throw through their own import and are never counted,
+and a bare `throw;` is counted at its site as `?`. Older than the batch, 3c87596.
+
 ## The runs
 
 Batch 1, one launch on 2026-09-24, `logs/engine-b1-20260924`, 19:44 to 19:47, a short drive and a quit.
@@ -452,6 +490,12 @@ at 89C2 and 89C3, `no_intro` at 1DA4 and 1E22, `force_canonical_pool_sizes` at 8
 game's own `[Tile Pool] sized to 1024 MB (16384 tiles)` and `canonical sizes forced`, a clean `detached`
 and no `Exception Detected`. db3e0f9, cb9cbd8 and bae9211 came after it and change only what values
 other than the shipped ones do.
+
+Batch 3, one launch on 2026-09-25, `logs/engine-b3-20260925`, 07:09 to 07:12, with `throw_log=1` for this
+launch alone, on 23fa30c's build. `throw log: 1 import slot(s) of the exe patched`, a clean `detached` and
+no `Exception Detected`, and no `[throw]` line, since the game threw nothing, as in all seven sessions on
+disk with the switch on. The changed call never ran, so what it does rests on the reading, the hunter's
+and the verifier's, and cf0cc96, e03da2a and 9e3d3a4 came after the run.
 
 ## Checked and clean
 
