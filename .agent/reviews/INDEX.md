@@ -2,7 +2,7 @@
 name: reviews-index
 kind: doc
 description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, six of them done
-updated: 2026-09-24
+updated: 2026-09-25
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
 
