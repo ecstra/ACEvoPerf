@@ -3,9 +3,11 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 
-// The exe's import of _CxxThrowException is patched, so every throw from the game's own code
-// passes through here first. The throw info the compiler emits names the type (as a mangled
-// name) and, for std::exception types, the object carries a message worth logging.
+// The exe's import of _CxxThrowException is patched, so every throw the exe's own code makes passes
+// through here first. The standard library's helpers in msvcp140.dll throw through that DLL's own import
+// and are not counted, and a bare throw; is counted at its site with no type. The throw info the
+// compiler emits names the type (as a mangled name) and, for std::exception types, the object carries
+// a message worth logging.
 typedef void (__stdcall *PFN_CxxThrowException)(void*, void*);
 static PFN_CxxThrowException g_origThrow = nullptr;
 static uintptr_t g_exeBase = 0;
