@@ -31,13 +31,19 @@ the build clean of warnings. It added four from its hunter and eighteen from thr
 hunter found numeric flags took any text, and the strict check that closed it caused the batch's one
 bug, a typed tile pool size refused and left to the engine's whole define, now a fallback to auto.
 
+Batch 3 closed with F-02 fixed, the throw log's `what()` called on the object's std::exception part
+where the throw info says it sits, once per site and outside its lock. The first fix alone still read
+the vtable at the object's start, which the hunter showed could recurse until the stack ran out. It
+added three from its hunter and four from its verifier, one left as a written limit of a developer
+switch.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | closed, runtime confirmed | 2026-09-24 |
-| 3 | the throw log cannot eat the game's own exception | fixing | 2026-09-25 |
+| 3 | the throw log cannot eat the game's own exception | closed, launch clean, the call not known to have run | 2026-09-25 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -459,21 +465,66 @@ whose names have neither word. Older than the batch, 3c87596, and only with `thr
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: e03da2a, 2026-09-25, each site is asked for its message once, outside the lock, and the text is stored under it after.
+- fix: e03da2a, 2026-09-25, each site is asked for its message once, outside the lock, and the text is stored under it after. The table's lock is a leaf now. `what()` still runs on the throwing thread under the locks it took before the throw, V-26.
 
 `src/engine/exceptions.cpp:81` to `:95`. A `what()` that takes a game mutex, on a thread holding the
 lock, and a thread holding that mutex, throwing and waiting for the lock, would stop both for good, and
-the timeline thread with them at its next tick. Older than the batch, 3c87596.
+the timeline thread with them at its next ten second report. Older than the batch, 3c87596.
 
 ### H-09: the file's comment and the telemetry doc promised every exception the game's code throws
 - severity: nit
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: 9e3d3a4, 2026-09-25.
+- fix: 9e3d3a4 and 095f14a, 2026-09-25.
 
-The standard library's helpers in `msvcp140.dll` throw through their own import and are never counted,
-and a bare `throw;` is counted at its site as `?`. Older than the batch, 3c87596.
+The runtime DLLs throw from their own code and are never counted, `msvcp140.dll`'s helpers and, V-25,
+`vcruntime140.dll`'s failed `dynamic_cast` to a reference and `typeid` of a null pointer among them, and
+a bare `throw;` is counted at its site as `?`. Older than the batch, 3c87596.
+
+The verifier then ran on batch 3. It found F-02, H-07 and H-08 closed in the source and the object code,
+the displacement read and applied exactly as the toolset's `__AdjustPointer` does and one thread asking
+per site, and raised the four below. The loop stopped there, three being precision in the record and
+the fourth a limit written down rather than coded round.
+
+### V-24: the batch 3 run paragraph and the telemetry doc claimed more than the log shows
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-25 for the run paragraph, 095f14a for the doc, no throw through the exe's import before the last ten second report and the changed call not known to have run.
+
+The throw log reports on every tenth tick with nothing flushed at detach, so the last seconds before a
+quit never reach the log, and the paragraph cited a verifier's reading before any had run. 3843b09 and
+9e3d3a4 wrote them.
+
+### V-25: vcruntime140.dll's own throws go uncounted too, where the doc named only msvcp140.dll's
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 095f14a, 2026-09-25, the comment, the doc, H-09 and the two older one liners in the headers.
+
+A failed `dynamic_cast` to a reference or a `typeid` of a null pointer in the exe goes to vcruntime140's
+`__RTDynamicCast` or `__RTtypeid`, which throw through their own DLL's `_CxxThrowException`.
+
+### V-26: what() still runs on the throwing thread under every lock it took before the throw
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: wontfix
+- fix: 2026-09-25. The hook asks at the throw, before the stack unwinds, and asking only for the standard library's own types, which take no lock, would lose the game's own exceptions' messages, the ones worth having. It is a developer switch, asked once per site, and the file's comment and H-08's fix line now say so, where e03da2a's subject said what() cannot deadlock against the game's locks.
+
+A thread throwing under game lock A whose `what()` waits for game lock B, and a thread holding B waiting
+for A, stop for good, a cycle the game alone never forms, since a catch runs after unwinding has
+released A.
+
+### V-27: H-08 had the timeline thread stop at its next tick, where it takes the lock only at its next ten second report
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-25.
 
 ## The runs
 
@@ -493,9 +544,10 @@ other than the shipped ones do.
 
 Batch 3, one launch on 2026-09-25, `logs/engine-b3-20260925`, 07:09 to 07:12, with `throw_log=1` for this
 launch alone, on 23fa30c's build. `throw log: 1 import slot(s) of the exe patched`, a clean `detached` and
-no `Exception Detected`, and no `[throw]` line, since the game threw nothing, as in all seven sessions on
-disk with the switch on. The changed call never ran, so what it does rests on the reading, the hunter's
-and the verifier's, and cf0cc96, e03da2a and 9e3d3a4 came after the run.
+no `Exception Detected`, and no `[throw]` line, so no throw came through the exe's import before the last
+ten second report, as in all seven sessions on disk with the switch on. The changed call is not known to
+have run, so what it does rests on the hunter's and the verifier's reading, and cf0cc96, e03da2a,
+9e3d3a4 and 095f14a came after the run.
 
 ## Checked and clean
 
