@@ -58,10 +58,12 @@ connection whose game mode no longer looks live is let go for good with a
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
 exception the exe's own code throws is counted by throw site (the return address as an RVA)
 with its mangled type name and, for a type that can be caught as `std::exception`, the message of the
-first throw. The standard library's helpers in `msvcp140.dll` throw through their own import and are
-not counted, and a bare `throw;` is counted with `?` for its type. Every ten seconds with at least one
-throw the log gets a `[throw]` line with the count and the eight busiest sites. Off by default, the
-hook costs nothing when a frame throws nothing, and no session on disk with it on has caught a throw.
+first throw. The runtime DLLs throw from their own code and are not counted, `msvcp140.dll`'s helpers
+and `vcruntime140.dll`'s failed `dynamic_cast` to a reference and `typeid` of a null pointer among them,
+and a bare `throw;` is counted with `?` for its type. Every ten seconds with at least one throw the log
+gets a `[throw]` line with the count and the eight busiest sites, and throws in the last seconds before
+the quit are never reported. Off by default, the hook costs nothing when a frame throws nothing, and no
+session on disk with it on has logged a throw.
 
 ## acevo_perf_timeline.csv
 

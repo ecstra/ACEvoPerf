@@ -11,7 +11,7 @@ struct Config {
     bool frames = false;        // acevo_perf_frames.csv, one line per presented frame
     bool streamingTrace = false; // acevo_perf_streaming.csv, texture streamer and tile request events
     bool logRequests = false;   // every DirectStorage request in the log
-    bool throwLog = false;      // count the game's C++ exceptions by throw site
+    bool throwLog = false;      // count the exe's own C++ throws by throw site
     bool traceFileIo = false;   // log the game's file I/O on the package
     bool loadSampler = false;   // suspends game threads to read them
     int  loadSampleUs = 1000;

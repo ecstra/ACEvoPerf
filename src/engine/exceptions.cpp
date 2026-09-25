@@ -4,10 +4,12 @@
 #include "acevo/core/iat.h"
 
 // The exe's import of _CxxThrowException is patched, so every throw the exe's own code makes passes
-// through here first. The standard library's helpers in msvcp140.dll throw through that DLL's own import
-// and are not counted, and a bare throw; is counted at its site with no type. The throw info the
-// compiler emits names the type (as a mangled name) and, for std::exception types, the object carries
-// a message worth logging.
+// through here first. The runtime DLLs throw from their own code and are not counted, msvcp140.dll's
+// helpers and vcruntime140.dll's failed dynamic_cast to a reference and typeid of a null pointer among
+// them, and a bare throw; is counted at its site with no type. The throw info the compiler emits names
+// the type (as a mangled name) and, for std::exception types, the object carries a message worth
+// logging. what() is asked at the throw, before the stack unwinds, so it runs while the throwing thread
+// still holds the locks it took, which a catch would have released first.
 typedef void (__stdcall *PFN_CxxThrowException)(void*, void*);
 static PFN_CxxThrowException g_origThrow = nullptr;
 static uintptr_t g_exeBase = 0;
