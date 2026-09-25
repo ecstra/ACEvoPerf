@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, the glass fences since seen here as BUG-038, and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-09-24
+updated: 2026-09-25
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache]
 ---
@@ -44,12 +44,11 @@ report on one distribution and one Proton build is not a supported platform, whi
 
 ## Open reports
 
-Three reports, two of which nobody has reproduced. The hardware is written down only because the
+Four reports, three of which nobody has reproduced. The hardware is written down only because the
 reporter gave it, and not as a grouping. Nothing in any of them points at the card, and the owner's call
-of 2026-09-19 on the first one is the standing reading for all three: the card and the fault are
-unrelated. A setting, a
-leftover shader cache, a driver, or something else local to that machine is at least as likely as either
-the GPU or the mod.
+of 2026-09-19 on the first one is the standing reading for all of them: the card and the fault are
+unrelated. A setting, a leftover shader cache, a driver, or something else local to that machine is at
+least as likely as either the GPU or the mod.
 
 - Fences take on a glass look. Reported once, by someone on a 4090, and seen on the owner's machine on
   2026-09-24, so it is now BUG-038 and no longer one nobody has reproduced.
@@ -57,6 +56,8 @@ the GPU or the mod.
   restart the game and send the log if it persisted, and no log came back.
 - Single player improved and multiplayer freezes stayed. Reported once, by someone who said only "Radeon
   here". There is no Radeon on hand to look into it.
+- Worse performance, stutters at fixed places on a track and trees bright white in night races, on the
+  game's 0.9. Reported once, on 2026-09-25, with no card and no log, and added to BUG-015.
 
 These are not in the readme list, because nobody on those machines said the mod worked for them, not
 because the cards are suspect. Reading a list of faults as a list of bad cards is exactly the inference to
@@ -65,7 +66,7 @@ avoid.
 ## What this is not
 
 Not a support matrix and not a promise. Nothing here was tested by us, every line is somebody's word, and
-three of the reports are unexplained. Keep it that way in the readme's wording.
+four of the reports are unexplained, one of them now seen here. Keep it that way in the readme's wording.
 
 ## How to apply it
 
