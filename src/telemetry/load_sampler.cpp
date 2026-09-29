@@ -387,6 +387,7 @@ DWORD WINAPI SamplerThread(void*)
 
     LARGE_INTEGER qpf; QueryPerformanceFrequency(&qpf);
     LARGE_INTEGER start; QueryPerformanceCounter(&start);
+    g_samplerCpu = ThreadCpu(GetCurrentThread());  // so the first window's cost leaves out the setup above
     const int64_t interval = qpf.QuadPart * (int64_t)g_cfg.loadSampleUs / 1000000;
     LARGE_INTEGER next = start;
     int64_t lastCsv = start.QuadPart, lastRefresh = start.QuadPart, lastSummary = start.QuadPart;
