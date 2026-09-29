@@ -36,11 +36,12 @@ std::vector<Export> g_exports;
 struct Target {
     DWORD tid = 0;
     HANDLE handle = nullptr;
-    uint64_t lastCpu = 0;
     char name[40] = {};
 };
 Target g_targets[24];
 int g_targetCount = 0;
+// Every thread's CPU time at the last refresh, targets or not, so each one's delta is its own.
+std::unordered_map<DWORD, uint64_t> g_lastCpu;
 
 // tallies
 std::unordered_map<uint32_t, uint32_t> g_byLabel;    // label offset -> samples
@@ -241,12 +242,19 @@ void RefreshTargets()
             HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
             if (!h) continue;
             uint64_t cpu = ThreadCpu(h);
-            uint64_t prev = 0;
-            for (int i = 0; i < g_targetCount; ++i) if (g_targets[i].tid == te.th32ThreadID) { prev = g_targets[i].lastCpu; break; }
+            // Measured from the last refresh for every thread. Only the targets used to be, so every other
+            // thread showed its whole lifetime as its delta and won the sort, and the set flipped between
+            // two lifetime picks. A thread new since then has lived only inside the window, so its whole
+            // time is its delta.
+            auto last = g_lastCpu.find(te.th32ThreadID);
+            uint64_t prev = last != g_lastCpu.end() ? last->second : 0;
             found.push_back({ te.th32ThreadID, h, cpu, cpu > prev ? cpu - prev : 0 });
         } while (Thread32Next(snap, &te));
     }
     CloseHandle(snap);
+
+    g_lastCpu.clear();
+    for (auto& c : found) g_lastCpu[c.tid] = c.cpu;
 
     std::sort(found.begin(), found.end(), [](const Candidate& a, const Candidate& b) { return a.delta > b.delta; });
     for (int i = 0; i < g_targetCount; ++i) if (g_targets[i].handle) CloseHandle(g_targets[i].handle);
@@ -254,7 +262,7 @@ void RefreshTargets()
     for (auto& c : found) {
         if (g_targetCount < (int)(sizeof g_targets / sizeof g_targets[0]) && (c.delta > 0 || g_targetCount < 4)) {
             Target& t = g_targets[g_targetCount++];
-            t.tid = c.tid; t.handle = c.h; t.lastCpu = c.cpu;
+            t.tid = c.tid; t.handle = c.h;
             NameThread(c.h, c.tid, t.name, sizeof t.name);
         } else {
             CloseHandle(c.h);
