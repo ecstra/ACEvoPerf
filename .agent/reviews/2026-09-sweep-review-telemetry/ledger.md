@@ -44,13 +44,21 @@ sampler using under a second of CPU in each 15 s window where the old loop held 
 threads it held being the ones running. The same launch showed the per thread table hiding a short
 load's workers, V-22, which joins batch 3.
 
+Batch 3 closed with every first row, first report and window meaning what its label says. The frames
+CSV and the hitch line count from the frame, hitch or pause before them, the sampler's CSV holds each
+second on the clock every other file uses, the timeline reads all its baselines together and finds its
+adapter on any machine, and the throw log prints the length it really covered. F-06 proved lighter
+than filed. Its two hunters added nine, one of them the hitch line still carrying a whole load, and its
+two verifier rounds eight. One launch confirmed it where a run can show it, and showed the per thread
+table printing two rows under one name, V-31, which joins batch 4.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | closed, runtime confirmed | 2026-09-29 |
-| 3 | the CSVs and the log's reports mean what they say | fixing | 2026-09-29 |
+| 3 | the CSVs and the log's reports mean what they say | closed, runtime confirmed | 2026-09-29 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -895,6 +903,24 @@ is small, and those are raw offset reads into engine memory on a code path that 
 entirely off, which is the fault surface BUG-022 came from. The other call sites guard properly with
 `TraceOn()` at streamer.cpp:550, 596 and 652, or at install time in texture_writes.cpp:216.
 
+Batch 3's run raised one more, read from its log when the launch was checked.
+
+### V-31: the per thread table can print two rows under one name with nothing to tell them apart, since the game runs threads that share a name
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: open
+- fix:
+
+`src/telemetry/load_sampler.cpp:364`. The game rebuilds its render and resource workers each time the
+loading boost goes on or off, keeping their names, and during a load it runs a second Resource Manager
+Worker 0 beside the first. Keyed by id and creation time, each thread now has its own row, which is
+right, and the old name key had merged a boosted worker into a resting one. But in the first window of
+`logs/telemetry-b3-20260929` Render Workers 0 to 4 and Resource Manager Workers 0 and 1 print twice
+each, and its load window prints two Resource Manager Worker 0 rows, 794 samples at 46 percent wait and
+48 at 54 percent in the job queue spin, with nothing to say which is which. Printing the thread id
+beside the name would. d12ee4d and 287f839 brought the rows apart.
+
 ## The runs
 
 Batch 1, one launch on 2026-09-29, `logs/telemetry-b1-20260929`, 10:18 to 10:19, the menu, a load into
@@ -923,6 +949,20 @@ one. In the load window Resource Manager Worker 4 printed at 49.2 percent game c
 the job queue spin. Every ntdll label was an Nt name, `NtDelayExecution` and
 `NtWaitForWorkViaWorkerFactory` among them. No timer failure line, a clean `detached` and no
 `Exception Detected`. H-12's reused id cannot show in a run.
+
+Batch 3, one launch on 2026-09-29, `logs/telemetry-b3-20260929`, 16:46 to 16:49, the menu, a load into
+Oulton Park and about half a minute on track, with `timeline`, `frames` and `load_sampler` on for this
+launch alone, on 34dc0f2's build, whose code differs from the close only by V-30's comment. The frames
+CSV's first row and the first `[hitch]` line both carry 399 file to memory requests where about 8,900
+used to land, and the timeline's first row carries the start up burst of 107 submits beside its own 12
+tile requests. The timeline found the RTX 3060. The sampler's rows hold about a thousand samples each
+with no sawtooth, its t_s and the timeline's read 4.7 on the same second, and its summaries count t+
+from attach. Its tables print GameThread once, the unnamed rows being threads that never take a name,
+and in the load window seven workers the boost brings up, at 77 to 85 percent game code and 50 to 62
+percent in the job queue spin, while the parked D3D Background Threads take no row. The sampler used
+547 to 953 ms of CPU a window. This load never paused over 2 s, its longest frame 1943.5 ms, so H-17
+could not show, and with the throw log off neither could H-16 and H-22. A clean `detached` and no
+`Exception Detected`.
 
 ## Checked and clean
 
