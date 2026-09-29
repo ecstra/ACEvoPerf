@@ -844,7 +844,7 @@ record precision and one comment left.
 - found-by: review
 - batch: 4
 - status: fixed
-- fix: 39ff642, 2026-09-29, each heap is looked for in the live heap list just before it is read or compacted, and one no longer there is skipped. A heap destroyed between that look and the call can still fault, which leaves microseconds where there were seconds.
+- fix: 39ff642, 2026-09-29, each heap is looked for in the live heap list just before it is read or compacted, and one no longer there is skipped. A heap destroyed between that look and the call can still fault, which leaves microseconds where there were milliseconds.
 
 `src/telemetry/memory_census.cpp:199`. `ReadHeaps` snapshots handles at 195 and then calls
 `HeapSummary` on each, `CompactHeaps` does the same at 176 and 177, and a census does three such passes
@@ -857,12 +857,16 @@ the faulting thread and writes a line naming DSTORAGE.dll, which is BUG-022's sh
 fire once per heap per pass. A census that faults on five heaps costs an extra second and puts five
 bogus crash reports in the player's game log.
 
+The window was smaller than filed, V-33. On this Windows HeapSummary on a destroyed heap returns FALSE
+and raises nothing, so the two long read passes never faulted on one. Only HeapCompact does, and its
+pass takes its own list and ran in 0.00 s in all 20 saved census CSVs, so the window was milliseconds.
+
 ### F-07: GetProcessHeaps is called twice with sixteen slots of slack, and overflowing that reads every slot as a null heap handle
 - severity: debt
 - found-by: review
 - batch: 4
 - status: fixed
-- fix: 65a8b54, 2026-09-29, one helper reads the list, and when it returns a count larger than its buffer the buffer grows to it and the call goes again.
+- fix: 65a8b54, 2026-09-29, one helper reads the list, and when it returns a count larger than its buffer the buffer grows past it and the call goes again.
 
 `src/telemetry/memory_census.cpp:176`. Line 175 sizes the vector to the count plus 16 and line 176 fills
 it. When the true count exceeds the buffer, `GetProcessHeaps` stores nothing and returns the real count.
@@ -872,6 +876,11 @@ Failure: `ReadHeap(nullptr)` and `CompactHeap(nullptr)` fault on every slot, eac
 logger stall by F-04, so a 60 heap process would stall about nine seconds and write sixty bogus crash
 reports, and it silently reports zero heaps committed. Sixteen new heaps inside the microseconds between
 the two calls is unlikely, and the failure mode is loud. A retry loop is the fix.
+
+This Windows does otherwise, V-32. With a buffer too short it stores the list's first handles and
+returns the whole count, so the old code left the heaps past its buffer out of the totals and the
+compaction rather than reading nulls, and HeapSummary(NULL) returns TRUE here where only
+HeapCompact(NULL) faults. The documentation says nothing is stored, and the retry covers both.
 
 ### F-08: the pending buffer's capacity is thrown away on every flush, so the append path re-doubles from zero each second under the exclusive lock
 - severity: debt
@@ -927,8 +936,8 @@ id beside the name would. d12ee4d and 287f839 brought the rows apart.
 
 Two hunters then ran on batch 4, one on the census and one on the trace, the streamer guard and the
 sampler's id column. They found every fix right on the paths it names, the heap check leaving
-microseconds where there were seconds on the small heaps while the process heap, the one that takes
-seconds, cannot be destroyed, no row written twice or lost that was not lost before, and no census run
+microseconds on the heaps that can be destroyed while the process heap, the one that takes seconds,
+cannot be, no row written twice or lost that was not lost before, and no census run
 on disk with a crash report, and raised six. H-28 and H-29 are F-10's and F-08's shapes elsewhere, the
 streamer's want and drop events and the frames buffer. H-30 is the id column's own, and H-26, H-27 and
 H-31 are comments and records.
@@ -1006,8 +1015,8 @@ unfinished at the owner's usage limit on 2026-09-29 and runs again before the ba
 - severity: nit
 - found-by: verifier
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 46ead16, 2026-09-29, the comment says a short buffer holds part of the list, the first handles here and none by the documentation, and F-07 carries a note and "past" in its fix line.
 
 `src/telemetry/memory_census.cpp:174` to `:176`, and F-07's failure text and fix line. With 64 slots
 for 102 heaps GetProcessHeaps returns 102 and leaves the first 64 handles, so the old code left heaps
@@ -1019,8 +1028,8 @@ text.
 - severity: nit
 - found-by: verifier
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 290bfdb, 2026-09-29, the comment names HeapCompact as the call that faults, and F-04 carries a note, milliseconds in its fix line, and the hunter paragraph no longer speaks of seconds.
 
 `src/telemetry/memory_census.cpp:190` to `:193`, and F-04's failure text, its fix line and the batch 4
 hunter paragraph. HeapSummary on a destroyed heap returns FALSE with error 87 and raises nothing, and
