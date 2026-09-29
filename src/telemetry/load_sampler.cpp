@@ -235,7 +235,7 @@ uint64_t ThreadCpu(HANDLE h, uint64_t* created = nullptr)
     return (((uint64_t)k.dwHighDateTime << 32) | k.dwLowDateTime) + (((uint64_t)u.dwHighDateTime << 32) | u.dwLowDateTime);
 }
 
-void NameThread(HANDLE h, DWORD tid, char* out, size_t n)
+void NameThread(HANDLE h, char* out, size_t n)
 {
     out[0] = 0;
     if (g_getThreadDescription) {
@@ -249,7 +249,8 @@ void NameThread(HANDLE h, DWORD tid, char* out, size_t n)
             LocalFree(desc);
         }
     }
-    if (!out[0]) _snprintf_s(out, n, _TRUNCATE, "tid %lu", tid);
+    // The table prints the id beside every name, so a thread without one needs no number here.
+    if (!out[0]) strcpy_s(out, n, "(unnamed)");
 }
 
 // Pick the threads that burned the most CPU since the last refresh. During a load those
@@ -291,7 +292,7 @@ void RefreshTargets()
         if (g_targetCount < (int)(sizeof g_targets / sizeof g_targets[0]) && (c.delta > 0 || g_targetCount < 4)) {
             Target& t = g_targets[g_targetCount++];
             t.tid = c.tid; t.created = c.created; t.handle = c.h;
-            NameThread(c.h, c.tid, t.name, sizeof t.name);
+            NameThread(c.h, t.name, sizeof t.name);
         } else {
             CloseHandle(c.h);
         }
