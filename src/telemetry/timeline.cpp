@@ -86,6 +86,9 @@ static DWORD WINAPI TimelineThread(void*)
     g_frames.store(0); g_frameSumUs.store(0); g_frameMaxUs.store(0);
     g_hitch20.store(0); g_hitchCfg.store(0); g_tileBatchMax.store(0);
     double lastT = NowSec();
+    // The drained frames, kept across ticks and traded back cleared, so the buffer the present hook
+    // fills keeps the capacity it grew to rather than growing from nothing under g_frameCs every second.
+    std::vector<FrameSample> drained;
 
     // The per second tick runs even with both CSVs off: it refills the hitch log budget and
     // drives the throw log, only the sampling below is skipped.
@@ -144,16 +147,16 @@ static DWORD WINAPI TimelineThread(void*)
         if (csv != INVALID_HANDLE_VALUE && n > 0) { DWORD w; WriteFile(csv, line, (DWORD)n, &w, nullptr); }
 
         if (framesCsv == INVALID_HANDLE_VALUE) continue;
-        std::vector<FrameSample> buf;
-        EnterCriticalSection(&g_frameCs); buf.swap(g_frameBuf); LeaveCriticalSection(&g_frameCs);
-        std::string out; out.reserve(buf.size() * 24);
+        EnterCriticalSection(&g_frameCs); drained.swap(g_frameBuf); LeaveCriticalSection(&g_frameCs);
+        std::string out; out.reserve(drained.size() * 24);
         char tmp[128];
-        for (auto& fr : buf) {
+        for (auto& fr : drained) {
             int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%u,%u,%u,%.2f,%.2f\r\n",
                 fr.t, fr.ms, fr.tiles, fr.f2m, fr.gpumem, fr.uiEndFrameMs, fr.uiAdvanceMs);
             out.append(tmp, m);
         }
         if (!out.empty()) { DWORD w; WriteFile(framesCsv, out.data(), (DWORD)out.size(), &w, nullptr); }
+        drained.clear();
     }
 }
 
