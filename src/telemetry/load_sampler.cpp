@@ -40,8 +40,10 @@ struct Target {
 };
 Target g_targets[24];
 int g_targetCount = 0;
-// Every thread's CPU time at the last refresh, targets or not, so each one's delta is its own.
-std::unordered_map<DWORD, uint64_t> g_lastCpu;
+// Every thread's CPU time at the last refresh, targets or not, so each one's delta is its own. The
+// creation time tells a new thread from an exited one whose id it was given.
+struct Seen { uint64_t created, cpu; };
+std::unordered_map<DWORD, Seen> g_lastSeen;
 
 // tallies
 std::unordered_map<uint32_t, uint32_t> g_byLabel;    // label offset -> samples
@@ -214,10 +216,11 @@ int Classify(uintptr_t rip, uint32_t* label)
     return e.bucket;
 }
 
-uint64_t ThreadCpu(HANDLE h)
+uint64_t ThreadCpu(HANDLE h, uint64_t* created = nullptr)
 {
     FILETIME c, e, k, u;
     if (!GetThreadTimes(h, &c, &e, &k, &u)) return 0;
+    if (created) *created = ((uint64_t)c.dwHighDateTime << 32) | c.dwLowDateTime;
     return (((uint64_t)k.dwHighDateTime << 32) | k.dwLowDateTime) + (((uint64_t)u.dwHighDateTime << 32) | u.dwLowDateTime);
 }
 
@@ -238,7 +241,7 @@ void NameThread(HANDLE h, DWORD tid, char* out, size_t n)
 // are the resource workers, without needing to know what the engine calls them.
 void RefreshTargets()
 {
-    struct Candidate { DWORD tid; HANDLE h; uint64_t cpu, delta; };
+    struct Candidate { DWORD tid; HANDLE h; uint64_t created, cpu, delta; };
     std::vector<Candidate> found;
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) return;
@@ -249,20 +252,21 @@ void RefreshTargets()
             if (te.th32OwnerProcessID != me || te.th32ThreadID == self) continue;
             HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
             if (!h) continue;
-            uint64_t cpu = ThreadCpu(h);
+            uint64_t created = 0;
+            uint64_t cpu = ThreadCpu(h, &created);
             // Measured from the last refresh for every thread. Only the targets used to be, so every other
             // thread showed its whole lifetime as its delta and won the sort, and the set flipped between
-            // two lifetime picks. A thread new since then has lived only inside the window, so its whole
-            // time is its delta.
-            auto last = g_lastCpu.find(te.th32ThreadID);
-            uint64_t prev = last != g_lastCpu.end() ? last->second : 0;
-            found.push_back({ te.th32ThreadID, h, cpu, cpu > prev ? cpu - prev : 0 });
+            // two lifetime picks. A thread new since then, even one given the id of a thread that exited,
+            // has lived only inside the window, so its whole time is its delta.
+            auto last = g_lastSeen.find(te.th32ThreadID);
+            uint64_t prev = last != g_lastSeen.end() && last->second.created == created ? last->second.cpu : 0;
+            found.push_back({ te.th32ThreadID, h, created, cpu, cpu > prev ? cpu - prev : 0 });
         } while (Thread32Next(snap, &te));
     }
     CloseHandle(snap);
 
-    g_lastCpu.clear();
-    for (auto& c : found) g_lastCpu[c.tid] = c.cpu;
+    g_lastSeen.clear();
+    for (auto& c : found) g_lastSeen[c.tid] = { c.created, c.cpu };
 
     std::sort(found.begin(), found.end(), [](const Candidate& a, const Candidate& b) { return a.delta > b.delta; });
     for (int i = 0; i < g_targetCount; ++i) if (g_targets[i].handle) CloseHandle(g_targets[i].handle);
