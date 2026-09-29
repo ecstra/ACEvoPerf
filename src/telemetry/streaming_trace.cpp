@@ -8,6 +8,11 @@
 // around a row cannot trip it.
 static SRWLOCK g_lock = SRWLOCK_INIT;
 static std::string g_pending;
+// The rows being written, traded with g_pending at each flush and cleared after, so the buffer the rows go
+// into keeps the capacity it grew to. A fresh string each flush left the producers growing it again from
+// nothing every second, each copy made under the exclusive lock every streamer and DirectStorage hook
+// waits on. Only the flushes touch it, the timeline thread's and then the one at exit.
+static std::string g_writing;
 static HANDLE g_file = INVALID_HANDLE_VALUE;
 static std::atomic<uint64_t> g_droppedRows{0};
 // Set when the file cannot be made, which ends the trace's rows for the run. Retrying every second used to
@@ -70,12 +75,12 @@ void TraceFlush()
 {
     if (!g_cfg.streamingTrace) return;
 
-    std::string rows;
     AcquireSRWLockExclusive(&g_lock);
-    rows.swap(g_pending);
+    g_writing.swap(g_pending);
     ReleaseSRWLockExclusive(&g_lock);
 
-    WriteOut(rows);
+    WriteOut(g_writing);
+    g_writing.clear();
 }
 
 // At process exit every other thread is already gone, and one of them may have died holding the
@@ -84,12 +89,12 @@ void TraceFinalFlush()
 {
     if (!g_cfg.streamingTrace) return;
 
-    std::string rows;
     if (!TryAcquireSRWLockExclusive(&g_lock)) return;
-    rows.swap(g_pending);
+    g_writing.swap(g_pending);
     ReleaseSRWLockExclusive(&g_lock);
 
-    WriteOut(rows);
+    WriteOut(g_writing);
+    g_writing.clear();
     if (g_droppedRows.load()) Log("[trace] %llu streaming rows were dropped because the writer fell behind", (unsigned long long)g_droppedRows.load());
     if (g_file != INVALID_HANDLE_VALUE) CloseHandle(g_file);
     g_file = INVALID_HANDLE_VALUE;
