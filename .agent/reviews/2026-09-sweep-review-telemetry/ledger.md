@@ -998,6 +998,35 @@ own id beside it. 5e114af caused it.
 
 79177bc and f7a4db4 wrote them.
 
+The verifier on the census, trace and frames fixes found all six closed and raised two, tested with
+small programs on this machine's Windows. The verifier on the streamer, sampler and records was stopped
+unfinished at the owner's usage limit on 2026-09-29 and runs again before the batch 4 launch.
+
+### V-32: the heap list comment and F-07 say a list longer than the buffer fills nothing, where this Windows fills the buffer with the list's first handles
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: open
+- fix:
+
+`src/telemetry/memory_census.cpp:174` to `:176`, and F-07's failure text and fix line. With 64 slots
+for 102 heaps GetProcessHeaps returns 102 and leaves the first 64 handles, so the old code left heaps
+out rather than reading nulls, and HeapSummary(NULL) returns TRUE here where only HeapCompact(NULL)
+faults. The retry still fixes the missed heaps. 65a8b54 and 438b506 wrote the comment, 79177bc F-07's
+text.
+
+### V-33: F-04 and the StillAHeap comment treat the seconds long census as the fault window, where here only HeapCompact faults on a destroyed heap and its pass takes milliseconds
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: open
+- fix:
+
+`src/telemetry/memory_census.cpp:190` to `:193`, and F-04's failure text, its fix line and the batch 4
+hunter paragraph. HeapSummary on a destroyed heap returns FALSE with error 87 and raises nothing, and
+all 20 compaction passes in the saved census CSVs took 0.00 s. The check does no harm in the read
+passes. 79177bc, 0d1baca, fe2d3ce and 39ff642 wrote it.
+
 ## The runs
 
 Batch 1, one launch on 2026-09-29, `logs/telemetry-b1-20260929`, 10:18 to 10:19, the menu, a load into
