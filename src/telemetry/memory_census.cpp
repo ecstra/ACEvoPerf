@@ -186,9 +186,20 @@ std::vector<HANDLE> ProcessHeaps()
     }
 }
 
+// A census runs for seconds, and a heap destroyed meanwhile leaves its handle pointing at freed memory.
+// The __try survives touching it, but the game's crash logger sees the fault first, stalls the thread
+// for 120 to 210 ms and writes a crash report naming the mod (BUG-022), so each heap is looked for in
+// the list again just before it is touched.
+bool StillAHeap(HANDLE heap)
+{
+    std::vector<HANDLE> heaps = ProcessHeaps();
+    return std::find(heaps.begin(), heaps.end(), heap) != heaps.end();
+}
+
 void CompactHeaps()
 {
-    for (HANDLE heap : ProcessHeaps()) CompactHeap(heap);
+    for (HANDLE heap : ProcessHeaps())
+        if (StillAHeap(heap)) CompactHeap(heap);
 }
 
 struct HeapReading {
@@ -208,7 +219,7 @@ HeapTotals ReadHeaps()
     for (HANDLE heap : ProcessHeaps()) {
         HEAP_SUMMARY summary = {};
         summary.cb = sizeof summary;
-        if (!ReadHeap(heap, &summary)) continue;
+        if (!StillAHeap(heap) || !ReadHeap(heap, &summary)) continue;
         totals.committed += summary.cbCommitted;
         totals.inUse += summary.cbAllocated;
         if (summary.cbCommitted >= kHeapRowBytes) totals.big.push_back({ heap, summary });
