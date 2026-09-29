@@ -547,7 +547,7 @@ asymmetry with line 70 shows this is an oversight rather than a choice.
 
 The failure does not happen as filed. The timeline starts inside the game's first `DStorageGetFactory`,
 before any DirectStorage work can exist, so every counter is zero there, and the saved CSVs show the
-start up burst of about 108 submits within the first three rows with its own tile requests beside it. What
+start up burst of about 108 submits beginning within the first three rows, its own tile requests beside it. What
 stood was a baseline read for two columns and not the other two, a few milliseconds apart.
 
 ### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
@@ -633,7 +633,7 @@ Older, 50b195f.
 
 Two hunters then ran on batch 3, one on the frames and timeline fixes and one on the sampler and throw
 log fixes. They found each fix right on the paths it names, F-06 lighter than filed as recorded above,
-and no tool or doc that reads these files thrown by the change, and raised nine. H-17 is the one bug,
+and no tool that reads these files thrown by the change, the docs being H-23's, and raised nine. H-17 is the one bug,
 the hitch line still counting across a load, which 67733f5 left standing. H-18 and H-19 are the fixes'
 own comment and timing, H-20 to H-22 older labels in the sampler and the throw log, and H-23 to H-25
 records the fixes made stale or miscounted.
@@ -681,9 +681,9 @@ hunters. 6a34f99 caused it.
 - status: fixed
 - fix: d12ee4d, 2026-09-29, the table counts by thread id and prints the last name seen, so a target keeps its id again, which H-13 had removed as unread.
 
-`src/telemetry/load_sampler.cpp:440`. In `logs/telemetry-b2-20260929` t+15, "tid 6444" at 495 samples
+`src/telemetry/load_sampler.cpp:439`. In `logs/telemetry-b2-20260929` t+15, "tid 6444" at 495 samples
 and GameThread at 1214 are one thread, and every run with a per thread table shows the same unnamed row
-in its first window. 99f8a12 moved that row from ninth to fourth. Older, 50b195f.
+in its first window. 99f8a12 moved that row from ninth to fourth. Older, 1024e7e.
 
 ### H-21: the sampler's CSV and summaries counted seconds from the sampler's own start, where every other file counts from attach
 - severity: nit
@@ -692,7 +692,7 @@ in its first window. 99f8a12 moved that row from ninth to fourth. Older, 50b195f
 - status: fixed
 - fix: 64e55ad, 2026-09-29, both count from attach.
 
-`src/telemetry/load_sampler.cpp:454`. The sampler starts at the first `DStorageGetFactory`, 2.8 to 5.5 s
+`src/telemetry/load_sampler.cpp:453`. The sampler starts at the first `DStorageGetFactory`, 2.8 to 5.5 s
 after attach in the saved runs, so a row joined to the frames CSV or the trace by its time landed that far
 early, more than a third of a Red Bull Ring load. Older, 1024e7e.
 
@@ -722,7 +722,7 @@ false for a machine whose only adapter reports no dedicated memory.
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: 2026-09-29, 98 of 99 runs with the timeline on, counting the nested sessions, and the start up burst within the first three rows.
+- fix: 2026-09-29, 98 of 99 runs with the timeline on, counting the nested sessions, and the start up burst beginning within the first three rows. The first correction said within them, which the verifier found a row short, since `logs/ui-probe-a-20260914` spills the burst's last 12 submits into row four.
 
 cbfe28c wrote them.
 
@@ -734,6 +734,68 @@ cbfe28c wrote them.
 - fix: 2026-09-29, F-10 now says each row holds its own second and counts from attach.
 
 `.agent/reviews/2026-09-sweep-review-agent-dir/ledger.md:178`. cb7fccf made it stale.
+
+Two verifiers then ran on batch 3, one on the frames, timeline and throw log code and one on the
+sampler and the records. They found every finding closed but H-24, whose corrected count was still a
+row short, the zeroing and the new baselines safe against the present thread, the two new timeline
+lines true wherever they can print, and the head built from every change, and raised five. V-24 is
+the one the fixes caused in code, H-20's key merging two threads that share an id, and V-25 an older
+name buffer the same change copies. The rest are records, V-23, V-26 and V-27.
+
+### V-23: the hitch line and the telemetry doc said the count runs from the previous hitch, where after a pause it runs from the present that ended it
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 486a4b7, 2026-09-29, the line says since previous hitch or pause, and the doc says an unlogged hitch or a pause over 2 s restarts the count.
+
+`src/render/frame_stats.cpp:100` and `.agent/docs/ops/telemetry.md:45`. The first hitch after every load
+counted from a present the log never shows, while reading as if it counted from the hitch line above
+it, and 176 of the 1300 lines in `logs/ui-probe-a-20260914` count from a hitch the budget kept out of
+the log. 23cdc04 caused the pause case, and 67733f5 the unlogged hitch.
+
+### V-24: keyed by thread id alone, the per thread table put a new thread given an exited one's id into that thread's row
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 287f839, 2026-09-29, the row is keyed by the thread's id and creation time, the one the pick already reads.
+
+`src/telemetry/load_sampler.cpp:445`. The row printed under the new name with both threads' shares
+mixed, where keying by name had kept two differently named threads apart. Threads do exit during a
+load, as the unreadable samples in the load windows of `logs/telemetry-b2-20260929` show. d12ee4d caused
+it.
+
+### V-25: a thread name of 40 or more bytes was left in the buffer unterminated
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 5d4ffd6, 2026-09-29, the name is converted whole into a larger buffer and then cut to fit.
+
+`src/telemetry/load_sampler.cpp:244`. `WideCharToMultiByte` fails on a buffer too small with the buffer
+full and no terminator, so the table would print on past the name. No sampled name in a saved run is
+longer than 26 characters, and d12ee4d copies the same buffer into each row. Raised in passing by the
+verifier. Older, 1024e7e.
+
+### V-26: three details in the batch 3 hunter text did not match the ledger, the history or the file
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-29. The hunter paragraph no longer says no doc was thrown, since H-23 counts two, H-20 is dated to 1024e7e, which first keyed the table by name, and H-20 and H-21 cite `:439` and `:453`.
+
+7c3f581 wrote them.
+
+### V-27: two lines the batch 3 records rewrote were left unwrapped
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-29, both paragraphs rewrapped.
+
+The batch 2 run paragraph of this ledger, where H-19's clause went in, and
+`.agent/docs/foundation/proxy-architecture.md:142`. 7c3f581 and 4f99298 left them.
 
 ### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
 - severity: bug
@@ -819,14 +881,14 @@ effect. A clean `detached` and no `Exception Detected`.
 Batch 2, one launch on 2026-09-29, `logs/telemetry-b2-20260929`, 13:28 to 13:30, the menu, a load into
 Oulton Park and about half a minute on track, with `load_sampler=1` for this launch alone, on 5ba0a6b's
 build. The sampler used 812, 844, 781 and 719 ms of CPU in its four 15 s windows, the first including
-up to 75 ms of its own setup, H-19, where the old loop
-held a whole logical processor, about 15,000 ms, and it still took about 960 samples a second. While
-driving it held about 17 threads at a time where the old pick always held 24, the render workers,
-GameThread, Physics and its six workers and the audio mixer among them, and the parked D3D Background
-Threads the old pick kept in full slots no longer held one. In the load window Resource Manager Worker
-4 printed at 49.2 percent game code and 37.7 percent in the job queue spin. Every ntdll label was an Nt
-name, `NtDelayExecution` and `NtWaitForWorkViaWorkerFactory` among them. No timer failure line, a clean
-`detached` and no `Exception Detected`. H-12's reused id cannot show in a run.
+up to 75 ms of its own setup, H-19, where the old loop held a whole logical processor, about 15,000 ms,
+and it still took about 960 samples a second. While driving it held about 17 threads at a time where
+the old pick always held 24, the render workers, GameThread, Physics and its six workers and the audio
+mixer among them, and the parked D3D Background Threads the old pick kept in full slots no longer held
+one. In the load window Resource Manager Worker 4 printed at 49.2 percent game code and 37.7 percent in
+the job queue spin. Every ntdll label was an Nt name, `NtDelayExecution` and
+`NtWaitForWorkViaWorkerFactory` among them. No timer failure line, a clean `detached` and no
+`Exception Detected`. H-12's reused id cannot show in a run.
 
 ## Checked and clean
 
