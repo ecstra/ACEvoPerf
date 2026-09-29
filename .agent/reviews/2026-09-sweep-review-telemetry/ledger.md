@@ -859,7 +859,8 @@ bogus crash reports in the player's game log.
 
 The window was smaller than filed, V-33. On this Windows HeapSummary on a destroyed heap returns FALSE
 and raises nothing, so the two long read passes never faulted on one. Only HeapCompact does, and its
-pass takes its own list and ran in 0.00 s in all 20 saved census CSVs, so the window was milliseconds.
+pass takes its own list and ran in 0.00 s in all 20 compaction passes in the saved census CSVs, so the
+window was milliseconds.
 
 ### F-07: GetProcessHeaps is called twice with sixteen slots of slack, and overflowing that reads every slot as a null heap handle
 - severity: debt
@@ -910,7 +911,7 @@ megabytes would take minutes without a flush.
 - fix: 7645d8d, 2026-09-29, the kick row checks `TraceOn()` before its arguments are read, as the other streamer rows already did.
 
 `src/telemetry/streaming_trace.cpp:25`. `TraceRow` is variadic and tests the flag as its first statement,
-so at `streamer.cpp:521` every streamer kick still evaluates eight raw offset reads into the engine's
+so at `streamer.cpp:521` every streamer kick still evaluates seven raw offset reads into the engine's
 streamer and kick structs plus `GateSpace(frame)` before calling a function that discards them. The cost
 is small, and those are raw offset reads into engine memory on a code path that is supposed to be
 entirely off, which is the fault surface BUG-022 came from. The other call sites guard properly with
@@ -937,10 +938,10 @@ id beside the name would. d12ee4d and 287f839 brought the rows apart.
 Two hunters then ran on batch 4, one on the census and one on the trace, the streamer guard and the
 sampler's id column. They found every fix right on the paths it names, the heap check leaving
 microseconds on the heaps that can be destroyed while the process heap, the one that takes seconds,
-cannot be, no row written twice or lost that was not lost before, and no census run
-on disk with a crash report, and raised six. H-28 and H-29 are F-10's and F-08's shapes elsewhere, the
-streamer's want and drop events and the frames buffer. H-30 is the id column's own, and H-26, H-27 and
-H-31 are comments and records.
+cannot be, no row written twice or lost that was not lost before, and no census run on disk with a
+crash report, and raised six. H-28 and H-29 are F-10's and F-08's shapes elsewhere, the streamer's want
+and drop events and the frames buffer. H-30 is the id column's own, and H-26, H-27 and H-31 are
+comments and records.
 
 ### H-26: the comment above the census's heap calls said a fault on a heap only skips it
 - severity: nit
@@ -973,7 +974,7 @@ both written before BUG-022 was known.
 
 `src/engine/streamer.cpp:595` and `:639`, F-10's shape at two more sites, whose trace calls were guarded
 while the reads that fill them were not. Both run in every default session, and in
-`logs/ai30-A-fix-on` 92 percent of want rows are no reload, 120 to 180 a second, and 7,698 of 8,257
+`logs/ai30-A-fix-on` 92 percent of want rows are no reload, about 185 a second, and 7,698 of 8,257
 drops are not refused. The memory is what the engine's own getters read in the same kick, so this was
 work and no added fault. Older, 6ff06bb and 9912329.
 
@@ -1029,12 +1030,36 @@ text.
 - found-by: verifier
 - batch: 4
 - status: fixed
-- fix: 290bfdb, 2026-09-29, the comment names HeapCompact as the call that faults, and F-04 carries a note, milliseconds in its fix line, and the hunter paragraph no longer speaks of seconds.
+- fix: 290bfdb, 2026-09-29, the comment names HeapCompact as the call that faults, and F-04 carries a note, milliseconds in its fix line, and the hunter paragraph no longer gives seconds as the window.
 
 `src/telemetry/memory_census.cpp:190` to `:193`, and F-04's failure text, its fix line and the batch 4
 hunter paragraph. HeapSummary on a destroyed heap returns FALSE with error 87 and raises nothing, and
 all 20 compaction passes in the saved census CSVs took 0.00 s. The check does no harm in the read
 passes. 79177bc, 0d1baca, fe2d3ce and 39ff642 wrote it.
+
+The verifier on the streamer, sampler and records then ran again, with V-32's and V-33's fixes added.
+It found all seven closed, every streamer decision the same as before 6a41e3f and 7645d8d on every
+path in the source and the object code, and no read that can now fault where it did not, and raised
+two, both records. The loop stopped there, with only record precision left.
+
+### V-34: four details the batch 4 records wrote did not match the runs or the text they describe
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-29. F-04's note counts 20 compaction passes rather than 20 CSVs, H-28 gives ai30's want rate as about 185 a second, V-33's fix line says seconds are gone as the window, and the batch 4 hunter paragraph is rewrapped.
+
+There are four saved census CSVs, and the 20 are compaction passes in three of them. ad267fe wrote three
+of them and fe2d3ce the rate.
+
+### V-35: two older numbers in this ledger were off
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-29, F-10's kick row made seven raw offset reads plus GateSpace's two, and the batch 3 run's boosted workers ran 69 to 85 percent game code, Resource Manager Worker 10 at 68.8.
+
+79177bc and f7a4db4 wrote them.
 
 ## The runs
 
@@ -1073,7 +1098,7 @@ used to land, and the timeline's first row carries the start up burst of 107 sub
 tile requests. The timeline found the RTX 3060. The sampler's rows hold about a thousand samples each
 with no sawtooth, its t_s and the timeline's read 4.7 on the same second, and its summaries count t+
 from attach. Its tables print GameThread once, the unnamed rows being threads that never take a name,
-and in the load window seven workers the boost brings up, at 77 to 85 percent game code and 50 to 62
+and in the load window seven workers the boost brings up, at 69 to 85 percent game code and 50 to 62
 percent in the job queue spin, while the parked D3D Background Threads take no row. The sampler used
 547 to 953 ms of CPU a window. This load never paused over 2 s, its longest frame 1943.5 ms, so H-17
 could not show, and with the throw log off neither could H-16 and H-22. A clean `detached` and no
