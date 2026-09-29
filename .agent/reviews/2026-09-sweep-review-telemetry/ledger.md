@@ -19,9 +19,10 @@ them ship disabled. The teardown findings in load_sampler.cpp and timeline.cpp b
 
 Two of these matter beyond the diagnostic itself. The census leaves process wide import hooks installed
 when it cannot open its output file, which costs every VirtualAlloc commit in the game for the rest of
-the session and produces nothing. And the load sampler's thread picking is wrong after its first refresh,
-which means the per thread numbers the project has been reading were measuring lifetime CPU rather than
-what was hot during the load.
+the session and produces nothing. And the load sampler's thread picking is wrong after its first refresh.
+It held threads by their lifetime CPU rather than by what was hot during the load, so the numbers for each
+thread are sound for the stretches it was held, while which threads and stretches the project has been
+reading came from the wrong pick.
 
 Ten findings, one breaks, five bug, three debt, one nit. F-11 was added on 2026-09-20 by the verifier
 of `sweep/review-render`, which met the same shape in the render layer's adapter pick, and F-12 the
@@ -246,7 +247,7 @@ F-10. The claim originally made here that the key is not in the shipped ini is w
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: 5003665, 2026-09-29, a wait too short to sleep calls `SwitchToThread`, which hands the core to any thread ready on it whatever its priority, and the comment says so.
+- fix: 6a34f99, 2026-09-29, the wait blocks on a high resolution timer for its whole length. 5003665 had first swapped the spin's `YieldProcessor` for `SwitchToThread`, which returns at once when nothing else is queued on the processor, so the loop still spun, H-07.
 
 `src/telemetry/load_sampler.cpp:365`. The comment above it says "Sleep the wait away rather than
 spinning it. A spin here would hold a whole core at the highest priority and take it from the very
@@ -261,6 +262,155 @@ says it avoids, so either the comment or the threshold is wrong.
 
 Raised by the hunter on batch 2 of `sweep/review-proxy-core`, recorded here because the file belongs
 to this angle.
+
+Two hunters then ran on batch 2, one on each fix. They found the new pick right on every path, every
+handle it opens kept or closed, nothing allocated while a thread is held suspended, and the sampling
+itself unchanged, and raised twelve. The wait fix had not closed F-12, H-07 and H-08. The sampler had
+been leaving a sleep or a lock to the sort order since it was written, H-05. The pick fix let a reused
+thread id inherit a baseline and left a field unread, H-12 and H-13. H-10 and H-11 corrected comments,
+and H-09, H-14 and H-15 corrected a todo and two research docs that leaned on the old pick or misread its
+runs. H-06 and H-16 found F-06's shape in the frames CSV, the hitch line and the throw log, and join
+batch 3.
+
+### H-05: ntdll's Nt and Zw names for one system call share an address, and the sort chose which one a sample found, so a sleep or a lock could land in the wrong bucket
+- severity: bug
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 09c7daf, 2026-09-29, a Zw name is read as its Nt twin before it is bucketed and labelled, so both twins file the same way whatever the sort does. All 489 Zw exports in this machine's ntdll have an Nt twin at the same address.
+
+`src/telemetry/load_sampler.cpp:137` stored every name, `:179` sorted by address alone, and the bucket
+patterns at `:82` to `:87` knew only the Nt names. `NtDelayExecution`, `NtRemoveIoCompletion` and
+`NtYieldExecution` were wait under the Nt name and system under Zw, `NtAlertThreadByThreadId` lock or
+system, and `NtWaitForAlertByThreadId` lock or wait. The saved runs went both ways.
+`logs/loadsampler-20260912-1128` printed `ntdll!ZwDelayExecution`, so every sample of a sleeping thread
+went to system and ranked that thread as busy in the per thread table, and `logs/telemetry-b1b-20260929`
+printed `ntdll!NtDelayExecution` beside `ntdll!ZwRemoveIoCompletion`. Older than the batch, 1024e7e and
+50b195f.
+
+### H-06: the frames CSV and the hitch line count requests from a snapshot only a recorded frame or a logged hitch moves, so the first row and the first hitch carry everything since attach
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: open
+- fix:
+
+`src/render/frame_stats.cpp:94` to `:99`, with the returns at `:67` and `:70` skipping it, and the hitch
+snapshot at `:79` to `:84`. Row one of a frames CSV carries about 9,000 file to memory requests on one
+frame where the median is 0, and a frame recorded after more than 2 s without one carries that stretch,
+31,702 on a 1344 ms frame in `logs/lap10-sampler-20260905-2219`. The first `[hitch]` line of a session
+reports about 8,900. F-06's shape in the render layer's file, taken here since that angle has merged.
+Older, de460b9, 57b43fb and 5ef8d7d.
+
+### H-07: 5003665 left the sampler's wait spinning whenever nothing else is queued on its processor, which is nearly every wait, so F-12's failure stood
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 6a34f99, 2026-09-29, the wait blocks on a high resolution timer for its whole length, and each summary gives the sampler's own CPU time in the window so a run shows the difference.
+
+`src/telemetry/load_sampler.cpp:376` to `:382`. `SwitchToThread` hands the processor over only when a
+thread is already queued on it and otherwise returns at once, and the loop went straight back to
+`QueryPerformanceCounter`. The game keeps about 4 of 16 logical processors busy, so a thread that becomes
+ready goes to an idle one, and the sampler still held a logical processor at priority 12 for the whole
+session, now with a system call each turn where the old `pause` at least left the core's other half its
+share. 5003665 caused it by leaving the spin in place.
+
+### H-08: a wait with 1501 to 1999 microseconds left called Sleep(0), which neither sleeps nor gives way to a worker below the sampler's priority
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 6a34f99, 2026-09-29, the Sleep went with the spin.
+
+`src/telemetry/load_sampler.cpp:380`, where `(DWORD)(leftUs / 1000) - 1` is 0 across that band. Older,
+1024e7e.
+
+### H-09: TODO-013's per worker numbers came from the old pick, and two of its conclusions did not hold
+- severity: debt
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: e16dd93, 2026-09-29, the todo says which threads the old sampler held, takes its worker numbers from the job lock run whose load window held all eleven, and drops the workers sampled row. It also stops counting the spin as real work, a slip in the same sentence.
+
+`.agent/todos/TODO-013-faster-session-loads.md:117`, `:156` to `:175` and `:244`. Workers 0 and 1 were
+held through a window that opens seven seconds before the load starts, so their low shares mixed the
+menu with the load, and in `logs/joblock-A-off-1446` they look like the other nine. So the 10 percent end
+of "between 10 and 27 percent" and "16 percent on the ones that are mostly waiting their turn" did not
+hold, and 11 against 10 workers sampled was the printed top sixteen rather than the sampling. Older,
+08dfb56 and de8b7c4.
+
+### H-10: the new comment and the ledger's fix line said the spin was gone
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 6a34f99 and this ledger's update, 2026-09-29, the comment says the wait blocks on a timer and why the two waits before it spun, and F-12's fix line names both commits.
+
+5003665 and 88b18c2 wrote them.
+
+### H-11: the sampler's header said it reads a few thousand times a second, where the default reads about one thousand
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: a836997, 2026-09-29.
+
+`include/acevo/telemetry/load_sampler.h:10`. Raised by both hunters. Older, 1024e7e.
+
+### H-12: a new thread given the id of a thread that exited inherited that thread's CPU time as its baseline
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 5293dcc, 2026-09-29, the creation time is kept beside the CPU time, and a thread whose creation time changed is measured from zero.
+
+`src/telemetry/load_sampler.cpp:249` to `:257`. The sampler now closes its handle to every thread that is
+not a target, so an id can be reused inside the window, and the new thread read as idle for one refresh,
+against the comment. fd38f95 caused it, since before it the open handles to the targets kept their ids
+reserved.
+
+### H-13: Target::tid was written and never read
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: de750d4, 2026-09-29.
+
+`src/telemetry/load_sampler.cpp:37` and `:265`. fd38f95 removed its only reader.
+
+### H-14: two research docs said the old sampler's numbers covered every thread
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: a642c6d, 2026-09-29, both say the samples covered the two dozen threads the sampler held, and the optimisation deep dive's 107 windows are no longer all loads.
+
+`.agent/docs/research/ui-lag-deepdive-2026-09-14.md:42` and `:223`, and
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:381` and `:384`. Older, 0a207a6 and ae5ba22.
+
+### H-15: the optimisation deep dive called 0x006AB180 the hottest game address in every load and the clock pair second and third in every load window
+- severity: nit
+- found-by: hunter
+- batch: 2
+- status: fixed
+- fix: 9285b2b, 2026-09-29, both rankings are the whole runs' totals, 0x006AB180 leads 84 of the 107 windows, and in all five track load windows the job queue spin leads.
+
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:422` and `:462`. In
+`logs/loadsampler-20260912-1055` the spin at 0x0279FAC0 leads each track load with 695, 342 and 734
+samples against 238, 77 and 193, and the clock pair is fifth or lower. Seen in passing by the hunter.
+
+### H-16: the throw log's first report counts everything since attach and calls it ten seconds
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: open
+- fix:
+
+`src/engine/exceptions.cpp:147` to `:150`. The counts start at attach, and the ten ticks come from the
+timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
+`logs/clean-laps-20260916`. No session on disk has logged a throw. F-06's shape in the engine angle's
+file, taken here since that angle has merged. Older, 3c87596.
 
 ### F-06: the first timeline row reports process lifetime totals as one second of activity
 - severity: bug
