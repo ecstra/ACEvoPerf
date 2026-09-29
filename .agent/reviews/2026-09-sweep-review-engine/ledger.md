@@ -37,6 +37,10 @@ the vtable at the object's start, which the hunter showed could recurse until th
 added three from its hunter and four from its verifier, one left as a written limit of a developer
 switch.
 
+Batch 4 closed with F-05 fixed, the streamer on the shared helpers, and F-06 settled by one launch, the
+field a count of 131072, the length of the arrays it bounds, so nothing needed changing. One agent ran
+as its hunter and verifier and raised four, all in the wording.
+
 ## Batches
 
 | batch | theme | status | owner ack |
@@ -44,7 +48,7 @@ switch.
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | closed, runtime confirmed | 2026-09-24 |
 | 3 | the throw log cannot eat the game's own exception | closed, launch clean, the call not known to have run | 2026-09-25 |
-| 4 | the leftovers | fixing | 2026-09-29 |
+| 4 | the leftovers | closed, runtime confirmed | 2026-09-29 |
 
 ## Findings
 
@@ -199,12 +203,12 @@ beside a known good value once per build would catch it.
 - found-by: review
 - batch: 4
 - status: fixed
-- fix: 20e1e6d, 2026-09-29, the copies are gone and streamer.cpp includes `acevo/core/code_patch.h`, whose note about why it did not is gone with them. Batch 4's run hooked the streamer, so its region hashes matched through the shared `Fnv1a64` and its stubs landed in memory the shared `AllocNear` found.
+- fix: 20e1e6d, 2026-09-29, the copies are gone and streamer.cpp includes `acevo/core/code_patch.h`, and the note in streamer.cpp about why it did not is gone with them. Batch 4's run hooked the streamer, so its region hashes matched through the shared `Fnv1a64` and its stubs landed in memory the shared `AllocNear` found.
 
 `src/engine/streamer.cpp:283` and `:753` define static copies of `Fnv1a64` and `AllocNear`, identical
-to the non static definitions at `src/core/code_patch.cpp:3` and `:14` apart from one word in a
-comment. streamer.cpp does not include `acevo/core/code_patch.h` at all, so it never sees the header it
-is duplicating.
+to the non static definitions at `src/core/code_patch.cpp:3` and `:14` apart from two comments, a
+clause in `AllocNear`'s heading and one word in its reach comment, V-30. streamer.cpp does not include
+`acevo/core/code_patch.h` at all, so it never sees the header it is duplicating.
 
 ### F-06: kIds is read as a count while its neighbours are read as pointers at the same spacing
 - severity: nit
@@ -525,6 +529,42 @@ released A.
 - batch: 3
 - status: fixed
 - fix: 2026-09-25.
+
+Batch 4 being a helper cleanup and a one line reading, one agent ran as its hunter and its verifier
+together. It found F-05 and F-06 closed correctly, the shared functions the same as the copies down to
+the object code and the only definitions the linker sees, the field's upper half the UTF-16 bytes of
+"ac", padding before the pointer at +0x18, which the 32 bit read rightly ignores, and 80f8cd8 leaving
+nothing of the temporary line, and raised the four below.
+
+### V-28: the kIds note claimed the length of every array below, where two were measured
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: dab04ab, 2026-09-29, the mips and ages arrays.
+
+### V-29: the reviews index did not move when batch 4 began
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-29, with the batch's close.
+
+V-03's and V-19's slip again.
+
+### V-30: F-05's body had the copies differ by one word, where two comments differed
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-29.
+
+### V-31: F-05's fix line put the removed note in the header, where it was in streamer.cpp
+- severity: nit
+- found-by: verifier
+- batch: 4
+- status: fixed
+- fix: 2026-09-29.
 
 ## The runs
 

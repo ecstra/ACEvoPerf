@@ -2,7 +2,7 @@
 name: reviews-index
 kind: doc
 description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, six of them done
-updated: 2026-09-25
+updated: 2026-09-29
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
 
@@ -24,8 +24,9 @@ conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-
 
 151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Six angles are done as of 2026-09-24, the Cohtml
 build guard, the render layer, the proxy and core, the package override layer, the session leak fix
-and the teardown path, and the seven below them are open with every batch still to come pending the
-owner's word.
+and the teardown path, and the seven below them are open. The engine hooks have closed all four of
+their batches and wait on the owner's word to merge, and every batch of the six after them waits on
+the owner's word.
 
 Those six added 242 findings of their own, from the hunter and verifier sub agents that run on
 every batch. Every one of the twenty two batches so far needed at least one correction after its
@@ -110,8 +111,9 @@ ledger.
 ## Active
 
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
-  three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings, plus 7 from
-  batch 1's hunter and verifier, 22 from batch 2's and 7 from batch 3's, batches 1 to 3 closed
+  three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings, plus 40 from
+  the hunters and verifiers, 7 of them batch 1's, 22 batch 2's, 7 batch 3's and 4 batch 4's. All four
+  batches closed, waiting on the owner's word to merge
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
   the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
   from other angles' sub agents, 1 breaks
