@@ -80,15 +80,14 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
         sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
         for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
     }
-    // The hitch line counts from the chain's first present, and from every hitch after it, logged or
-    // not, so "since previous hitch" means the one before it.
-    if (!last) {
+    // Neither the chain's first present nor one after a pause over 2 s, an alt-tab or a loading screen,
+    // is a frame. The hitch line starts counting again at either, so the first hitch after a load does
+    // not carry the whole load.
+    double ms = last ? (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart : 0.0;
+    if (!last || ms > 2000.0) {
         for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
         return;
     }
-
-    double ms = (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart;
-    if (ms > 2000.0) return;                     // alt-tab or loading screen pause, not a frame
     uint64_t us = (uint64_t)(ms * 1000.0);
     g_frames++; g_frameSumUs += us;
     uint64_t prev = g_frameMaxUs.load();
@@ -101,6 +100,7 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
             Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
                 ms, NowSec(), (unsigned long long)(req[4] - g_hitchSnap[4]), (unsigned long long)(req[0] - g_hitchSnap[0]),
                 (unsigned long long)(req[1] + req[2] - g_hitchSnap[1] - g_hitchSnap[2]));
+        // Moved by every hitch, logged or not, so "since previous hitch" means the one before it.
         for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
     }
 
