@@ -39,7 +39,7 @@ harmless race on a developer switch, and two launches with the files held confir
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
-| 2 | the load sampler measures what it claims to measure | pending | |
+| 2 | the load sampler measures what it claims to measure | fixing | 2026-09-29 |
 | 3 | the CSVs mean what their headers say | pending | |
 | 4 | the leftovers | pending | |
 
@@ -179,8 +179,8 @@ c307b87 wrote it.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: fd38f95, 2026-09-29, every thread's CPU time is kept at each refresh, targets or not, so each delta is measured from the last look and a thread new since then counts its whole time. The first refresh still picks by lifetime, having nothing to measure from.
 
 `src/telemetry/load_sampler.cpp:246`. The lookup only finds the previous value in the current 24
 targets, so every other thread in the process gets a previous of 0 and a delta equal to its total CPU
@@ -245,8 +245,8 @@ F-10. The claim originally made here that the key is not in the shipped ini is w
 - severity: debt
 - found-by: hunter
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 5003665, 2026-09-29, a wait too short to sleep calls `SwitchToThread`, which hands the core to any thread ready on it whatever its priority, and the comment says so.
 
 `src/telemetry/load_sampler.cpp:365`. The comment above it says "Sleep the wait away rather than
 spinning it. A spin here would hold a whole core at the highest priority and take it from the very
