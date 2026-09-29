@@ -172,7 +172,7 @@ The same threads thirty seconds later, sitting in the pits:
 | Resource Manager Worker 0 | 1.7% | 0.8% | 97.8% |
 | Resource Manager Worker 1 | 1.9% | 0.6% | 97.3% |
 
-Those rows come from two windows and the old pick. Workers 0 and 1 were held through the whole of
+The streaming rows come from two windows and the old pick. Workers 0 and 1 were held through the whole of
 a window that opens seven seconds before the load starts, so their rows mix the menu with the
 load, and workers 3, 6 and 7 were held for only part of theirs. The job lock run further down held
 all eleven workers through its load window, and there workers 0 and 1 look like the rest, spinning
