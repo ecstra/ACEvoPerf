@@ -889,6 +889,10 @@ Failure: at a few MB a second of rows the producers rebuild the buffer from scra
 behind it. If the writer falls behind, which a memory census freezing the timeline thread does, the
 buffer walks toward its ceiling and the last doubling copies tens of megabytes under that lock.
 
+The rate was overstated about tenfold, H-31. The saved traces run 6 to 27 KB a second on average and
+153 to 276 KB in their busiest second, so the regrowth copied a few hundred KB a second, and tens of
+megabytes would take minutes without a flush.
+
 ### F-10: the enabled check lives inside TraceRow, so callers still evaluate their arguments when the trace is off
 - severity: nit
 - found-by: review
@@ -916,10 +920,83 @@ Batch 3's run raised one more, read from its log when the launch was checked.
 loading boost goes on or off, keeping their names, and during a load it runs a second Resource Manager
 Worker 0 beside the first. Keyed by id and creation time, each thread now has its own row, which is
 right, and the old name key had merged a boosted worker into a resting one. But in the first window of
-`logs/telemetry-b3-20260929` Render Workers 0 to 4 and Resource Manager Workers 0 and 1 print twice
-each, and its load window prints two Resource Manager Worker 0 rows, 794 samples at 46 percent wait and
-48 at 54 percent in the job queue spin, with nothing to say which is which. Printing the thread id
-beside the name would. d12ee4d and 287f839 brought the rows apart.
+`logs/telemetry-b3-20260929` Render Workers 0, 1, 3 and 4 and Resource Manager Workers 0 and 1 print
+twice each, and its load window prints two Resource Manager Worker 0 rows, 794 samples at 46 percent
+wait and 48 at 54 percent in the job queue spin, with nothing to say which is which. Printing the thread
+id beside the name would. d12ee4d and 287f839 brought the rows apart.
+
+Two hunters then ran on batch 4, one on the census and one on the trace, the streamer guard and the
+sampler's id column. They found every fix right on the paths it names, the heap check leaving
+microseconds where there were seconds on the small heaps while the process heap, the one that takes
+seconds, cannot be destroyed, no row written twice or lost that was not lost before, and no census run
+on disk with a crash report, and raised six. H-28 and H-29 are F-10's and F-08's shapes elsewhere, the
+streamer's want and drop events and the frames buffer. H-30 is the id column's own, and H-26, H-27 and
+H-31 are comments and records.
+
+### H-26: the comment above the census's heap calls said a fault on a heap only skips it
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 438b506, 2026-09-29, it says the __try keeps the census going but a fault still stalls the thread and writes the crash report, and that touching an unserialised heap in use is a risk the census still takes. The heap list comment now says the buffer grows past the count, as the code does.
+
+`src/telemetry/memory_census.cpp:154`, against the comment 39ff642 put on StillAHeap, which says every
+such fault stalls the thread and writes a crash report naming the mod. Older, 251667c and 0770d67,
+both written before BUG-022 was known.
+
+### H-27: the census header said the tick writes its CSV every stats interval, where it writes only when a census runs
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: c8570c2, 2026-09-29.
+
+`include/acevo/telemetry/memory_census.h:11`. Nothing in the census reads `stats_interval_s`, and
+`logs/sessionfix-rbr-20260916/acevo_perf_memory.csv` has rows at 23.7, 233.5, 361.6 and 485.0 s. Older,
+251667c, left standing when 0770d67 moved the census to the settled trigger.
+
+### H-28: the streamer's want and drop events read the engine for columns only the trace uses
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 6a41e3f, 2026-09-29, a want reads its feedback only for a reload, which the flip test needs, or for the trace, and a drop sums its tiles only for a refusal or the trace. Every decision is unchanged, since a flip needs a reload and the tiles feed only the refused tally and the row.
+
+`src/engine/streamer.cpp:595` and `:639`, F-10's shape at two more sites, whose trace calls were guarded
+while the reads that fill them were not. Both run in every default session, and in
+`logs/ai30-A-fix-on` 92 percent of want rows are no reload, 120 to 180 a second, and 7,698 of 8,257
+drops are not refused. The memory is what the engine's own getters read in the same kick, so this was
+work and no added fault. Older, 6ff06bb and 9912329.
+
+### H-29: the frames buffer was thrown away every second, so the present hook regrew it under g_frameCs
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 5308536, 2026-09-29, the timeline keeps the drained buffer across ticks and trades it back cleared.
+
+`src/telemetry/timeline.cpp:147`, growing at `src/render/frame_stats.cpp:111`. F-08's shape on the
+presenting thread, about a dozen allocations and copies a second under the lock at 60 to 144 fps, with
+`frames=1` only. Older, 57b43fb and de460b9.
+
+### H-30: an unnamed thread's row printed its id twice
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: fdfae6a, 2026-09-29, a thread with no name reads (unnamed), and the id stays in its own column.
+
+`src/telemetry/load_sampler.cpp:252`. NameThread fell back to the name "tid N", and the row now adds its
+own id beside it. 5e114af caused it.
+
+### H-31: F-08 overstated the trace's rate about tenfold, and V-31 had Render Worker 2 printing twice
+- severity: nit
+- found-by: hunter
+- batch: 4
+- status: fixed
+- fix: 2026-09-29, a note under F-08 and V-31's list of workers.
+
+79177bc and f7a4db4 wrote them.
 
 ## The runs
 
