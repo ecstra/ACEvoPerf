@@ -85,7 +85,7 @@ int BucketForName(const char* name)
         || strstr(name, "NtAlertThreadByThreadId")) return kLock;
     if (strstr(name, "NtWaitFor") || strstr(name, "NtDelayExecution") || strstr(name, "NtRemoveIoCompletion")
         || strstr(name, "WaitFor") || strstr(name, "SleepConditionVariable") || strstr(name, "SleepEx") || strstr(name, "NtSignalAndWait")
-        || strstr(name, "ZwWaitForWorkViaWorkerFactory") || strstr(name, "NtYieldExecution")) return kWait;
+        || strstr(name, "NtYieldExecution")) return kWait;
     if (strstr(name, "Heap") || strstr(name, "malloc") || strstr(name, "free") || strstr(name, "calloc") || strstr(name, "realloc")
         || strstr(name, "operator new") || strstr(name, "operator delete")) return kHeap;
     if (strstr(name, "memcpy") || strstr(name, "memmove") || strstr(name, "memset") || strstr(name, "memcmp") || strstr(name, "RtlCopyMemory")
@@ -129,11 +129,18 @@ void CollectExports(HMODULE mod, const char* file)
     char module[64];
     strncpy_s(module, file, _TRUNCATE);
     if (char* dot = strrchr(module, '.')) *dot = 0;
-    char label[256];
+    char label[256], twin[128];
     for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
         DWORD rva = functions[ordinals[i]];
         if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size) continue;
         const char* name = (const char*)(base + names[i]);
+        // ntdll exports every system call twice, NtX and ZwX at one address, and the sort by address
+        // leaves to chance which twin a sample finds. The buckets know the Nt names, so a Zw name is
+        // read as its Nt twin and neither the bucket nor the label depends on the sort.
+        if (name[0] == 'Z' && name[1] == 'w') {
+            _snprintf_s(twin, sizeof twin, _TRUNCATE, "Nt%s", name + 2);
+            name = twin;
+        }
         _snprintf_s(label, sizeof label, _TRUNCATE, "%s!%s", module, name);
         g_exports.push_back({ (uintptr_t)(base + rva), BucketForName(name), AddLabel(label) });
     }
