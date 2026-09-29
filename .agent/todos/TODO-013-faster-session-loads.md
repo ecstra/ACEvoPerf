@@ -256,11 +256,11 @@ Two Nürburgring loads back to back on the same build, the only difference being
 | blocked in a real lock | 40.3% | 34.9% |
 
 The patch worked exactly as designed, and the design was wrong. `rva 0x0279FAC0` was the single
-hottest bucket in the run with the fix off, 8.3% of every sample taken, and with the fix on it
-leaves the exe entirely. Time in the wait loop then went **up** by 4.7 points, which on roughly
-4800 samples is about five sigma, so it is a real difference and not run to run noise. The load
-time moved 0.4 s the wrong way, which is inside the spread already seen today (15.69, 16.10 and
-16.66 s for the same track).
+hottest bucket in the run with the fix off, 8.3% of the samples in its load window, and with the
+fix on it leaves the exe entirely. Time in the wait loop then went **up** by 4.7 points, which on
+roughly 4800 samples is about five sigma, so it is a real difference and not run to run noise. The
+load time moved 0.4 s the wrong way, which is inside the spread already seen today (15.69, 16.10
+and 16.66 s for the same track).
 
 Why reading first loses here. With the bare exchange a waiter grabs the lock the instant it is
 free, one round trip. Reading first costs two, a read to notice the release and then the exchange,
