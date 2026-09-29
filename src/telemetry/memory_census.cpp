@@ -356,7 +356,7 @@ void InstallMemoryCensus()
     std::wstring path = g_dir + L"acevo_perf_memory.csv";
     g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (g_csv == INVALID_HANDLE_VALUE) {
-        Log("[memory] could not create acevo_perf_memory.csv, no census");
+        Log("[memory] could not create acevo_perf_memory.csv (error %lu), no census", GetLastError());
         return;
     }
 
