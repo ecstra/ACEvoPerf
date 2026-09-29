@@ -246,7 +246,7 @@ constexpr ptrdiff_t kRejected = 0x160;
 
 namespace feedback {
 constexpr ptrdiff_t kAgeLimit = 0x0;
-constexpr ptrdiff_t kIds = 0x10;          // a uint32 count, 131072 on 0.9.1, the length of the arrays below
+constexpr ptrdiff_t kIds = 0x10;          // a uint32 count, 131072 on 0.9.1, the length of the mips and ages arrays
 constexpr ptrdiff_t kMips = 0x40;
 constexpr ptrdiff_t kCounts = 0x58;
 constexpr ptrdiff_t kAges = 0x70;
