@@ -187,10 +187,10 @@ std::vector<HANDLE> ProcessHeaps()
     }
 }
 
-// A census runs for seconds, and a heap destroyed meanwhile leaves its handle pointing at freed memory.
-// The __try survives touching it, but the game's crash logger sees the fault first, stalls the thread
-// for 120 to 210 ms and writes a crash report naming the mod (BUG-022), so each heap is looked for in
-// the list again just before it is touched.
+// A heap destroyed while the census runs leaves its handle pointing at freed memory. HeapSummary then
+// fails cleanly on this Windows, but HeapCompact faults, and though the __try survives it the game's
+// crash logger sees the fault first, stalls the thread for 120 to 210 ms and writes a crash report
+// naming the mod (BUG-022). So each heap is looked for in the list again just before it is touched.
 bool StillAHeap(HANDLE heap)
 {
     std::vector<HANDLE> heaps = ProcessHeaps();
