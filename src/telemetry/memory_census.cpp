@@ -170,11 +170,25 @@ void CompactHeap(HANDLE heap)
     }
 }
 
+// Every heap in the process as the list stands now. A list longer than the buffer fills nothing and
+// returns its length, which read as it stood made every slot a null handle, so the buffer grows to that
+// length and the call goes again.
+std::vector<HANDLE> ProcessHeaps()
+{
+    std::vector<HANDLE> heaps(64);
+    for (;;) {
+        DWORD count = GetProcessHeaps((DWORD)heaps.size(), heaps.data());
+        if (count <= heaps.size()) {
+            heaps.resize(count);
+            return heaps;
+        }
+        heaps.resize(count + 16);
+    }
+}
+
 void CompactHeaps()
 {
-    std::vector<HANDLE> heaps(GetProcessHeaps(0, nullptr) + 16);
-    DWORD count = std::min<DWORD>(GetProcessHeaps((DWORD)heaps.size(), heaps.data()), (DWORD)heaps.size());
-    for (DWORD i = 0; i < count; ++i) CompactHeap(heaps[i]);
+    for (HANDLE heap : ProcessHeaps()) CompactHeap(heap);
 }
 
 struct HeapReading {
@@ -191,15 +205,13 @@ struct HeapTotals {
 HeapTotals ReadHeaps()
 {
     HeapTotals totals;
-    std::vector<HANDLE> heaps(GetProcessHeaps(0, nullptr) + 16);
-    DWORD count = std::min<DWORD>(GetProcessHeaps((DWORD)heaps.size(), heaps.data()), (DWORD)heaps.size());
-    for (DWORD i = 0; i < count; ++i) {
+    for (HANDLE heap : ProcessHeaps()) {
         HEAP_SUMMARY summary = {};
         summary.cb = sizeof summary;
-        if (!ReadHeap(heaps[i], &summary)) continue;
+        if (!ReadHeap(heap, &summary)) continue;
         totals.committed += summary.cbCommitted;
         totals.inUse += summary.cbAllocated;
-        if (summary.cbCommitted >= kHeapRowBytes) totals.big.push_back({ heaps[i], summary });
+        if (summary.cbCommitted >= kHeapRowBytes) totals.big.push_back({ heap, summary });
     }
     return totals;
 }
