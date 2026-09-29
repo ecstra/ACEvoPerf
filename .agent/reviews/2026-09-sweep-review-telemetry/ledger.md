@@ -739,9 +739,10 @@ cbfe28c wrote them.
 Two verifiers then ran on batch 3, one on the frames, timeline and throw log code and one on the
 sampler and the records. They found every finding closed but H-24, whose corrected count was still a
 row short, the zeroing and the new baselines safe against the present thread, the two new timeline
-lines true wherever they can print, and the head built from every change, and raised five. V-24 is
-the one the fixes caused in code, H-20's key merging two threads that share an id, and V-25 an older
-name buffer the same change copies. The rest are records, V-23, V-26 and V-27.
+lines true wherever they can print, and the head built from every change, and raised five. V-23 is the
+hitch line's label and the doc beside it, which 23cdc04 and 67733f5 left saying less than the code
+does. V-24 is H-20's key merging two threads that share an id, V-25 an older name buffer the same
+change copies, and V-26 and V-27 are records.
 
 ### V-23: the hitch line and the telemetry doc said the count runs from the previous hitch, where after a pause it runs from the present that ended it
 - severity: nit
@@ -774,7 +775,7 @@ it.
 - status: fixed
 - fix: 5d4ffd6, 2026-09-29, the name is converted whole into a larger buffer and then cut to fit.
 
-`src/telemetry/load_sampler.cpp:244`. `WideCharToMultiByte` fails on a buffer too small with the buffer
+`src/telemetry/load_sampler.cpp:240`. `WideCharToMultiByte` fails on a buffer too small with the buffer
 full and no terminator, so the table would print on past the name. No sampled name in a saved run is
 longer than 26 characters, and d12ee4d copies the same buffer into each row. Raised in passing by the
 verifier. Older, 1024e7e.
@@ -797,6 +798,38 @@ verifier. Older, 1024e7e.
 
 The batch 2 run paragraph of this ledger, where H-19's clause went in, and
 `.agent/docs/foundation/proxy-architecture.md:142`. 7c3f581 and 4f99298 left them.
+
+A second, shorter verifier round checked V-23 to V-27 and H-24. It found all six closed, V-25's cut
+replayed on the real conversion at 39, 40 and 255 bytes, and the report tool reading all 1300 hitch
+lines of a run rewritten to the new wording, and raised three. The loop stopped there, with only
+record precision and one comment left.
+
+### V-28: V-25 cited a line only an intermediate commit has
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-29, `:240`, the line at the base the verifiers read, like V-24 beside it.
+
+185e0d7 wrote it.
+
+### V-29: the batch 3 verifier paragraph filed V-23 among the records, where it is the hitch line's label and was fixed in code
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 2026-09-29.
+
+185e0d7 wrote it.
+
+### V-30: the comment 486a4b7 rewrote beside the hitch baseline still left the pause out
+- severity: nit
+- found-by: verifier
+- batch: 3
+- status: fixed
+- fix: 30239df, 2026-09-29.
+
+`src/render/frame_stats.cpp:103`. 486a4b7 wrote it.
 
 ### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
 - severity: bug
