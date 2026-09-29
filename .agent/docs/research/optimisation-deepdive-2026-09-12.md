@@ -466,10 +466,10 @@ nothing by itself either way. `Repacking content.kspkg` is TODO-013 read back, d
 The second and third hottest game addresses across both runs are `0x0280E080` and `0x0280E0C0`,
 12,215 samples between them, though in the track load windows they fall to fifth or lower.
 Disassembled, that is the engine's clock. It calls `QueryPerformanceCounter`, subtracts a stored
-base, and converts and divides to seconds. With
-`ntdll!RtlQueryPerformanceCounter` at 2.2 percent of a load window beside it, the engine spends
-roughly 3 percent of a load asking what time it is. Not reachable by the mod and not actionable,
-but it belongs in the same note to Kunos as the `Vec4` operator.
+base, and converts and divides to seconds. With `ntdll!RtlQueryPerformanceCounter` beside it, the
+clock takes about 3 percent of the two main Nürburgring load windows and 1.2 to 1.6 percent of the
+Red Bull Ring and online loads. Not reachable by the mod and not actionable, but it belongs in the
+same note to Kunos as the `Vec4` operator.
 
 ## Still unchecked
 
