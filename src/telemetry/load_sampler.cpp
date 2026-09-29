@@ -254,9 +254,10 @@ void RefreshTargets()
             uint64_t created = 0;
             uint64_t cpu = ThreadCpu(h, &created);
             // Measured from the last refresh for every thread. Only the targets used to be, so every other
-            // thread showed its whole lifetime as its delta and won the sort, and the set flipped between
-            // two lifetime picks. A thread new since then, even one given the id of a thread that exited,
-            // has lived only inside the window, so its whole time is its delta.
+            // thread showed its whole lifetime as its delta, and the slots the busiest threads did not hold
+            // went back and forth between long lived threads, busy or parked. A thread new since then, even
+            // one given the id of a thread that exited, has lived only inside the window, so its whole time
+            // is its delta.
             auto last = g_lastSeen.find(te.th32ThreadID);
             uint64_t prev = last != g_lastSeen.end() && last->second.created == created ? last->second.cpu : 0;
             found.push_back({ te.th32ThreadID, h, created, cpu, cpu > prev ? cpu - prev : 0 });
