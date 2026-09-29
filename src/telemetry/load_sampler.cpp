@@ -334,10 +334,14 @@ void LogSummary(const char* when)
         Log("[loadsampler]   rva 0x%08X  %7u  %5.1f%%", (unsigned)((uint64_t)r.first << 6), r.second, 100.0 * r.second / g_total);
     // Per thread the shares are of that thread's own samples, so they say how it spent
     // its time. "jobspin" is the share inside the engine's fiber job queue spin loop.
+    // Ranked by the samples a thread was running, outside wait and lock. A thread parked on a
+    // condition variable or a lock sits in NtWaitForAlertByThreadId, which files as lock, so
+    // ranked by everything outside wait it took the rows of the workers busy in a short load.
     Log("[loadsampler] per thread, shares of that thread's own samples: game / jobspin / lock / wait / other");
     std::vector<std::pair<std::string, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
-    std::sort(threads.begin(), threads.end(), [](const std::pair<std::string, ThreadTally>& a, const std::pair<std::string, ThreadTally>& b) {
-        return (a.second.total - a.second.bucket[kWait]) > (b.second.total - b.second.bucket[kWait]);
+    auto running = [](const ThreadTally& t) { return t.total - t.bucket[kWait] - t.bucket[kLock]; };
+    std::sort(threads.begin(), threads.end(), [&](const std::pair<std::string, ThreadTally>& a, const std::pair<std::string, ThreadTally>& b) {
+        return running(a.second) > running(b.second);
     });
     for (size_t i = 0; i < threads.size() && i < 16; ++i) {
         const ThreadTally& v = threads[i].second;
