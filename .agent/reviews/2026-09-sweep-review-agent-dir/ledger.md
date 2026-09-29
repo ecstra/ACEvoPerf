@@ -1,7 +1,7 @@
 ---
 name: review-2026-09-sweep-review-agent-dir
 kind: review
-description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings
+description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings and one added by another angle's verifier
 updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, conventions, spec-bugs, spec-todos, reviews-index]
 branch: sweep/review-agent-dir
