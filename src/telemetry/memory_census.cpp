@@ -350,17 +350,21 @@ void InstallMemoryCensus()
 {
     if (!g_cfg.memoryCensus) return;
 
-    int slots = PatchEverywhere("VirtualAlloc", (void*)&Hook_VirtualAlloc, (void**)&g_origVirtualAlloc);
-    int slots2 = PatchEverywhere("VirtualAlloc2", (void*)&Hook_VirtualAlloc2, (void**)&g_origVirtualAlloc2);
-    if (!g_origVirtualAlloc) {
-        Log("[memory] VirtualAlloc not found, no census");
-        return;
-    }
-
+    // The file first. The hooks cost every commit in the process, and they used to go in before this and
+    // stay in for the whole session when the file could not be made, a census that never ran.
     std::wstring path = g_dir + L"acevo_perf_memory.csv";
     g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (g_csv == INVALID_HANDLE_VALUE) {
         Log("[memory] could not create acevo_perf_memory.csv, no census");
+        return;
+    }
+
+    int slots = PatchEverywhere("VirtualAlloc", (void*)&Hook_VirtualAlloc, (void**)&g_origVirtualAlloc);
+    int slots2 = PatchEverywhere("VirtualAlloc2", (void*)&Hook_VirtualAlloc2, (void**)&g_origVirtualAlloc2);
+    if (!g_origVirtualAlloc) {
+        Log("[memory] VirtualAlloc not found, no census");
+        CloseHandle(g_csv);
+        g_csv = INVALID_HANDLE_VALUE;
         return;
     }
     const char* header = "t_s,kind,when,a,b,c,d,e,f,g,h\r\n";
