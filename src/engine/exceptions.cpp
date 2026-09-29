@@ -156,7 +156,10 @@ void ThrowLogTick()
     for (int i = 0; i < n; ++i) g_sites[i].count = 0;
     LeaveCriticalSection(&g_cs);
     std::sort(snapshot, snapshot + n, [](const ThrowSite& a, const ThrowSite& b) { return a.count > b.count; });
-    Log("[throw] %u exceptions in the last 10 s (%u since start), busiest throw sites:", inWindow, total);
+    // The hook goes in at attach and the ticks only start with the timeline thread, seconds later,
+    // so the first window reaches back to attach.
+    Log("[throw] %u exceptions %s (%u since start), busiest throw sites:", inWindow,
+        g_ticks == 10 ? "since the mod attached" : "in the last 10 s", total);
     for (int i = 0; i < n && i < 8 && snapshot[i].count; ++i)
         Log("[throw]   rva 0x%06llX  x%-6u %s  %s", (unsigned long long)snapshot[i].returnRva, snapshot[i].count, snapshot[i].type, snapshot[i].message);
 }
