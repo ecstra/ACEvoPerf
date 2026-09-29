@@ -175,8 +175,9 @@ reader parsing the CSV from this doc meets a row kind the doc denies exists.
 `.agent/docs/ops/telemetry.md:14`. The doc's own description is the log and CSV files the mod writes and
 their columns, and it gives a section to four of them. The load sampler appears only as a name in a
 list, while it writes a fifth file, `acevo_perf_load_samples.csv`, plus a block of log lines, with no
-columns documented anywhere. The telemetry branch's F-03 means those columns also need a note about the
-fifteen second reset.
+columns documented anywhere. Since the telemetry branch's cb7fccf each row holds its own second, and
+since its 64e55ad the rows' t_s counts from attach like every other file's, which is what the section
+should say.
 
 ### F-11: an unqualified claim about the render thread that the developer path breaks
 - severity: debt

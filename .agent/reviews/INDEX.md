@@ -112,8 +112,9 @@ ledger.
 
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
   the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
-  from other angles' sub agents, 1 breaks, plus 11 from batch 1's hunter and verifier and 27 from
-  batch 2's hunters, verifiers and run, batches 1 and 2 closed and runtime confirmed, batch 3 fixing
+  from other angles' sub agents, 1 breaks, plus 11 from batch 1's hunter and verifier, 27 from batch
+  2's hunters, verifiers and run and 9 from batch 3's hunters, batches 1 and 2 closed and runtime
+  confirmed, batch 3 fixing
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
   invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
   another angle's verifier

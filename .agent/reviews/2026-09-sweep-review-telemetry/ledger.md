@@ -547,7 +547,7 @@ asymmetry with line 70 shows this is an oversight rather than a choice.
 
 The failure does not happen as filed. The timeline starts inside the game's first `DStorageGetFactory`,
 before any DirectStorage work can exist, so every counter is zero there, and the saved CSVs show the
-start up burst of about 108 submits in row one or row two with its own tile requests beside it. What
+start up burst of about 108 submits within the first three rows with its own tile requests beside it. What
 stood was a baseline read for two columns and not the other two, a few milliseconds apart.
 
 ### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
@@ -555,7 +555,7 @@ stood was a baseline read for two columns and not the other two, a few milliseco
 - found-by: review
 - batch: 3
 - status: fixed
-- fix: 9e620c4, 2026-09-29, the timeline loads dxgi.dll from System32 itself, the way the auto size fallback does, and logs a line when it has no factory or no adapter. In 85 of the 86 saved runs with the timeline on it found its adapter, and the other had its CSVs held on purpose, so on 0.9.1 the game had always loaded dxgi.dll in time.
+- fix: 9e620c4, 2026-09-29, the timeline loads dxgi.dll from System32 itself, the way the auto size fallback does, and logs a line when it has no factory or no adapter. In 98 of the 99 saved runs with the timeline on it found its adapter, and the other had its CSVs held on purpose. dxgi.dll is a static import of the exe, so on 0.9.1 it is always loaded in time and the load only adds a reference.
 
 `src/telemetry/timeline.cpp:61`. `FindRenderAdapter` calls `GetModuleHandleW(L"dxgi.dll")` and returns
 null without logging. `StartTimeline` is called from `DStorageGetFactory`, which can precede the game
@@ -592,7 +592,7 @@ Batch 2's hunters raised two more of F-06's shape, in files whose own angles hav
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: 67733f5, 2026-09-29, every present of the timed chain moves the frame baselines, its first and one after a pause included, and the hitch baseline is set at the chain's first present and moved by every hitch, logged or not.
+- fix: 67733f5, 2026-09-29, every present of the timed chain moves the frame baselines, its first and one after a pause included, and the hitch baseline is set at the chain's first present and moved by every hitch, logged or not. The hitch line after a pause came with 23cdc04, H-17.
 
 `src/render/frame_stats.cpp:94` to `:99`, with the returns at `:67` and `:70` skipping it, and the hitch
 snapshot at `:79` to `:84`. Row one of a frames CSV carries about 9,000 file to memory requests on one
@@ -607,7 +607,7 @@ shape in the render layer's file, taken here since that angle has merged. Older,
 - found-by: hunter
 - batch: 3
 - status: fixed
-- fix: fe26549, 2026-09-29, the first report says it covers everything since the mod attached.
+- fix: fe26549 and then dc20c76, 2026-09-29, each report measures its window and prints its real length, so the first reads from attach. fe26549 had named the first window in words, and dc20c76 replaced that with the measure when H-22 found the later windows wrong too.
 
 `src/engine/exceptions.cpp:147` to `:150`. The counts start at attach, and the ten ticks come from the
 timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
@@ -630,6 +630,110 @@ Background Threads at 99.5 percent lock took rows with 219 samples each, Resourc
 49.2 percent game code took the last row with 191, and none of the other eight workers the boost adds
 printed. The pick now holds the right threads for the right stretch, and the printout hides them.
 Older, 50b195f.
+
+Two hunters then ran on batch 3, one on the frames and timeline fixes and one on the sampler and throw
+log fixes. They found each fix right on the paths it names, F-06 lighter than filed as recorded above,
+and no tool or doc that reads these files thrown by the change, and raised nine. H-17 is the one bug,
+the hitch line still counting across a load, which 67733f5 left standing. H-18 and H-19 are the fixes'
+own comment and timing, H-20 to H-22 older labels in the sampler and the throw log, and H-23 to H-25
+records the fixes made stale or miscounted.
+
+### H-17: the first hitch line after a pause over 2 s still counted across the pause, where 67733f5 said it no longer did
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 23cdc04, 2026-09-29, the hitch line starts counting again at the present after a pause, as it does at a chain's first present.
+
+`src/render/frame_stats.cpp:91`. The pause return came before the hitch baseline moved, so the next
+hitch reported everything since the last hitch before the load. In `logs/lap10-sampler-20260905-2219`
+the 1343.9 ms hitch at t=29.94 reports 32,469 requests since the hitch at t=20.94, about 25,000 of them
+in the 7 s with no present, and 128 of the 158 pauses in the saved frames CSVs end in a frame over the
+default hitch_ms of 33, so nearly every load's first hitch line carried the whole load. Older, 0140743,
+left standing by 67733f5.
+
+### H-18: the timeline's new comment said every counter's baseline is read together, where the six counters each tick zeroes were not
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: aeeaf3d, 2026-09-29, those six are zeroed where the baselines are read.
+
+`src/telemetry/timeline.cpp:81`. `g_frames`, `g_frameSumUs`, `g_frameMaxUs`, `g_hitch20`, `g_hitchCfg`
+and `g_tileBatchMax` reached back to when they started counting, though on 0.9.1 none has counted
+anything by then. ef1556a wrote it.
+
+### H-19: the sampler's first summary counted the thread's setup as CPU used in its window
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: a3994ee, 2026-09-29, the baseline is read where the window starts.
+
+`src/telemetry/load_sampler.cpp:62`. Up to about 75 ms of the 812 ms batch 2's run gives its first window
+was the module and export tables and the first pick, all before the window opened. Raised by both
+hunters. 6a34f99 caused it.
+
+### H-20: the per thread table keyed threads by the name read at each refresh, so the game thread, named late, made two rows in the first window
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: d12ee4d, 2026-09-29, the table counts by thread id and prints the last name seen, so a target keeps its id again, which H-13 had removed as unread.
+
+`src/telemetry/load_sampler.cpp:440`. In `logs/telemetry-b2-20260929` t+15, "tid 6444" at 495 samples
+and GameThread at 1214 are one thread, and every run with a per thread table shows the same unnamed row
+in its first window. 99f8a12 moved that row from ninth to fourth. Older, 50b195f.
+
+### H-21: the sampler's CSV and summaries counted seconds from the sampler's own start, where every other file counts from attach
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 64e55ad, 2026-09-29, both count from attach.
+
+`src/telemetry/load_sampler.cpp:454`. The sampler starts at the first `DStorageGetFactory`, 2.8 to 5.5 s
+after attach in the saved runs, so a row joined to the frames CSV or the trace by its time landed that far
+early, more than a third of a Red Bull Ring load. Older, 1024e7e.
+
+### H-22: the throw log's later reports said the last 10 s for ten timeline ticks, which a memory census in the same thread stretches
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: dc20c76, 2026-09-29, each report measures its window and prints its real length, which covers H-16's first window too.
+
+`src/engine/exceptions.cpp:147` and `:162`. A census held the timeline thread for 9.5 s in
+`logs/airace-hang-20260918`, so a window holding one would cover about 19.5 s and halve any rate read
+from it. It needs both developer switches on, and no session on disk has had both. Older, 3c87596.
+
+### H-23: two knowledge docs still said the vram columns come from the discrete adapter
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 4f99298, 2026-09-29.
+
+`.agent/docs/ops/telemetry.md:82` and `.agent/docs/foundation/proxy-architecture.md:142`. 3c7b742 made it
+false for a machine whose only adapter reports no dedicated memory.
+
+### H-24: two counts in this ledger's batch 3 text did not match the saved runs
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 2026-09-29, 98 of 99 runs with the timeline on, counting the nested sessions, and the start up burst within the first three rows.
+
+cbfe28c wrote them.
+
+### H-25: the agent directory ledger's F-10 still asked for a note on the sampler CSV's fifteen second reset, which cb7fccf removed
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: fixed
+- fix: 2026-09-29, F-10 now says each row holds its own second and counts from attach.
+
+`.agent/reviews/2026-09-sweep-review-agent-dir/ledger.md:178`. cb7fccf made it stale.
 
 ### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
 - severity: bug
@@ -714,7 +818,8 @@ effect. A clean `detached` and no `Exception Detected`.
 
 Batch 2, one launch on 2026-09-29, `logs/telemetry-b2-20260929`, 13:28 to 13:30, the menu, a load into
 Oulton Park and about half a minute on track, with `load_sampler=1` for this launch alone, on 5ba0a6b's
-build. The sampler used 812, 844, 781 and 719 ms of CPU in its four 15 s windows, where the old loop
+build. The sampler used 812, 844, 781 and 719 ms of CPU in its four 15 s windows, the first including
+up to 75 ms of its own setup, H-19, where the old loop
 held a whole logical processor, about 15,000 ms, and it still took about 960 samples a second. While
 driving it held about 17 threads at a time where the old pick always held 24, the render workers,
 GameThread, Physics and its six workers and the audio mixer among them, and the parked D3D Background
