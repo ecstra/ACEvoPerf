@@ -260,13 +260,13 @@ batch 3.
 
 `src/telemetry/load_sampler.cpp:137` stored every name, `:179` sorted by address alone, and the bucket
 patterns at `:82` to `:87` knew the Nt names and only one Zw name, `ZwWaitForWorkViaWorkerFactory`,
-which 09c7daf removed since its Nt twin now matches the wait patterns. `NtDelayExecution`, `NtRemoveIoCompletion` and
-`NtYieldExecution` were wait under the Nt name and system under Zw, `NtAlertThreadByThreadId` lock or
-system, and `NtWaitForAlertByThreadId` lock or wait. The saved runs went both ways.
-`logs/loadsampler-20260912-1128` printed `ntdll!ZwDelayExecution`, so every sample of a sleeping thread
-went to system and ranked that thread as busy in the per thread table, and `logs/telemetry-b1b-20260929`
-printed `ntdll!NtDelayExecution` beside `ntdll!ZwRemoveIoCompletion`. Older than the batch, 1024e7e and
-50b195f.
+which 09c7daf removed since its Nt twin now matches the wait patterns. `NtDelayExecution`,
+`NtRemoveIoCompletion` and `NtYieldExecution` were wait under the Nt name and system under Zw,
+`NtAlertThreadByThreadId` lock or system, and `NtWaitForAlertByThreadId` lock or wait. The saved runs
+went both ways. `logs/loadsampler-20260912-1128` printed `ntdll!ZwDelayExecution`, so every sample of a
+sleeping thread went to system and ranked that thread as busy in the per thread table, and
+`logs/telemetry-b1b-20260929` printed `ntdll!NtDelayExecution` beside `ntdll!ZwRemoveIoCompletion`.
+Older than the batch, 1024e7e and 50b195f.
 
 ### H-07: 5003665 left the sampler's wait spinning whenever nothing else is queued on its processor, which is nearly every wait, so F-12's failure stood
 - severity: debt
@@ -370,12 +370,12 @@ Two verifiers then ran on batch 2, one on the code and one on the records. The c
 F-12 and every code finding of the hunters closed. The same loop, rebuilt outside the game, used about
 440 ms of CPU in a 15 s window where the old one used a whole core, and kept every `sample_us` from 100
 to 1000000 on average. Apart from three ntdll stubs too small to be sampled, no address in the system
-modules the sampler reads now files under two buckets. It raised one, V-08. The record verifier found every number the corrections wrote true against the
-logs, and raised thirteen. Nine are wording in those corrections or in the older text beside them,
-V-09 to V-17. V-18 finds the deep dive's census, which goes to the agent directory angle. V-19 finds
-F-02's failure milder in the runs than written, and V-20 and V-21 are older numbers in TODO-013. The
-loop stopped there, with only record precision and one comment left, and V-19's comment went in after
-the run.
+modules the sampler reads now files under two buckets. It raised one, V-08. The record verifier found
+every number the corrections wrote true against the logs, and raised thirteen. Nine are wording in
+those corrections or in the older text beside them, V-09 to V-17. V-18 finds the deep dive's census,
+which goes to the agent directory angle. V-19 finds F-02's failure milder in the runs than written, and
+V-20 and V-21 are older numbers in TODO-013. The loop stopped there, with only record precision and one
+comment left, and V-19's comment went in after the run.
 
 ### V-08: the load sampler's file header said each sample reads RIP and RSP, where it only ever read RIP
 - severity: nit
@@ -547,8 +547,9 @@ asymmetry with line 70 shows this is an oversight rather than a choice.
 
 The failure does not happen as filed. The timeline starts inside the game's first `DStorageGetFactory`,
 before any DirectStorage work can exist, so every counter is zero there, and the saved CSVs show the
-start up burst of about 108 submits beginning within the first three rows, its own tile requests beside it. What
-stood was a baseline read for two columns and not the other two, a few milliseconds apart.
+start up burst of about 108 submits beginning within the first three rows, its own tile requests
+beside it. What stood was a baseline read for two columns and not the other two, a few milliseconds
+apart.
 
 ### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
 - severity: debt
@@ -633,10 +634,10 @@ Older, 50b195f.
 
 Two hunters then ran on batch 3, one on the frames and timeline fixes and one on the sampler and throw
 log fixes. They found each fix right on the paths it names, F-06 lighter than filed as recorded above,
-and no tool that reads these files thrown by the change, the docs being H-23's, and raised nine. H-17 is the one bug,
-the hitch line still counting across a load, which 67733f5 left standing. H-18 and H-19 are the fixes'
-own comment and timing, H-20 to H-22 older labels in the sampler and the throw log, and H-23 to H-25
-records the fixes made stale or miscounted.
+and no tool that reads these files thrown by the change, the docs being H-23's, and raised nine. H-17
+is the one bug, the hitch line still counting across a load, which 67733f5 left standing. H-18 and
+H-19 are the fixes' own comment and timing, H-20 to H-22 older labels in the sampler and the throw log,
+and H-23 to H-25 records the fixes made stale or miscounted.
 
 ### H-17: the first hitch line after a pause over 2 s still counted across the pause, where 67733f5 said it no longer did
 - severity: bug
