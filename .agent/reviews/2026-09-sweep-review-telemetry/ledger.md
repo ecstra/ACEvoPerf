@@ -59,6 +59,53 @@ path whenever a session never drops the 700 MB threshold, so no second census ev
 
 Found independently by two reviewers.
 
+The hunter then ran on batch 1. It found the reorder right in the source and the object code, every way
+out of the install leaving nothing hooked and nothing it opened, and the timing unchanged, since the
+install runs under the loader lock before any other thread, and raised the same shape in the other
+instruments, the four below.
+
+### H-01: a streaming trace that could not make its file said nothing, and kept collecting rows only to free them
+- severity: bug
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: fe0679e, 2026-09-29, the first failure logs a line and ends the trace for the run, so no rows are formatted or kept, and no file starts partway through the session.
+
+`src/telemetry/streaming_trace.cpp:51`. Retried every second, the create failed while last run's CSV
+was open elsewhere, the rows were freed, and once it was closed the next flush truncated it and began a
+file mid session with nothing marking the gap. `g_droppedRows` counts only the 64 MB cap, so the exit
+line was silent too. Older than the batch.
+
+### H-02: the timeline, frames and load sampler CSVs failed to open without a word, so an older run's file on disk read as this run's
+- severity: debt
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 70c3ade, 2026-09-29, each logs the file it could not create and why.
+
+`src/telemetry/timeline.cpp:16` to `:22` and `src/telemetry/load_sampler.cpp:343` to `:349`. The log
+said the timeline had started and the sampler told the reader where its CSV was, and the copy in
+`logs/<session>/` was then the previous run's. Older than the batch.
+
+### H-03: with no frames CSV the present hook kept sampling into a buffer nothing empties
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 70c3ade, 2026-09-29, the frames switch is turned off for the run when its file cannot be made.
+
+`src/telemetry/timeline.cpp:129`. The buffer grew to its 200000 cap in about 23 minutes at 144 fps,
+through 30 reallocations on the presenting thread. Older than the batch.
+
+### H-04: the new comment said the census hooks cost every commit, where heap growth never reaches them
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: fixed
+- fix: 908d628, 2026-09-29, every VirtualAlloc commit.
+
+90c7a80 caused it.
+
 ### F-02: a thread that was not a target last round presents its whole lifetime CPU as its delta, so the busiest thread pick is wrong on every refresh after the first
 - severity: bug
 - found-by: review
@@ -241,6 +288,15 @@ adapter, the pick never gets that far.
 Raised by the verifier on batch 1 of `sweep/review-render`, which fixed the same shape in
 `DiscreteAdapter` (V-01 of that ledger, commit 0f35015). Left here because the file belongs to this
 angle. Fixing it alongside F-09 is natural, they share the symptom and the function.
+
+## The runs
+
+Batch 1, one launch on 2026-09-29, `logs/telemetry-b1-20260929`, 10:18 to 10:19, the menu and a quit, with
+`memory_census=1` for this launch alone and `acevo_perf_memory.csv` held open with no sharing by another
+process, on 70c3ade's build. `[memory] could not create acevo_perf_memory.csv, no census` in the same
+millisecond as the attach line and no `census on` line after it, so nothing was hooked, a clean
+`detached` and no `Exception Detected`. H-01 to H-03's lines only show when those files are held, which
+this run did not do.
 
 ## Checked and clean
 
