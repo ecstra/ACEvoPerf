@@ -180,7 +180,7 @@ all eleven workers through its load window, and there workers 0 and 1 look like 
 and ones waiting their turn.
 
 So at rest a worker is parked and spins 0.8 percent of the time, and in that load window it spins
-21 to 29 percent of the time. That is the answer: **about a quarter of a busy resource
+21 to 29 percent of the time. That is the answer. **About a quarter of a busy resource
 worker's time during a session load is burned in a spin loop that makes no progress**, and most
 of the rest of it is blocked. The sampler counts the spin as game code, so the game code figures
 here include it, and the engine's real work outside the spin is 17 to 26 percent of a worker's

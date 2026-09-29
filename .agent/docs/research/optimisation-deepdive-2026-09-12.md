@@ -421,11 +421,11 @@ captures` (a negative result, and correct), `what is clean` (a negative result),
 DLL adds nothing` (a negative result), `four named per frame passes` (its own shape field reads
 "Nothing to build yet"), and `no link time code generation` (its own shape field reads "Nothing to
 build", and a six instruction leaf cannot be inlined into 476,036 call sites from outside). The last
-one deserves a line of its own: `0x006AB180`, the `Vec4& operator*=(float)` it names, is the
+one deserves a line of its own. `0x006AB180`, the `Vec4& operator*=(float)` it names, is the
 **single hottest game address in everything the load sampler recorded**, 12,295 samples of the
 47,535 printed, and it leads 84 of the 107 windows. In the track loads the job queue spin of
-TODO-013 leads instead and it comes second or lower. Nothing the mod can do reaches it. It is the best thing in this document to hand to
-Kunos.
+TODO-013 leads instead and it comes second or lower. Nothing the mod can do reaches it. It is the
+best thing in this document to hand to Kunos.
 
 **Killed as duplicates of work that exists, verified in git.**
 
@@ -464,8 +464,9 @@ nothing by itself either way. `Repacking content.kspkg` is TODO-013 read back, d
 ### One thing nobody asked about that the data volunteered
 
 The second and third hottest game addresses across both runs are `0x0280E080` and `0x0280E0C0`,
-12,215 samples between them, though in the track load windows they fall to fifth or lower. Disassembled, that is the engine's clock: a `QueryPerformanceCounter`
-call, a subtract against a stored base, and a convert and divide to seconds. With
+12,215 samples between them, though in the track load windows they fall to fifth or lower.
+Disassembled, that is the engine's clock. It calls `QueryPerformanceCounter`, subtracts a stored
+base, and converts and divides to seconds. With
 `ntdll!RtlQueryPerformanceCounter` at 2.2 percent of a load window beside it, the engine spends
 roughly 3 percent of a load asking what time it is. Not reachable by the mod and not actionable,
 but it belongs in the same note to Kunos as the `Vec4` operator.
