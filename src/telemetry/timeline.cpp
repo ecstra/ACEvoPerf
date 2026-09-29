@@ -18,6 +18,8 @@ static HANDLE OpenCsv(const wchar_t* name, const char* header)
     std::wstring path = g_dir + name;
     HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h != INVALID_HANDLE_VALUE) { DWORD w; WriteFile(h, header, (DWORD)strlen(header), &w, nullptr); }
+    // Said, because a copy left on disk from an earlier run would otherwise be read as this one's.
+    else Log("timeline: could not create %ls (error %lu), it is not written this run", name, GetLastError());
     return h;
 }
 
@@ -57,6 +59,8 @@ static DWORD WINAPI TimelineThread(void*)
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req,ui_end_frame_ms,ui_advance_ms\r\n") : INVALID_HANDLE_VALUE;
+    // With nowhere to write them the present hook's samples would only pile up to the buffer's cap.
+    if (g_cfg.frames && framesCsv == INVALID_HANDLE_VALUE) g_cfg.frames = false;
     bool anyCsv = csv != INVALID_HANDLE_VALUE || framesCsv != INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = anyCsv ? FindRenderAdapter() : nullptr;
 

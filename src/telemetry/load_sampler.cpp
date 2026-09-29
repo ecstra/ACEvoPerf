@@ -341,6 +341,9 @@ DWORD WINAPI SamplerThread(void*)
 
     std::wstring path = g_dir + L"acevo_perf_load_samples.csv";
     g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // Said, because a copy left on disk from an earlier run would otherwise be read as this one's.
+    if (g_csv == INVALID_HANDLE_VALUE)
+        Log("[loadsampler] could not create acevo_perf_load_samples.csv (error %lu), the summaries still come to this log", GetLastError());
     if (g_csv != INVALID_HANDLE_VALUE) {
         std::string header = "clock,t_s,samples";
         for (int b = 0; b < kBucketCount; ++b) { header += ","; header += kBucketNames[b]; }
