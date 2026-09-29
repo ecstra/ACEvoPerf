@@ -50,7 +50,7 @@ load's workers, V-22, which joins batch 3.
 |---|---|---|---|
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | closed, runtime confirmed | 2026-09-29 |
-| 3 | the CSVs and the log's reports mean what they say | pending | |
+| 3 | the CSVs and the log's reports mean what they say | fixing | 2026-09-29 |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -518,8 +518,8 @@ Over the run it is about 3 percent. Older, 471ffa6.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: cb7fccf, 2026-09-29, the CSV keeps counts of its own, zeroed at each line, so a row holds its own second, and the summary's fifteen second counts stay the summary's.
 
 `src/telemetry/load_sampler.cpp:271`. `WriteCsvLine` runs once a second and prints `g_total` and
 `g_bucketCounts[]` raw, while `LogSummary` runs every fifteen seconds and memsets both at lines 326 to
@@ -534,8 +534,8 @@ telemetry doc has no section for this file at all.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: ef1556a, 2026-09-29, the submit and tile batch baselines are read with the request ones.
 
 `src/telemetry/timeline.cpp:69`. Line 70 primes `lastReq` and `lastBytes` from the live counters before
 the loop, and line 69 leaves `lastSubmits` and `lastBatches` at 0. `StartTimeline` is called from
@@ -545,12 +545,17 @@ Failure: row one of the timeline CSV carries every submit and every tile batch s
 submits and tile_batches columns, so any maximum or mean taken over those two columns is wrong. The
 asymmetry with line 70 shows this is an oversight rather than a choice.
 
+The failure does not happen as filed. The timeline starts inside the game's first `DStorageGetFactory`,
+before any DirectStorage work can exist, so every counter is zero there, and the saved CSVs show the
+start up burst of about 108 submits in row one or row two with its own tile requests beside it. What
+stood was a baseline read for two columns and not the other two, a few milliseconds apart.
+
 ### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 9e620c4, 2026-09-29, the timeline loads dxgi.dll from System32 itself, the way the auto size fallback does, and logs a line when it has no factory or no adapter. In 85 of the 86 saved runs with the timeline on it found its adapter, and the other had its CSVs held on purpose, so on 0.9.1 the game had always loaded dxgi.dll in time.
 
 `src/telemetry/timeline.cpp:61`. `FindRenderAdapter` calls `GetModuleHandleW(L"dxgi.dll")` and returns
 null without logging. `StartTimeline` is called from `DStorageGetFactory`, which can precede the game
@@ -565,8 +570,8 @@ adapter. The log at line 48 only fires on success.
 - severity: debt
 - found-by: verifier
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 3c7b742, 2026-09-29, an adapter reporting no dedicated memory is taken when nothing better has been found, the rule the auto sizes already use.
 
 `src/telemetry/timeline.cpp:38` keeps an adapter only on `d.DedicatedVideoMemory > bestMem` with
 `bestMem` starting at zero, so an adapter reporting none can never be selected and `best` stays null.
@@ -586,8 +591,8 @@ Batch 2's hunters raised two more of F-06's shape, in files whose own angles hav
 - severity: bug
 - found-by: hunter
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 67733f5, 2026-09-29, every present of the timed chain moves the frame baselines, its first and one after a pause included, and the hitch baseline is set at the chain's first present and moved by every hitch, logged or not.
 
 `src/render/frame_stats.cpp:94` to `:99`, with the returns at `:67` and `:70` skipping it, and the hitch
 snapshot at `:79` to `:84`. Row one of a frames CSV carries about 9,000 file to memory requests on one
@@ -601,8 +606,8 @@ shape in the render layer's file, taken here since that angle has merged. Older,
 - severity: nit
 - found-by: hunter
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: fe26549, 2026-09-29, the first report says it covers everything since the mod attached.
 
 `src/engine/exceptions.cpp:147` to `:150`. The counts start at attach, and the ten ticks come from the
 timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
@@ -615,8 +620,8 @@ Batch 2's run raised one more, read from its log when the launch was checked.
 - severity: debt
 - found-by: verifier
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 99f8a12, 2026-09-29, the table ranks threads by the samples they were running, outside wait and lock.
 
 `src/telemetry/load_sampler.cpp:335` sorts on `total - bucket[kWait]` and `:337` prints sixteen. A
 thread parked on a condition variable or a lock sits in `NtWaitForAlertByThreadId`, which files as
