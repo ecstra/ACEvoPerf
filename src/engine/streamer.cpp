@@ -301,6 +301,7 @@ static std::atomic<uint64_t> g_rankSorts{0};
 static std::atomic<bool> g_broken{false};
 static std::atomic<bool> g_inHook{false};
 static std::atomic<bool> g_overlapSaid{false};
+static std::atomic<bool> g_feedbackLayoutSaid{false};   // temporary, for F-06, see ReadFeedback
 
 // The tile pool as the last kick read it, for the report. The report runs on the timeline thread,
 // which outlives the engine's allocator at exit, and catching a fault there is not enough, the
@@ -411,6 +412,15 @@ static Feedback ReadFeedback(const BYTE* str, const BYTE* tex)
     Feedback fb;
     const BYTE* fbObject = At<BYTE*>(str, streamer::kFeedback);
     if (!fbObject) return fb;
+
+    // Temporary, for F-06 of the engine review: one launch shows whether +0x10 is the count it is read as
+    // or a vector's first pointer like its neighbours, and this line goes once it has.
+    if (!g_feedbackLayoutSaid.exchange(true)) {
+        Log("[streamer] feedback layout check: +0x10 %016llX, +0x18 %016llX, +0x20 %016llX, mips span %lld, ages span %lld",
+            At<unsigned long long>(fbObject, 0x10), At<unsigned long long>(fbObject, 0x18), At<unsigned long long>(fbObject, 0x20),
+            (long long)((At<BYTE*>(fbObject, feedback::kMips + 8) - At<BYTE*>(fbObject, feedback::kMips)) / 4),
+            (long long)((At<BYTE*>(fbObject, feedback::kAges + 8) - At<BYTE*>(fbObject, feedback::kAges)) / 2));
+    }
 
     const BYTE* alloc = At<BYTE*>(tex, texture::kAllocator);
     if (!alloc) return fb;
