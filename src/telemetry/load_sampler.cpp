@@ -14,6 +14,7 @@
 #include "acevo/core/log.h"
 #include "acevo/render/frame_stats.h"
 #include <tlhelp32.h>
+#include <map>
 #include <unordered_map>
 
 namespace {
@@ -36,6 +37,7 @@ std::vector<Export> g_exports;
 // A thread worth sampling, refreshed by CPU time.
 struct Target {
     DWORD tid = 0;
+    uint64_t created = 0;
     HANDLE handle = nullptr;
     char name[40] = {};
 };
@@ -52,11 +54,13 @@ std::unordered_map<uint32_t, uint32_t> g_byGameRva;  // 64 byte bucket of the ex
 // Per thread, the buckets it was sampled in. Threads are sampled round robin, so
 // within one thread the shares are an unbiased read of how it spent its time, which
 // is the only way to tell a worker that is grinding from one that is parked. Keyed by
-// the thread's id with the last name it was sampled under, because the game names its
-// main thread after the sampler has met it, and keyed by name that one thread made a
-// "tid N" row and a GameThread row.
+// the thread's id and creation time with the last name it was sampled under. The game
+// names its main thread after the sampler has met it, so keyed by name that one thread
+// made a "tid N" row and a GameThread row, and an exited thread's id can go to a new
+// thread inside one window, so the id alone would put two threads in one row.
 struct ThreadTally { uint32_t total = 0; uint32_t bucket[kBucketCount] = {}; uint32_t spin = 0; char name[40] = {}; };
-std::unordered_map<DWORD, ThreadTally> g_byThread;
+using ThreadKey = std::pair<DWORD, uint64_t>;
+std::map<ThreadKey, ThreadTally> g_byThread;
 // the game's fiber job queue spin loop, found on 2026-09-12, see TODO-013
 const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
 uint64_t g_bucketCounts[kBucketCount] = {};
@@ -282,7 +286,7 @@ void RefreshTargets()
     for (auto& c : found) {
         if (g_targetCount < (int)(sizeof g_targets / sizeof g_targets[0]) && (c.delta > 0 || g_targetCount < 4)) {
             Target& t = g_targets[g_targetCount++];
-            t.tid = c.tid; t.handle = c.h;
+            t.tid = c.tid; t.created = c.created; t.handle = c.h;
             NameThread(c.h, c.tid, t.name, sizeof t.name);
         } else {
             CloseHandle(c.h);
@@ -343,9 +347,9 @@ void LogSummary(const char* when)
     // condition variable or a lock sits in NtWaitForAlertByThreadId, which files as lock, so
     // ranked by everything outside wait it took the rows of the workers busy in a short load.
     Log("[loadsampler] per thread, shares of that thread's own samples: game / jobspin / lock / wait / other");
-    std::vector<std::pair<DWORD, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
+    std::vector<std::pair<ThreadKey, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
     auto running = [](const ThreadTally& t) { return t.total - t.bucket[kWait] - t.bucket[kLock]; };
-    std::sort(threads.begin(), threads.end(), [&](const std::pair<DWORD, ThreadTally>& a, const std::pair<DWORD, ThreadTally>& b) {
+    std::sort(threads.begin(), threads.end(), [&](const std::pair<ThreadKey, ThreadTally>& a, const std::pair<ThreadKey, ThreadTally>& b) {
         return running(a.second) > running(b.second);
     });
     for (size_t i = 0; i < threads.size() && i < 16; ++i) {
@@ -442,7 +446,7 @@ DWORD WINAPI SamplerThread(void*)
                 g_bucketCounts[bucket]++;
                 g_csvTotal++;
                 g_csvCounts[bucket]++;
-                ThreadTally& tally = g_byThread[t.tid];
+                ThreadTally& tally = g_byThread[{ t.tid, t.created }];
                 memcpy(tally.name, t.name, sizeof tally.name);
                 tally.total++;
                 tally.bucket[bucket]++;
