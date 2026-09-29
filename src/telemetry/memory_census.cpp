@@ -171,9 +171,9 @@ void CompactHeap(HANDLE heap)
     }
 }
 
-// Every heap in the process as the list stands now. A list longer than the buffer fills nothing and
-// returns its length, which read as it stood made every slot a null handle, so the buffer grows past that
-// length and the call goes again.
+// Every heap in the process as the list stands now. The call returns the whole count even when the
+// buffer is too short for it, and the buffer then holds only part of the list, the first handles on this
+// Windows and none at all by the documentation. So the buffer grows past the count and the call goes again.
 std::vector<HANDLE> ProcessHeaps()
 {
     std::vector<HANDLE> heaps(64);
