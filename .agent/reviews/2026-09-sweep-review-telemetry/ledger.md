@@ -35,13 +35,22 @@ its file cannot be made and the two that cost something every row or frame stopp
 added four from its hunter and seven from its verifier, one handed to the tools angle and one left as a
 harmless race on a developer switch, and two launches with the files held confirmed every line.
 
+Batch 2 closed with F-02 fixed, the sampler measuring every thread from its last look, and F-12 fixed
+on the second try, the wait now blocking on a timer where the first fix still spun. Its two hunters
+added twelve, its two verifiers fourteen and its run one. Among them were an older fault that filed a
+sleep or a lock by the sort order of ntdll's names, corrections to a todo and two research docs that
+leaned on the old pick, and one handed to the agent directory angle. One launch confirmed it, the
+sampler using under a second of CPU in each 15 s window where the old loop held a whole core, and the
+threads it held being the ones running. The same launch showed the per thread table hiding a short
+load's workers, V-22, which joins batch 3.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
-| 2 | the load sampler measures what it claims to measure | fixing | 2026-09-29 |
-| 3 | the CSVs mean what their headers say | pending | |
+| 2 | the load sampler measures what it claims to measure | closed, runtime confirmed | 2026-09-29 |
+| 3 | the CSVs and the log's reports mean what they say | pending | |
 | 4 | the leftovers | pending | |
 
 ## Findings
@@ -364,7 +373,9 @@ to 1000000 on average. Apart from three ntdll stubs too small to be sampled, no 
 modules the sampler reads now files under two buckets. It raised one, V-08. The record verifier found every number the corrections wrote true against the
 logs, and raised thirteen. Nine are wording in those corrections or in the older text beside them,
 V-09 to V-17. V-18 finds the deep dive's census, which goes to the agent directory angle. V-19 finds
-F-02's failure milder in the runs than written, and V-20 and V-21 are older numbers in TODO-013.
+F-02's failure milder in the runs than written, and V-20 and V-21 are older numbers in TODO-013. The
+loop stopped there, with only record precision and one comment left, and V-19's comment went in after
+the run.
 
 ### V-08: the load sampler's file header said each sample reads RIP and RSP, where it only ever read RIP
 - severity: nit
@@ -477,8 +488,8 @@ cite. Older, ae5ba22.
 - severity: nit
 - found-by: verifier
 - batch: 2
-- status: open
-- fix: 2026-09-29 for the ledger, the note under F-02. The comment waits for a build after the owner's launch.
+- status: fixed
+- fix: e293c18, 2026-09-29, the comment says the busiest threads kept their slots and only the rest went back and forth, and the note under F-02 says the same.
 
 `src/telemetry/load_sampler.cpp:257`. In `logs/loadsampler-20260912-1128` t+60 eleven threads hold a
 full share of samples through the window and only the rest alternate. 79177bc and fd38f95 wrote it.
@@ -598,6 +609,23 @@ timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
 `logs/clean-laps-20260916`. No session on disk has logged a throw. F-06's shape in the engine angle's
 file, taken here since that angle has merged. Older, 3c87596.
 
+Batch 2's run raised one more, read from its log when the launch was checked.
+
+### V-22: the per thread table ranks threads by their samples outside wait, so threads parked in a lock outrank a busy worker held for less of the window, and a short load's workers fall off the printed sixteen
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: open
+- fix:
+
+`src/telemetry/load_sampler.cpp:335` sorts on `total - bucket[kWait]` and `:337` prints sixteen. A
+thread parked on a condition variable or a lock sits in `NtWaitForAlertByThreadId`, which files as
+lock, so it ranks as if busy. In the load window of `logs/telemetry-b2-20260929`, t+30, four D3D
+Background Threads at 99.5 percent lock took rows with 219 samples each, Resource Manager Worker 4 at
+49.2 percent game code took the last row with 191, and none of the other eight workers the boost adds
+printed. The pick now holds the right threads for the right stretch, and the printout hides them.
+Older, 50b195f.
+
 ### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
 - severity: bug
 - found-by: review
@@ -678,6 +706,17 @@ timeline and frames at 11:50:17.088, the load sampler at 11:50:17.166 and the tr
 `[writes]` lines and the load sampler's summaries carried on, as the new lines say, and the timeline's
 start line printed `frames=1` a millisecond before the thread turned the switch off, V-03's one visible
 effect. A clean `detached` and no `Exception Detected`.
+
+Batch 2, one launch on 2026-09-29, `logs/telemetry-b2-20260929`, 13:28 to 13:30, the menu, a load into
+Oulton Park and about half a minute on track, with `load_sampler=1` for this launch alone, on 5ba0a6b's
+build. The sampler used 812, 844, 781 and 719 ms of CPU in its four 15 s windows, where the old loop
+held a whole logical processor, about 15,000 ms, and it still took about 960 samples a second. While
+driving it held about 17 threads at a time where the old pick always held 24, the render workers,
+GameThread, Physics and its six workers and the audio mixer among them, and the parked D3D Background
+Threads the old pick kept in full slots no longer held one. In the load window Resource Manager Worker
+4 printed at 49.2 percent game code and 37.7 percent in the job queue spin. Every ntdll label was an Nt
+name, `NtDelayExecution` and `NtWaitForWorkViaWorkerFactory` among them. No timer failure line, a clean
+`detached` and no `Exception Detected`. H-12's reused id cannot show in a run.
 
 ## Checked and clean
 
