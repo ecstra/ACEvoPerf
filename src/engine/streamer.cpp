@@ -592,8 +592,10 @@ static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* cont
     // The flip's signature. The drop was made on a fresh reading taken against the fine view, and
     // the reading at the coarse view is that one shifted down by the levels lost, so nothing about
     // the view changed, only which mip the shader measured against.
-    Feedback fb = ReadFeedback(str, tex);
     bool reload = state.dropKick && now - state.dropKick <= kFlipWindowKicks && admitted <= state.dropFrom && current <= state.dropTo;
+    // Read only for a reload, which the flip test needs, or for the trace row. Most want events are
+    // neither, at a hundred or more a second.
+    Feedback fb = reload || TraceOn() ? ReadFeedback(str, tex) : Feedback{};
     bool flip = reload && state.dropMip >= 1 && fb.mip >= 0 && fb.mip <= std::max(0, state.dropMip - (state.dropFrom - current));
     if (flip) {
         if (state.pinFine < 0) { s_tally.pins++; g_pins++; }
@@ -636,11 +638,12 @@ static bool OnDrop(const BYTE* tex, int keep, const BYTE* str, const BYTE* frame
     uint64_t now = BeginEvent(str, frame);
     TextureState& state = Touch(tex, now);
     int current = At<int32_t>(tex, texture::kCurrentLevel);
-    int64_t tiles = TilesBetween(tex, keep, current);
     Feedback fb = ReadFeedback(str, tex);
 
     Verdict verdict = Judge(state, keep, current, fb, str, admitted);
     bool refuse = verdict == Verdict::Refuse && g_cfg.streamerReloadFix;
+    // Summed only where it is used, a refused drop's tally and the trace row, which most drops are not.
+    int64_t tiles = refuse || TraceOn() ? TilesBetween(tex, keep, current) : 0;
 
     if (refuse) {
         s_tally.refused++;
