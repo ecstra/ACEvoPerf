@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-ui-fixes
 kind: review
 description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, twelve findings and one added by another angle's verifier
-updated: 2026-09-23
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: sweep/review-ui-fixes
 status: open
@@ -31,7 +31,7 @@ for the main stylesheet.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | a removal during a stylesheet parse still invalidates | pending | |
+| 1 | a removal during a stylesheet parse still invalidates | fixing | 2026-09-29 |
 | 2 | the hooks cannot fault the game | pending | |
 | 3 | a failed install says so | pending | |
 | 4 | the load bearing assumptions are written down | pending | |
@@ -42,8 +42,8 @@ for the main stylesheet.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-29. The window is real in the code and never reached in the game. A temporary diagnostic, not committed, logged the threads and every overlap for one launch, `logs/uifix-b1-diag-20260929`. Cohtml builds and fills feature sets in its style work on the game's Render Worker threads and GameThread, never on the mod's moved resource thread, and across menu pages, a load, a lap and a return to the menu no child was removed while any rule was being filed and no rule reached a set a removal had already used. The premise that the moved parse files rules does not hold, so nothing is changed and `.agent/docs/systems/responsive-ui.md` records why.
 
 `src/ui/child_removal_fix.cpp:333`. `Hook_ConstructFeatureSet` inserts an empty FeatureSet with
 anyChild false, and `Hook_AddRuleFeatures` then fills it rule by rule. Between those two the set reads
