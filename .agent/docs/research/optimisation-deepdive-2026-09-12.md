@@ -422,8 +422,8 @@ DLL adds nothing` (a negative result), `four named per frame passes` (its own sh
 "Nothing to build yet"), and `no link time code generation` (its own shape field reads "Nothing to
 build", and a six instruction leaf cannot be inlined into 476,036 call sites from outside). The last
 one deserves a line of its own. `0x006AB180`, the `Vec4& operator*=(float)` it names, is the
-**single hottest game address in everything the load sampler recorded**, 12,295 samples of the
-47,535 printed, and it leads 84 of the 107 windows. In the track loads the job queue spin of
+**single hottest game address in the 107 windows of both runs**, 12,295 samples of the 47,535
+printed, and it leads 84 of them. In the track loads the job queue spin of
 TODO-013 leads instead and it comes second or lower. Nothing the mod can do reaches it. It is the
 best thing in this document to hand to Kunos.
 
