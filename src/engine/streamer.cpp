@@ -44,7 +44,7 @@
 // levels below its finest on most of them. The fix loads the levels that fit, and the rest follow
 // on later kicks as space comes back.
 //
-// The seven sites, each the rewrite of one rel32 displacement:
+// The six sites, each the rewrite of one rel32 displacement:
 //
 //   S1  the lea that hands the kick job its function, through a stub that counts kicks
 //   S2  the selected update's read of the current level, which also sees the admitted level
@@ -69,7 +69,8 @@
 //     is left to finish, and the next kick asks for the rest.
 //   - Kicks are serialised, the scheduler waits on the previous kick's job before it queues the
 //     next one, so the per texture state below needs no lock. A second hook arriving while one is
-//     running would mean that is wrong, and everything then passes straight to the engine.
+//     running would mean that is wrong, and that one call then goes straight to the engine, logged
+//     the first time, with nothing switched off.
 //   - A refused drop keeps tiles the engine would have freed, and the engine's tile allocator
 //     stalls rather than evicts when the pool runs dry. The pool is a fixed heap that sits full in
 //     normal play, parked the streamer turns about 120 loads away for space on every kick, so
@@ -82,9 +83,7 @@
 #include "acevo/engine/streamer.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
-// Declared rather than included: this file has its own static Fnv1a64 and AllocNear, and pulling in
-// core/code_patch.h would redeclare those as extern first, which the compiler warns about.
-bool CodePatchingIsLate();
+#include "acevo/core/code_patch.h"
 #include "acevo/telemetry/streaming_trace.h"
 #include <algorithm>
 #include <string_view>
@@ -247,7 +246,7 @@ constexpr ptrdiff_t kRejected = 0x160;
 
 namespace feedback {
 constexpr ptrdiff_t kAgeLimit = 0x0;
-constexpr ptrdiff_t kIds = 0x10;
+constexpr ptrdiff_t kIds = 0x10;          // a uint32 count, 131072 on 0.9.1, the length of the mips and ages arrays
 constexpr ptrdiff_t kMips = 0x40;
 constexpr ptrdiff_t kCounts = 0x58;
 constexpr ptrdiff_t kAges = 0x70;
@@ -283,16 +282,6 @@ static T At(const BYTE* p, ptrdiff_t offset)
     return value;
 }
 
-static uint64_t Fnv1a64(const BYTE* p, size_t n)
-{
-    uint64_t h = 0xCBF29CE484222325ull;
-    for (size_t i = 0; i < n; ++i) {
-        h ^= p[i];
-        h *= 0x100000001B3ull;
-    }
-    return h;
-}
-
 // ---------------------------------------------------------------------------
 // State, touched only from inside kicks unless it is atomic
 // ---------------------------------------------------------------------------
@@ -311,6 +300,7 @@ static BYTE* g_brokenFlag = nullptr;                // the partial load stub's c
 static std::atomic<uint64_t> g_rankSorts{0};
 static std::atomic<bool> g_broken{false};
 static std::atomic<bool> g_inHook{false};
+static std::atomic<bool> g_overlapSaid{false};
 
 // The tile pool as the last kick read it, for the report. The report runs on the timeline thread,
 // which outlives the engine's allocator at exit, and catching a fault there is not enough, the
@@ -423,6 +413,7 @@ static Feedback ReadFeedback(const BYTE* str, const BYTE* tex)
     if (!fbObject) return fb;
 
     const BYTE* alloc = At<BYTE*>(tex, texture::kAllocator);
+    if (!alloc) return fb;
     uint32_t id = (uint32_t)(At<int32_t>(tex, texture::kFeedbackSlot) - At<int32_t>(alloc, allocator::kFeedbackBase));
     if (id >= At<uint32_t>(fbObject, feedback::kIds)) return fb;
 
@@ -557,16 +548,28 @@ static TextureState& Touch(const BYTE* tex, uint64_t now)
     return state;
 }
 
+// An access violation the hooks' __except catches leaves g_inHook set, since /EHsc runs no destructor for
+// it, which does not matter while Broken latches every hook off on the same path.
 struct HookGuard {
     bool entered;
     HookGuard() : entered(!g_inHook.exchange(true)) {}
     ~HookGuard() { if (entered) g_inHook.store(false); }
 };
 
+// Two hooks at once would share the texture table and the tally unguarded, so the second goes straight to
+// the engine for that one call. It once switched every fix off for the session instead, which cost far
+// more than the one event it loses.
+static void SkipOverlap(const char* where)
+{
+    if (!g_overlapSaid.exchange(true))
+        Log("[streamer] a second hook arrived in %s while one was running, so that call went straight to the engine "
+            "and nothing was switched off. Only the first time is logged.", where);
+}
+
 static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* context)
 {
     HookGuard guard;
-    if (!guard.entered) { Broken("S2, a second hook while one was running"); return; }
+    if (!guard.entered) { SkipOverlap("S2"); return; }
 
     const BYTE* frame = context + kick::kContextToFrame;
     const BYTE* str = At<BYTE*>(context, kick::kContextStreamer);
@@ -620,7 +623,7 @@ static Verdict Judge(const TextureState& state, int keep, int current, const Fee
 static bool OnDrop(const BYTE* tex, int keep, const BYTE* str, const BYTE* frame, bool admitted)
 {
     HookGuard guard;
-    if (!guard.entered) { Broken(admitted ? "S3, a second hook while one was running" : "S4, a second hook while one was running"); return false; }
+    if (!guard.entered) { SkipOverlap(admitted ? "S3" : "S4"); return false; }
     if (At<BYTE*>(frame, kick::kStreamer) != str) {
         Broken(admitted ? "S3, the kick frame is not where it should be" : "S4, the kick frame is not where it should be");
         return false;
@@ -751,26 +754,6 @@ static void HookRecordSort(BYTE* first, BYTE* last, ptrdiff_t count, uint8_t pre
 // ---------------------------------------------------------------------------
 // Installing
 // ---------------------------------------------------------------------------
-
-// A 32 bit displacement reaches 2 GB either way, so the stubs have to live near the exe.
-static BYTE* AllocNear(BYTE* anchor, size_t size)
-{
-    SYSTEM_INFO si = {};
-    GetSystemInfo(&si);
-    const uintptr_t granularity = si.dwAllocationGranularity ? si.dwAllocationGranularity : 0x10000;
-    const uintptr_t reach = 0x60000000ull;   // well inside 2 GB, leaving room for the exe itself
-
-    for (uintptr_t delta = granularity; delta < reach; delta += granularity) {
-        const uintptr_t base = (uintptr_t)anchor;
-        const uintptr_t candidates[2] = { base + delta, base > delta ? base - delta : 0 };
-        for (uintptr_t addr : candidates) {
-            if (!addr) continue;
-            void* p = VirtualAlloc((void*)(addr & ~(granularity - 1)), size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            if (p) return (BYTE*)p;
-        }
-    }
-    return nullptr;
-}
 
 struct Emitter {
     BYTE* at;

@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-24
+updated: 2026-09-25
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -56,10 +56,14 @@ connection whose game mode no longer looks live is let go for good with a
 `let go of N connection(s) for good` line.
 
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
-exception the game's own code throws is counted by throw site (the return address as an RVA)
-with its mangled type name and, for `std::exception` types, the message of the first throw.
-Every ten seconds with at least one throw the log gets a `[throw]` line with the count and the
-eight busiest sites. Off by default, the hook costs nothing when a frame throws nothing.
+exception the exe's own code throws is counted by throw site (the return address as an RVA)
+with its mangled type name and, for a type that can be caught as `std::exception`, the message of the
+first throw. The runtime DLLs throw from their own code and are not counted, `msvcp140.dll`'s helpers
+and `vcruntime140.dll`'s failed `dynamic_cast` to a reference and `typeid` of a null pointer among them,
+and a bare `throw;` is counted with `?` for its type. Every ten seconds with at least one throw the log
+gets a `[throw]` line with the count and the eight busiest sites, and throws in the last seconds before
+the quit are never reported. Off by default, the hook costs nothing when a frame throws nothing, and no
+session on disk with it on has logged a throw.
 
 ## acevo_perf_timeline.csv
 

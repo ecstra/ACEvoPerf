@@ -3,14 +3,18 @@
 #include "acevo/core/log.h"
 #include "acevo/core/iat.h"
 
-// The exe's import of _CxxThrowException is patched, so every throw from the game's own code
-// passes through here first. The throw info the compiler emits names the type (as a mangled
-// name) and, for std::exception types, the object carries a message worth logging.
+// The exe's import of _CxxThrowException is patched, so every throw the exe's own code makes passes
+// through here first. The runtime DLLs throw from their own code and are not counted, msvcp140.dll's
+// helpers and vcruntime140.dll's failed dynamic_cast to a reference and typeid of a null pointer among
+// them, and a bare throw; is counted at its site with no type. The throw info the compiler emits names
+// the type (as a mangled name) and, for std::exception types, the object carries a message worth
+// logging. what() is asked at the throw, before the stack unwinds, so it runs while the throwing thread
+// still holds the locks it took, which a catch would have released first.
 typedef void (__stdcall *PFN_CxxThrowException)(void*, void*);
 static PFN_CxxThrowException g_origThrow = nullptr;
 static uintptr_t g_exeBase = 0;
 
-struct ThrowSite { uintptr_t returnRva; uint32_t count; char type[96]; char message[128]; };
+struct ThrowSite { uintptr_t returnRva; uint32_t count; bool asked; char type[96]; char message[128]; };
 static const int kMaxSites = 256;
 static ThrowSite g_sites[kMaxSites];
 static int g_siteCount = 0;
@@ -22,7 +26,8 @@ static CRITICAL_SECTION g_cs;
 // x64 throw info: every pointer is an RVA from the throwing module's base
 struct ThrowInfoRva { unsigned attributes; int unwind; int forwardCompat; int catchableTypeArray; };
 struct CatchableTypeArrayRva { int count; int types[1]; };
-struct CatchableTypeRva { unsigned properties; int typeDescriptor; };
+struct Pmd { int mdisp; int pdisp; int vdisp; };   // where a base sits in the thrown object
+struct CatchableTypeRva { unsigned properties; int typeDescriptor; Pmd thisDisplacement; };
 struct TypeDescriptorRaw { void* vtable; void* spare; char name[1]; };
 
 static const char* TypeName(void* throwInfo)
@@ -40,17 +45,49 @@ static const char* TypeName(void* throwInfo)
     }
 }
 
-// std::exception and its children keep what() in the second vtable slot
-static const char* Message(void* object, const char* typeName)
+// The thrown object's std::exception part, or null when it cannot be caught as one. The throw info lists
+// every type the object can be caught as, each with where that part sits, which is not the object's start
+// when std::exception is not its first base or is a virtual one, and this is the arithmetic of vcruntime's
+// __AdjustPointer. A name with "exception" or "error" in it said nothing of the kind, and reading the
+// vtable at the object's start called whatever sat in its second slot, a rethrow in one Boost type.
+static void* StdExceptionPart(void* object, void* throwInfo)
 {
     __try {
-        if (!object || !strstr(typeName, "exception") && !strstr(typeName, "error")) return "";
-        void** vtable = *(void***)object;
-        typedef const char* (__thiscall *PFN_What)(void*);
-        const char* text = ((PFN_What)vtable[1])(object);
-        return text ? text : "";
+        auto info = (const ThrowInfoRva*)throwInfo;
+        if (!object || !info || !info->catchableTypeArray) return nullptr;
+        auto types = (const CatchableTypeArrayRva*)(g_exeBase + info->catchableTypeArray);
+        for (int i = 0; i < types->count; ++i) {
+            auto type = (const CatchableTypeRva*)(g_exeBase + types->types[i]);
+            auto descriptor = (const TypeDescriptorRaw*)(g_exeBase + type->typeDescriptor);
+            if (strcmp(descriptor->name, ".?AVexception@std@@") != 0) continue;
+            const Pmd& at = type->thisDisplacement;
+            char* part = (char*)object + at.mdisp;
+            if (at.pdisp >= 0) {
+                const char* vbtable = *(const char* const*)((const char*)object + at.pdisp);
+                part += *(const int32_t*)(vbtable + at.vdisp) + at.pdisp;
+            }
+            return part;
+        }
+        return nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return "";
+        return nullptr;
+    }
+}
+
+// std::exception keeps what() in the second slot of its own vtable. The text is copied inside the guard,
+// so a pointer what() hands back that cannot be read faults here and not in the caller.
+static void Message(void* object, void* throwInfo, char* out, size_t size)
+{
+    out[0] = 0;
+    void* part = StdExceptionPart(object, throwInfo);
+    if (!part) return;
+    __try {
+        void** vtable = *(void***)part;
+        typedef const char* (__thiscall *PFN_What)(void*);
+        const char* text = ((PFN_What)vtable[1])(part);
+        if (text) strncpy_s(out, size, text, _TRUNCATE);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        out[0] = 0;
     }
 }
 
@@ -58,6 +95,7 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
 {
     uintptr_t returnRva = (uintptr_t)_ReturnAddress() - g_exeBase;
     g_throwsTotal++;
+    bool ask = false;
     EnterCriticalSection(&g_cs);
     ThrowSite* site = nullptr;
     for (int i = 0; i < g_siteCount; ++i) if (g_sites[i].returnRva == returnRva) { site = &g_sites[i]; break; }
@@ -65,14 +103,28 @@ static void __stdcall Hook_CxxThrowException(void* object, void* throwInfo)
         site = &g_sites[g_siteCount++];
         site->returnRva = returnRva;
         site->count = 0;
+        site->asked = false;
         strncpy_s(site->type, TypeName(throwInfo), _TRUNCATE);
         site->message[0] = 0;
     }
     if (site) {
         site->count++;
-        if (!site->message[0]) strncpy_s(site->message, Message(object, site->type), _TRUNCATE);
+        // Asked once per site whatever comes back, so a what() that faults, or throws back through here,
+        // is not asked again on every later throw from that site.
+        ask = !site->asked;
+        site->asked = true;
     }
     LeaveCriticalSection(&g_cs);
+
+    // Outside the lock, since what() is the game's own code and may take the game's own locks, which
+    // another thread could hold while it waits here to count a throw of its own.
+    if (ask) {
+        char message[sizeof site->message];
+        Message(object, throwInfo, message, sizeof message);
+        EnterCriticalSection(&g_cs);
+        strncpy_s(site->message, message, _TRUNCATE);
+        LeaveCriticalSection(&g_cs);
+    }
     g_origThrow(object, throwInfo);
 }
 

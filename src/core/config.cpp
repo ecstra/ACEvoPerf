@@ -169,6 +169,15 @@ void LoadConfig()
             if (key.empty()) continue;
             std::wstring val = (eq == std::wstring::npos) ? L"" : line.substr(eq + 1);
             while (!val.empty() && (val.front() == L' ' || val.front() == L'\t')) val.erase(0, 1);
+            // A tile pool the flag writer would refuse is never written, and with the canonical flag on
+            // the engine then takes the whole texturePoolSize define, the failure the auto size exists
+            // for, so anything but auto or nine plain digits at most, which always fit an int32, falls back
+            // to auto, as staging_buffer_mb does. The name is matched exactly, as the flag writer matches it.
+            if (key == L"tile_pool_mb" && _wcsicmp(val.c_str(), L"auto") != 0
+                && (val.empty() || val.size() > 9 || val.find_first_not_of(L"0123456789") != std::wstring::npos)) {
+                Note("ini: [flags] tile_pool_mb=%ls is not auto or at most nine plain digits, using auto", val.c_str());
+                val = L"auto";
+            }
             if (val.empty()) g_cfg.flags.push_back(key);
             else g_cfg.flags.push_back(key + L"=" + val);
         }

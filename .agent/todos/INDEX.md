@@ -36,7 +36,7 @@ tooling
 
 stability
 
-- [TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track](TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, to reproduce by loading a custom track, the likeliest lead the mod's smaller loading buffer failing a bigger request
+- [TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track](TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, to reproduce by loading a custom track, the likeliest lead the mod's smaller loading buffer failing a bigger request, which the player's finding that `[dxgi] enabled=0` cures it on 0.3.2 points at
 
 engine-flags
 

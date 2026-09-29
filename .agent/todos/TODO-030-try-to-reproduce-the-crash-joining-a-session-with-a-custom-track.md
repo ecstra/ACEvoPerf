@@ -1,7 +1,7 @@
 ---
 name: TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track
 kind: todo
-description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes
+description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes, which the player's own finding that [dxgi] enabled=0 cures it on 0.3.2 points at, since that switch also skipped the mod's sizes there
 updated: 2026-09-24
 links: [DEC-003-staging-buffer-128mb, BUG-003-menu-icons-stop-rendering, BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup, directstorage-streaming, session-leak-fix, package-override-layer, DEC-023-the-session-free-stays-immediate]
 status: open
@@ -44,6 +44,28 @@ content the mod has never been run against. The leads, in the order they are wor
    recognised the package's table by one empty slot alone, fixed on 0.4 by H-14 of the override
    layer review. `enabled=0` under `[overlay]`.
 
+## The player's second report, 2026-09-24
+
+On the same reddit thread, as the owner passed it on:
+
+> Thanks i just want to say that i noticed when i change dxgi to enabled=0 it works
+
+On 0.3.2 that switch did more than its name says. The mod filled in every size set to `auto`, the
+staging buffer and the tile pool, from `ResolveAutoSizes`, and the only caller was the DXGI factory
+hook (`src/render/dxgi_hooks.cpp` and `src/render/adapter.cpp` at `v0.3.2`). With `[dxgi] enabled=0`
+it never ran, so `stagingMb` stayed 0 and the proxy passed the game's own 1024 MB through, and
+`tile_pool_mb` was never written either. That fits lead 1, and it cannot tell it apart from the tile
+pool, which it lifted at the same time.
+
+The same player's first comment on that thread says the mod cured a freeze on every car change they
+had had since the game's 0.8, which is BUG-004's shape and the reason the cap exists, so lifting it
+for good would likely bring that back.
+
+On 0.4 the switch no longer does this, since the auto sizes are read at the first DirectStorage call
+when the DXGI hooks are off, so the player's workaround does not carry over. Players are not asked to
+test, the owner's word of 2026-09-24, "No need to ask users to debug.", so the two leads are told apart
+here, with `staging_buffer_mb=0` and then `tile_pool_mb=0` on a custom track that crashes.
+
 ## Done when
 
 A custom track has been loaded and a session joined with the mod on, noting how the track installs,
@@ -52,4 +74,5 @@ since an installer that repacks `content.kspkg` changes what the override layer 
 - If it crashes, the mod's `acevo_perf.log` and the game's own log of that launch are kept, the
   leads above are tried one setting at a time, starting with `staging_buffer_mb=0`, and the defect
   moves to bugs/ with that evidence.
-- If it loads clean, the leads go back to the player with a request for their two logs.
+- If it loads clean, a custom track with a single file bigger than the loading buffer is found and
+  tried, since that is what lead 1 needs.
