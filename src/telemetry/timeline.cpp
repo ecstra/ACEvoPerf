@@ -23,7 +23,9 @@ static HANDLE OpenCsv(const wchar_t* name, const char* header)
     return h;
 }
 
-// The adapter with the most dedicated memory is the discrete GPU the game renders on.
+// The adapter with the most dedicated memory is the discrete GPU the game renders on. One reporting
+// none is still taken, since plenty of integrated parts report zero and keep everything in shared
+// memory, and QueryVideoMemoryInfo answers for them all the same.
 static IDXGIAdapter3* FindRenderAdapter()
 {
     // Loaded rather than looked up, so the columns do not depend on the game having loaded dxgi.dll by
@@ -42,7 +44,7 @@ static IDXGIAdapter3* FindRenderAdapter()
         IDXGIAdapter1* adapter = nullptr;
         if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
         DXGI_ADAPTER_DESC1 d = {}; adapter->GetDesc1(&d);
-        if (!(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && d.DedicatedVideoMemory > bestMem) {
+        if (!(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && (!best || d.DedicatedVideoMemory > bestMem)) {
             IDXGIAdapter3* a3 = nullptr;
             if (SUCCEEDED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&a3)) && a3) {
                 if (best) best->Release();
