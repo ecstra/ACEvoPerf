@@ -10,8 +10,9 @@ static SRWLOCK g_lock = SRWLOCK_INIT;
 static std::string g_pending;
 static HANDLE g_file = INVALID_HANDLE_VALUE;
 static std::atomic<uint64_t> g_droppedRows{0};
-// Set when the file cannot be made, which ends the trace for the run. Retrying every second used to
+// Set when the file cannot be made, which ends the trace's rows for the run. Retrying every second used to
 // collect rows only to free them, and a file freed up mid session started partway with nothing to say so.
+// The [writes] and repeated read lines that come with the switch carry on, since they are the log's own.
 static std::atomic<bool> g_traceFailed{false};
 
 // A stuck writer thread must not grow the buffer without end, a minute of a busy session is a
@@ -53,7 +54,8 @@ static void WriteOut(std::string& rows)
         g_file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (g_file == INVALID_HANDLE_VALUE) {
             g_traceFailed.store(true, std::memory_order_relaxed);
-            Log("[trace] could not create acevo_perf_streaming.csv (error %lu), so the streaming trace is off for this run", GetLastError());
+            Log("[trace] could not create acevo_perf_streaming.csv (error %lu), no streaming rows are written this run, "
+                "the [writes] and repeated read lines carry on", GetLastError());
             return;
         }
         static const char header[] = "t_s,kind,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o\r\n";
