@@ -78,10 +78,13 @@ static DWORD WINAPI TimelineThread(void*)
     uint64_t lastProc = FileTimeToU64(k) + FileTimeToU64(u);
     FILETIME sysIdle, sysKernel, sysUser; GetSystemTimes(&sysIdle, &sysKernel, &sysUser);
     uint64_t lastIdle = FileTimeToU64(sysIdle), lastSysBusy = FileTimeToU64(sysKernel) + FileTimeToU64(sysUser);
-    // Every counter's baseline is read here together, so the first row's columns cover the same second.
+    // Every counter starts its first second here together, the running totals by a baseline and the
+    // ones each tick takes by being zeroed, so the first row's columns cover the same second.
     uint64_t lastReq[5] = {}, lastBytes[5] = {};
     for (int i = 0; i < 5; ++i) { lastReq[i] = g_reqByDest[i].load(); lastBytes[i] = g_bytesByDest[i].load(); }
     uint64_t lastSubmits = g_submitsTotal.load(), lastBatches = g_tileBatches.load();
+    g_frames.store(0); g_frameSumUs.store(0); g_frameMaxUs.store(0);
+    g_hitch20.store(0); g_hitchCfg.store(0); g_tileBatchMax.store(0);
     double lastT = NowSec();
 
     // The per second tick runs even with both CSVs off: it refills the hitch log budget and
