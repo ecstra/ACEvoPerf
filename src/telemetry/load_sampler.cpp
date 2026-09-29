@@ -2,8 +2,8 @@
 //
 // Every refresh the busiest threads of the process are picked by their CPU time,
 // which during a load is the engine's resource workers without having to know
-// their names. They are then sampled round robin: suspend, read RIP and RSP,
-// resume, and only then classify, because allocating while another thread is
+// their names. They are then sampled round robin: suspend, read RIP, resume,
+// and only then classify, because allocating while another thread is
 // suspended is how a profiler deadlocks on the heap lock.
 //
 // The classification is the one the render thread sampler used (commit a119e8c):
