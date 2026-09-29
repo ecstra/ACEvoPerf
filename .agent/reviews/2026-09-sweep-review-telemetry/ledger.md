@@ -59,7 +59,7 @@ table printing two rows under one name, V-31, which joins batch 4.
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | closed, runtime confirmed | 2026-09-29 |
 | 3 | the CSVs and the log's reports mean what they say | closed, runtime confirmed | 2026-09-29 |
-| 4 | the leftovers | pending | |
+| 4 | the leftovers | fixing | 2026-09-29 |
 
 ## Findings
 
@@ -843,8 +843,8 @@ record precision and one comment left.
 - severity: bug
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 39ff642, 2026-09-29, each heap is looked for in the live heap list just before it is read or compacted, and one no longer there is skipped. A heap destroyed between that look and the call can still fault, which leaves microseconds where there were seconds.
 
 `src/telemetry/memory_census.cpp:199`. `ReadHeaps` snapshots handles at 195 and then calls
 `HeapSummary` on each, `CompactHeaps` does the same at 176 and 177, and a census does three such passes
@@ -861,8 +861,8 @@ bogus crash reports in the player's game log.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 65a8b54, 2026-09-29, one helper reads the list, and when it returns a count larger than its buffer the buffer grows to it and the call goes again.
 
 `src/telemetry/memory_census.cpp:176`. Line 175 sizes the vector to the count plus 16 and line 176 fills
 it. When the true count exceeds the buffer, `GetProcessHeaps` stores nothing and returns the real count.
@@ -877,8 +877,8 @@ the two calls is unlikely, and the failure mode is loud. A retry loop is the fix
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2af9195, 2026-09-29, two buffers are traded at each flush and the written one is cleared, so the buffer the rows go into keeps the capacity it grew to. Each can hold up to the 64 MB cap for the rest of a run once a stalled writer has let it grow that far.
 
 `src/telemetry/streaming_trace.cpp:66`. `TraceFlush` declares a fresh empty string and swaps it with
 `g_pending`, so `g_pending` comes back with no capacity and the old buffer is freed.
@@ -893,8 +893,8 @@ buffer walks toward its ceiling and the last doubling copies tens of megabytes u
 - severity: nit
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 7645d8d, 2026-09-29, the kick row checks `TraceOn()` before its arguments are read, as the other streamer rows already did.
 
 `src/telemetry/streaming_trace.cpp:25`. `TraceRow` is variadic and tests the flag as its first statement,
 so at `streamer.cpp:521` every streamer kick still evaluates eight raw offset reads into the engine's
@@ -909,8 +909,8 @@ Batch 3's run raised one more, read from its log when the launch was checked.
 - severity: nit
 - found-by: verifier
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 5e114af, 2026-09-29, each row prints the thread's id beside its name.
 
 `src/telemetry/load_sampler.cpp:364`. The game rebuilds its render and resource workers each time the
 loading boost goes on or off, keeping their names, and during a load it runs a second Resource Manager
