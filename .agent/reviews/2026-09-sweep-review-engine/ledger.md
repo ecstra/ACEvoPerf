@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-engine
 kind: review
 description: the engine hooks angle of the full review of main, one null pointer that retires all three streamer fixes and a flag writer that can inherit the wrong storage, seven findings
-updated: 2026-09-25
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, directstorage-streaming, engine-flags, reviews-index]
 branch: sweep/review-engine
 status: open
@@ -44,7 +44,7 @@ switch.
 | 1 | one fault does not silently retire the fixes for the session | closed, runtime confirmed | 2026-09-24 |
 | 2 | the flag writer cannot land on the wrong global | closed, runtime confirmed | 2026-09-24 |
 | 3 | the throw log cannot eat the game's own exception | closed, launch clean, the call not known to have run | 2026-09-25 |
-| 4 | the leftovers | pending | |
+| 4 | the leftovers | fixing | 2026-09-29 |
 
 ## Findings
 
@@ -198,8 +198,8 @@ beside a known good value once per build would catch it.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 20e1e6d, 2026-09-29, the copies are gone and streamer.cpp includes `acevo/core/code_patch.h`, whose note about why it did not is gone with them. Batch 4's run hooked the streamer, so its region hashes matched through the shared `Fnv1a64` and its stubs landed in memory the shared `AllocNear` found.
 
 `src/engine/streamer.cpp:283` and `:753` define static copies of `Fnv1a64` and `AllocNear`, identical
 to the non static definitions at `src/core/code_patch.cpp:3` and `:14` apart from one word in a
@@ -210,8 +210,8 @@ is duplicating.
 - severity: nit
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-09-29, it is a count, and nothing is wrong. A one time line, d2970c6, logged the table's words on batch 4's run, `+0x10 0063006100020000`, whose low 32 bits read as 131072, the length of both the mips and the ages arrays, while `+0x18` and `+0x20` held heap pointers. 80f8cd8 took the line out and notes the count beside `kIds`.
 
 `src/engine/streamer.cpp:424`. kAgeLimit 0x0, kIds 0x10, kMips 0x40, kCounts 0x58 and kAges 0x70 sit
 0x18 apart from 0x10 onward, which is the spacing of three std::vector triples. Line 424 reads +0x10 as
@@ -548,6 +548,11 @@ no `Exception Detected`, and no `[throw]` line, so no throw came through the exe
 ten second report, as in all seven sessions on disk with the switch on. The changed call is not known to
 have run, so what it does rests on the hunter's and the verifier's reading, and cf0cc96, e03da2a,
 9e3d3a4 and 095f14a came after the run.
+
+Batch 4, one launch on 2026-09-29, `logs/engine-b4-20260929`, 09:29 to 09:31, a track and a quit, on
+d2970c6's build. The streamer hooked, `[streamer] feedback layout check: +0x10 0063006100020000, +0x18
+00000168B85564E0, +0x20 00000168FED8D0B0, mips span 131072, ages span 131072`, no `a hook faulted` and no
+`second hook` line, a clean `detached` and no `Exception Detected`.
 
 ## Checked and clean
 
