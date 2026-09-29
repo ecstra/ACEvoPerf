@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-telemetry
 kind: review
-description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and two added by other angles' sub agents
+description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and two added by other angles' sub agents, plus sixty six from the hunters, verifiers and runs across four batches, merged into 0.4 on 2026-09-29
 updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-telemetry
-status: open
+status: closed
 ---
 
 # Review of the telemetry instruments
@@ -27,7 +27,9 @@ reading came from the wrong pick.
 Ten findings, one breaks, five bug, three debt, one nit. F-11 was added on 2026-09-20 by the verifier
 of `sweep/review-render`, which met the same shape in the render layer's adapter pick, and F-12 the
 same day by the hunter of `sweep/review-proxy-core`, whose own fix made it matter more. F-05's
-validation half is already closed by that branch, since the key is read there.
+validation half is already closed by that branch, since the key is read there. With the 66 the hunters,
+verifiers and runs added across the four batches, 78 in all, and the branch merged into 0.4 on
+2026-09-29.
 
 Batch 1 closed with F-01 fixed, the census making its file before any hook, and the hunter's same
 shape in the trace, the timeline, the frames and the load sampler fixed with it, each now saying when

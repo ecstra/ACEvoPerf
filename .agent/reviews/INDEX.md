@@ -1,7 +1,7 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, seven of them done
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, eight of them done
 updated: 2026-09-29
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
@@ -22,18 +22,19 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Seven angles are done as of 2026-09-29, the Cohtml
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Eight angles are done as of 2026-09-29, the Cohtml
 build guard, the render layer, the proxy and core, the package override layer, the session leak fix,
-the teardown path and the engine hooks, and the six below them are open, the telemetry angle's four
-batches closed and waiting on the owner's word to merge, every other batch pending it.
+the teardown path, the engine hooks and the telemetry instruments, and the five below them are open
+with every batch pending the owner's word.
 
-Those seven added 282 findings of their own, from the hunter and verifier sub agents that run on
-every batch. Every one of the twenty six batches so far needed at least one correction after its
-first fix. Twenty of the first three angles' added findings were bugs a fix had itself caused or left
-standing, and seven more code defects in the override layer's. In the session leak fix's one fix did
-more harm than its finding and was reverted, the teardown path's worst finding proved lighter than
-filed, and in the engine hooks' a strict check a hunter asked for caused a bug of its own. The loop is
-not ceremony on this codebase.
+Those eight added 348 findings of their own, from the hunter and verifier sub agents that run on
+every batch and the launches that confirm them. Every one of the thirty batches so far needed at least
+one correction after its first fix. Twenty of the first three angles' added findings were bugs a fix
+had itself caused or left standing, and seven more code defects in the override layer's. In the session
+leak fix's one fix did more harm than its finding and was reverted, the teardown path's worst finding
+proved lighter than filed, in the engine hooks' a strict check a hunter asked for caused a bug of its
+own, and in the telemetry instruments' the sampler's first wait fix only traded one spin for another.
+The loop is not ceremony on this codebase.
 
 ### What the review found, in one paragraph
 
@@ -110,11 +111,6 @@ ledger.
 
 ## Active
 
-- [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
-  the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
-  from other angles' sub agents, 1 breaks, plus 11 from batch 1's hunter and verifier, 27 from batch
-  2's hunters, verifiers and run, 18 from batch 3's hunters, verifiers and run and 10 from batch 4's
-  hunters and verifiers, all four batches closed and runtime confirmed
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
   invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
   another angle's verifier
@@ -131,6 +127,10 @@ ledger.
 
 ## Closed
 
+- [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
+  the census cannot open its file and a sampler that picked the wrong threads, 10 findings and 2
+  handed over from other angles, plus 66 from the hunters, verifiers and runs, 78 in all and 1 of them
+  breaks, four batches, all runtime confirmed where a run can show it, merged into 0.4 on 2026-09-29
 - [2026-09-sweep-review-engine](2026-09-sweep-review-engine/ledger.md), one null pointer that retires all
   three streamer fixes and a flag writer that can inherit the wrong storage, 7 findings plus 40 from the
   hunters and verifiers, 47 in all and none of them breaks, four batches, all runtime confirmed where a
