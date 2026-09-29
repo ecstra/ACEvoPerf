@@ -139,10 +139,11 @@ It is load specific, and not by a little. Its share of all samples, per fifteen 
 
 | window | what was loading | spin share |
 |---|---|---|
-| t+45 | Nurburgring, 16.7 s | 5.8% |
+| t+30 and t+45 | Nurburgring, 16.7 s | 2.2% and 5.8% |
 | t+630 | Red Bull Ring, 7.9 s | 3.1% |
 | t+1260 | Touristenfahrten online, 17.9 s | 6.1% |
-| the other 100 windows | menus and driving | 0.1 to 0.2% |
+| five windows | the menu scene, 2.7 to 5.7 s | 0.2 to 0.9% |
+| the other 93 windows | menus and driving | 0.3% or less |
 
 Every spike is a track load and nothing else in a hundred windows comes near. Game code in
 general goes from 5 to 10 percent of samples at rest to 15.7 and 17.8 percent during the two
