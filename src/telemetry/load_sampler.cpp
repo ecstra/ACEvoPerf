@@ -12,6 +12,7 @@
 #include "acevo/telemetry/load_sampler.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include "acevo/render/frame_stats.h"
 #include <tlhelp32.h>
 #include <unordered_map>
 
@@ -456,7 +457,9 @@ DWORD WINAPI SamplerThread(void*)
         }
 
         if (now.QuadPart - lastCsv > qpf.QuadPart) {
-            WriteCsvLine((double)(now.QuadPart - start.QuadPart) / qpf.QuadPart);
+            // Seconds since attach, the clock the timeline, frames and trace files count in, so a
+            // row lines up with theirs. The sampler itself starts seconds later.
+            WriteCsvLine(NowSec());
             lastCsv = now.QuadPart;
         }
         if (now.QuadPart - lastRefresh > qpf.QuadPart * 2) {
@@ -469,7 +472,7 @@ DWORD WINAPI SamplerThread(void*)
         if (now.QuadPart - lastSummary > qpf.QuadPart * 15) {
             char when[64];
             _snprintf_s(when, sizeof when, _TRUNCATE, "t+%.0f s, the last %.0f s",
-                (double)(now.QuadPart - start.QuadPart) / qpf.QuadPart, (double)(now.QuadPart - lastSummary) / qpf.QuadPart);
+                NowSec(), (double)(now.QuadPart - lastSummary) / qpf.QuadPart);
             LogSummary(when);
             lastSummary = now.QuadPart;
         }
