@@ -42,7 +42,8 @@ picked from it or the reason none were picked, a second `auto sizes` line at the
 the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
 every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
-with the streaming activity since the previous hitch, the swap chain's creation parameters and
+with the streaming activity since the previous hitch, logged or not, or since the last pause over 2 s
+such as a loading screen or a new swap chain, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
 the render adapter.
 

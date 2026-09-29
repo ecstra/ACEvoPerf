@@ -97,10 +97,10 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
     if (ms > (double)g_cfg.hitchMs) {
         g_hitchCfg++;
         if (g_hitchLogBudget.fetch_sub(1) > 0)
-            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
+            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch or pause: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
                 ms, NowSec(), (unsigned long long)(req[4] - g_hitchSnap[4]), (unsigned long long)(req[0] - g_hitchSnap[0]),
                 (unsigned long long)(req[1] + req[2] - g_hitchSnap[1] - g_hitchSnap[2]));
-        // Moved by every hitch, logged or not, so "since previous hitch" means the one before it.
+        // Moved by every hitch, logged or not, so a line counts from the hitch before it, printed or not.
         for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
     }
 
