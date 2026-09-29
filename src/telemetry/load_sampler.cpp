@@ -56,6 +56,9 @@ std::unordered_map<std::string, ThreadTally> g_byThread;
 const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
 uint64_t g_bucketCounts[kBucketCount] = {};
 uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
+// The CSV's own counts, zeroed at each line so a row is its own second. The summary's are zeroed every
+// fifteen seconds, and written raw they sawtoothed with nothing in the file to say so.
+uint64_t g_csvCounts[kBucketCount] = {}, g_csvTotal = 0;
 uint64_t g_samplerCpu = 0;  // the sampler thread's own CPU time at the last summary
 
 HANDLE g_thread = nullptr;
@@ -287,13 +290,15 @@ void WriteCsvLine(double seconds)
     if (g_csv == INVALID_HANDLE_VALUE) return;
     SYSTEMTIME st; GetLocalTime(&st);
     char line[512];
-    int n = _snprintf_s(line, sizeof line, _TRUNCATE, "%02d:%02d:%02d,%.1f,%llu", st.wHour, st.wMinute, st.wSecond, seconds, (unsigned long long)g_total);
+    int n = _snprintf_s(line, sizeof line, _TRUNCATE, "%02d:%02d:%02d,%.1f,%llu", st.wHour, st.wMinute, st.wSecond, seconds, (unsigned long long)g_csvTotal);
     for (int b = 0; b < kBucketCount; ++b) {
-        int m = _snprintf_s(line + n, sizeof line - n, _TRUNCATE, ",%llu", (unsigned long long)g_bucketCounts[b]);
+        int m = _snprintf_s(line + n, sizeof line - n, _TRUNCATE, ",%llu", (unsigned long long)g_csvCounts[b]);
         n += m;
     }
     n += _snprintf_s(line + n, sizeof line - n, _TRUNCATE, "\r\n");
     DWORD written; WriteFile(g_csv, line, (DWORD)n, &written, nullptr);
+    g_csvTotal = 0;
+    memset(g_csvCounts, 0, sizeof g_csvCounts);
 }
 
 template <typename Map>
@@ -425,6 +430,8 @@ DWORD WINAPI SamplerThread(void*)
                 if (bucket < 0) bucket = kOther;
                 g_total++;
                 g_bucketCounts[bucket]++;
+                g_csvTotal++;
+                g_csvCounts[bucket]++;
                 ThreadTally& tally = g_byThread[t.name];
                 tally.total++;
                 tally.bucket[bucket]++;
