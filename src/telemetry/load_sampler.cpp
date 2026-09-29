@@ -370,14 +370,15 @@ DWORD WINAPI SamplerThread(void*)
     while (!g_stop) {
         next.QuadPart += interval;
         LARGE_INTEGER now;
-        // Sleep the wait away rather than spinning it. A spin here would hold a whole
-        // core at the highest priority and take it from the very workers being measured.
+        // Sleep the wait away when it is long enough to, and otherwise hand the core to any thread ready on
+        // it, which at the default interval is every wait. A spin here would hold a whole core at the
+        // highest priority and take it from the very workers being measured.
         for (;;) {
             QueryPerformanceCounter(&now);
             if (now.QuadPart >= next.QuadPart || g_stop) break;
             int64_t leftUs = (next.QuadPart - now.QuadPart) * 1000000 / qpf.QuadPart;
             if (leftUs > 1500) Sleep((DWORD)(leftUs / 1000) - 1);
-            else YieldProcessor();
+            else SwitchToThread();
         }
         if (g_stop) break;
         if (next.QuadPart < now.QuadPart - interval * 8) next.QuadPart = now.QuadPart;
