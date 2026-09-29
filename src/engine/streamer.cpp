@@ -512,12 +512,16 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
     }
     g_kicks++;
 
-    TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
-        (unsigned long long)now, At<int32_t>(str, streamer::kCap), At<int32_t>(str, streamer::kAvail),
-        At<int32_t>(str, streamer::kRecords), At<int32_t>(str, streamer::kAdmitted), At<int32_t>(str, streamer::kAdmittedTiles),
-        At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
-        s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
-        (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
+    // Checked here and not only inside TraceRow, since the arguments are raw reads of the engine's
+    // streamer and kick that a trace switched off has no reason to make.
+    if (TraceOn()) {
+        TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
+            (unsigned long long)now, At<int32_t>(str, streamer::kCap), At<int32_t>(str, streamer::kAvail),
+            At<int32_t>(str, streamer::kRecords), At<int32_t>(str, streamer::kAdmitted), At<int32_t>(str, streamer::kAdmittedTiles),
+            At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
+            s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
+            (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
+    }
 
     s_tally = KickTally{};
     s_kick = now;
