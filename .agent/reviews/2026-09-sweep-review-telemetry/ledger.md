@@ -193,39 +193,9 @@ presents tens of seconds of lifetime CPU and wins the sort at line 252. The whol
 out. The sampler then alternates between two sets chosen by lifetime CPU and largely ignores which
 threads are actually hot during the load, which is the one thing the instrument exists to find.
 
-### F-03: the per second CSV writes counters that the fifteen second summary zeroes, so every column sawtooths with no marker in the file
-- severity: bug
-- found-by: review
-- batch: 3
-- status: open
-- fix:
-
-`src/telemetry/load_sampler.cpp:271`. `WriteCsvLine` runs once a second and prints `g_total` and
-`g_bucketCounts[]` raw, while `LogSummary` runs every fifteen seconds and memsets both at lines 326 to
-328.
-
-Failure: a reader sees samples climb for fifteen rows and then drop back to about one. Any tool
-differencing consecutive rows gets a large negative delta fifteen times a minute, and any tool reading
-the columns as cumulative reads only the last window. The header says nothing about the reset, and the
-telemetry doc has no section for this file at all.
-
-### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
-- severity: bug
-- found-by: review
-- batch: 4
-- status: open
-- fix:
-
-`src/telemetry/memory_census.cpp:199`. `ReadHeaps` snapshots handles at 195 and then calls
-`HeapSummary` on each, `CompactHeaps` does the same at 176 and 177, and a census does three such passes
-over every heap with one pass alone taking 1.4 to 4.2 seconds.
-
-Failure: a component unloads during that window and destroys its heap, and the next `HeapSummary` or
-`HeapCompact` faults on a destroyed handle. The `__try` at 158 and 167 makes that safe in the sense that
-the census continues, but in this game a handled access violation is not free. The crash logger stalls
-the faulting thread and writes a line naming DSTORAGE.dll, which is BUG-022's shape, and here it can
-fire once per heap per pass. A census that faults on five heaps costs an extra second and puts five
-bogus crash reports in the player's game log.
+The saved runs show it milder than that, V-19. About a dozen threads, among them the render workers,
+GameThread and Physics, kept their slots through whole windows, and only the remaining slots alternated
+among long lived threads, so busy workers came and went rather than the whole set swapping.
 
 ### F-05: sample_us is read with no lower clamp, and zero turns the sampler into a full speed spin that suspends game threads as fast as the CPU allows
 - severity: bug
@@ -280,27 +250,14 @@ batch 3.
 - fix: 09c7daf, 2026-09-29, a Zw name is read as its Nt twin before it is bucketed and labelled, so both twins file the same way whatever the sort does. All 489 Zw exports in this machine's ntdll have an Nt twin at the same address.
 
 `src/telemetry/load_sampler.cpp:137` stored every name, `:179` sorted by address alone, and the bucket
-patterns at `:82` to `:87` knew only the Nt names. `NtDelayExecution`, `NtRemoveIoCompletion` and
+patterns at `:82` to `:87` knew the Nt names and only one Zw name, `ZwWaitForWorkViaWorkerFactory`,
+which 09c7daf removed since its Nt twin now matches the wait patterns. `NtDelayExecution`, `NtRemoveIoCompletion` and
 `NtYieldExecution` were wait under the Nt name and system under Zw, `NtAlertThreadByThreadId` lock or
 system, and `NtWaitForAlertByThreadId` lock or wait. The saved runs went both ways.
 `logs/loadsampler-20260912-1128` printed `ntdll!ZwDelayExecution`, so every sample of a sleeping thread
 went to system and ranked that thread as busy in the per thread table, and `logs/telemetry-b1b-20260929`
 printed `ntdll!NtDelayExecution` beside `ntdll!ZwRemoveIoCompletion`. Older than the batch, 1024e7e and
 50b195f.
-
-### H-06: the frames CSV and the hitch line count requests from a snapshot only a recorded frame or a logged hitch moves, so the first row and the first hitch carry everything since attach
-- severity: bug
-- found-by: hunter
-- batch: 3
-- status: open
-- fix:
-
-`src/render/frame_stats.cpp:94` to `:99`, with the returns at `:67` and `:70` skipping it, and the hitch
-snapshot at `:79` to `:84`. Row one of a frames CSV carries about 9,000 file to memory requests on one
-frame where the median is 0, and a frame recorded after more than 2 s without one carries that stretch,
-31,702 on a 1344 ms frame in `logs/lap10-sampler-20260905-2219`. The first `[hitch]` line of a session
-reports about 8,900. F-06's shape in the render layer's file, taken here since that angle has merged.
-Older, de460b9, 57b43fb and 5ef8d7d.
 
 ### H-07: 5003665 left the sampler's wait spinning whenever nothing else is queued on its processor, which is nearly every wait, so F-12's failure stood
 - severity: debt
@@ -338,7 +295,7 @@ held through a window that opens seven seconds before the load starts, so their 
 menu with the load, and in `logs/joblock-A-off-1446` they look like the other nine. So the 10 percent end
 of "between 10 and 27 percent" and "16 percent on the ones that are mostly waiting their turn" did not
 hold, and 11 against 10 workers sampled was the printed top sixteen rather than the sampling. Older,
-08dfb56 and de8b7c4.
+08dfb56, de8b7c4 and 471ffa6.
 
 ### H-10: the new comment and the ledger's fix line said the spin was gone
 - severity: nit
@@ -394,23 +351,173 @@ reserved.
 - found-by: hunter
 - batch: 2
 - status: fixed
-- fix: 9285b2b, 2026-09-29, both rankings are the whole runs' totals, 0x006AB180 leads 84 of the 107 windows, and in all five track load windows the job queue spin leads.
+- fix: 9285b2b, 2026-09-29, both rankings are the whole runs' totals, 0x006AB180 leads 84 of the 107 windows, and in all six track load windows the job queue spin leads.
 
 `.agent/docs/research/optimisation-deepdive-2026-09-12.md:422` and `:462`. In
 `logs/loadsampler-20260912-1055` the spin at 0x0279FAC0 leads each track load with 695, 342 and 734
 samples against 238, 77 and 193, and the clock pair is fifth or lower. Seen in passing by the hunter.
 
-### H-16: the throw log's first report counts everything since attach and calls it ten seconds
+Two verifiers then ran on batch 2, one on the code and one on the records. The code verifier found F-02,
+F-12 and every code finding of the hunters closed. The same loop, rebuilt outside the game, used about
+440 ms of CPU in a 15 s window where the old one used a whole core, and kept every `sample_us` from 100
+to 1000000 on average. Apart from three ntdll stubs too small to be sampled, no address in the system
+modules the sampler reads now files under two buckets. It raised one, V-08. The record verifier found every number the corrections wrote true against the
+logs, and raised thirteen. Nine are wording in those corrections or in the older text beside them,
+V-09 to V-17. V-18 finds the deep dive's census, which goes to the agent directory angle. V-19 finds
+F-02's failure milder in the runs than written, and V-20 and V-21 are older numbers in TODO-013.
+
+### V-08: the load sampler's file header said each sample reads RIP and RSP, where it only ever read RIP
 - severity: nit
-- found-by: hunter
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 5ba0a6b, 2026-09-29.
+
+`src/telemetry/load_sampler.cpp:5`. The phrase came from the removed render thread sampler, which passed
+RSP to a stack walk. Older, 1024e7e.
+
+### V-09: H-15's fix line counted five track load windows where the runs hold six
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-29, six. The one left out, t+30 of `logs/loadsampler-20260912-1055`, holds the first 6.5 s of the Nürburgring load, and the spin leads it too.
+
+d33c91d wrote it.
+
+### V-10: TODO-013's new note said "those rows" come from two windows, under the pits table whose rows come from a third
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: cba0628, 2026-09-29, the streaming rows.
+
+e16dd93 wrote it.
+
+### V-11: TODO-013 said the job lock run held all eleven workers, where only the run with the fix off did
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 046d4f4, 2026-09-29.
+
+`logs/joblock-B-on-1450` prints ten, with no Worker 9. e16dd93 wrote it.
+
+### V-12: the deep dive's "everything the load sampler recorded" covered two of that day's four runs
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 96195c9, 2026-09-29, the 107 windows of both runs, as the doc says elsewhere. Over all four runs 0x006AB180 is still the hottest, 13,308 of 52,460.
+
+9285b2b wrote it.
+
+### V-13: the deep dive said the engine's clock takes roughly 3 percent of a load, which holds only for the two main Nürburgring windows
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 37d6790, 2026-09-29, about 3 percent of those two windows and 1.2 to 1.6 percent of the Red Bull Ring and online loads.
+
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:469`. The clock pair with
+`RtlQueryPerformanceCounter` is 2.94 and 2.90 percent of the two main Nürburgring windows, 1.57 at Red
+Bull Ring and 1.16 on the online load. Older, ae5ba22, standing in the paragraph 9285b2b edited.
+
+### V-14: the reviews index said every batch but the telemetry angle's second was pending, where its first is closed
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-29.
+
+`.agent/reviews/INDEX.md:27`. 88b18c2 wrote it.
+
+### V-15: three details in the hunters' entries did not match the code or the history
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-29. H-05's patterns held one Zw name, H-06's 31,702 is the three request columns together, and H-09 names 471ffa6 beside the other two commits.
+
+d33c91d wrote them.
+
+### V-16: the ledger was not ordered by batch as the spec asks
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 2026-09-29, F-03, H-06 and H-16 sit with batch 3 and F-04 with batch 4.
+
+d33c91d put H-06 and H-16 among batch 2's blocks, and F-03 and F-04 had sat between F-02 and F-05 since
+79177bc.
+
+### V-17: two lines in the deep dive were left unwrapped, and three sentences the batch touched kept a colon in the middle
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 366aa78, 2026-09-29.
+
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:424`, `:427` and `:467`, and
+`.agent/todos/TODO-013-faster-session-loads.md:183`. 9285b2b left the long lines. The colons are older
+text in the sentences it and e16dd93 edited.
+
+### V-18: the deep dive says the census five verdicts leaned on does not exist, where it is the load sampler's printed game code rows over that day's four runs
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: deferred
+- fix: handed over to `sweep/review-agent-dir` as its F-25, 2026-09-29, since the deep dive is that angle's.
+
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:311` to `:313`, `:324` and `:350`. The four
+runs print 43,979, 3,556, 2,506 and 2,419 game code samples, which add up to the 52,460 the verdicts
+cite. Older, ae5ba22.
+
+### V-19: F-02's failure and the pick fix's comment said the whole target set flipped every refresh, where about a dozen threads kept their slots
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: open
+- fix: 2026-09-29 for the ledger, the note under F-02. The comment waits for a build after the owner's launch.
+
+`src/telemetry/load_sampler.cpp:257`. In `logs/loadsampler-20260912-1128` t+60 eleven threads hold a
+full share of samples through the window and only the rest alternate. 79177bc and fd38f95 wrote it.
+
+### V-20: TODO-013's spin table left out the Nürburgring load's first window and put every other window at 0.1 to 0.2 percent
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: 0610684, 2026-09-29, t+30 joins the Nürburgring row at 2.2 percent, the five windows holding the menu scene's own loads read 0.2 to 0.9 percent, and the other 93 read 0.3 percent or less.
+
+`.agent/todos/TODO-013-faster-session-loads.md:145`. There were 99 other windows, not 100. Older,
+08dfb56.
+
+### V-21: TODO-013 gave the spin's share of its load window as its share of every sample
+- severity: nit
+- found-by: verifier
+- batch: 2
+- status: fixed
+- fix: d52bb55, 2026-09-29.
+
+`.agent/todos/TODO-013-faster-session-loads.md:258`. 8.3 percent is 1,119 samples of the load window.
+Over the run it is about 3 percent. Older, 471ffa6.
+
+### F-03: the per second CSV writes counters that the fifteen second summary zeroes, so every column sawtooths with no marker in the file
+- severity: bug
+- found-by: review
 - batch: 3
 - status: open
 - fix:
 
-`src/engine/exceptions.cpp:147` to `:150`. The counts start at attach, and the ten ticks come from the
-timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
-`logs/clean-laps-20260916`. No session on disk has logged a throw. F-06's shape in the engine angle's
-file, taken here since that angle has merged. Older, 3c87596.
+`src/telemetry/load_sampler.cpp:271`. `WriteCsvLine` runs once a second and prints `g_total` and
+`g_bucketCounts[]` raw, while `LogSummary` runs every fifteen seconds and memsets both at lines 326 to
+328.
+
+Failure: a reader sees samples climb for fifteen rows and then drop back to about one. Any tool
+differencing consecutive rows gets a large negative delta fifteen times a minute, and any tool reading
+the columns as cumulative reads only the last window. The header says nothing about the reset, and the
+telemetry doc has no section for this file at all.
 
 ### F-06: the first timeline row reports process lifetime totals as one second of activity
 - severity: bug
@@ -426,6 +533,88 @@ the loop, and line 69 leaves `lastSubmits` and `lastBatches` at 0. `StartTimelin
 Failure: row one of the timeline CSV carries every submit and every tile batch since attach in the
 submits and tile_batches columns, so any maximum or mean taken over those two columns is wrong. The
 asymmetry with line 70 shows this is an oversight rather than a choice.
+
+### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
+- severity: debt
+- found-by: review
+- batch: 3
+- status: open
+- fix:
+
+`src/telemetry/timeline.cpp:61`. `FindRenderAdapter` calls `GetModuleHandleW(L"dxgi.dll")` and returns
+null without logging. `StartTimeline` is called from `DStorageGetFactory`, which can precede the game
+creating its device and factory.
+
+Failure: the adapter stays null for the life of the thread, the video memory struct stays zeroed at line
+99, and vram_used_mb, vram_budget_mb and vram_reservable_mb are 0 on every row. There is no retry and no
+log line, so the owner analyses a CSV of zeros with no way to tell a genuine reading from a missing
+adapter. The log at line 48 only fires on success.
+
+### F-11: the timeline's adapter pick skips an adapter reporting no dedicated memory, so the video memory columns stay empty on those machines
+- severity: debt
+- found-by: verifier
+- batch: 3
+- status: open
+- fix:
+
+`src/telemetry/timeline.cpp:38` keeps an adapter only on `d.DedicatedVideoMemory > bestMem` with
+`bestMem` starting at zero, so an adapter reporting none can never be selected and `best` stays null.
+
+Failure: the same empty `vram_used_mb`, `vram_budget_mb` and `vram_reservable_mb` columns as F-09,
+reached by a different cause, on any machine whose only GPU reports zero dedicated memory and keeps
+everything in shared. Plenty of integrated parts do. `QueryVideoMemoryInfo` would answer for such an
+adapter, the pick never gets that far.
+
+Raised by the verifier on batch 1 of `sweep/review-render`, which fixed the same shape in
+`DiscreteAdapter` (V-01 of that ledger, commit 0f35015). Left here because the file belongs to this
+angle. Fixing it alongside F-09 is natural, they share the symptom and the function.
+
+Batch 2's hunters raised two more of F-06's shape, in files whose own angles have merged.
+
+### H-06: the frames CSV and the hitch line count requests from a snapshot only a recorded frame or a logged hitch moves, so the first row and the first hitch carry everything since attach
+- severity: bug
+- found-by: hunter
+- batch: 3
+- status: open
+- fix:
+
+`src/render/frame_stats.cpp:94` to `:99`, with the returns at `:67` and `:70` skipping it, and the hitch
+snapshot at `:79` to `:84`. Row one of a frames CSV carries about 9,000 file to memory requests on one
+frame where the median is 0, and a frame recorded after more than 2 s without one carries that stretch,
+31,702 requests across the three request columns on a 1344 ms frame in
+`logs/lap10-sampler-20260905-2219`. The first `[hitch]` line of a session reports about 8,900. F-06's
+shape in the render layer's file, taken here since that angle has merged. Older, de460b9, 57b43fb and
+5ef8d7d.
+
+### H-16: the throw log's first report counts everything since attach and calls it ten seconds
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: open
+- fix:
+
+`src/engine/exceptions.cpp:147` to `:150`. The counts start at attach, and the ten ticks come from the
+timeline thread, which starts at the first `DStorageGetFactory`, 2.8 s later in
+`logs/clean-laps-20260916`. No session on disk has logged a throw. F-06's shape in the engine angle's
+file, taken here since that angle has merged. Older, 3c87596.
+
+### F-04: heap handles are used well after the snapshot, and each swallowed fault costs the game 120 to 210 ms plus a crash report naming the mod
+- severity: bug
+- found-by: review
+- batch: 4
+- status: open
+- fix:
+
+`src/telemetry/memory_census.cpp:199`. `ReadHeaps` snapshots handles at 195 and then calls
+`HeapSummary` on each, `CompactHeaps` does the same at 176 and 177, and a census does three such passes
+over every heap with one pass alone taking 1.4 to 4.2 seconds.
+
+Failure: a component unloads during that window and destroys its heap, and the next `HeapSummary` or
+`HeapCompact` faults on a destroyed handle. The `__try` at 158 and 167 makes that safe in the sense that
+the census continues, but in this game a handled access violation is not free. The crash logger stalls
+the faulting thread and writes a line naming DSTORAGE.dll, which is BUG-022's shape, and here it can
+fire once per heap per pass. A census that faults on five heaps costs an extra second and puts five
+bogus crash reports in the player's game log.
 
 ### F-07: GetProcessHeaps is called twice with sixteen slots of slack, and overflowing that reads every slot as a null heap handle
 - severity: debt
@@ -459,22 +648,6 @@ Failure: at a few MB a second of rows the producers rebuild the buffer from scra
 behind it. If the writer falls behind, which a memory census freezing the timeline thread does, the
 buffer walks toward its ceiling and the last doubling copies tens of megabytes under that lock.
 
-### F-09: if dxgi.dll is not loaded when the timeline starts, every video memory column is zero for the whole session and nothing says why
-- severity: debt
-- found-by: review
-- batch: 3
-- status: open
-- fix:
-
-`src/telemetry/timeline.cpp:61`. `FindRenderAdapter` calls `GetModuleHandleW(L"dxgi.dll")` and returns
-null without logging. `StartTimeline` is called from `DStorageGetFactory`, which can precede the game
-creating its device and factory.
-
-Failure: the adapter stays null for the life of the thread, the video memory struct stays zeroed at line
-99, and vram_used_mb, vram_budget_mb and vram_reservable_mb are 0 on every row. There is no retry and no
-log line, so the owner analyses a CSV of zeros with no way to tell a genuine reading from a missing
-adapter. The log at line 48 only fires on success.
-
 ### F-10: the enabled check lives inside TraceRow, so callers still evaluate their arguments when the trace is off
 - severity: nit
 - found-by: review
@@ -488,25 +661,6 @@ streamer and kick structs plus `GateSpace(frame)` before calling a function that
 is small, and those are raw offset reads into engine memory on a code path that is supposed to be
 entirely off, which is the fault surface BUG-022 came from. The other call sites guard properly with
 `TraceOn()` at streamer.cpp:550, 596 and 652, or at install time in texture_writes.cpp:216.
-
-### F-11: the timeline's adapter pick skips an adapter reporting no dedicated memory, so the video memory columns stay empty on those machines
-- severity: debt
-- found-by: verifier
-- batch: 3
-- status: open
-- fix:
-
-`src/telemetry/timeline.cpp:38` keeps an adapter only on `d.DedicatedVideoMemory > bestMem` with
-`bestMem` starting at zero, so an adapter reporting none can never be selected and `best` stays null.
-
-Failure: the same empty `vram_used_mb`, `vram_budget_mb` and `vram_reservable_mb` columns as F-09,
-reached by a different cause, on any machine whose only GPU reports zero dedicated memory and keeps
-everything in shared. Plenty of integrated parts do. `QueryVideoMemoryInfo` would answer for such an
-adapter, the pick never gets that far.
-
-Raised by the verifier on batch 1 of `sweep/review-render`, which fixed the same shape in
-`DiscreteAdapter` (V-01 of that ledger, commit 0f35015). Left here because the file belongs to this
-angle. Fixing it alongside F-09 is natural, they share the symptom and the function.
 
 ## The runs
 
