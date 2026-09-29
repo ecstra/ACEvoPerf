@@ -152,7 +152,8 @@ size_t CommittedPrivate(uintptr_t start, size_t bytes)
 }
 
 // A heap created without serialisation by another component is not safe to touch while it is in
-// use, so a fault on one only skips it.
+// use, a risk the census still takes. The __try keeps the census going past a fault on one, but the
+// fault still costs the stall and the crash report that StillAHeap below is there to avoid.
 bool ReadHeap(HANDLE heap, HEAP_SUMMARY* summary)
 {
     __try {
@@ -171,7 +172,7 @@ void CompactHeap(HANDLE heap)
 }
 
 // Every heap in the process as the list stands now. A list longer than the buffer fills nothing and
-// returns its length, which read as it stood made every slot a null handle, so the buffer grows to that
+// returns its length, which read as it stood made every slot a null handle, so the buffer grows past that
 // length and the call goes again.
 std::vector<HANDLE> ProcessHeaps()
 {
