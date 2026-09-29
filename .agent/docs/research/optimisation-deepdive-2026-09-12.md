@@ -2,7 +2,7 @@
 name: optimisation-deepdive-2026-09-12
 kind: doc
 description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved of which the DLSS one then closed, the engine is well built and the live leads both sit on one serial chain at the end of a session load, the dynamic track preset and a duplicated tyre build
-updated: 2026-09-14
+updated: 2026-09-29
 links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14]
 ---
 
@@ -378,11 +378,14 @@ call it 0.1 percent. Three of the five kills below are re-grounded on it and sur
 - **`__RTDynamicCast` is memoisable with one IAT hook.** It is an export of a system module, so the
   sampler labels it directly when a thread is inside it, and it never appears in any list from
   either sampler. During loads that bounds it below the sixteenth ranked outside function, under
-  0.3 percent of all samples on all threads.
+  0.3 percent of the samples, which covered the two dozen threads the sampler held rather than all
+  of them.
 - **The pool allocator's two locked read modify writes.** The instructions are where claimed,
   `f0 48 0f c1 10` at `0x14278AF7D` and `0x14278AF9C`. The function never appears in 119 printed
-  addresses across 107 load windows, so it is under roughly 0.09 percent of load samples on a phase
-  with eleven workers allocating at once, which is the exact case the finding said would be worst.
+  addresses across 107 windows, so it is under roughly 0.09 percent of the samples. Nearly all of
+  those windows are menus and driving, and in the few loads among them, the case the finding said
+  would be worst with eleven workers allocating at once, the sampler of that day held only some of
+  the workers.
 
 **Checked against the shipped bytes or files.**
 
