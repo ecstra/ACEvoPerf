@@ -2,7 +2,7 @@
 name: ui-lag-deepdive-2026-09-14
 kind: doc
 description: BUG-014's deep dive with no new run, the menu and HUD lag split into five separate costs, the controls page freeze as navigation scans in script, interaction as one Cohtml task that grows with the page, the pit menu and its pages updated one frame in three, document loads with stylesheets parsed again and vehicle setup built twice, and a light HUD, with what the mod's newer capabilities reach, twelve ranked fixes and one decisive developer build
-updated: 2026-09-14
+updated: 2026-09-29
 links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load, TODO-027-the-ui-developer-build-and-one-session, DEC-019-ui-lag-work-reopened, ui-lag-hunt-2026-09-06, one-percent-lows-2026-09-14, package-override-layer, BUG-017-trackside-big-screens-blurry, TODO-011-ui-overhaul-through-injected-scripts]
 ---
 
@@ -39,8 +39,8 @@ kept.
    ([BUG-027](../../bugs/BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md)), and
    vehicle setup asks the game for the setup twice on every open
    ([BUG-026](../../bugs/BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open.md)).
-5. **The HUD while driving** burns 125 to 190 ms of CPU a second across threads but only 5 to 9 ms a
-   second on the render thread. It is a small part of BUG-009.
+5. **The HUD while driving** burns 125 to 190 ms of CPU a second across the threads the load sampler
+   held but only 5 to 9 ms a second on the render thread. It is a small part of BUG-009.
 
 ## How the exe drives the UI
 
@@ -220,8 +220,9 @@ kept.
   see [one-percent-lows-2026-09-14](one-percent-lows-2026-09-14.md). Lap 14's real driving minute has no
   cohtml row among its ten largest excesses.
 - **The render thread's UI share** on the 0.9.0 laps 10 to 17 is cohtml 4.0 to 7.3 ms a second, V8 0.47
-  to 0.83 and Renoir 0.74 to 1.49, explaining 6 to 16 percent of the slowest frames' excess. Across all
-  threads (the load sampler of 2026-09-12) the UI takes 124.5 to 188.2 ms of CPU a second.
+  to 0.83 and Renoir 0.74 to 1.49, explaining 6 to 16 percent of the slowest frames' excess. Across the
+  two dozen threads the load sampler of 2026-09-12 held, chosen by their CPU since they were created
+  rather than by what was busy, the UI takes 124.5 to 188.2 ms of CPU a second.
 - **A model gate would cut about 22 percent of the pulls, not 65.** With the view advancing one frame in
   three, its median turn interval over 100 HUD windows is 35.5 ms, so a 33.3 ms gate still lets 78 percent
   of turns fetch.

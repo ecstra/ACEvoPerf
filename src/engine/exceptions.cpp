@@ -21,6 +21,7 @@ static int g_siteCount = 0;
 static std::atomic<uint32_t> g_throwsTotal{0};
 static uint32_t g_throwsLastLog = 0;
 static int g_ticks = 0;
+static ULONGLONG g_windowStartMs = 0;   // when the window the next report covers opened
 static CRITICAL_SECTION g_cs;
 
 // x64 throw info: every pointer is an RVA from the throwing module's base
@@ -138,6 +139,7 @@ void InstallThrowLog()
     InitializeCriticalSection(&g_cs);
     g_origThrow = (PFN_CxxThrowException)real;
     g_exeBase = (uintptr_t)GetModuleHandleW(nullptr);
+    g_windowStartMs = GetTickCount64();
     int patched = PatchIatByAddress(GetModuleHandleW(nullptr), real, (void*)&Hook_CxxThrowException);
     Log("throw log: %d import slot(s) of the exe patched", patched);
 }
@@ -148,6 +150,11 @@ void ThrowLogTick()
     uint32_t total = g_throwsTotal.load();
     uint32_t inWindow = total - g_throwsLastLog;
     g_throwsLastLog = total;
+    // Measured, since ten ticks of the timeline thread are not ten seconds. The first window opens at
+    // attach, seconds before the ticks begin, and a memory census runs inside a tick.
+    ULONGLONG nowMs = GetTickCount64();
+    double windowS = (nowMs - g_windowStartMs) / 1000.0;
+    g_windowStartMs = nowMs;
     if (!inWindow) return;
     EnterCriticalSection(&g_cs);
     ThrowSite snapshot[kMaxSites];
@@ -156,7 +163,7 @@ void ThrowLogTick()
     for (int i = 0; i < n; ++i) g_sites[i].count = 0;
     LeaveCriticalSection(&g_cs);
     std::sort(snapshot, snapshot + n, [](const ThrowSite& a, const ThrowSite& b) { return a.count > b.count; });
-    Log("[throw] %u exceptions in the last 10 s (%u since start), busiest throw sites:", inWindow, total);
+    Log("[throw] %u exceptions in the last %.1f s (%u since start), busiest throw sites:", inWindow, windowS, total);
     for (int i = 0; i < n && i < 8 && snapshot[i].count; ++i)
         Log("[throw]   rva 0x%06llX  x%-6u %s  %s", (unsigned long long)snapshot[i].returnRva, snapshot[i].count, snapshot[i].type, snapshot[i].message);
 }

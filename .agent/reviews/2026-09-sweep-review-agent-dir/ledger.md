@@ -1,8 +1,8 @@
 ---
 name: review-2026-09-sweep-review-agent-dir
 kind: review
-description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings
-updated: 2026-09-20
+description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings and one added by another angle's verifier
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, conventions, spec-bugs, spec-todos, reviews-index]
 branch: sweep/review-agent-dir
 status: open
@@ -25,7 +25,8 @@ What drifted is the prose. The architecture doc describes a source tree that has
 subsystems are documented nowhere a reader would look, and a handful of tracker files break the section
 shapes their specs fix. CLAUDE.md says a file that breaks its spec is a bug, so those are filed as such.
 
-Twenty four findings, eight bug, nine debt, seven nit.
+Twenty four findings, eight bug, nine debt, seven nit. F-25 was added on 2026-09-29 by the verifier of
+`sweep/review-telemetry`, which met it while checking the deep dive's sampler numbers.
 
 ## Batches
 
@@ -174,8 +175,9 @@ reader parsing the CSV from this doc meets a row kind the doc denies exists.
 `.agent/docs/ops/telemetry.md:14`. The doc's own description is the log and CSV files the mod writes and
 their columns, and it gives a section to four of them. The load sampler appears only as a name in a
 list, while it writes a fifth file, `acevo_perf_load_samples.csv`, plus a block of log lines, with no
-columns documented anywhere. The telemetry branch's F-03 means those columns also need a note about the
-fifteen second reset.
+columns documented anywhere. Since the telemetry branch's cb7fccf each row holds its own second, and
+since its 64e55ad the rows' t_s counts from attach like every other file's, which is what the section
+should say.
 
 ### F-11: an unqualified claim about the render thread that the developer path breaks
 - severity: debt
@@ -342,6 +344,25 @@ BUG-015, BUG-016, BUG-017 and BUG-018, each at line 14. Twenty six of the thirty
 rule bans. Separately, `spec/todos.md` says completion notes go in Done when and never anywhere else, and
 TODO-015 opens with an Answer section before What and adds another after Done when, TODO-027 adds a Done
 section, and TODO-007 adds a Result section.
+
+### F-25: the optimisation deep dive says the census five verdicts leaned on does not exist, where it is the load sampler's printed game code rows over the four runs of 2026-09-12
+- severity: nit
+- found-by: verifier
+- batch: 6
+- status: open
+- fix:
+
+`.agent/docs/research/optimisation-deepdive-2026-09-12.md:311` to `:313`, `:324` and `:350`, and the doc's
+line in `.agent/docs/INDEX.md`. The verdicts cite 52,460 game code samples, and the load sampler's
+printed game code rows add up to exactly that, 43,979 in `logs/loadsampler-20260912-1055`, 3,556 in
+`logs/loadsampler-20260912-1128`, 2,506 in `logs/joblock-A-off-1446` and 2,419 in
+`logs/joblock-B-on-1450`. The doc traces the figure to the deleted render thread sampler instead, whose
+printed rows total 25,862, and says none of the reviewers used the load sampler. Its real point stands,
+that a printed top sixteen cannot show a steady small cost, so absence from it bounds a cost rather
+than zeroing it.
+
+Raised by the verifier on batch 2 of `sweep/review-telemetry`. Left here because the doc belongs to this
+angle.
 
 ## Related, filed elsewhere
 

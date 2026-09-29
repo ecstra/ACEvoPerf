@@ -8,5 +8,6 @@
 // Diagnostics, off unless [developer] memory_census=1. Called once from DllMain.
 void InstallMemoryCensus();
 
-// Once a second from the timeline thread, writes acevo_perf_memory.csv every stats interval.
+// Once a second from the timeline thread. Runs a census into acevo_perf_memory.csv once the commit
+// charge has settled, at start and after each track unloads.
 void MemoryCensusTick();

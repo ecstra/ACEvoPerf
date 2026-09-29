@@ -2,7 +2,7 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-20
+updated: 2026-09-29
 links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry, responsive-ui]
 ---
 
@@ -139,8 +139,8 @@ string. Every header includes it, every source includes its own header first.
   `LogDisplayOwner` compares the monitor's adapter with the D3D12 device's adapter LUID.
 - `telemetry/timeline`: `TimelineThread` wakes every second, refills the hitch log budget and
   ticks the throw log, and while a CSV is on it also resets the counters, queries video memory on
-  the discrete adapter (`FindRenderAdapter`) and process CPU time, writes one CSV line and
-  flushes the frame buffer.
+  the adapter with the most dedicated memory (`FindRenderAdapter`) and process CPU time, writes one
+  CSV line and flushes the frame buffer.
 - `overlay/overlay`: `BuildToc` rewrites the package table in memory, `Hook_ReadFile` serves it,
   `OverlayRedirect` points DirectStorage requests at the loose files (see `content-package`).
 - `ui/cohtml_hooks`: listener lists for the Cohtml library, its views and the game UI's frame post and

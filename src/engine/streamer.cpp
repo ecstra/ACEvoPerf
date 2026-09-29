@@ -512,12 +512,16 @@ static uint64_t BeginEvent(const BYTE* str, const BYTE* frame)
     }
     g_kicks++;
 
-    TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
-        (unsigned long long)now, At<int32_t>(str, streamer::kCap), At<int32_t>(str, streamer::kAvail),
-        At<int32_t>(str, streamer::kRecords), At<int32_t>(str, streamer::kAdmitted), At<int32_t>(str, streamer::kAdmittedTiles),
-        At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
-        s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
-        (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
+    // Checked here and not only inside TraceRow, since the arguments are raw reads of the engine's
+    // streamer and kick that a trace switched off has no reason to make.
+    if (TraceOn()) {
+        TraceRow("kick", "%llu,%d,%d,%d,%d,%d,%d,%lld,%u,%u,%llu,%u,%u,%llu,%llu",
+            (unsigned long long)now, At<int32_t>(str, streamer::kCap), At<int32_t>(str, streamer::kAvail),
+            At<int32_t>(str, streamer::kRecords), At<int32_t>(str, streamer::kAdmitted), At<int32_t>(str, streamer::kAdmittedTiles),
+            At<int32_t>(str, streamer::kRejected), (long long)GateSpace(frame), (unsigned)At<uint8_t>(frame, kick::kGate),
+            s_tally.wantsFiner, (unsigned long long)s_deniedLastKick, s_tally.drops, s_tally.refused,
+            (unsigned long long)s_partialLastKick, (unsigned long long)s_partialTilesLastKick);
+    }
 
     s_tally = KickTally{};
     s_kick = now;
@@ -588,8 +592,10 @@ static void OnLevel(const BYTE* tex, int admitted, int current, const BYTE* cont
     // The flip's signature. The drop was made on a fresh reading taken against the fine view, and
     // the reading at the coarse view is that one shifted down by the levels lost, so nothing about
     // the view changed, only which mip the shader measured against.
-    Feedback fb = ReadFeedback(str, tex);
     bool reload = state.dropKick && now - state.dropKick <= kFlipWindowKicks && admitted <= state.dropFrom && current <= state.dropTo;
+    // Read only for a reload, which the flip test needs, or for the trace row. Most want events are
+    // neither, at a hundred or more a second.
+    Feedback fb = reload || TraceOn() ? ReadFeedback(str, tex) : Feedback{};
     bool flip = reload && state.dropMip >= 1 && fb.mip >= 0 && fb.mip <= std::max(0, state.dropMip - (state.dropFrom - current));
     if (flip) {
         if (state.pinFine < 0) { s_tally.pins++; g_pins++; }
@@ -632,11 +638,12 @@ static bool OnDrop(const BYTE* tex, int keep, const BYTE* str, const BYTE* frame
     uint64_t now = BeginEvent(str, frame);
     TextureState& state = Touch(tex, now);
     int current = At<int32_t>(tex, texture::kCurrentLevel);
-    int64_t tiles = TilesBetween(tex, keep, current);
     Feedback fb = ReadFeedback(str, tex);
 
     Verdict verdict = Judge(state, keep, current, fb, str, admitted);
     bool refuse = verdict == Verdict::Refuse && g_cfg.streamerReloadFix;
+    // Summed only where it is used, a refused drop's tally and the trace row, which most drops are not.
+    int64_t tiles = refuse || TraceOn() ? TilesBetween(tex, keep, current) : 0;
 
     if (refuse) {
         s_tally.refused++;

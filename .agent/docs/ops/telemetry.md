@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-25
+updated: 2026-09-29
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -42,7 +42,8 @@ picked from it or the reason none were picked, a second `auto sizes` line at the
 the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
 every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
-with the streaming activity since the previous hitch, the swap chain's creation parameters and
+with the streaming activity since the previous hitch, logged or not, or since the last pause over 2 s
+such as a loading screen or a new swap chain, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
 the render adapter.
 
@@ -79,8 +80,9 @@ it samples and writes only while a CSV is on. Columns:
 - `f2m_req`, `f2m_mb`: package to CPU memory requests and volume
 - `gpumem_req`, `gpumem_mb`: CPU memory to GPU uploads and volume
 - `submits`: DirectStorage submits on all queues
-- `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the discrete
-  adapter, local segment
+- `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the adapter with
+  the most dedicated memory, the discrete card where there is one, local segment. All three read 0
+  when the timeline found no adapter, and a `timeline:` line in the log says so
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
 - `ws_mb`, `commit_mb`: working set and private commit of the game process. The game's private
   commit includes its local VRAM one to one, so take `vram_used_mb` out before reading a commit step

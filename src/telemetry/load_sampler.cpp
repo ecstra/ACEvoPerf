@@ -2,8 +2,8 @@
 //
 // Every refresh the busiest threads of the process are picked by their CPU time,
 // which during a load is the engine's resource workers without having to know
-// their names. They are then sampled round robin: suspend, read RIP and RSP,
-// resume, and only then classify, because allocating while another thread is
+// their names. They are then sampled round robin: suspend, read RIP, resume,
+// and only then classify, because allocating while another thread is
 // suspended is how a profiler deadlocks on the heap lock.
 //
 // The classification is the one the render thread sampler used (commit a119e8c):
@@ -12,7 +12,9 @@
 #include "acevo/telemetry/load_sampler.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include "acevo/render/frame_stats.h"
 #include <tlhelp32.h>
+#include <map>
 #include <unordered_map>
 
 namespace {
@@ -35,25 +37,38 @@ std::vector<Export> g_exports;
 // A thread worth sampling, refreshed by CPU time.
 struct Target {
     DWORD tid = 0;
+    uint64_t created = 0;
     HANDLE handle = nullptr;
-    uint64_t lastCpu = 0;
     char name[40] = {};
 };
 Target g_targets[24];
 int g_targetCount = 0;
+// Every thread's CPU time at the last refresh, targets or not, so each one's delta is its own. The
+// creation time tells a new thread from an exited one whose id it was given.
+struct Seen { uint64_t created, cpu; };
+std::unordered_map<DWORD, Seen> g_lastSeen;
 
 // tallies
 std::unordered_map<uint32_t, uint32_t> g_byLabel;    // label offset -> samples
 std::unordered_map<uint32_t, uint32_t> g_byGameRva;  // 64 byte bucket of the exe rva -> samples
 // Per thread, the buckets it was sampled in. Threads are sampled round robin, so
 // within one thread the shares are an unbiased read of how it spent its time, which
-// is the only way to tell a worker that is grinding from one that is parked.
-struct ThreadTally { uint32_t total = 0; uint32_t bucket[kBucketCount] = {}; uint32_t spin = 0; };
-std::unordered_map<std::string, ThreadTally> g_byThread;
+// is the only way to tell a worker that is grinding from one that is parked. Keyed by
+// the thread's id and creation time with the last name it was sampled under. The game
+// names its main thread after the sampler has met it, so keyed by name that one thread
+// made a "tid N" row and a GameThread row, and an exited thread's id can go to a new
+// thread inside one window, so the id alone would put two threads in one row.
+struct ThreadTally { uint32_t total = 0; uint32_t bucket[kBucketCount] = {}; uint32_t spin = 0; char name[40] = {}; };
+using ThreadKey = std::pair<DWORD, uint64_t>;
+std::map<ThreadKey, ThreadTally> g_byThread;
 // the game's fiber job queue spin loop, found on 2026-09-12, see TODO-013
 const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
 uint64_t g_bucketCounts[kBucketCount] = {};
 uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
+// The CSV's own counts, zeroed at each line so a row is its own second. The summary's are zeroed every
+// fifteen seconds, and written raw they sawtoothed with nothing in the file to say so.
+uint64_t g_csvCounts[kBucketCount] = {}, g_csvTotal = 0;
+uint64_t g_samplerCpu = 0;  // the sampler thread's own CPU time at the last summary
 
 HANDLE g_thread = nullptr;
 HANDLE g_csv = INVALID_HANDLE_VALUE;
@@ -83,7 +98,7 @@ int BucketForName(const char* name)
         || strstr(name, "NtAlertThreadByThreadId")) return kLock;
     if (strstr(name, "NtWaitFor") || strstr(name, "NtDelayExecution") || strstr(name, "NtRemoveIoCompletion")
         || strstr(name, "WaitFor") || strstr(name, "SleepConditionVariable") || strstr(name, "SleepEx") || strstr(name, "NtSignalAndWait")
-        || strstr(name, "ZwWaitForWorkViaWorkerFactory") || strstr(name, "NtYieldExecution")) return kWait;
+        || strstr(name, "NtYieldExecution")) return kWait;
     if (strstr(name, "Heap") || strstr(name, "malloc") || strstr(name, "free") || strstr(name, "calloc") || strstr(name, "realloc")
         || strstr(name, "operator new") || strstr(name, "operator delete")) return kHeap;
     if (strstr(name, "memcpy") || strstr(name, "memmove") || strstr(name, "memset") || strstr(name, "memcmp") || strstr(name, "RtlCopyMemory")
@@ -127,11 +142,18 @@ void CollectExports(HMODULE mod, const char* file)
     char module[64];
     strncpy_s(module, file, _TRUNCATE);
     if (char* dot = strrchr(module, '.')) *dot = 0;
-    char label[256];
+    char label[256], twin[128];
     for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
         DWORD rva = functions[ordinals[i]];
         if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size) continue;
         const char* name = (const char*)(base + names[i]);
+        // ntdll exports every system call twice, NtX and ZwX at one address, and the sort by address
+        // leaves to chance which twin a sample finds. The buckets know the Nt names, so a Zw name is
+        // read as its Nt twin and neither the bucket nor the label depends on the sort.
+        if (name[0] == 'Z' && name[1] == 'w') {
+            _snprintf_s(twin, sizeof twin, _TRUNCATE, "Nt%s", name + 2);
+            name = twin;
+        }
         _snprintf_s(label, sizeof label, _TRUNCATE, "%s!%s", module, name);
         g_exports.push_back({ (uintptr_t)(base + rva), BucketForName(name), AddLabel(label) });
     }
@@ -205,31 +227,37 @@ int Classify(uintptr_t rip, uint32_t* label)
     return e.bucket;
 }
 
-uint64_t ThreadCpu(HANDLE h)
+uint64_t ThreadCpu(HANDLE h, uint64_t* created = nullptr)
 {
     FILETIME c, e, k, u;
     if (!GetThreadTimes(h, &c, &e, &k, &u)) return 0;
+    if (created) *created = ((uint64_t)c.dwHighDateTime << 32) | c.dwLowDateTime;
     return (((uint64_t)k.dwHighDateTime << 32) | k.dwLowDateTime) + (((uint64_t)u.dwHighDateTime << 32) | u.dwLowDateTime);
 }
 
-void NameThread(HANDLE h, DWORD tid, char* out, size_t n)
+void NameThread(HANDLE h, char* out, size_t n)
 {
     out[0] = 0;
     if (g_getThreadDescription) {
         PWSTR desc = nullptr;
         if (SUCCEEDED(g_getThreadDescription(h, &desc)) && desc) {
-            if (desc[0]) WideCharToMultiByte(CP_UTF8, 0, desc, -1, out, (int)n, nullptr, nullptr);
+            // Converted whole and then cut, since a name longer than the buffer fails the conversion
+            // with the buffer full and no terminator, and the table would print on past it.
+            char utf8[256];
+            if (desc[0] && WideCharToMultiByte(CP_UTF8, 0, desc, -1, utf8, sizeof utf8, nullptr, nullptr))
+                strncpy_s(out, n, utf8, _TRUNCATE);
             LocalFree(desc);
         }
     }
-    if (!out[0]) _snprintf_s(out, n, _TRUNCATE, "tid %lu", tid);
+    // The table prints the id beside every name, so a thread without one needs no number here.
+    if (!out[0]) strcpy_s(out, n, "(unnamed)");
 }
 
 // Pick the threads that burned the most CPU since the last refresh. During a load those
 // are the resource workers, without needing to know what the engine calls them.
 void RefreshTargets()
 {
-    struct Candidate { DWORD tid; HANDLE h; uint64_t cpu, delta; };
+    struct Candidate { DWORD tid; HANDLE h; uint64_t created, cpu, delta; };
     std::vector<Candidate> found;
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) return;
@@ -240,13 +268,22 @@ void RefreshTargets()
             if (te.th32OwnerProcessID != me || te.th32ThreadID == self) continue;
             HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
             if (!h) continue;
-            uint64_t cpu = ThreadCpu(h);
-            uint64_t prev = 0;
-            for (int i = 0; i < g_targetCount; ++i) if (g_targets[i].tid == te.th32ThreadID) { prev = g_targets[i].lastCpu; break; }
-            found.push_back({ te.th32ThreadID, h, cpu, cpu > prev ? cpu - prev : 0 });
+            uint64_t created = 0;
+            uint64_t cpu = ThreadCpu(h, &created);
+            // Measured from the last refresh for every thread. Only the targets used to be, so every other
+            // thread showed its whole lifetime as its delta, and the slots the busiest threads did not hold
+            // went back and forth between long lived threads, busy or parked. A thread new since then, even
+            // one given the id of a thread that exited, has lived only inside the window, so its whole time
+            // is its delta.
+            auto last = g_lastSeen.find(te.th32ThreadID);
+            uint64_t prev = last != g_lastSeen.end() && last->second.created == created ? last->second.cpu : 0;
+            found.push_back({ te.th32ThreadID, h, created, cpu, cpu > prev ? cpu - prev : 0 });
         } while (Thread32Next(snap, &te));
     }
     CloseHandle(snap);
+
+    g_lastSeen.clear();
+    for (auto& c : found) g_lastSeen[c.tid] = { c.created, c.cpu };
 
     std::sort(found.begin(), found.end(), [](const Candidate& a, const Candidate& b) { return a.delta > b.delta; });
     for (int i = 0; i < g_targetCount; ++i) if (g_targets[i].handle) CloseHandle(g_targets[i].handle);
@@ -254,8 +291,8 @@ void RefreshTargets()
     for (auto& c : found) {
         if (g_targetCount < (int)(sizeof g_targets / sizeof g_targets[0]) && (c.delta > 0 || g_targetCount < 4)) {
             Target& t = g_targets[g_targetCount++];
-            t.tid = c.tid; t.handle = c.h; t.lastCpu = c.cpu;
-            NameThread(c.h, c.tid, t.name, sizeof t.name);
+            t.tid = c.tid; t.created = c.created; t.handle = c.h;
+            NameThread(c.h, t.name, sizeof t.name);
         } else {
             CloseHandle(c.h);
         }
@@ -267,13 +304,15 @@ void WriteCsvLine(double seconds)
     if (g_csv == INVALID_HANDLE_VALUE) return;
     SYSTEMTIME st; GetLocalTime(&st);
     char line[512];
-    int n = _snprintf_s(line, sizeof line, _TRUNCATE, "%02d:%02d:%02d,%.1f,%llu", st.wHour, st.wMinute, st.wSecond, seconds, (unsigned long long)g_total);
+    int n = _snprintf_s(line, sizeof line, _TRUNCATE, "%02d:%02d:%02d,%.1f,%llu", st.wHour, st.wMinute, st.wSecond, seconds, (unsigned long long)g_csvTotal);
     for (int b = 0; b < kBucketCount; ++b) {
-        int m = _snprintf_s(line + n, sizeof line - n, _TRUNCATE, ",%llu", (unsigned long long)g_bucketCounts[b]);
+        int m = _snprintf_s(line + n, sizeof line - n, _TRUNCATE, ",%llu", (unsigned long long)g_csvCounts[b]);
         n += m;
     }
     n += _snprintf_s(line + n, sizeof line - n, _TRUNCATE, "\r\n");
     DWORD written; WriteFile(g_csv, line, (DWORD)n, &written, nullptr);
+    g_csvTotal = 0;
+    memset(g_csvCounts, 0, sizeof g_csvCounts);
 }
 
 template <typename Map>
@@ -289,9 +328,14 @@ std::vector<std::pair<uint32_t, uint32_t>> Top(const Map& m, size_t count)
 // averaged together with the minutes of menu idling on either side of it.
 void LogSummary(const char* when)
 {
-    if (!g_total) { Log("[loadsampler] %s: nothing sampled", when); return; }
-    Log("[loadsampler] %s: %llu samples (%llu unreadable). Where the busiest threads were:", when,
-        (unsigned long long)g_total, (unsigned long long)g_failed);
+    // What the sampler cost in the window sits beside what it measured.
+    uint64_t samplerCpu = ThreadCpu(GetCurrentThread());
+    double samplerMs = (samplerCpu - g_samplerCpu) / 10000.0;
+    g_samplerCpu = samplerCpu;
+
+    if (!g_total) { Log("[loadsampler] %s: nothing sampled, the sampler used %.0f ms of CPU", when, samplerMs); return; }
+    Log("[loadsampler] %s: %llu samples (%llu unreadable), the sampler used %.0f ms of CPU. Where the busiest threads were:", when,
+        (unsigned long long)g_total, (unsigned long long)g_failed, samplerMs);
     for (int b = 0; b < kBucketCount; ++b) {
         if (!g_bucketCounts[b]) continue;
         Log("[loadsampler]   %-9s %7llu  %5.1f%%", kBucketNames[b], (unsigned long long)g_bucketCounts[b], 100.0 * g_bucketCounts[b] / g_total);
@@ -304,18 +348,25 @@ void LogSummary(const char* when)
         Log("[loadsampler]   rva 0x%08X  %7u  %5.1f%%", (unsigned)((uint64_t)r.first << 6), r.second, 100.0 * r.second / g_total);
     // Per thread the shares are of that thread's own samples, so they say how it spent
     // its time. "jobspin" is the share inside the engine's fiber job queue spin loop.
+    // Ranked by the samples a thread was running, outside wait and lock. A thread parked on a
+    // condition variable or a lock sits in NtWaitForAlertByThreadId, which files as lock, so
+    // ranked by everything outside wait it took the rows of the workers busy in a short load.
     Log("[loadsampler] per thread, shares of that thread's own samples: game / jobspin / lock / wait / other");
-    std::vector<std::pair<std::string, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
-    std::sort(threads.begin(), threads.end(), [](const std::pair<std::string, ThreadTally>& a, const std::pair<std::string, ThreadTally>& b) {
-        return (a.second.total - a.second.bucket[kWait]) > (b.second.total - b.second.bucket[kWait]);
+    std::vector<std::pair<ThreadKey, ThreadTally>> threads(g_byThread.begin(), g_byThread.end());
+    auto running = [](const ThreadTally& t) { return t.total - t.bucket[kWait] - t.bucket[kLock]; };
+    std::sort(threads.begin(), threads.end(), [&](const std::pair<ThreadKey, ThreadTally>& a, const std::pair<ThreadKey, ThreadTally>& b) {
+        return running(a.second) > running(b.second);
     });
     for (size_t i = 0; i < threads.size() && i < 16; ++i) {
         const ThreadTally& v = threads[i].second;
         if (!v.total) continue;
         double n = v.total;
         uint32_t rest = v.total - v.bucket[kGame] - v.bucket[kLock] - v.bucket[kWait];
-        Log("[loadsampler]   %-28s %5u samples  game %5.1f%%  jobspin %5.1f%%  lock %5.1f%%  wait %5.1f%%  other %5.1f%%",
-            threads[i].first.c_str(), v.total, 100.0 * v.bucket[kGame] / n, 100.0 * v.spin / n,
+        // The id goes beside the name because the game runs threads that share one. It rebuilds its
+        // workers under the same names each time the loading boost goes on or off, and runs a second
+        // Resource Manager Worker 0 during a load.
+        Log("[loadsampler]   %-28s tid %-6lu %5u samples  game %5.1f%%  jobspin %5.1f%%  lock %5.1f%%  wait %5.1f%%  other %5.1f%%",
+            v.name, (unsigned long)threads[i].first.first, v.total, 100.0 * v.bucket[kGame] / n, 100.0 * v.spin / n,
             100.0 * v.bucket[kLock] / n, 100.0 * v.bucket[kWait] / n, 100.0 * rest / n);
     }
 
@@ -341,6 +392,9 @@ DWORD WINAPI SamplerThread(void*)
 
     std::wstring path = g_dir + L"acevo_perf_load_samples.csv";
     g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // Said, because a copy left on disk from an earlier run would otherwise be read as this one's.
+    if (g_csv == INVALID_HANDLE_VALUE)
+        Log("[loadsampler] could not create acevo_perf_load_samples.csv (error %lu), the summaries still come to this log", GetLastError());
     if (g_csv != INVALID_HANDLE_VALUE) {
         std::string header = "clock,t_s,samples";
         for (int b = 0; b < kBucketCount; ++b) { header += ","; header += kBucketNames[b]; }
@@ -350,23 +404,30 @@ DWORD WINAPI SamplerThread(void*)
 
     LARGE_INTEGER qpf; QueryPerformanceFrequency(&qpf);
     LARGE_INTEGER start; QueryPerformanceCounter(&start);
+    g_samplerCpu = ThreadCpu(GetCurrentThread());  // so the first window's cost leaves out the setup above
     const int64_t interval = qpf.QuadPart * (int64_t)g_cfg.loadSampleUs / 1000000;
     LARGE_INTEGER next = start;
     int64_t lastCsv = start.QuadPart, lastRefresh = start.QuadPart, lastSummary = start.QuadPart;
     int cursor = 0, refreshes = 0;
     CONTEXT ctx;
+    // The wait blocks on a high resolution timer. Sleep counts only whole milliseconds, and SwitchToThread
+    // returns at once when nothing else is queued on the processor, so the loop they made spun a whole
+    // core at the highest priority for the session, taken from the very workers being measured.
+    HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
 
     while (!g_stop) {
         next.QuadPart += interval;
         LARGE_INTEGER now;
-        // Sleep the wait away rather than spinning it. A spin here would hold a whole
-        // core at the highest priority and take it from the very workers being measured.
-        for (;;) {
+        QueryPerformanceCounter(&now);
+        LARGE_INTEGER due;  // negative is relative, in 100 ns units
+        due.QuadPart = -((next.QuadPart - now.QuadPart) * 10000000 / qpf.QuadPart);
+        if (due.QuadPart < 0) {
+            // Without the wait the loop would suspend game threads as fast as it can.
+            if (!SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) || WaitForSingleObject(timer, INFINITE) != WAIT_OBJECT_0) {
+                Log("[loadsampler] its timer failed (error %lu), sampling stops here", GetLastError());
+                break;
+            }
             QueryPerformanceCounter(&now);
-            if (now.QuadPart >= next.QuadPart || g_stop) break;
-            int64_t leftUs = (next.QuadPart - now.QuadPart) * 1000000 / qpf.QuadPart;
-            if (leftUs > 1500) Sleep((DWORD)(leftUs / 1000) - 1);
-            else YieldProcessor();
         }
         if (g_stop) break;
         if (next.QuadPart < now.QuadPart - interval * 8) next.QuadPart = now.QuadPart;
@@ -391,7 +452,10 @@ DWORD WINAPI SamplerThread(void*)
                 if (bucket < 0) bucket = kOther;
                 g_total++;
                 g_bucketCounts[bucket]++;
-                ThreadTally& tally = g_byThread[t.name];
+                g_csvTotal++;
+                g_csvCounts[bucket]++;
+                ThreadTally& tally = g_byThread[{ t.tid, t.created }];
+                memcpy(tally.name, t.name, sizeof tally.name);
                 tally.total++;
                 tally.bucket[bucket]++;
                 if (rip >= g_gameTextBegin && rip < g_gameTextEnd) {
@@ -405,7 +469,9 @@ DWORD WINAPI SamplerThread(void*)
         }
 
         if (now.QuadPart - lastCsv > qpf.QuadPart) {
-            WriteCsvLine((double)(now.QuadPart - start.QuadPart) / qpf.QuadPart);
+            // Seconds since attach, the clock the timeline, frames and trace files count in, so a
+            // row lines up with theirs. The sampler itself starts seconds later.
+            WriteCsvLine(NowSec());
             lastCsv = now.QuadPart;
         }
         if (now.QuadPart - lastRefresh > qpf.QuadPart * 2) {
@@ -418,11 +484,12 @@ DWORD WINAPI SamplerThread(void*)
         if (now.QuadPart - lastSummary > qpf.QuadPart * 15) {
             char when[64];
             _snprintf_s(when, sizeof when, _TRUNCATE, "t+%.0f s, the last %.0f s",
-                (double)(now.QuadPart - start.QuadPart) / qpf.QuadPart, (double)(now.QuadPart - lastSummary) / qpf.QuadPart);
+                NowSec(), (double)(now.QuadPart - lastSummary) / qpf.QuadPart);
             LogSummary(when);
             lastSummary = now.QuadPart;
         }
     }
+    if (timer) CloseHandle(timer);
     return 0;
 }
 

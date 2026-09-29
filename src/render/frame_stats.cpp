@@ -64,10 +64,30 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
         g_lastSyncInterval = syncInterval;
         Log("Present sync interval = %u (%s)", syncInterval, syncInterval ? "vsync on" : "vsync off");
     }
-    if (!last) return;
 
-    double ms = (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart;
-    if (ms > 2000.0) return;                     // alt-tab or loading screen pause, not a frame
+    // Every present of the chain moves the frame baselines, its first and one after a pause included,
+    // so a recorded frame counts only its own interval. Moved on the recorded frames alone, the first
+    // row carried every request since attach and a frame after a pause carried the whole pause.
+    uint64_t req[5];
+    for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
+    bool frames = g_cfg.frames;
+    FrameSample sample = {};
+    if (frames) {
+        sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
+        sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
+        sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
+        sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
+        sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
+        for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
+    }
+    // Neither the chain's first present nor one after a pause over 2 s, an alt-tab or a loading screen,
+    // is a frame. The hitch line starts counting again at either, so the first hitch after a load does
+    // not carry the whole load.
+    double ms = last ? (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart : 0.0;
+    if (!last || ms > 2000.0) {
+        for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
+        return;
+    }
     uint64_t us = (uint64_t)(ms * 1000.0);
     g_frames++; g_frameSumUs += us;
     uint64_t prev = g_frameMaxUs.load();
@@ -76,27 +96,17 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
 
     if (ms > (double)g_cfg.hitchMs) {
         g_hitchCfg++;
-        if (g_hitchLogBudget.fetch_sub(1) > 0) {
-            uint64_t cur[5]; for (int i = 0; i < 5; ++i) cur[i] = g_reqByDest[i].load();
-            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
-                ms, NowSec(), (unsigned long long)(cur[4] - g_hitchSnap[4]), (unsigned long long)(cur[0] - g_hitchSnap[0]),
-                (unsigned long long)(cur[1] + cur[2] - g_hitchSnap[1] - g_hitchSnap[2]));
-            for (int i = 0; i < 5; ++i) g_hitchSnap[i] = cur[i];
-        }
+        if (g_hitchLogBudget.fetch_sub(1) > 0)
+            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch or pause: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
+                ms, NowSec(), (unsigned long long)(req[4] - g_hitchSnap[4]), (unsigned long long)(req[0] - g_hitchSnap[0]),
+                (unsigned long long)(req[1] + req[2] - g_hitchSnap[1] - g_hitchSnap[2]));
+        // Moved by every hitch, logged or not, and by a pause above, so a line counts from whichever came last.
+        for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
     }
 
-    if (g_cfg.frames) {
-        uint64_t req[5];
-        for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
-        FrameSample sample;
+    if (frames) {
         sample.t = (float)NowSec();
         sample.ms = (float)ms;
-        sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
-        sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
-        sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
-        sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
-        sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
-        for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
         EnterCriticalSection(&g_frameCs);
         if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);
         LeaveCriticalSection(&g_frameCs);

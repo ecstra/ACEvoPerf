@@ -1,8 +1,8 @@
 ---
 name: review-2026-09-sweep-review-tools
 kind: review
-description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings and one added by another angle's hunter, one breaks
-updated: 2026-09-24
+description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings and two added by other angles' sub agents, one breaks
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, tools, build-and-release, reviews-index]
 branch: sweep/review-tools
 status: open
@@ -22,7 +22,9 @@ check, and the failure is silent. Every one of these ends with the tool printing
 something that is not what it read.
 
 Eighteen findings, one breaks, five bug, ten debt, two nit. F-19 was added on 2026-09-24 by the
-hunter of `sweep/review-overlay`, whose named slot constants point readers at `parse_slot` here.
+hunter of `sweep/review-overlay`, whose named slot constants point readers at `parse_slot` here, and
+F-20 on 2026-09-29 by the verifier of `sweep/review-telemetry`, whose fix made the report's stale read
+visible in the log.
 
 ## Batches
 
@@ -315,6 +317,24 @@ Failure: someone checks the override layer's `SLOT_FLAGS` against the tool, read
 rather than `parse_slot`, and finds the field two bytes off.
 
 Raised by the hunter on batch 3 of `sweep/review-overlay`. Left here because the file belongs to
+this angle.
+
+### F-20: the telemetry report reads a timeline or frames CSV the mod could not write as this run's
+- severity: debt
+- found-by: verifier
+- batch: 2
+- status: open
+- fix:
+
+`tools/telemetry_report.py:174` and `:184`. Since 70c3ade on `sweep/review-telemetry` the mod logs
+`timeline: could not create acevo_perf_timeline.csv (error 32)` when the file is held elsewhere, but
+the copy that lands in `logs/<session>/` is then the previous run's, and the report reads it without
+looking for that line, though it already opens `acevo_perf.log` for the hitches.
+
+Failure: last run's timeline CSV is open in Excel at launch, and the report summarises that run as
+this one.
+
+Raised by the verifier on batch 1 of `sweep/review-telemetry`. Left here because the file belongs to
 this angle.
 
 ## Checked and clean
