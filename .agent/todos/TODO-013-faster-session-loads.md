@@ -174,8 +174,8 @@ The same threads thirty seconds later, sitting in the pits:
 
 The streaming rows come from two windows and the old pick. Workers 0 and 1 were held through the whole of
 a window that opens seven seconds before the load starts, so their rows mix the menu with the
-load, and workers 3, 6 and 7 were held for only part of theirs. The job lock run further down held
-all eleven workers through its load window, and there workers 0 and 1 look like the rest, spinning
+load, and workers 3, 6 and 7 were held for only part of theirs. The job lock run with the fix off,
+further down, held all eleven workers through its load window, and there workers 0 and 1 look like the rest, spinning
 21.3 and 22.9 percent against 23.1 to 28.6 for the others. The workers do not split into busy ones
 and ones waiting their turn.
 
