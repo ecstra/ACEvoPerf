@@ -24,8 +24,8 @@ conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-
 
 151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Seven angles are done as of 2026-09-29, the Cohtml
 build guard, the render layer, the proxy and core, the package override layer, the session leak fix,
-the teardown path and the engine hooks, and the six below them are open, the telemetry angle's first
-batch fixing and every other batch pending the owner's word.
+the teardown path and the engine hooks, and the six below them are open with every batch still to come
+pending the owner's word.
 
 Those seven added 282 findings of their own, from the hunter and verifier sub agents that run on
 every batch. Every one of the twenty six batches so far needed at least one correction after its
@@ -112,7 +112,8 @@ ledger.
 
 - [2026-09-sweep-review-telemetry](2026-09-sweep-review-telemetry/ledger.md), hooks left installed when
   the census cannot open its file and a sampler that picks the wrong threads, 10 findings plus 2
-  from other angles' sub agents, 1 breaks, plus 4 from batch 1's hunter, batch 1 fixing
+  from other angles' sub agents, 1 breaks, plus 11 from batch 1's hunter and verifier, batch 1 closed
+  and runtime confirmed
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
   invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
   another angle's verifier

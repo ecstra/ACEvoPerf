@@ -28,11 +28,17 @@ of `sweep/review-render`, which met the same shape in the render layer's adapter
 same day by the hunter of `sweep/review-proxy-core`, whose own fix made it matter more. F-05's
 validation half is already closed by that branch, since the key is read there.
 
+Batch 1 closed with F-01 fixed, the census making its file before any hook, and the hunter's same
+shape in the trace, the timeline, the frames and the load sampler fixed with it, each now saying when
+its file cannot be made and the two that cost something every row or frame stopping for the run. It
+added four from its hunter and seven from its verifier, one handed to the tools angle and one left as a
+harmless race on a developer switch, and two launches with the files held confirmed every line.
+
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | an instrument that cannot start leaves nothing behind | fixing | 2026-09-29 |
+| 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | pending | |
 | 3 | the CSVs mean what their headers say | pending | |
 | 4 | the leftovers | pending | |
@@ -360,6 +366,14 @@ Oulton Park, about four seconds on track and a quit, with `memory_census=1` for 
 `[memory] could not create acevo_perf_memory.csv, no census` in the same millisecond as the attach line
 and no `census on` line after it, so nothing was hooked, a clean `detached` and no `Exception Detected`.
 The timeline, frames, trace and load sampler switches were all off, so none of H-01 to H-03's code ran.
+
+Batch 1 again, one launch on 2026-09-29, `logs/telemetry-b1b-20260929`, 11:50 to 11:52, the menu and a
+quit, with `timeline`, `frames`, `streaming_trace` and `load_sampler` on for this launch alone and their
+four CSVs held open with no sharing, on 7529431's build. Each logged its file with error 32, the
+timeline and frames at 11:50:17.088, the load sampler at 11:50:17.166 and the trace at 11:50:18.089. The
+`[writes]` lines and the load sampler's summaries carried on, as the new lines say, and the timeline's
+start line printed `frames=1` a millisecond before the thread turned the switch off, V-03's one visible
+effect. A clean `detached` and no `Exception Detected`.
 
 ## Checked and clean
 
