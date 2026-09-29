@@ -112,8 +112,8 @@ ledger.
 ## Active
 
 - [2026-09-sweep-review-ui-fixes](2026-09-sweep-review-ui-fixes/ledger.md), a marking window that skips
-  invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 1 from
-  another angle's verifier, batch 1 fixing
+  invalidation and a row of load bearing assumptions written down nowhere, 12 findings plus 2 from
+  other angles' verifiers, plus 5 from batch 1's hunter and verifier, batch 1 paused open
 - [2026-09-sweep-review-ui-probe](2026-09-sweep-review-ui-probe/ledger.md), an instrument that can fault
   while holding a game thread suspended and pays its cost in the frames it explains, 9 findings, 1 breaks
 - [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that can write

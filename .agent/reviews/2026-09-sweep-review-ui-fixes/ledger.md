@@ -25,7 +25,11 @@ between the four files that nothing in the code records.
 
 Twelve findings, one bug, seven debt, four nit. F-13 was added on 2026-09-23 by the verifier of
 `sweep/review-overlay`, whose fix for a player's own stylesheet in the mods folder made it reachable
-for the main stylesheet.
+for the main stylesheet, and F-14 on 2026-09-29, handed here by the verifier of
+`fix/review-cohtml-build-guard` on 2026-09-20 and lost under a wrong path until batch 1's hunter found it.
+
+Batch 1 was paused on 2026-09-29 at the owner's word with F-01 left as a wontfix on a diagnostic run
+and the hunter's and verifier's five findings recorded open, nothing of them fixed yet.
 
 ## Batches
 
@@ -54,6 +58,69 @@ the whole point of the move, while the UI thread removes a child in that style s
 `MarkChildrenThatLookAtPosition` returns true after marking nothing, so the engine's own whole subtree
 invalidation is skipped and that element's subtree never restyles. The page is silently stale.
 
+The hunter then ran on batch 1, with the diagnostic's news that Cohtml's style work moves between the
+game's five Render Worker threads and GameThread. It found the four fixes sound across threads, the
+table under its lock throughout, a set rebuilt at one address reset before it is handed back, and no
+state kept per thread, and raised two, H-01 here and H-02 in batch 3. It could not settle two points
+from the repo. The parent's slot 49 is never checked to hold 0x37B600 before the narrowed path skips
+it, and the custom tag name a selector holds at +0x10 is read as a char pointer that only a removal from
+a list styled by position would prove. It also found F-14, handed here by another angle and lost on the
+way, and evidence for `sweep/review-ui-probe` F-05, which went to that ledger.
+
+### H-01: the probe's child removal line can split one removal across two seconds and lose its marks
+- severity: nit
+- found-by: hunter
+- batch: 1
+- status: open
+- fix:
+
+`src/ui/child_removal_fix.cpp:357` and `:496`, printed at `src/ui/ui_probe.cpp:1429`. A removal adds to
+`g_narrowed` and then to `g_marked`, and the timeline thread's `ChildRemovalFixTakeCounts` can swap all
+three counters out between the two adds. That second reports the removal without its marks, and they
+land in a second whose line prints only if something else was removed in it. The developer probe's line
+alone is affected. Older, a783b01. One 64 bit atomic holding both counts, added and swapped once, keeps a
+removal and its marks in one second.
+
+The verifier then ran on batch 1. It found the wontfix sound as a decision and the diagnostic able to
+catch the failure on any thread, missing only a half filled set rebuilt at its own address before its
+next rule, and raised three, all about the records claiming more than one launch shows.
+
+### V-01: the doc and this ledger call the window never reached, from one launch of three minutes
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: open
+- fix:
+
+`.agent/docs/systems/responsive-ui.md:112` and F-01's fix line. The run was one car alone at one track
+with no race, replay or online pages, and its thread lines show the window open across threads, rules
+filed into sets other threads built and removals on the same threads milliseconds after filing, kept
+apart only by the order Cohtml worked in that once. The evidence supports "not reached in one diagnostic
+launch". 02f6806 wrote it.
+
+### V-02: the records call the drive a lap and say GameThread fills sets
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: open
+- fix:
+
+`.agent/docs/systems/responsive-ui.md:113` and F-01's fix line. The game log shows part of an out lap, the
+pit lane at 21:12:59 and splits 0 and 1 with no lap end, and GameThread built one set and filed no rule,
+every rule filed on a Render Worker. 02f6806 wrote it.
+
+### V-03: this ledger treats the moved parse premise as disproved, where the run never counted moved work
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: open
+- fix:
+
+F-01's fix line and "in its style work" there and at `.agent/docs/systems/responsive-ui.md:112`. No set
+was built or filled on the mod's thread, but the count of moved work is read only by the UI probe, which
+was off, so the run cannot show a moved parse ran, and "style work" is an inference from threads that
+run both kinds. The records should say what was seen and drop the rest. 02f6806 wrote it.
+
 ### F-02: FeatureSetOf walks element to document to styler to bucket table with no null check, from a hook that has no fault guard
 - severity: debt
 - found-by: review
@@ -71,6 +138,11 @@ partly destroyed document reaches memory here that the engine's own path never t
 file handles a fault, so that is a crash for the player, and by the project's own note even a handled
 access violation costs the thread 120 to 210 ms.
 
+Batch 1's hunter adds a trap for the fix. `NoteSelector`, `MarkChildrenThatLookAtPosition` and the
+constructor hook fault, if they fault, while holding `g_featureSetsLock`, so any guard put around them has
+to release it on the way out, or one handled fault leaves every later filing and removal waiting and the
+UI freezes.
+
 ### F-03: Patch patches[8] is hand sized for exactly the current site list, three lines after the count is computed
 - severity: debt
 - found-by: review
@@ -86,6 +158,23 @@ exactly 8.
 Failure: one more RVA added to `kConstructorCalls` writes past a stack array with no diagnostic, in a
 function that is already writing into another module's code. Nothing ties the two numbers together, not
 a `static_assert`, not a comment.
+
+### F-14: the five sibling UI files walk the game's and Cohtml's PE headers at attach with no magic check and no fault guard
+- severity: debt
+- found-by: verifier
+- batch: 2
+- status: open
+- fix:
+
+`src/ui/restyle_fix.cpp:78` and `:88` are the clearest, and `child_removal_fix.cpp`, `style_match_fix.cpp`
+and `menu_refresh_fix.cpp` walk the same headers. They run from `dllmain.cpp` before `InstallCohtmlHooks`,
+so the startup crash on a foreign build that the build guard angle's H-03 closed in `cohtml_hooks.cpp` is
+still reachable from here. For a module the Windows loader mapped the headers are valid, so the crash
+needs a build whose headers mislead after loading, and the fix is the same checks and `__try` H-03 used.
+
+Raised by the verifier on batch 1 of `fix/review-cohtml-build-guard` on 2026-09-20, which asked for it to
+go first here. Its ledger pointed at `.agent/reviews/2026-09-sweep-review-ui/ledger.md`, which does not
+exist, so it never reached this ledger until batch 1's hunter found it. That pointer wants correcting too.
 
 ### F-04: a failed write of the one patch that matters leaves the other seven in and still logs the fix as on
 - severity: nit
@@ -112,6 +201,19 @@ The log tells the owner the opposite of what happened.
 `src/ui/restyle_fix.cpp:129`. Every other bail out at lines 104, 115 and 122 calls `VirtualFree` on the
 cave. The VirtualProtect failure at 128 returns without it, leaking the 4 KB reservation for the
 process lifetime. Harmless in size, and it is the odd one out.
+
+Batch 1's hunter raised one more of F-04's shape.
+
+### H-02: a failed patch in the menu refresh fix leaves its schedule set and its caves kept
+- severity: nit
+- found-by: hunter
+- batch: 3
+- status: open
+- fix:
+
+`src/ui/menu_refresh_fix.cpp:275` and `:279` return on a failed `WriteCode` while `g_schedule` is still set
+from `:240`, and both caves stay. With `hud_schedule_test=1`, `MenuRefreshTick` then logs a schedule turn
+every 10 seconds that nothing reads. Older, ca09393.
 
 ### F-06: the restyle stub reads the invalidation kind out of the caller's saved rbp, which only still works under the probe by accident of register allocation
 - severity: debt

@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-ui-probe
 kind: review
 description: the UI probe angle of the full review of main, an instrument that can fault while it holds a game thread suspended and that pays its cost in the frames it exists to explain, nine findings
-updated: 2026-09-20
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-ui-probe
 status: open
@@ -111,6 +111,11 @@ finds the table full and returns null. The game runs a job worker per hardware t
 up to 1,705 layout work calls a second, so on a machine with more than sixteen workers the layout
 percentages cover only the first sixteen threads with nothing in the log saying so. The `OpenThread`
 handles at line 666 are also never closed.
+
+It happens on the owner's laptop too, found on 2026-09-29 by batch 1's hunter on `sweep/review-ui-fixes`.
+The diagnostic run `logs/uifix-b1-diag-20260929` saw 18 distinct threads doing Cohtml's style work in three
+minutes, Render Worker 0 alone under six ids, because the workers come back with new ids at every load, and
+the slots at `:668` are never freed, so they fill after a few loads whatever the core count.
 
 ### F-06: ReadChangedSet scans the whole bucket array on every restyle pass even when the set holds fewer than three nodes
 - severity: debt
