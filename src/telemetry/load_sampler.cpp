@@ -361,8 +361,11 @@ void LogSummary(const char* when)
         if (!v.total) continue;
         double n = v.total;
         uint32_t rest = v.total - v.bucket[kGame] - v.bucket[kLock] - v.bucket[kWait];
-        Log("[loadsampler]   %-28s %5u samples  game %5.1f%%  jobspin %5.1f%%  lock %5.1f%%  wait %5.1f%%  other %5.1f%%",
-            v.name, v.total, 100.0 * v.bucket[kGame] / n, 100.0 * v.spin / n,
+        // The id goes beside the name because the game runs threads that share one. It rebuilds its
+        // workers under the same names each time the loading boost goes on or off, and runs a second
+        // Resource Manager Worker 0 during a load.
+        Log("[loadsampler]   %-28s tid %-6lu %5u samples  game %5.1f%%  jobspin %5.1f%%  lock %5.1f%%  wait %5.1f%%  other %5.1f%%",
+            v.name, (unsigned long)threads[i].first.first, v.total, 100.0 * v.bucket[kGame] / n, 100.0 * v.spin / n,
             100.0 * v.bucket[kLock] / n, 100.0 * v.bucket[kWait] / n, 100.0 * rest / n);
     }
 
