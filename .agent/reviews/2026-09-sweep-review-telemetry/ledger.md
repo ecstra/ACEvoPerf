@@ -18,8 +18,8 @@ them ship disabled. The teardown findings in load_sampler.cpp and timeline.cpp b
 `fix/review-shutdown`.
 
 Two of these matter beyond the diagnostic itself. The census leaves process wide import hooks installed
-when it cannot open its output file, which costs every allocation in the game for the rest of the
-session and produces nothing. And the load sampler's thread picking is wrong after its first refresh,
+when it cannot open its output file, which costs every VirtualAlloc commit in the game for the rest of
+the session and produces nothing. And the load sampler's thread picking is wrong after its first refresh,
 which means the per thread numbers the project has been reading were measuring lifetime CPU rather than
 what was hot during the load.
 
@@ -62,7 +62,7 @@ Found independently by two reviewers.
 The hunter then ran on batch 1. It found the reorder right in the source and the object code, every way
 out of the install leaving nothing hooked and nothing it opened, and the timing unchanged, since the
 install runs under the loader lock before any other thread, and raised the same shape in the other
-instruments, the four below.
+three instruments, H-01 to H-03, and one wording finding on the fix's own comment, H-04.
 
 ### H-01: a streaming trace that could not make its file said nothing, and kept collecting rows only to free them
 - severity: bug
@@ -105,6 +105,69 @@ through 30 reallocations on the presenting thread. Older than the batch.
 - fix: 908d628, 2026-09-29, every VirtualAlloc commit.
 
 90c7a80 caused it.
+
+The verifier then ran on batch 1. It found F-01 and H-01 to H-04 closed in the source and the object
+code, every caller that reads the trace switch directly still feeding a log line of its own, and the
+new lines' error read straight after the failed create, and raised the seven below.
+
+### V-01: the telemetry report still reads a timeline or frames CSV the mod could not write as this run's
+- severity: debt
+- found-by: verifier
+- batch: 1
+- status: deferred
+- fix: handed over to `sweep/review-tools` as its F-20, 2026-09-29, since `tools/telemetry_report.py` is that angle's.
+
+### V-02: the trace's failure line said the trace is off for the run, where only its rows stop
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 1747f6b, 2026-09-29, the line and the comment say the `[writes]` and repeated read lines carry on.
+
+fe0679e wrote it.
+
+### V-03: g_cfg.frames is written on the timeline thread and read on others with no synchronisation
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: wontfix
+- fix: 2026-09-29. A developer switch, and harmless in this build. The present hook rereads the byte on every call, and in all 116 sessions on disk that log both, the first present comes at least 4.1 s after the timeline starts, so the flag is down before any sample. The one visible effect is the timeline's start line printing either value.
+
+`src/telemetry/timeline.cpp:63`, read at `src/render/frame_stats.cpp:88`. 70c3ade wrote it.
+
+### V-04: the census's failure line was the only one that gave no reason
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 7529431, 2026-09-29, it gives the error.
+
+Older than the batch, ceb4988.
+
+### V-05: the run's paragraph had the launch as the menu and a quit, and H-01 to H-03 shown by it
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-29, the menu, Oulton Park and about four seconds on track, and none of H-01 to H-03's switches on.
+
+c307b87 wrote it.
+
+### V-06: the hunter's paragraph counted H-04 among the same shape in other instruments
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-29.
+
+### V-07: the summary still said the census hooks cost every allocation in the game
+- severity: nit
+- found-by: verifier
+- batch: 1
+- status: fixed
+- fix: 2026-09-29, every VirtualAlloc commit.
+
+79177bc wrote it, and it stood through 908d628 and c307b87.
 
 ### F-02: a thread that was not a target last round presents its whole lifetime CPU as its delta, so the busiest thread pick is wrong on every refresh after the first
 - severity: bug
@@ -291,12 +354,12 @@ angle. Fixing it alongside F-09 is natural, they share the symptom and the funct
 
 ## The runs
 
-Batch 1, one launch on 2026-09-29, `logs/telemetry-b1-20260929`, 10:18 to 10:19, the menu and a quit, with
-`memory_census=1` for this launch alone and `acevo_perf_memory.csv` held open with no sharing by another
-process, on 70c3ade's build. `[memory] could not create acevo_perf_memory.csv, no census` in the same
-millisecond as the attach line and no `census on` line after it, so nothing was hooked, a clean
-`detached` and no `Exception Detected`. H-01 to H-03's lines only show when those files are held, which
-this run did not do.
+Batch 1, one launch on 2026-09-29, `logs/telemetry-b1-20260929`, 10:18 to 10:19, the menu, a load into
+Oulton Park, about four seconds on track and a quit, with `memory_census=1` for this launch alone and
+`acevo_perf_memory.csv` held open with no sharing by another process, on 70c3ade's build.
+`[memory] could not create acevo_perf_memory.csv, no census` in the same millisecond as the attach line
+and no `census on` line after it, so nothing was hooked, a clean `detached` and no `Exception Detected`.
+The timeline, frames, trace and load sampler switches were all off, so none of H-01 to H-03's code ran.
 
 ## Checked and clean
 
