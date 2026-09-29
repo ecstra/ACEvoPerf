@@ -55,6 +55,7 @@ std::unordered_map<std::string, ThreadTally> g_byThread;
 const uint32_t kJobSpinRvaLo = 0x279fa90 >> 6, kJobSpinRvaHi = 0x279fad4 >> 6;
 uint64_t g_bucketCounts[kBucketCount] = {};
 uint64_t g_total = 0, g_failed = 0, g_grandTotal = 0;
+uint64_t g_samplerCpu = 0;  // the sampler thread's own CPU time at the last summary
 
 HANDLE g_thread = nullptr;
 HANDLE g_csv = INVALID_HANDLE_VALUE;
@@ -297,9 +298,14 @@ std::vector<std::pair<uint32_t, uint32_t>> Top(const Map& m, size_t count)
 // averaged together with the minutes of menu idling on either side of it.
 void LogSummary(const char* when)
 {
-    if (!g_total) { Log("[loadsampler] %s: nothing sampled", when); return; }
-    Log("[loadsampler] %s: %llu samples (%llu unreadable). Where the busiest threads were:", when,
-        (unsigned long long)g_total, (unsigned long long)g_failed);
+    // What the sampler cost in the window sits beside what it measured.
+    uint64_t samplerCpu = ThreadCpu(GetCurrentThread());
+    double samplerMs = (samplerCpu - g_samplerCpu) / 10000.0;
+    g_samplerCpu = samplerCpu;
+
+    if (!g_total) { Log("[loadsampler] %s: nothing sampled, the sampler used %.0f ms of CPU", when, samplerMs); return; }
+    Log("[loadsampler] %s: %llu samples (%llu unreadable), the sampler used %.0f ms of CPU. Where the busiest threads were:", when,
+        (unsigned long long)g_total, (unsigned long long)g_failed, samplerMs);
     for (int b = 0; b < kBucketCount; ++b) {
         if (!g_bucketCounts[b]) continue;
         Log("[loadsampler]   %-9s %7llu  %5.1f%%", kBucketNames[b], (unsigned long long)g_bucketCounts[b], 100.0 * g_bucketCounts[b] / g_total);
@@ -366,19 +372,24 @@ DWORD WINAPI SamplerThread(void*)
     int64_t lastCsv = start.QuadPart, lastRefresh = start.QuadPart, lastSummary = start.QuadPart;
     int cursor = 0, refreshes = 0;
     CONTEXT ctx;
+    // The wait blocks on a high resolution timer. Sleep counts only whole milliseconds, and SwitchToThread
+    // returns at once when nothing else is queued on the processor, so the loop they made spun a whole
+    // core at the highest priority for the session, taken from the very workers being measured.
+    HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
 
     while (!g_stop) {
         next.QuadPart += interval;
         LARGE_INTEGER now;
-        // Sleep the wait away when it is long enough to, and otherwise hand the core to any thread ready on
-        // it, which at the default interval is every wait. A spin here would hold a whole core at the
-        // highest priority and take it from the very workers being measured.
-        for (;;) {
+        QueryPerformanceCounter(&now);
+        LARGE_INTEGER due;  // negative is relative, in 100 ns units
+        due.QuadPart = -((next.QuadPart - now.QuadPart) * 10000000 / qpf.QuadPart);
+        if (due.QuadPart < 0) {
+            // Without the wait the loop would suspend game threads as fast as it can.
+            if (!SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) || WaitForSingleObject(timer, INFINITE) != WAIT_OBJECT_0) {
+                Log("[loadsampler] its timer failed (error %lu), sampling stops here", GetLastError());
+                break;
+            }
             QueryPerformanceCounter(&now);
-            if (now.QuadPart >= next.QuadPart || g_stop) break;
-            int64_t leftUs = (next.QuadPart - now.QuadPart) * 1000000 / qpf.QuadPart;
-            if (leftUs > 1500) Sleep((DWORD)(leftUs / 1000) - 1);
-            else SwitchToThread();
         }
         if (g_stop) break;
         if (next.QuadPart < now.QuadPart - interval * 8) next.QuadPart = now.QuadPart;
@@ -435,6 +446,7 @@ DWORD WINAPI SamplerThread(void*)
             lastSummary = now.QuadPart;
         }
     }
+    if (timer) CloseHandle(timer);
     return 0;
 }
 
