@@ -241,7 +241,11 @@ void NameThread(HANDLE h, DWORD tid, char* out, size_t n)
     if (g_getThreadDescription) {
         PWSTR desc = nullptr;
         if (SUCCEEDED(g_getThreadDescription(h, &desc)) && desc) {
-            if (desc[0]) WideCharToMultiByte(CP_UTF8, 0, desc, -1, out, (int)n, nullptr, nullptr);
+            // Converted whole and then cut, since a name longer than the buffer fails the conversion
+            // with the buffer full and no terminator, and the table would print on past it.
+            char utf8[256];
+            if (desc[0] && WideCharToMultiByte(CP_UTF8, 0, desc, -1, utf8, sizeof utf8, nullptr, nullptr))
+                strncpy_s(out, n, utf8, _TRUNCATE);
             LocalFree(desc);
         }
     }
