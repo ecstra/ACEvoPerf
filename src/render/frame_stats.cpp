@@ -100,7 +100,7 @@ static void OnPresent(UINT syncInterval, IUnknown* swapChain)
             Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch or pause: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
                 ms, NowSec(), (unsigned long long)(req[4] - g_hitchSnap[4]), (unsigned long long)(req[0] - g_hitchSnap[0]),
                 (unsigned long long)(req[1] + req[2] - g_hitchSnap[1] - g_hitchSnap[2]));
-        // Moved by every hitch, logged or not, so a line counts from the hitch before it, printed or not.
+        // Moved by every hitch, logged or not, and by a pause above, so a line counts from whichever came last.
         for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
     }
 
