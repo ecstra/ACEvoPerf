@@ -26,11 +26,16 @@ static HANDLE OpenCsv(const wchar_t* name, const char* header)
 // The adapter with the most dedicated memory is the discrete GPU the game renders on.
 static IDXGIAdapter3* FindRenderAdapter()
 {
-    HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
+    // Loaded rather than looked up, so the columns do not depend on the game having loaded dxgi.dll by
+    // its first DirectStorage call. The timeline thread holds no lock, so a load is safe, and from
+    // System32 only, since the game folder is searched first for a bare name and we ship files into it.
+    HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     auto createFactory = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
-    if (!createFactory) return nullptr;
     IDXGIFactory1* factory = nullptr;
-    if (FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) return nullptr;
+    if (!createFactory || FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) {
+        Log("timeline: no DXGI factory could be made, so the vram columns read 0 this run");
+        return nullptr;
+    }
 
     IDXGIAdapter3* best = nullptr; SIZE_T bestMem = 0; wchar_t bestName[128] = L"";
     for (UINT i = 0;; ++i) {
@@ -48,6 +53,7 @@ static IDXGIAdapter3* FindRenderAdapter()
     }
     factory->Release();
     if (best) Log("timeline: VRAM queries on adapter '%ls' (%llu MB dedicated)", bestName, (unsigned long long)(bestMem >> 20));
+    else Log("timeline: no adapter the game could render on, so the vram columns read 0 this run");
     return best;
 }
 
