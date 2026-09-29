@@ -52,6 +52,14 @@ than filed. Its two hunters added nine, one of them the hitch line still carryin
 two verifier rounds eight. One launch confirmed it where a run can show it, and showed the per thread
 table printing two rows under one name, V-31, which joins batch 4.
 
+Batch 4 closed with the census reading a heap list of any length and looking each heap up again before
+touching it, the trace and the frames buffer keeping their capacity, and the streamer reading engine
+memory for trace columns only when the trace is on, on the kick row and on every want and drop. The
+sampler's table prints each thread's id. Its two hunters added six and its two verifier rounds four, the
+first round's tests showing this Windows handles a short heap list and a destroyed heap more gently than
+filed. One launch confirmed it where a run can show it, the streamer's refusals and pins unchanged with
+the trace off.
+
 ## Batches
 
 | batch | theme | status | owner ack |
@@ -59,7 +67,7 @@ table printing two rows under one name, V-31, which joins batch 4.
 | 1 | an instrument that cannot start leaves nothing behind | closed, runtime confirmed | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | closed, runtime confirmed | 2026-09-29 |
 | 3 | the CSVs and the log's reports mean what they say | closed, runtime confirmed | 2026-09-29 |
-| 4 | the leftovers | fixing | 2026-09-29 |
+| 4 | the leftovers | closed, runtime confirmed | 2026-09-29 |
 
 ## Findings
 
@@ -1103,6 +1111,18 @@ percent in the job queue spin, while the parked D3D Background Threads take no r
 547 to 953 ms of CPU a window. This load never paused over 2 s, its longest frame 1943.5 ms, so H-17
 could not show, and with the throw log off neither could H-16 and H-22. A clean `detached` and no
 `Exception Detected`.
+
+Batch 4, one launch on 2026-09-29, `logs/telemetry-b4-20260929`, 18:57 to 19:01, the menu, a load into
+Oulton Park, about a minute and a half on track, the menu again and a quit, with `memory_census`,
+`load_sampler` and `frames` on for this launch alone and the trace off, so the streamer ran the path
+players run, on the code of the close. The census ran at start and after the unload, reading the heaps
+in 0.29 and 0.54 s at 3738 and 4234 MB committed and compacting them in 0.00 s, and the game log has
+no `Exception Detected`. With the trace off the streamer refused 90 drops holding 237 MB and pinned 197
+flips, so the reload path still reads the feedback it needs. The sampler's tables print each thread's
+id, two Resource Manager Worker 1 rows telling apart as 105684 and 106972, its unnamed threads read
+(unnamed), and it used 641 to 1156 ms of CPU a window. The frames CSV holds 17,698 rows. A heap
+destroyed mid census and a heap list outgrowing its buffer cannot be made to happen in a run, and the
+trace's kept buffer changes nothing a file shows. A clean `detached`.
 
 ## Checked and clean
 
