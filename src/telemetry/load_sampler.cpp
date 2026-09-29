@@ -34,7 +34,6 @@ std::vector<Export> g_exports;
 
 // A thread worth sampling, refreshed by CPU time.
 struct Target {
-    DWORD tid = 0;
     HANDLE handle = nullptr;
     char name[40] = {};
 };
@@ -274,7 +273,7 @@ void RefreshTargets()
     for (auto& c : found) {
         if (g_targetCount < (int)(sizeof g_targets / sizeof g_targets[0]) && (c.delta > 0 || g_targetCount < 4)) {
             Target& t = g_targets[g_targetCount++];
-            t.tid = c.tid; t.handle = c.h;
+            t.handle = c.h;
             NameThread(c.h, c.tid, t.name, sizeof t.name);
         } else {
             CloseHandle(c.h);
