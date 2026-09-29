@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-engine
 kind: review
-description: the engine hooks angle of the full review of main, one null pointer that retires all three streamer fixes and a flag writer that can inherit the wrong storage, seven findings
+description: the engine hooks angle of the full review of main, one null pointer that retires all three streamer fixes and a flag writer that can inherit the wrong storage, seven findings, plus forty from the hunters and verifiers across four batches, merged into 0.4 on 2026-09-29
 updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, directstorage-streaming, engine-flags, reviews-index]
 branch: sweep/review-engine
-status: open
+status: closed
 ---
 
 # Review of the engine hooks
@@ -20,7 +20,8 @@ The theme is that every failure in here is latching and silent. One unchecked po
 three streamer fixes for the rest of the process behind a single log line, and the flag writer can
 write the right value to the wrong global and report success.
 
-Seven findings, two bug, three debt, two nit.
+Seven findings, two bug, three debt, two nit. With the 40 the hunters and verifiers added across the
+four batches, 47 in all, and the branch merged into 0.4 on 2026-09-29.
 
 Batch 1 closed with both its findings fixed, neither of which had ever fired in 51 sessions and 23,814
 kicks, the hunter finding the overlap F-03 feared not possible as far as anything shows. It added two
