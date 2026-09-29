@@ -350,8 +350,9 @@ void InstallMemoryCensus()
 {
     if (!g_cfg.memoryCensus) return;
 
-    // The file first. The hooks cost every commit in the process, and they used to go in before this and
-    // stay in for the whole session when the file could not be made, a census that never ran.
+    // The file first. The hooks cost every VirtualAlloc commit in the process, and they used to go in
+    // before this and stay in for the whole session when the file could not be made, a census that never
+    // ran.
     std::wstring path = g_dir + L"acevo_perf_memory.csv";
     g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (g_csv == INVALID_HANDLE_VALUE) {
