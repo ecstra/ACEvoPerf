@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-telemetry
 kind: review
 description: the telemetry angle of the full review of main, hooks left installed in every module when the census cannot open its file and a sampler that picks the wrong threads after its first refresh, ten findings and two added by other angles' sub agents
-updated: 2026-09-20
+updated: 2026-09-29
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-telemetry
 status: open
@@ -32,7 +32,7 @@ validation half is already closed by that branch, since the key is read there.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | an instrument that cannot start leaves nothing behind | pending | |
+| 1 | an instrument that cannot start leaves nothing behind | fixing | 2026-09-29 |
 | 2 | the load sampler measures what it claims to measure | pending | |
 | 3 | the CSVs mean what their headers say | pending | |
 | 4 | the leftovers | pending | |
@@ -43,8 +43,8 @@ validation half is already closed by that branch, since the key is read there.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 90c7a80, 2026-09-29, the file is made before any hook goes in, and the one failure after the hooks, `VirtualAlloc` not found, closes it again. The remembered ranges growing through a session that never unloads a track is the census working while it is on, and stays as it is on the owner's ack.
 
 `src/telemetry/memory_census.cpp:362`. `PatchEverywhere` at lines 353 and 354 has already redirected
 every module's `VirtualAlloc` and `VirtualAlloc2` import slot before `CreateFileW` at 361 is tried. On
