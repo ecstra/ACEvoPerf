@@ -1,10 +1,10 @@
 ---
 name: BUG-032-the-game-freezes-at-a-thirty-ai-race-start
 kind: bug
-description: at the start of a thirty AI race at the Nürburgring the game stopped presenting frames for 45 s with its own threads frozen while the mod's threads kept running, no exception anywhere and video memory over budget, and the owner ended it
-updated: 2026-09-18
-links: [BUG-016-vram-overhead-grows-across-scene-loads, session-leak-fix, BUG-002-fps-drop-entering-new-track-sections, telemetry]
-status: open
+description: at the start of a thirty AI race at the Nürburgring the game stopped presenting frames for 45 s with its own threads frozen while the mod's threads kept running, no exception anywhere and video memory over budget, and the owner ended it, not seen again in two later starts of the same grid
+updated: 2026-10-08
+links: [BUG-016-vram-overhead-grows-across-scene-loads, session-leak-fix, BUG-002-fps-drop-entering-new-track-sections, telemetry, DEC-023-the-session-free-stays-immediate]
+status: wontfix
 severity: bug
 area: render
 reported: 2026-09-18
@@ -31,18 +31,24 @@ next one and only what was read on the day is kept here.
 - **Not the memory census.** The census runs on the mod's timeline thread, which kept its ten second cadence
   through the freeze, so no census was in progress. A census at the next race start did freeze the game for
   13 s, which is a different thing and is why the census is off in a race.
-- **Not the session leak fix.** Its last free was 76 s earlier in the menu, the race session was never freed,
-  and the race at the next attempt froze on the census with nothing freed at all in that launch.
+- **Probably not the session leak fix.** Its last free was 76 s earlier in the menu, the race session was
+  never freed, and the race at the next attempt froze on the census with nothing freed at all in that launch.
+  The gap does not rule it out on its own, since a race between the free and another game thread can surface
+  that much later as a hang or heap corruption, which is why
+  [DEC-023](../decisions/DEC-023-the-session-free-stays-immediate.md) keeps this freeze linked. The owner's
+  read on 2026-09-24 is the memory budget, not the mod.
 
 ## Reproduce
 
-Not reproduced yet. The second attempt the same evening ran the same race with the same build and did not
-freeze, so it needs the census off, the same thirty AI grid at the Nürburgring, and a Task Manager dump taken
-while the game is frozen.
+Not reproduced. The second attempt the same evening ran the same race with the same build and did not
+freeze. On 2026-10-08 the owner ran a 30 car race at the Nürburgring from the grid on 0.4 with the census
+off, one lap, and it started clean (`logs/repro-20261008`).
 
 ## Fix
 
-Absent.
+Won't fix, closed as not reproduced on 2026-10-08 after two clean starts of the same grid, the one freeze
+having come with video memory over budget. If it comes back, a Task Manager dump taken while the game is
+frozen is what names it.
 
 ## Verification
 

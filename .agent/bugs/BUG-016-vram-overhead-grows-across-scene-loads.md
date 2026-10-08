@@ -1,15 +1,16 @@
 ---
 name: BUG-016-vram-overhead-grows-across-scene-loads
 kind: bug
-description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, a fix on its branch that freed every practice and menu session of a six visit run and cut the growth to about 5 MB a visit, while the VRAM side is placement the next load reuses
-updated: 2026-09-16
+description: the game's committed memory grows across scene loads, the same with the mod passive, a one time heap fill with the first track and then a real leak, named by the census run as every session staying in memory behind a cycle between its local server connection and the game mode that holds it, about 57 MB a Red Bull Ring visit, fixed by [engine] session_leak_fix, committed as 1363062 on fix/memory-creep and closed in 75894a6 on 2026-09-18, which freed every practice and menu session of a six visit run and cut the growth to about 5 MB a visit, while the VRAM side is placement the next load reuses
+updated: 2026-10-08
 links: [memory-creep-2026-09-14, session-leak-census-2026-09-16, TODO-023-name-what-the-game-keeps-across-identical-loads, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, directstorage-streaming, telemetry, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-010-texture-pool-shrinks-on-race-load-and-restart, texture-streamer-flip-2026-09-13]
 area: streaming
 status: fixed
 severity: bug
+reported: 2026-09-12
 ---
 
-## Symptom
+## Problem
 
 Owner, 2026-09-12: "Ive noticed sometimes after multiple reloads some textures become slightly
 blurry, but cant test it now." No screenshot yet and no session named.
@@ -17,7 +18,7 @@ blurry, but cant test it now." No screenshot yet and no session named.
 This is not BUG-010 coming back. That one was the tile pool being sized small during a scene
 transition, and the fixed pool cured it. The pool still holds, see below.
 
-## Measured
+## Evidence
 
 From the owner's own game log of 2026-09-11 (`log-260911-191750.txt`), one 80 minute session
 on 0.9.1+release.6 with mod 0.3.1, thirteen scene loads: menu, Suzuka, menu, Suzuka, menu, an
@@ -72,7 +73,7 @@ after a Nürburgring carries its teardown (a median 4.53 s against 2.59 s after 
 identical loads after identical predecessors drift a median 4 to 7 percent with no link to commit,
 see [memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md).
 
-## Reading
+### Reading
 
 Same scene, same resources, more overhead each time, and nothing in the pools is being rebuilt.
 Something attributed to the process accumulates for the life of the run and is never released
@@ -93,7 +94,7 @@ There is no engine flag for the allocator worth reaching for: `dx12_amd_memory_a
 at 160 MB worse), and `dx12_amd_memory_allocator_within_budget` only makes the allocator crash
 when a request exceeds the budget.
 
-## First run with the cache off, 2026-09-12
+### First run with the cache off, 2026-09-12
 
 A 26 minute session on the same machine with `enable_pso_cache=false`, four menu loads among
 seven loads in all. The one way climb is gone, the figure now goes up and down:
@@ -114,7 +115,7 @@ magnitude did not. Two sessions of four menu loads each is too little to call it
 was driven to the same script. What would settle it: the same route twice, once with the flag
 on and once off, same tracks in the same order for the same minutes.
 
-## Reproduce
+### Reproduce
 
 Repeat the 2026-09-11 session shape with `enable_pso_cache=false`: menu, a track, menu, the
 same track, menu, a heavier track, menu, and so on for about an hour and a dozen loads, then
@@ -129,7 +130,7 @@ Either way, the blurry texture report needs the owner to say which scene and aft
 loads, and a screenshot of a surface that looks wrong next to the same surface on a fresh
 load.
 
-## Ruled out: a newer D3D12 runtime, 2026-09-12
+### Ruled out, a newer D3D12 runtime, 2026-09-12
 
 The overhead is runtime side allocation, so the Agility SDK was a fair suspect and got its own
 session. The SDK itself was built for this and then removed from the mod once it measured to
@@ -164,7 +165,7 @@ candidate than it was, because changing the whole runtime changed nothing.
 What still holds from the cache off reading: the ratchet is gone and the spike is not. Whatever
 produces a single 328 to 360 MB reading on one menu load and then releases it is still unnamed.
 
-## The spike follows the Nürburgring, 2026-09-13
+### The spike follows the Nürburgring, 2026-09-13
 
 **What the figure measures.** With `dx12_amd_memory_allocator` on, the engine's report reads the
 D3D12MA budget (`0x1e37f20`). Resource is allocation bytes, overhead is block bytes minus allocation
@@ -190,7 +191,7 @@ Full context in [texture-streamer-flip-2026-09-13](../docs/research/texture-stre
 Game logs start with one or two NUL bytes, so plain `grep` reports "Binary file matches" and drops
 every later line. Readings taken from these logs need `grep -a`.
 
-## The creep is in RAM too, and it is the game's, 2026-09-13
+### The creep is in RAM too, and it is the game's, 2026-09-13
 
 Owner wording, 2026-09-13: "Frametime, Memory Creep (leak), 1% all still remain and they're bigger."
 
@@ -230,7 +231,7 @@ undervolted the card that day and took the undervolt off again. Committed memory
 Next is naming what the committed memory is made of and which code keeps it, which the game does
 not log. Its only breakdown is the VRAM bucket list it prints after a GPU crash.
 
-## What the growth is made of, 2026-09-13
+### What the growth is made of, 2026-09-13
 
 A developer memory census read the process once memory had settled in the menu. It remembered who
 committed memory through the `VirtualAlloc` imports of every module, read every heap with
@@ -278,7 +279,7 @@ and 1.4 s on track (`logs/memcreep-20260913/R-census-mod-on`), because `HeapSumm
 
 Deferred on the owner's word, 2026-09-13, to its own deep dive with a targeted fix if one exists.
 
-## The deep dive, 2026-09-14
+### The deep dive, 2026-09-14
 
 Five angles from the exe and the sessions on disk, no new run. The full record is
 [memory-creep-2026-09-14](../docs/research/memory-creep-2026-09-14.md).
@@ -297,7 +298,7 @@ Five angles from the exe and the sessions on disk, no new run. The full record i
 What keeps growing is still unnamed. One run with the census back and two memory dumps decides it,
 [TODO-023](../todos/TODO-023-name-what-the-game-keeps-across-identical-loads.md).
 
-## The census run names it, 2026-09-16
+### The census run names it, 2026-09-16
 
 TODO-023's run, seven identical Red Bull Ring visits with the census and two full memory dumps. The
 full record is [session-leak-census-2026-09-16](../docs/research/session-leak-census-2026-09-16.md).
@@ -322,16 +323,16 @@ A fix the mod could try is ending the game mode's strong entry once nothing else
 the whole session frees. Nothing has ever freed one in the shipped game, so those destructors are untested,
 and it needs the same census run to show the heap flat and exits clean. The other path is a report to Kunos.
 
-## The fix, 2026-09-16
+## Fix
 
 On the owner's word, `[engine] session_leak_fix` on `fix/memory-creep` (`1363062`,
 `src/engine/session_leak_fix.cpp`). It hooks the one call that makes a connection (0x124AAE8) and keeps a
 weak reference on each. After the game makes a new connection, every earlier one whose use count is 1 and
 whose game mode's list holds it is freed the way a last `std::shared_ptr` would be, count from 1 to 0 by
 compare and exchange, the entry cleared, then the control block's destroy and delete. A `[sessions]` log
-line names each.
+line names each. Committed on 2026-09-16 and closed in `75894a6` on 2026-09-18.
 
-## The fix measured, 2026-09-16
+## Verification
 
 Session `logs/sessionfix-rbr-20260916`, build `17ddba4` with `session_leak_fix=1` and the census on, the
 owner's route of the leak run without dumps. Six Red Bull Ring practice visits parked in the pit box, back
@@ -359,7 +360,7 @@ them ended at 21:57 in SteamVR's own client, a fast fail from `vrclient_x64.dll`
 loaded and nothing freed (`logs/sessionfix-rbr-20260916/vr_crash_2157.dmp`), and SteamVR's server had crashed
 twice before the fix existed.
 
-## The play session, 2026-09-18
+### The play session, 2026-09-18
 
 `logs/airace-freeze-20260918`, the owner's own play, two laps at the Red Bull Ring, a minute at the
 Nordschleife, a Red Bull Ring lap on the online leaderboard, a Nordschleife minute on a multiplayer server
@@ -372,10 +373,11 @@ is kept here was read on the day.
 - **The race session was never freed.** It was the last session of the launch, and the next launch's race
   froze on the memory census with nothing freed at all, so the destructors of `InstantRaceRemote` and of a
   race with AI cars had still never run.
-- **The freeze at the race start is not the fix.**
-  [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was.
+- **The freeze at the race start is probably not the fix.**
+  [BUG-032](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md) holds what it was, and why the 76 s since
+  the last free does not settle it alone.
 
-## A race session freed, 2026-09-18
+### A race session freed, 2026-09-18
 
 `logs/racefree-20260918`, the run that closed the last gap. A thirty AI race at the Nürburgring, out to the
 menu, then a practice at the same track, then a quit.
@@ -388,13 +390,8 @@ menu, then a practice at the same track, then a quit.
 With this the fix has freed a menu, a practice with laps driven, a leaderboard lap, a multiplayer session and
 a thirty AI race. A session restarted from the pause menu is the one path still not run.
 
-## Done when
-
-TODO-023's run says whether live heap keeps growing on identical loads, and either the growth is
-named and the mod fixes it, or the record says it is the game's own fill or cache and why the mod
-cannot reach it.
-
-Met on 2026-09-18. The growth was named as whole sessions held by a cycle, the mod frees them
+The bar was naming what keeps growing on identical loads and either fixing it or saying why the mod cannot
+reach it. Met on 2026-09-18. The growth was named as whole sessions held by a cycle, the mod frees them
 ([session-leak-fix](../docs/systems/session-leak-fix.md)), and what is left of the growth, about 5 MB a
 visit, is [BUG-031](BUG-031-the-heap-still-grows-about-5-mb-a-visit-with-the-session-leak-fix.md). The VRAM
 side was placement the next load reuses, with nothing to fix.

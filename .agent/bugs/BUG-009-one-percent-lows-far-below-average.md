@@ -1,8 +1,8 @@
 ---
 name: BUG-009-one-percent-lows-far-below-average
 kind: bug
-description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on the owner's 5070 desktop with no integrated GPU, so the integrated GPU present path is not the cause, the game updating one UI view per frame in turn is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, this laptop holds no frames for the refresh even at 60 Hz, the rest is spread out renderer code
-updated: 2026-09-15
+description: the 1 percent low frame rate sits about 20 fps under the displayed average, and about 30 under it on a desktop with an RTX 5070 and no integrated GPU, so the integrated GPU present path is not the cause, the game updating one UI view per frame in turn is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, this laptop holds no frames for the refresh even at 60 Hz, the rest is spread out renderer code
+updated: 2026-10-08
 links: [one-percent-lows-2026-09-14, TODO-025-the-ui-view-rotation-test, TODO-026-one-lean-etw-trace-of-the-slow-frames, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, BUG-002-fps-drop-entering-new-track-sections, TODO-010-resume-the-one-percent-low-hunt, telemetry, ui-lag-deepdive-2026-09-14]
 status: open
 severity: bug
@@ -300,10 +300,9 @@ Corrections to this record, each with its evidence in the research doc.
 
 ## A desktop with the same gap, 2026-09-15
 
-In the owner's words, "I played the same game on another PC (5070 PC, no iGPU, striaght GPU display.
-using nvidia surround display for triple monitor). And it had the same bug. The game was running a
-~100-110 FPS (native 5k) and the 1% was ~70-80 (MASSIVE diff, more than mine)", and "our AMD cause is
-definitely wrong".
+A desktop with an RTX 5070, no integrated GPU and its three monitors on that one GPU through NVIDIA
+Surround showed the same gap, about 100 to 110 fps on average at native 5K against a 1 percent low of
+about 70 to 80, wider than on the reference laptop. So the integrated GPU present path is not the cause.
 
 - **The integrated GPU reading is overturned.** The records of 2026-09-13 and 2026-09-14 parked this bug
   as the width of a laptop that presents through its integrated GPU, with the present path as the part
@@ -425,7 +424,7 @@ effect."
   the AMD display, or the overlay counting something else. Present times cannot tell which. PresentMon records
   both the present and the display change per frame.
 
-The owner's 5070 desktop is gone, so no run there. The next step is naming the rest of the width, the
+That desktop is not available for a run. The next step is naming the rest of the width, the
 60.000 Hz clock and the renderer's spread, with the GPU sampler running and the lean trace of
 [TODO-026](../todos/TODO-026-one-lean-etw-trace-of-the-slow-frames.md).
 

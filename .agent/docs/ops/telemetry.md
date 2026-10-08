@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-16
+updated: 2026-10-08
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -18,11 +18,32 @@ gitignored). `tools/telemetry_report.py SESSION_DIR` summarises a folder that ho
 
 ## acevo_perf.log
 
+**This file is written to be posted.** `README.md` and `dist/README.txt` both tell players to
+attach it to a bug report, so it is public by design and nothing in it may identify the player.
+Every path that reaches `Log` goes through `PublicPath` (`core/log`), which trims the game folder
+off a path under it and reduces anything else, the game's own save files included, to a bare file
+name. The command line is summarised rather than written: the argument count, the switch names, and
+a count of the values left out, because a launcher can pass an account or a session id there.
+
+A new `Log` call that hands a raw path to `%ls` puts that back, and only the comment on
+`PublicPath` stands in the way.
+
+Two strings are still copied out of the game's memory untouched, and `PublicPath` cannot reach
+either, since both are text of unknown shape rather than a path we built. The `[throw]` message
+below is one. The other is the request name on every `[req]` line. Both are developer only, ship
+off, and say so in the ini. Nothing else in a default log comes from the game's own memory as free
+text.
+
 Human readable. The configuration read from the ini, every engine flag written with old and new
-value, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
-picked from it, every DirectStorage factory, queue and file event, per queue statistics every
+value, the `[latency]` and `[dxgi]` settings in the same config line, and a line naming what
+`frame_stats=0` silences, since the hitch lines have no switch of their own and the two frame CSVs
+stay empty despite having one, the `auto sizes` line with the render adapter's memory and the pool and staging sizes
+picked from it or the reason none were picked, a second `auto sizes` line at the swap chain naming
+the adapter the game actually renders on, a `WARNING` when that is not the one the sizes came from,
+every DirectStorage factory, queue and file event, per queue statistics every
 `stats_interval_s` seconds, individual frames slower than `hitch_ms` (at most five per second)
-with the streaming activity since the previous hitch, the swap chain's creation parameters and
+with the streaming activity since the previous hitch, logged or not, or since the last pause over 2 s
+such as a loading screen or a new swap chain, the swap chain's creation parameters and
 a `[display]` line naming the adapter that owns the window's monitor, a warning when it is not
 the render adapter.
 
@@ -30,13 +51,20 @@ With `[engine] session_leak_fix=1` (`src/engine/session_leak_fix.cpp`, BUG-016) 
 names each finished session the fix frees when a later one connects, its game mode's class
 (`TimeAttackRemote` for a practice, `PaintShopGameMode` for the menu), how long freeing it took and how
 many have been freed so far, and another at every connect names the thread that connected and how many
-connections the fix is still holding a weak reference on.
+connections the fix is still holding a weak reference on. A connect on any thread but the game thread,
+which the install line names by id, ends that line with `not the game thread, so nothing was freed`. A
+connection whose game mode no longer looks live is let go for good with a
+`let go of N connection(s) for good` line.
 
 With `[developer] throw_log=1` the exe's import of `_CxxThrowException` is hooked and every C++
-exception the game's own code throws is counted by throw site (the return address as an RVA)
-with its mangled type name and, for `std::exception` types, the message of the first throw.
-Every ten seconds with at least one throw the log gets a `[throw]` line with the count and the
-eight busiest sites. Off by default, the hook costs nothing when a frame throws nothing.
+exception the exe's own code throws is counted by throw site (the return address as an RVA)
+with its mangled type name and, for a type that can be caught as `std::exception`, the message of the
+first throw. The runtime DLLs throw from their own code and are not counted, `msvcp140.dll`'s helpers
+and `vcruntime140.dll`'s failed `dynamic_cast` to a reference and `typeid` of a null pointer among them,
+and a bare `throw;` is counted with `?` for its type. Every ten seconds with at least one throw the log
+gets a `[throw]` line with the count and the eight busiest sites, and throws in the last seconds before
+the quit are never reported. Off by default, the hook costs nothing when a frame throws nothing, and no
+session on disk with it on has logged a throw.
 
 ## acevo_perf_timeline.csv
 
@@ -52,8 +80,9 @@ it samples and writes only while a CSV is on. Columns:
 - `f2m_req`, `f2m_mb`: package to CPU memory requests and volume
 - `gpumem_req`, `gpumem_mb`: CPU memory to GPU uploads and volume
 - `submits`: DirectStorage submits on all queues
-- `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the discrete
-  adapter, local segment
+- `vram_used_mb`, `vram_budget_mb`, `vram_reservable_mb`: `QueryVideoMemoryInfo` on the adapter with
+  the most dedicated memory, the discrete card where there is one, local segment. All three read 0
+  when the timeline found no adapter, and a `timeline:` line in the log says so
 - `cpu_proc_pct`, `cpu_sys_pct`: game process CPU over all logical cores, whole system busy time
 - `ws_mb`, `commit_mb`: working set and private commit of the game process. The game's private
   commit includes its local VRAM one to one, so take `vram_used_mb` out before reading a commit step
@@ -105,10 +134,33 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 - `req`, a texture tile request. a resource, b subresource, c tiles, d package offset, e bytes
 - `reread`, a read into memory that repeats an earlier read exactly. a file (the `file=` of the
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read
+- `write`, a copy into a streamed texture that did not come from DirectStorage, from the command
+  list hooks in `src/render/texture_writes.cpp`. a the copy call, b the texture, c seconds since it
+  was first streamed, d `exe` or `other` for the caller, e the caller as an exe offset or an
+  address, f width, g height, h format, i layout, j resource flags
+
+With the trace on, the log also gets a `[writes]` line every `stats_interval_s`: the streamed
+textures and how they were created, the copies into them by DirectStorage, by the game and by
+anything else split by copy call, and the copies into other resources and into a new resource at a
+streamed texture's old address.
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
-own tile pool figures (used, capacity, pending) as the last kick read them, and the file to memory
-queue's `[stats]` line is followed by the total of repeated reads.
+own tile pool figures (used, capacity, pending) as the last kick read them, and a separate
+`[stats] across all queues` line carries the total of repeated reads. That total is process wide, so
+it is printed once per interval whichever queue's report reaches it first, and once more at
+shutdown, rather than attached to a queue's own line as it used to be. The shutdown one needs its
+own latch, because the queues that get a final report arrive in the same millisecond. In every
+captured run those are the two `GpuUpload` queues, and `FileToMemory Queue` never gets one.
+
+## acevo_perf_load_samples.csv
+
+Written only with `[developer] load_sampler=1` (`src/telemetry/load_sampler.cpp`), which samples the
+game's busiest threads about a thousand times a second at the default `sample_us`. One row per second,
+the header `clock,t_s,samples` and then one column per bucket the sampler sorts a sample into, named in
+`kBucketNames`. Each row holds only its own second's counts, and `t_s` is seconds since attach on the
+same clock as the other CSVs. The log gets a `[loadsampler]` summary per window with a table of the
+sampled threads ranked by running samples and the sampler's own CPU time, and says so when the CSV
+could not be created.
 
 ## acevo_perf_memory.csv
 

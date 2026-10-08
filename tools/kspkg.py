@@ -5,9 +5,9 @@ Layout (this build):
   * file data from offset 0, then a table of contents (TOC) occupying the last
     64 MB of the file (0x4000000; older builds used 32 MB). Slots are 256 bytes,
     sorted ascending by 64-bit path hash, unused slots are zero.
-  * slot: path[0xE4] (UTF-8, NUL padded) | u8 pad | u8 pad | u16 flags | u16 pathlen
-          | u64 hash | u64 size | u64 offset   (flags live at 0xE4 as a u16:
-          bit0 = directory, bit8 = payload is XOR ciphered)
+  * slot: path[0xE4] (UTF-8, NUL padded) | u16 flags | u16 pathlen | u64 hash
+          | u64 size | u64 offset   (flags at 0xE4: bit0 = directory, bit8 =
+          payload is XOR ciphered, pathlen at 0xE6)
   * hash: FNV-1a 64 over the path encoded as UTF-16LE.
   * cipher: XOR with the 8-byte key below, indexed by the offset INSIDE the entry
     (byte i of a file is XORed with key[i % 8]). The TOC starts on an 8 byte
@@ -23,15 +23,25 @@ Usage:
   kspkg.py [-p ...] cat PATH            (raw decoded bytes to stdout)
   kspkg.py [-p ...] verify              (recompute every hash)
   kspkg.py [-p ...] stats               (size by extension / xor flag)
+
+A slot that cannot be read is left out with a warning, an entry that runs past the
+end of the package fails with a message and a nonzero exit, and extract never
+writes outside its output folder.
 """
-import argparse, fnmatch, os, struct, sys
+import argparse
+import fnmatch
+import os
+import struct
+import sys
 from collections import Counter, defaultdict, namedtuple
+from typing import BinaryIO, Callable, Iterator, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gamedir import game_file  # noqa: E402
 
 KEY = bytes.fromhex("c135117da921979f")
 SLOT = 256
+EMPTY_SLOT = bytes(SLOT)
 FLAG_DIR = 1 << 0
 FLAG_XOR = 1 << 8
 TOC_SIZES = (0x4000000, 0x2000000)
@@ -40,171 +50,226 @@ Entry = namedtuple("Entry", "path flags hash size offset")
 
 
 def fnv1a64_utf16(path: str) -> int:
-    h = 0xcbf29ce484222325
-    for b in path.encode("utf-16le"):
-        h = ((h ^ b) * 0x100000001b3) & 0xffffffffffffffff
-    return h
+    value = 0xcbf29ce484222325
+    for byte in path.encode("utf-16le"):
+        value = ((value ^ byte) * 0x100000001b3) & 0xffffffffffffffff
+    return value
 
 
-def xor_at(buf: bytes, rel_off: int) -> bytes:
-    """XOR buf with the key phase-aligned to rel_off, the offset inside the entry."""
-    n = len(buf)
-    if n == 0:
-        return buf
-    r = rel_off % 8
-    krot = KEY[r:] + KEY[:r]
-    ks = (krot * (n // 8 + 2))[:n]
-    return (int.from_bytes(buf, "little") ^ int.from_bytes(ks, "little")).to_bytes(n, "little")
+def xor_at(data: bytes, offset_in_entry: int) -> bytes:
+    """XOR data with the key phase-aligned to offset_in_entry, the offset inside the entry."""
+    length = len(data)
+    if length == 0:
+        return data
+    phase = offset_in_entry % 8
+    rotated = KEY[phase:] + KEY[:phase]
+    stream = (rotated * (length // 8 + 2))[:length]
+    return (int.from_bytes(data, "little") ^ int.from_bytes(stream, "little")).to_bytes(length, "little")
 
 
-def parse_slot(raw: bytes):
-    path = raw[:0xE4].split(b"\0", 1)[0]
-    flags, plen = struct.unpack_from("<HH", raw, 0xE4)
-    h, size, off = struct.unpack_from("<QQQ", raw, 0xE8)
-    if not path or plen != len(path) or not all(32 <= c < 127 for c in path):
+def parse_slot(raw: bytes) -> Optional[Entry]:
+    path_bytes = raw[:0xE4].split(b"\0", 1)[0]
+    flags, path_length = struct.unpack_from("<HH", raw, 0xE4)
+    path_hash, size, offset = struct.unpack_from("<QQQ", raw, 0xE8)
+    if not path_bytes or path_length != len(path_bytes):
         return None
-    return Entry(path.decode(), flags, h, size, off)
+    try:
+        path = path_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if any(ord(char) < 32 for char in path):
+        return None
+    return Entry(path, flags, path_hash, size, offset)
 
 
-def read_toc(f, fsize):
-    for tbl in TOC_SIZES:
-        if tbl >= fsize:
+def read_toc(package: BinaryIO, package_size: int) -> tuple[list[Entry], int]:
+    for table_size in TOC_SIZES:
+        if table_size >= package_size:
             continue
-        start = fsize - tbl
-        f.seek(start)
-        dec = xor_at(f.read(tbl), 0)
-        first = parse_slot(dec[:SLOT])
-        if first is None or first.offset + first.size > fsize:
+        package.seek(package_size - table_size)
+        table = xor_at(package.read(table_size), 0)
+        first = parse_slot(table[:SLOT])
+        if first is None or first.offset + first.size > package_size:
             continue
-        entries = []
-        for o in range(0, tbl, SLOT):
-            e = parse_slot(dec[o:o + SLOT])
-            if e is None:
+
+        # The used slots come first and the zero tail ends the table, so a slot with bytes in it that
+        # does not read is a real entry this tool cannot name, and the listing says it left one out.
+        entries: list[Entry] = []
+        unreadable = 0
+        for at in range(0, table_size, SLOT):
+            raw = table[at:at + SLOT]
+            if raw == EMPTY_SLOT:
                 break
-            entries.append(e)
-        return entries, tbl
+            entry = parse_slot(raw)
+            if entry is None:
+                unreadable += 1
+                continue
+            entries.append(entry)
+        if unreadable:
+            print(f"warning: {unreadable} table slot(s) could not be read and are left out of everything below", file=sys.stderr)
+        return entries, table_size
     raise SystemExit("could not locate a valid table of contents (unknown package layout)")
 
 
-def open_pkg(path):
-    f = open(path, "rb")
-    fsize = os.path.getsize(path)
-    entries, tbl = read_toc(f, fsize)
-    return f, fsize, entries, tbl
+def open_pkg(path: str) -> tuple[BinaryIO, int, list[Entry], int]:
+    package = open(path, "rb")
+    package_size = os.path.getsize(path)
+    entries, table_size = read_toc(package, package_size)
+    return package, package_size, entries, table_size
 
 
-def read_entry(f, e: Entry, chunk=8 << 20):
-    f.seek(e.offset)
-    remaining = e.size
-    pos = e.offset
+def read_entry(package: BinaryIO, entry: Entry, chunk: int = 8 << 20) -> Iterator[bytes]:
+    package.seek(entry.offset)
+    remaining = entry.size
+    position = 0
     while remaining:
-        n = min(chunk, remaining)
-        buf = f.read(n)
-        if not buf:
-            break
-        if e.flags & FLAG_XOR:
-            buf = xor_at(buf, pos - e.offset)
-        yield buf
-        pos += len(buf)
-        remaining -= len(buf)
+        data = package.read(min(chunk, remaining))
+        if not data:
+            raise SystemExit(f"{entry.path} runs past the end of the package, {remaining:,} of its {entry.size:,} bytes are missing")
+        if entry.flags & FLAG_XOR:
+            data = xor_at(data, position)
+        yield data
+        position += len(data)
+        remaining -= len(data)
 
 
-def cmd_info(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    files = [e for e in entries if not e.flags & FLAG_DIR]
+def inside(folder: str, target: str) -> bool:
+    try:
+        return os.path.commonpath([folder, target]) == folder
+    except ValueError:
+        return False    # another drive
+
+
+def cmd_info(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    files = [entry for entry in entries if not entry.flags & FLAG_DIR]
     dirs = len(entries) - len(files)
-    xored = sum(1 for e in files if e.flags & FLAG_XOR)
-    print(f"package      : {a.package}")
-    print(f"size         : {fsize:,} bytes ({fsize / 2**30:.1f} GiB)")
-    print(f"toc          : last {tbl // 2**20} MB, {tbl // SLOT:,} slots, {len(entries):,} used ({len(files):,} files, {dirs:,} dirs)")
-    print(f"toc start    : 0x{fsize - tbl:x}")
-    print(f"payload      : {sum(e.size for e in files):,} bytes; xor-ciphered files: {xored:,}, plain: {len(files) - xored:,}")
-    print(f"sorted by    : hash ascending -> {all(entries[i].hash <= entries[i+1].hash for i in range(len(entries)-1))}")
-    roots = Counter(e.path.split('\\')[0] for e in entries)
-    print("roots        : " + ", ".join(f"{k} ({v})" for k, v in roots.most_common()))
+    xored = sum(1 for entry in files if entry.flags & FLAG_XOR)
+    print(f"package      : {args.package}")
+    print(f"size         : {package_size:,} bytes ({package_size / 2**30:.1f} GiB)")
+    print(f"toc          : last {table_size // 2**20} MB, {table_size // SLOT:,} slots, {len(entries):,} used ({len(files):,} files, {dirs:,} dirs)")
+    print(f"toc start    : 0x{package_size - table_size:x}")
+    print(f"payload      : {sum(entry.size for entry in files):,} bytes; xor-ciphered files: {xored:,}, plain: {len(files) - xored:,}")
+    print(f"sorted by    : hash ascending -> {all(entries[i].hash <= entries[i + 1].hash for i in range(len(entries) - 1))}")
+    roots = Counter(entry.path.split("\\")[0] for entry in entries)
+    print("roots        : " + ", ".join(f"{root} ({count})" for root, count in roots.most_common()))
 
 
-def cmd_list(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    sel = [e for e in entries if not a.filter or fnmatch.fnmatch(e.path.lower(), a.filter.lower())]
-    key = {"path": lambda e: e.path.lower(), "size": lambda e: -e.size, "offset": lambda e: e.offset}[a.sort]
-    for e in sorted(sel, key=key):
-        kind = "D" if e.flags & FLAG_DIR else ("X" if e.flags & FLAG_XOR else "P")
-        print(f"{kind} {e.size:>12,} {e.offset:>14,}  {e.path}")
-    print(f"{len(sel):,} entries", file=sys.stderr)
+def cmd_list(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    selected = [entry for entry in entries if not args.filter or fnmatch.fnmatch(entry.path.lower(), args.filter.lower())]
+    sort_keys: dict[str, Callable[[Entry], object]] = {
+        "path": lambda entry: entry.path.lower(),
+        "size": lambda entry: -entry.size,
+        "offset": lambda entry: entry.offset,
+    }
+    for entry in sorted(selected, key=sort_keys[args.sort]):
+        kind = "D" if entry.flags & FLAG_DIR else ("X" if entry.flags & FLAG_XOR else "P")
+        print(f"{kind} {entry.size:>12,} {entry.offset:>14,}  {entry.path}")
+    print(f"{len(selected):,} entries", file=sys.stderr)
 
 
-def cmd_extract(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    n = 0
-    for e in entries:
-        if e.flags & FLAG_DIR:
+def cmd_extract(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    out_root = os.path.realpath(args.out)
+    extracted = 0
+    refused = 0
+    for entry in entries:
+        if entry.flags & FLAG_DIR:
             continue
-        if not any(fnmatch.fnmatch(e.path.lower(), g.lower()) for g in a.globs):
+        if not any(fnmatch.fnmatch(entry.path.lower(), pattern.lower()) for pattern in args.globs):
             continue
-        out = os.path.join(a.out, e.path)
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        with open(out, "wb") as fo:
-            for buf in read_entry(f, e):
-                fo.write(buf)
-        n += 1
-        if a.verbose:
-            print(e.path)
-    print(f"extracted {n} file(s) to {a.out}", file=sys.stderr)
+
+        # The path comes from the package, so a crafted one could name a drive or climb out of the folder.
+        target = os.path.realpath(os.path.join(out_root, entry.path))
+        if not inside(out_root, target):
+            print(f"refused {entry.path}, it would be written outside {args.out}", file=sys.stderr)
+            refused += 1
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        try:
+            with open(target, "wb") as out:
+                for data in read_entry(package, entry):
+                    out.write(data)
+        except SystemExit:
+            os.remove(target)
+            raise
+        extracted += 1
+        if args.verbose:
+            print(entry.path)
+    print(f"extracted {extracted} file(s) to {args.out}", file=sys.stderr)
+    if refused:
+        raise SystemExit(f"{refused} file(s) refused for paths outside the output folder")
 
 
-def cmd_cat(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    want = a.path.replace("/", "\\").lower()
-    for e in entries:
-        if e.path.lower() == want:
-            out = sys.stdout.buffer
-            for buf in read_entry(f, e):
-                out.write(buf)
-            return
-    raise SystemExit(f"not found: {a.path}")
+def cmd_cat(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    wanted = args.path.replace("/", "\\").lower()
+    for entry in entries:
+        if entry.path.lower() != wanted:
+            continue
+        out = sys.stdout.buffer
+        for data in read_entry(package, entry):
+            out.write(data)
+        return
+    raise SystemExit(f"not found: {args.path}")
 
 
-def cmd_verify(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    bad = [e for e in entries if fnv1a64_utf16(e.path) != e.hash]
+def cmd_verify(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    bad = [entry for entry in entries if fnv1a64_utf16(entry.path) != entry.hash]
     print(f"{len(entries):,} entries, {len(bad)} hash mismatches")
-    for e in bad[:20]:
-        print("  ", e.path, hex(e.hash), hex(fnv1a64_utf16(e.path)))
+    for entry in bad[:20]:
+        print("  ", entry.path, hex(entry.hash), hex(fnv1a64_utf16(entry.path)))
 
 
-def cmd_stats(a):
-    f, fsize, entries, tbl = open_pkg(a.package)
-    st = defaultdict(lambda: [0, 0, 0, 0])
-    for e in entries:
-        if e.flags & FLAG_DIR:
+def cmd_stats(args: argparse.Namespace) -> None:
+    package, package_size, entries, table_size = open_pkg(args.package)
+    by_extension: defaultdict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    for entry in entries:
+        if entry.flags & FLAG_DIR:
             continue
-        name = e.path.rsplit("\\", 1)[-1]
-        ext = name.rsplit(".", 1)[-1].lower() if "." in name else "<none>"
-        x = 1 if e.flags & FLAG_XOR else 0
-        st[ext][x] += 1
-        st[ext][2 + x] += e.size
+        name = entry.path.rsplit("\\", 1)[-1]
+        extension = name.rsplit(".", 1)[-1].lower() if "." in name else "<none>"
+        xored = 1 if entry.flags & FLAG_XOR else 0
+        by_extension[extension][xored] += 1
+        by_extension[extension][2 + xored] += entry.size
     print(f"{'ext':28s} {'plain#':>8s} {'xor#':>8s} {'plain MB':>10s} {'xor MB':>10s}")
-    for ext, (p, x, pb, xb) in sorted(st.items(), key=lambda kv: -(kv[1][2] + kv[1][3])):
-        print(f"{ext:28s} {p:8d} {x:8d} {pb / 2**20:10.1f} {xb / 2**20:10.1f}")
+    for extension, (plain, xored, plain_bytes, xored_bytes) in sorted(by_extension.items(), key=lambda item: -(item[1][2] + item[1][3])):
+        print(f"{extension:28s} {plain:8d} {xored:8d} {plain_bytes / 2**20:10.1f} {xored_bytes / 2**20:10.1f}")
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-p", "--package", help="path of content.kspkg (default: ACEVO_GAME_DIR\\content.kspkg)")
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("info").set_defaults(fn=cmd_info)
-    p = sub.add_parser("list"); p.add_argument("-f", "--filter"); p.add_argument("--sort", default="path", choices=["path", "size", "offset"]); p.set_defaults(fn=cmd_list)
-    p = sub.add_parser("extract"); p.add_argument("globs", nargs="+"); p.add_argument("-o", "--out", default="extracted"); p.add_argument("-v", "--verbose", action="store_true"); p.set_defaults(fn=cmd_extract)
-    p = sub.add_parser("cat"); p.add_argument("path"); p.set_defaults(fn=cmd_cat)
-    sub.add_parser("verify").set_defaults(fn=cmd_verify)
-    sub.add_parser("stats").set_defaults(fn=cmd_stats)
-    a = ap.parse_args()
-    if not a.package:
-        a.package = game_file("content.kspkg")
-    if not os.path.exists(a.package):
-        raise SystemExit(f"package not found: {a.package} (use -p)")
-    a.fn(a)
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-p", "--package", help="path of content.kspkg (default: ACEVO_GAME_DIR\\content.kspkg)")
+    commands = parser.add_subparsers(dest="cmd", required=True)
+
+    commands.add_parser("info").set_defaults(fn=cmd_info)
+
+    listing = commands.add_parser("list")
+    listing.add_argument("-f", "--filter")
+    listing.add_argument("--sort", default="path", choices=["path", "size", "offset"])
+    listing.set_defaults(fn=cmd_list)
+
+    extract = commands.add_parser("extract")
+    extract.add_argument("globs", nargs="+")
+    extract.add_argument("-o", "--out", default="extracted")
+    extract.add_argument("-v", "--verbose", action="store_true")
+    extract.set_defaults(fn=cmd_extract)
+
+    cat = commands.add_parser("cat")
+    cat.add_argument("path")
+    cat.set_defaults(fn=cmd_cat)
+
+    commands.add_parser("verify").set_defaults(fn=cmd_verify)
+    commands.add_parser("stats").set_defaults(fn=cmd_stats)
+
+    args = parser.parse_args()
+    if not args.package:
+        args.package = game_file("content.kspkg")
+    if not os.path.exists(args.package):
+        raise SystemExit(f"package not found: {args.package} (use -p)")
+    args.fn(args)
 
 
 if __name__ == "__main__":

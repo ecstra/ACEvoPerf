@@ -21,4 +21,4 @@ extern std::vector<FrameSample> g_frameBuf;
 
 void InitFrameStats();          // QPC base and the frame buffer lock, call from DllMain
 double NowSec();                // seconds since attach
-void HookSwapChain(IUnknown* swapChain);
+void HookSwapChain(IUnknown* swapChain);   // for frame_stats, or for reflex once its vendor check passes

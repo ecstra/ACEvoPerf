@@ -11,6 +11,7 @@
 #include "acevo/engine/flags.h"
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
+#include <cmath>
 
 struct FlagInfo {
     std::string name;
@@ -82,17 +83,26 @@ static void ScanFlags()
     // pass 2: every call to a candidate ctor -> name (last lea rdx) + storages (lea rax; mov [rsp+20h/28h],rax)
     struct Site { BYTE* ctor; std::string name; std::vector<BYTE*> st; std::string file; };
     std::vector<Site> sites;
+    auto callsCtor = [&](const BYTE* call) {
+        const BYTE* target = call + 5 + *(const int32_t*)(call + 1);
+        for (auto& c : good) if (c.addr == target) return true;
+        return false;
+    };
     for (p = text.lo; p < end; ++p) {
-        if (*p != 0xE8) continue;
+        if (*p != 0xE8 || !callsCtor(p)) continue;
         BYTE* ct = p + 5 + *(int32_t*)(p + 1);
-        bool isCtor = false;
-        for (auto& c : good) if (c.addr == ct) { isCtor = true; break; }
-        if (!isCtor) continue;
         Site site; site.ctor = ct;
         BYTE* lo = p - 220; if (lo < text.lo) lo = text.lo;
         BYTE* nameLea = nullptr; BYTE* fileLea = nullptr;
         BYTE* curStorage = nullptr; BYTE* defStorage = nullptr;   // last [rsp+20h] / [rsp+28h] before the call
         for (BYTE* q = lo; q + 7 <= p; ++q) {
+            // Only what follows the previous registration belongs to this one. The window reaches back
+            // across several of them, and a site whose own storage lea is not in it used to take the one
+            // before's and have the right value written to the wrong global under its own name.
+            if (q[0] == 0xE8 && callsCtor(q)) {
+                nameLea = fileLea = curStorage = defStorage = nullptr;
+                continue;
+            }
             if (q[1] != 0x8D) continue;
             if (q[0] == 0x48 && q[2] == 0x15) nameLea = q;                    // lea rdx
             else if (q[0] == 0x4C && q[2] == 0x0D) fileLea = q;               // lea r9
@@ -113,7 +123,9 @@ static void ScanFlags()
         if (!rdata.has(nt2) || !ReadCString(nt2, rdata, site.name, 120)) continue;
         bool ident = true;
         for (char c : site.name) if (!(isalnum((unsigned char)c) || c == '_')) { ident = false; break; }
-        if (!ident || site.st.empty()) continue;
+        // Kept with no storage too, so a flag the scan could not place, every string flag among them,
+        // is refused for the true reason rather than reported missing from the game.
+        if (!ident) continue;
         if (fileLea) { BYTE* ft = fileLea + 7 + *(int32_t*)(fileLea + 3); if (rdata.has(ft)) ReadCString(ft, rdata, site.file, 300); }
         sites.push_back(site);
     }
@@ -128,12 +140,14 @@ static void ScanFlags()
         for (auto& c : good) if (c.addr == si.ctor) fi.type = c.type;
         size_t sl = si.file.find_last_of('\\');
         fi.file = (sl == std::string::npos) ? si.file : si.file.substr(sl + 1);
-        bool dup = false;
-        for (auto& f : g_flags) if (f.name == fi.name) { dup = true; break; }
-        if (!dup) g_flags.push_back(fi);
+        FlagInfo* same = nullptr;
+        for (auto& f : g_flags) if (f.name == fi.name) { same = &f; break; }
+        if (!same) g_flags.push_back(fi);
+        else if (same->storages.empty() && !fi.storages.empty()) *same = fi;   // a placed site wins over an unplaced one
     }
-    int typed = 0; for (auto& f : g_flags) if (f.type >= 0) typed++;
-    Log("flags: scanned exe in %llu ms: %zu ctor candidates, %zu flags (%d typed)", GetTickCount64() - t0, good.size(), g_flags.size(), typed);
+    int typed = 0, placed = 0;
+    for (auto& f : g_flags) { if (f.type >= 0) typed++; if (!f.storages.empty()) placed++; }
+    Log("flags: scanned exe in %llu ms: %zu ctor candidates, %zu flags (%d typed, %d with storage)", GetTickCount64() - t0, good.size(), g_flags.size(), typed, placed);
 }
 
 static bool Writable(const void* p)
@@ -144,13 +158,59 @@ static bool Writable(const void* p)
     return mbi.State == MEM_COMMIT && (pr == PAGE_READWRITE || pr == PAGE_WRITECOPY || pr == PAGE_EXECUTE_READWRITE || pr == PAGE_EXECUTE_WRITECOPY);
 }
 
+static std::string Utf8(const std::wstring& text)
+{
+    int bytes = text.empty() ? 0 : WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), nullptr, 0, nullptr, nullptr);
+    std::string out(bytes > 0 ? bytes : 0, '\0');
+    if (bytes > 0) WideCharToMultiByte(CP_UTF8, 0, text.data(), (int)text.size(), out.data(), bytes, nullptr, nullptr);
+    return out;
+}
+
 static void SplitFlag(const std::wstring& f, std::string& name, std::string& val)
 {
     size_t eq = f.find(L'=');
     std::wstring wname = f.substr(0, eq);
-    std::wstring wval = (eq == std::wstring::npos) ? L"true" : f.substr(eq + 1);
-    name.assign(wname.begin(), wname.end());
-    val.assign(wval.begin(), wval.end());
+    std::wstring wval = (eq == std::wstring::npos) ? L"" : f.substr(eq + 1);
+    name = Utf8(wname);
+    val = Utf8(wval);
+    // Lowercased here so the two `auto` comparisons below both see it. Written as `Auto`, the flag
+    // used to miss the auto branch, reach WriteFlag, and have atoi turn it into a literal 0 in the
+    // engine's tile pool size, which then hands the canonical flag the whole define.
+    for (auto& ch : val) ch = (char)tolower((unsigned char)ch);
+}
+
+// The same rule the ini reader uses: a word that is in neither list is a typo, not a no. Answering it
+// with false writes false into the engine, and for the bool flags the mod ships on that is the fix
+// simply not landing.
+static bool ParseBool(const std::string& text, bool* out)
+{
+    std::string v = text;
+    for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
+    if (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t") { *out = true; return true; }
+    if (v == "0" || v == "false" || v == "no" || v == "off" || v == "f") { *out = false; return true; }
+    return false;
+}
+
+// A number only when the whole value is one. atoi and atof stop at the first stray character, so
+// "1,024" or "2 GB" reached the engine as 1 or 2 and was logged like any other write.
+static bool WholeInt(const std::string& text, int* out)
+{
+    char* end = nullptr;
+    errno = 0;
+    long long v = strtoll(text.c_str(), &end, 10);
+    if (end == text.c_str() || *end || errno == ERANGE || v < INT_MIN || v > INT_MAX) return false;
+    *out = (int)v;
+    return true;
+}
+
+static bool WholeDouble(const std::string& text, double* out)
+{
+    char* end = nullptr;
+    errno = 0;
+    double v = strtod(text.c_str(), &end);
+    if (end == text.c_str() || *end || errno == ERANGE || !std::isfinite(v)) return false;
+    *out = v;
+    return true;
 }
 
 static void WriteFlag(const std::string& name, const std::string& val, const char* phase)
@@ -160,25 +220,52 @@ static void WriteFlag(const std::string& name, const std::string& val, const cha
     if (!fi) { Log("flag %s: not found in this game build (ignored)", name.c_str()); return; }
     if (fi->type == 3) { Log("flag %s: string flags are not supported (ignored)", name.c_str()); return; }
     if (fi->type < 0) { Log("flag %s: unknown type (ignored)", name.c_str()); return; }
+
+    // Read once before any storage, so a refused value is said once and never ends in the line about
+    // storage, which sends a reader after a scan fault that is not there. A name with no value is
+    // gflags' way of saying true, which only a bool can take.
+    if (val.empty() && fi->type != 0) {
+        Log("flag %s: has no value, left alone", name.c_str());
+        return;
+    }
+    bool asBool = false;
+    int asInt = 0;
+    double asDouble = 0;
+    if (fi->type == 0 && !ParseBool(val.empty() ? "true" : val, &asBool)) {
+        Log("flag %s: '%s' is not one of 1, 0, true, false, yes, no, on or off, left alone", name.c_str(), val.c_str());
+        return;
+    }
+    if (fi->type == 1 && !WholeInt(val, &asInt)) {
+        Log("flag %s: '%s' is not a whole number, left alone", name.c_str(), val.c_str());
+        return;
+    }
+    if (fi->type == 2 && !WholeDouble(val, &asDouble)) {
+        Log("flag %s: '%s' is not a number, left alone", name.c_str(), val.c_str());
+        return;
+    }
+
     int written = 0;
     for (BYTE* st : fi->storages) {
         if (!Writable(st)) continue;
         if (fi->type == 0) {
-            std::string v = val; for (auto& ch : v) ch = (char)tolower((unsigned char)ch);
-            bool b = (v == "1" || v == "true" || v == "yes" || v == "on" || v == "t");
-            bool old = *(bool*)st; *(bool*)st = b;
-            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), b ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
+            bool old = *(bool*)st; *(bool*)st = asBool;
+            Log("flag %s = %s (bool, was %s) @%p [%s, %s]", name.c_str(), asBool ? "true" : "false", old ? "true" : "false", st, fi->file.c_str(), phase);
         } else if (fi->type == 1) {
-            int v = atoi(val.c_str()); int old = *(int*)st; *(int*)st = v;
-            Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+            int old = *(int*)st; *(int*)st = asInt;
+            Log("flag %s = %d (int32, was %d) @%p [%s, %s]", name.c_str(), asInt, old, st, fi->file.c_str(), phase);
         } else if (fi->type == 2) {
-            double v = atof(val.c_str()); double old = *(double*)st; *(double*)st = v;
-            Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), v, old, st, fi->file.c_str(), phase);
+            double old = *(double*)st; *(double*)st = asDouble;
+            Log("flag %s = %g (double, was %g) @%p [%s, %s]", name.c_str(), asDouble, old, st, fi->file.c_str(), phase);
         }
         ++written;
     }
     if (!written) Log("flag %s: no writable storage found (ignored)", name.c_str());
 }
+
+// What ApplyAutoFlags resolved. Kept so a later pass can write it again like every other flag:
+// the auto value lands when the game creates its DXGI factory, and on 2026-09-18 the engine did
+// not size its tile pool until 2.3 seconds after that, with the late pass in between.
+static int g_autoTilePoolMb = 0;
 
 void ApplyFlags(const char* phase)
 {
@@ -188,7 +275,10 @@ void ApplyFlags(const char* phase)
         std::string name, val;
         SplitFlag(f, name, val);
         if (val == "auto") {
+            // Promised only for the one flag with an auto rule, ApplyAutoFlags says the rest have none.
+            if (name != "tile_pool_mb") continue;
             if (strcmp(phase, "early") == 0) Log("flag %s: auto, written once the game creates its DXGI factory and the card is known", name.c_str());
+            else if (g_autoTilePoolMb > 0) WriteFlag(name, std::to_string(g_autoTilePoolMb), phase);
             continue;
         }
         WriteFlag(name, val, phase);
@@ -203,7 +293,7 @@ void ApplyAutoFlags(int tilePoolMb)
         std::string name, val;
         SplitFlag(f, name, val);
         if (val != "auto") continue;
-        if (name == "tile_pool_mb") WriteFlag(name, std::to_string(tilePoolMb), "auto");
+        if (name == "tile_pool_mb") { g_autoTilePoolMb = tilePoolMb; WriteFlag(name, std::to_string(tilePoolMb), "auto"); }
         else Log("flag %s: auto has no rule for this flag (ignored)", name.c_str());
     }
 }

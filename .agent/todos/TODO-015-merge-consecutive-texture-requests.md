@@ -2,7 +2,7 @@
 name: TODO-015-merge-consecutive-texture-requests
 kind: todo
 description: find out whether the game's single subresource texture requests arrive in runs that could travel as one multi subresource request, and merge them in the proxy if they do
-updated: 2026-09-12
+updated: 2026-10-08
 links: [DEC-015-bundled-directstorage-core-loaded-first, directstorage-1-3-2026-09-12, directstorage-streaming, TODO-013-faster-session-loads]
 status: done
 by: owner
@@ -10,19 +10,6 @@ area: streaming
 born: 2026-09-12
 done: 2026-09-12
 ---
-
-## Answer
-
-Measured on 2026-09-12, one Nürburgring load, `logs/mergesurvey-20260912-1417`. **Zero of 32201
-texture requests could have merged, longest run one.** Two thirds of the time the next request
-names a different resource, and where consecutive mips of one texture do arrive together, 9042
-times, their source buffers are separate allocations so the bytes are not back to back. Barriers
-never broke a run, so the game's ordering was never the obstacle, its memory layout is. Making the
-sources contiguous would mean copying 6.8 GB to save request count, which costs more than the
-requests do.
-
-Closed. The survey code came out again, it is in the history at commit `317baaa`. Numbers and the
-full break down are in [directstorage-1-3-2026-09-12](../docs/research/directstorage-1-3-2026-09-12.md).
 
 ## What
 
@@ -42,7 +29,7 @@ from one another, with no submit, status entry or fence signal in between.
 
 Whether the game behaves that way is unknown, so it gets measured before anything is written.
 
-## Where it stands
+### Where it stood before the run
 
 `MergeSurvey` is built and wired into `QueueProxy`, behind `[profile] merge_survey=1`, off by
 default. It counts runs and why each one ended, and never changes a request. Its counting is
@@ -64,7 +51,21 @@ Either:
   keep `OverlayRedirect` in front of it and keep the statistics counting what the game asked for,
   not what was sent.
 
-## Worth knowing before starting the second branch
+### Answer
+
+Measured on 2026-09-12, one Nürburgring load, `logs/mergesurvey-20260912-1417`. **Zero of 32201
+texture requests could have merged, longest run one.** Two thirds of the time the next request
+names a different resource, and where consecutive mips of one texture do arrive together, 9042
+times, their source buffers are separate allocations so the bytes are not back to back. Barriers
+never broke a run, so the game's ordering was never the obstacle, its memory layout is. Making the
+sources contiguous would mean copying 6.8 GB to save request count, which costs more than the
+requests do.
+
+Closed. The survey went in with `317baaa` and came out again with the result in `7bfee04`, so the
+code stays in the history at `317baaa`. Numbers and the full break down are in
+[directstorage-1-3-2026-09-12](../docs/research/directstorage-1-3-2026-09-12.md).
+
+### Worth knowing before starting the second branch
 
 The expected win is small. The load bottleneck measured in TODO-013 is the engine's job queue spin
 loop, not DirectStorage, and the drive was about a second of a thirteen second load. Fewer requests

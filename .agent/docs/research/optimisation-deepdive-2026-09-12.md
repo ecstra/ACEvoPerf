@@ -2,7 +2,7 @@
 name: optimisation-deepdive-2026-09-12
 kind: doc
 description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved of which the DLSS one then closed, the engine is well built and the live leads both sit on one serial chain at the end of a session load, the dynamic track preset and a duplicated tyre build
-updated: 2026-09-14
+updated: 2026-10-08
 links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14]
 ---
 
@@ -309,25 +309,27 @@ were worked through on that rule. **Twenty four hold and nine come back.**
 ### The instrument that invalidated a whole class of kills
 
 Five verdicts rest on a phrase like "zero samples across 52,460 game code samples spanning every
-sampler session this project has run". That census does not exist, and reading the deleted sampler's
-own source says why.
+sampler session this project has run". The figure is exactly the sum of the game code rows the load
+sampler printed in four runs of 2026-09-12, 43,979 in `logs/loadsampler-20260912-1055`, 3,556 in
+`logs/loadsampler-20260912-1128`, 2,506 in `logs/joblock-A-off-1446` and 2,419 in
+`logs/joblock-B-on-1450`. So the reviewers did read the load sampler, in four of its runs.
 
-`src/telemetry/sampler.cpp` at commit `30c99dc^`:
+This doc first traced the figure to the deleted render thread sampler, `src/telemetry/sampler.cpp`
+at commit `30c99dc^`, which was wrong (corrected 2026-10-08). What that source shows is still true of
+that sampler.
 
 - **It samples one thread.** `HANDLE thread = g_renderThread;` and nothing else. There is no loop
-  over other threads anywhere in it. So the render thread is all it ever saw, and the claim that
-  those samples span "the render thread, GameThread, Physics and the resource manager workers" is
-  false.
+  over other threads anywhere in it, so the render thread is all it ever saw.
 - **It discards loading.** `if (s.ms < 100.0f && s.end != s.begin)` drops every frame over 100 ms
   before anything is tallied, and loading frames are hundreds to thousands of milliseconds.
 - **It prints only a top twelve.** `Rank(..., 12, true)` for game code and `10` and `8` for the
   labels outside it. Across every session on disk that comes to **192 printed game code rows
-  totalling 25,862 samples**, which is where the reviewers' denominator came from.
+  totalling 25,862 samples**, so the reviewers' 52,460 did not come from it.
 - **That top twelve is ranked by extra samples in slow frames**, not by total. A cost that is the
   same in a fast frame and a slow one ranks at zero extra and never appears at all, which is exactly
   the shape of an allocator, a lock or a dynamic cast.
 
-The real census is the per second bucket CSV, which no verdict used. Totalled over driving frames
+Its real census is the per second bucket CSV, which no verdict used. Totalled over driving frames
 across the eight sampler sessions, **4,360,295 samples**:
 
 | bucket | samples | share |
@@ -344,14 +346,18 @@ across the eight sampler sessions, **4,360,295 samples**:
 | lock | 8,281 | 0.19% |
 | the rest | under 8,000 each | |
 
-So the reviewers judged against 1 percent of the data, from a list that structurally cannot show a
-steady cost, taken from a thread and a phase that three of their targets were never on.
+The reviewers judged from printed lists, and a printed top sixteen cannot show a steady small
+cost. The rows they summed hold 52,460 of the 123,549 game code samples those four runs took, about
+42 percent, and the rest sit in addresses that never reached a list. An address absent from every
+list was sampled less often than the sixteenth row of each window, so its absence bounds the cost
+and does not zero it.
 
-The instrument that **can** answer those questions already exists and none of them used it: the load
-sampler of 2026-09-12, which walks two dozen threads round robin at 1 kHz and covers loads. It
-prints sixteen game addresses and sixteen outside labels per fifteen second window, 119 distinct
-addresses across 107 windows, with a detection floor around 12 samples in a 13,254 sample window,
-call it 0.1 percent. Three of the five kills below are re-grounded on it and survive.
+Read as bounds, the load sampler **can** answer what those five verdicts asked. It walks two dozen
+threads round robin at 1 kHz and covers loads. It prints sixteen game addresses and sixteen outside
+labels per fifteen second window, 119 distinct addresses across the 107 windows of
+`logs/loadsampler-20260912-1055` and `logs/loadsampler-20260912-1128`, with a detection floor around
+12 samples in a 13,254 sample window, call it 0.1 percent. Three of the five kills below are
+re-grounded on it and survive.
 
 ### The nine that come back to unresolved
 
@@ -378,11 +384,14 @@ call it 0.1 percent. Three of the five kills below are re-grounded on it and sur
 - **`__RTDynamicCast` is memoisable with one IAT hook.** It is an export of a system module, so the
   sampler labels it directly when a thread is inside it, and it never appears in any list from
   either sampler. During loads that bounds it below the sixteenth ranked outside function, under
-  0.3 percent of all samples on all threads.
+  0.3 percent of the samples, which covered the two dozen threads the sampler held rather than all
+  of them.
 - **The pool allocator's two locked read modify writes.** The instructions are where claimed,
   `f0 48 0f c1 10` at `0x14278AF7D` and `0x14278AF9C`. The function never appears in 119 printed
-  addresses across 107 load windows, so it is under roughly 0.09 percent of load samples on a phase
-  with eleven workers allocating at once, which is the exact case the finding said would be worst.
+  addresses across 107 windows, so it is under roughly 0.09 percent of the samples. Nearly all of
+  those windows are menus and driving, and in the few loads among them, the case the finding said
+  would be worst with eleven workers allocating at once, the sampler of that day held only some of
+  the workers.
 
 **Checked against the shipped bytes or files.**
 
@@ -418,10 +427,11 @@ captures` (a negative result, and correct), `what is clean` (a negative result),
 DLL adds nothing` (a negative result), `four named per frame passes` (its own shape field reads
 "Nothing to build yet"), and `no link time code generation` (its own shape field reads "Nothing to
 build", and a six instruction leaf cannot be inlined into 476,036 call sites from outside). The last
-one deserves a line of its own: `0x006AB180`, the `Vec4& operator*=(float)` it names, is the
-**single hottest game address in every load the load sampler recorded**, 12,295 samples of the
-47,535 printed. Nothing the mod can do reaches it. It is the best thing in this document to hand to
-Kunos.
+one deserves a line of its own. `0x006AB180`, the `Vec4& operator*=(float)` it names, is the
+**single hottest game address in the 107 windows of both runs**, 12,295 samples of the 47,535
+printed, and it leads 84 of them. In the track loads the job queue spin of
+TODO-013 leads instead and it comes second or lower. Nothing the mod can do reaches it. It is the
+best thing in this document to hand to Kunos.
 
 **Killed as duplicates of work that exists, verified in git.**
 
@@ -459,12 +469,13 @@ nothing by itself either way. `Repacking content.kspkg` is TODO-013 read back, d
 
 ### One thing nobody asked about that the data volunteered
 
-The second and third hottest game addresses in every load window are `0x0280E080` and `0x0280E0C0`,
-12,215 samples between them. Disassembled, that is the engine's clock: a `QueryPerformanceCounter`
-call, a subtract against a stored base, and a convert and divide to seconds. With
-`ntdll!RtlQueryPerformanceCounter` at 2.2 percent of a load window beside it, the engine spends
-roughly 3 percent of a load asking what time it is. Not reachable by the mod and not actionable,
-but it belongs in the same note to Kunos as the `Vec4` operator.
+The second and third hottest game addresses across both runs are `0x0280E080` and `0x0280E0C0`,
+12,215 samples between them, though in the track load windows they fall to fifth or lower.
+Disassembled, that is the engine's clock. It calls `QueryPerformanceCounter`, subtracts a stored
+base, and converts and divides to seconds. With `ntdll!RtlQueryPerformanceCounter` beside it, the
+clock takes about 3 percent of the two main Nürburgring load windows and 1.2 to 1.6 percent of the
+Red Bull Ring and online loads. Not reachable by the mod and not actionable, but it belongs in the
+same note to Kunos as the `Vec4` operator.
 
 ## Still unchecked
 

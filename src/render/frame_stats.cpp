@@ -30,8 +30,33 @@ double NowSec()
     return (double)(n.QuadPart - g_qpcStart.QuadPart) / (double)g_qpf.QuadPart;
 }
 
-static void OnPresent(UINT syncInterval)
+// The Present hooks live in the vtable inside dxgi.dll, which the whole process shares, so they
+// fire for any swap chain anyone makes. The frame times belong to one of them, and it is the
+// most recent one that carries a D3D12 device, since the game's renderer is D3D12 and a splash
+// screen or an overlay is not. Most recent rather than first, because the game replaces its swap
+// chain on a resolution or window mode change and on a device reset, and a first come rule would
+// leave the frame times counting a chain that no longer exists. Held as an address to compare
+// and never dereferenced, for the reasons in reflex.
+static std::atomic<IUnknown*> g_timedChain{nullptr};
+static std::atomic<bool> g_otherChainLogged{false};
+
+// Whether this swap chain belongs to the game's D3D12 renderer.
+static bool HasD3D12Device(IDXGISwapChain1* sc1)
 {
+    ID3D12Device* device = nullptr;
+    if (FAILED(sc1->GetDevice(__uuidof(ID3D12Device), (void**)&device)) || !device) return false;
+    device->Release();
+    return true;
+}
+
+static void OnPresent(UINT syncInterval, IUnknown* swapChain)
+{
+    if (!g_cfg.frameStats) return;   // the hooks are also installed for Reflex alone
+    if (swapChain != g_timedChain.load()) {
+        if (!g_otherChainLogged.exchange(true))
+            Log("frame times: a swap chain other than the game's renderer is presenting in this process, its frames are not counted.");
+        return;
+    }
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
     int64_t last = g_lastPresentQpc;
     g_lastPresentQpc = now.QuadPart;
@@ -39,10 +64,30 @@ static void OnPresent(UINT syncInterval)
         g_lastSyncInterval = syncInterval;
         Log("Present sync interval = %u (%s)", syncInterval, syncInterval ? "vsync on" : "vsync off");
     }
-    if (!last) return;
 
-    double ms = (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart;
-    if (ms > 2000.0) return;                     // alt-tab or loading screen pause, not a frame
+    // Every present of the chain moves the frame baselines, its first and one after a pause included,
+    // so a recorded frame counts only its own interval. Moved on the recorded frames alone, the first
+    // row carried every request since attach and a frame after a pause carried the whole pause.
+    uint64_t req[5];
+    for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
+    bool frames = g_cfg.frames;
+    FrameSample sample = {};
+    if (frames) {
+        sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
+        sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
+        sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
+        sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
+        sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
+        for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
+    }
+    // Neither the chain's first present nor one after a pause over 2 s, an alt-tab or a loading screen,
+    // is a frame. The hitch line starts counting again at either, so the first hitch after a load does
+    // not carry the whole load.
+    double ms = last ? (double)(now.QuadPart - last) * 1000.0 / (double)g_qpf.QuadPart : 0.0;
+    if (!last || ms > 2000.0) {
+        for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
+        return;
+    }
     uint64_t us = (uint64_t)(ms * 1000.0);
     g_frames++; g_frameSumUs += us;
     uint64_t prev = g_frameMaxUs.load();
@@ -51,27 +96,17 @@ static void OnPresent(UINT syncInterval)
 
     if (ms > (double)g_cfg.hitchMs) {
         g_hitchCfg++;
-        if (g_hitchLogBudget.fetch_sub(1) > 0) {
-            uint64_t cur[5]; for (int i = 0; i < 5; ++i) cur[i] = g_reqByDest[i].load();
-            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
-                ms, NowSec(), (unsigned long long)(cur[4] - g_hitchSnap[4]), (unsigned long long)(cur[0] - g_hitchSnap[0]),
-                (unsigned long long)(cur[1] + cur[2] - g_hitchSnap[1] - g_hitchSnap[2]));
-            for (int i = 0; i < 5; ++i) g_hitchSnap[i] = cur[i];
-        }
+        if (g_hitchLogBudget.fetch_sub(1) > 0)
+            Log("[hitch] %.1f ms frame at t=%.2fs | since previous hitch or pause: tiles %llu req, file->mem %llu req, mem->gpu %llu req",
+                ms, NowSec(), (unsigned long long)(req[4] - g_hitchSnap[4]), (unsigned long long)(req[0] - g_hitchSnap[0]),
+                (unsigned long long)(req[1] + req[2] - g_hitchSnap[1] - g_hitchSnap[2]));
+        // Moved by every hitch, logged or not, and by a pause above, so a line counts from whichever came last.
+        for (int i = 0; i < 5; ++i) g_hitchSnap[i] = req[i];
     }
 
-    if (g_cfg.frames) {
-        uint64_t req[5];
-        for (int i = 0; i < 5; ++i) req[i] = g_reqByDest[i].load();
-        FrameSample sample;
+    if (frames) {
         sample.t = (float)NowSec();
         sample.ms = (float)ms;
-        sample.tiles = (uint32_t)(req[4] - g_frameReqSnap[4]);
-        sample.f2m = (uint32_t)(req[0] - g_frameReqSnap[0]);
-        sample.gpumem = (uint32_t)(req[1] + req[2] - g_frameReqSnap[1] - g_frameReqSnap[2]);
-        sample.uiEndFrameMs = UiProbeTakeEndFrameUs() / 1000.0f;
-        sample.uiAdvanceMs = UiProbeTakeAdvanceUs() / 1000.0f;
-        for (int i = 0; i < 5; ++i) g_frameReqSnap[i] = req[i];
         EnterCriticalSection(&g_frameCs);
         if (g_frameBuf.size() < 200000) g_frameBuf.push_back(sample);
         LeaveCriticalSection(&g_frameCs);
@@ -88,31 +123,48 @@ static PFN_Present1 g_origPresent1 = nullptr;
 static HRESULT STDMETHODCALLTYPE Hook_Present(IDXGISwapChain* self, UINT sync, UINT flags)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent(self, sync, flags);
-    OnPresent(sync);
+    OnPresent(sync, self);
     HRESULT hr = g_origPresent(self, sync, flags);
-    reflex::OnFrameBegin();
+    reflex::OnFrameBegin(self);
     return hr;
 }
 static HRESULT STDMETHODCALLTYPE Hook_Present1(IDXGISwapChain1* self, UINT sync, UINT flags, const DXGI_PRESENT_PARAMETERS* pp)
 {
     if (flags & DXGI_PRESENT_TEST) return g_origPresent1(self, sync, flags, pp);
-    OnPresent(sync);
+    OnPresent(sync, self);
     HRESULT hr = g_origPresent1(self, sync, flags, pp);
-    reflex::OnFrameBegin();
+    reflex::OnFrameBegin(self);
     return hr;
 }
 
+// Two settings in two different ini sections want these hooks, so either one installs them and
+// each consumer checks for itself. Reflex used to hang off frame_stats, which meant turning the
+// frame times off removed it with no vendor check and no line in the log to say so.
 void HookSwapChain(IUnknown* sc)
 {
-    if (!sc || !g_cfg.frameStats) return;
+    if (!sc || (!g_cfg.frameStats && !g_cfg.reflex)) return;
     IDXGISwapChain1* sc1 = nullptr;
     if (FAILED(sc->QueryInterface(__uuidof(IDXGISwapChain1), (void**)&sc1)) || !sc1) return;
-    void** vt = *(void***)sc1;
-    HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
-    HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
     DXGI_SWAP_CHAIN_DESC1 d = {};
     if (SUCCEEDED(sc1->GetDesc1(&d)))
         Log("swap chain: %ux%u fmt=%u buffers=%u swapEffect=%u flags=0x%X scaling=%u", d.Width, d.Height, (unsigned)d.Format, d.BufferCount, (unsigned)d.SwapEffect, d.Flags, (unsigned)d.Scaling);
+
+    // Reflex first, because its vendor check is what decides whether it needs the hooks at all.
+    // These patch the vtable inside dxgi.dll, which the whole process shares and nothing unhooks,
+    // so they do not go in for a layer that turned out to be idle on a card that is not NVIDIA.
     reflex::OnSwapChain(sc1);
+    if (g_cfg.frameStats || reflex::Active()) {
+        if (HasD3D12Device(sc1)) {
+            if (g_timedChain.load() && g_timedChain.load() != (IUnknown*)sc1) {
+                if (g_cfg.frameStats)
+                    Log("frame times: a newer D3D12 swap chain, timing that one from here. Anything already counted belongs to the one before it.");
+                g_lastPresentQpc = 0;
+            }
+            g_timedChain.store((IUnknown*)sc1);
+        }
+        void** vt = *(void***)sc1;
+        HookVtableSlot(vt, 8, (void*)&Hook_Present, (void**)&g_origPresent, "IDXGISwapChain::Present");
+        HookVtableSlot(vt, 22, (void*)&Hook_Present1, (void**)&g_origPresent1, "IDXGISwapChain1::Present1");
+    }
     sc1->Release();
 }

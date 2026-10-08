@@ -2,12 +2,12 @@
 name: DEC-009-pool-and-staging-sizes-by-card
 kind: decision
 description: tile_pool_mb and staging_buffer_mb default to auto, picked from the render adapter's dedicated memory at the game's first DXGI factory, instead of the 6 GB numbers
-updated: 2026-09-06
-links: [DEC-003-staging-buffer-128mb, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, proxy-architecture]
+updated: 2026-09-20
+links: [DEC-003-staging-buffer-128mb, DEC-005-fixed-pool-sizes-by-default, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, directstorage-streaming, proxy-architecture]
 date: 2026-09-06
 area: streaming
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after
 ---
 
 ## Decision

@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-16
+updated: 2026-10-08
 links: [agent-index, spec-todos]
 ---
 
@@ -25,7 +25,8 @@ streaming
 
 render
 
-- [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the 1 percent low hunt through the 2026-09-14 deep dive, its leads answered or moved to two runs, the done-when waiting on the owner's choice of measure
+- [TODO-031-reproduce-the-pso-cache-glitches-at-medium-textures](TODO-031-reproduce-the-pso-cache-glitches-at-medium-textures.md), try to see BUG-039 on the reference machine with the cache warm and texture quality at Medium, the one way back to the cache's few seconds per load if the glitches can then be fixed
+- [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the 1 percent low hunt through the 2026-09-14 deep dive, its leads answered or moved to two runs, the done when check waiting on the owner's choice of measure
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), the mod's 3.8 percent parked is the mesh detail the 1433 MB budget loads, authored detail per the mesh deep dive, the engine's own readout rode the census run and peaked at 461 of 1433 MB at the Red Bull Ring, the last 1 percent unsplit
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 
@@ -37,17 +38,21 @@ engine-flags
 
 - [TODO-016-run-the-four-untouched-in-game-engine-flags](TODO-016-run-the-four-untouched-in-game-engine-flags.md), `no_gi`, `log_pso_on_creation`, `ai_run_dynamic_track` and `car_update_complete_max_interval` reachable from the ini today with no build, measured from a fixed stationary view
 
+foundation
+
+- [TODO-032-adapt-the-mod-to-game-version-0-10](TODO-032-adapt-the-mod-to-game-version-0-10.md), when 0.10 and its free roam arrive, read every patch again against the new build, since each stands down on a build it does not know, and take out any UI fix the developers' own work made redundant
+
 ## Done
 
 - render: 3 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean. TODO-025, the HUD schedule test, the UI view rotation is about 30 percent of BUG-009's gap at the Red Bull Ring GP and the HUD every frame removes it. TODO-028, no refresh hold on this laptop even at 60 Hz)
-- streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed; TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
+- streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified. TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed. TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
-- release: 1 (TODO-004)
+- release: 2 (TODO-004. TODO-029, the forwarder out of the zip and the fallback on the game's own core directly, both runtimes launched without it)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
 - stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a cycle between its connection and its game mode, about 57 MB a Red Bull Ring visit)
 
 ## Dropped
 
-- stability: 1 (TODO-003, the crashes stopped with the staging cap)
+- stability: 2 (TODO-003, the crashes stopped with the staging cap. TODO-030, a player's crash joining a session with custom tracks installed, dropped with no custom track to test and custom tracks called not supported for now)
 - ui: 1 (TODO-011, the UI script overhaul, one round tried and closed on the owner's word)
 - engine-flags: 1 (TODO-012, the hidden Free Roam mode unlocked and driven for an afternoon, dropped because the package stops at the complex, DEC-011)

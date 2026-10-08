@@ -1,20 +1,54 @@
 #include "acevo/render/adapter.h"
+#include "acevo/render/dxgi_hooks.h"   // PFN_CreateDXGIFactory1
 #include "acevo/core/config.h"
 #include "acevo/core/log.h"
 #include "acevo/engine/flags.h"
 
-// Measured on a 6 GB card: 1024 MB of tiles plus the engine's 1433 MB mesh cap leave about
-// 600 MB of budget with everything else. Each step up keeps that margin on the next card size.
-int AutoTilePoolMb(uint64_t vramMb)
+// The table the mod shipped with up to 0.3.2, by dedicated memory, kept as a floor so no card gets
+// less than it did. Its steps above 6 GB kept the 6 GB card's thin margin on every bigger card, which
+// left a 12 GB card with a third of the game's own Ultra pool and its players with memory to spare
+// and textures turned away (BUG-040). 256 is where the engine's own dynamic formula bottoms out.
+//
+// Writing nothing on a small card was tried and is worse than any number here. The shipped ini
+// sets force_canonical_pool_sizes at the early pass, long before the card is known, and with
+// that on and tile_pool_mb unwritten the engine takes the whole texturePoolSize define, 1433 MB
+// at Low and 6144 at Ultra (DEC-005, engine-flags). So every card gets a figure.
+static int FloorTilePoolMb(uint64_t vramMb)
 {
+    if (vramMb < 3072) return 256;
+    if (vramMb < 5120) return 512;
     if (vramMb < 7168) return 1024;
     if (vramMb < 11264) return 1536;
     if (vramMb < 15360) return 2048;
     return 3072;
 }
 
-// The runtime keeps two staging buffers in video memory and the game's largest request is
-// 32 MB, so 128 MB already holds four of them in flight.
+// Measured on a 6 GB card at 1920 by 1080: Windows granted the game 5226 MB, and a 1024 MB pool left
+// about 600 MB spare beside the meshes, the screen buffers and everything else, so the rest of the game
+// takes 4200 MB at that resolution with that margin in it. The screen buffers grow with the pixel count,
+// put at 150 bytes a pixel across the renderer's targets, an estimate, so a 4K screen asks about 900 MB
+// more. A 10 GB card given 5 GB by hand brought no report after it, and this rule gives it about 4.5 GB.
+// The pool stops at 6144 MB, the most the game itself allocates, its pool at the Ultra texture pool
+// size, since nothing has run it larger (DEC-025).
+static const uint64_t kReserveMb = 4200;
+static const uint64_t kReservePixels = 1920ull * 1080;
+static const uint64_t kReserveBytesPerPixel = 150;
+static const int kMaxTilePoolMb = 6144;
+
+int AutoTilePoolMb(uint64_t vramMb, uint64_t budgetMb, uint64_t screenPixels)
+{
+    uint64_t extraPixels = screenPixels > kReservePixels ? screenPixels - kReservePixels : 0;
+    uint64_t reserveMb = kReserveMb + ((extraPixels * kReserveBytesPerPixel) >> 20);
+    int fits = budgetMb > reserveMb ? (int)std::min<uint64_t>(budgetMb - reserveMb, kMaxTilePoolMb) : 0;
+    return std::max(fits & ~63, FloorTilePoolMb(vramMb));
+}
+
+// The runtime keeps two staging buffers in video memory. A request larger than the buffer fails
+// outright, so the floor is the game's largest single request, and that is 96.2 MB, measured as
+// the highest `max req` across all 7,848 stats lines on disk. 32 MB is only the ninetieth
+// percentile, which is what this comment used to claim was the maximum. So 128 MB holds the
+// largest request with room to spare rather than four of them, and it is the smallest step here
+// for that reason.
 int AutoStagingMb(uint64_t vramMb)
 {
     if (vramMb < 7168) return 128;
@@ -22,8 +56,48 @@ int AutoStagingMb(uint64_t vramMb)
     return 256;
 }
 
-// The adapter with the most dedicated memory is the one the game renders on.
-static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
+// The LUID of the adapter the sizes were picked from, kept so the real one can be checked
+// against it once the game's device exists. The sizes cannot wait for that: the engine sizes its
+// tile pool before it creates the swap chain, 7 ms before on 2026-09-18 and 68 ms before on
+// 2026-09-20, and the swap chain is the first place the render adapter's LUID can be read at all.
+static LUID g_sizedFromLuid = {};
+static bool g_sizedFromKnown = false;
+static wchar_t g_sizedFromName[128] = {};
+static uint64_t g_sizedFromMb = 0;
+
+// What Windows grants this process on the adapter's own memory, 0 when it cannot say.
+static uint64_t BudgetMb(IDXGIAdapter1* adapter)
+{
+    IDXGIAdapter3* adapter3 = nullptr;
+    if (FAILED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&adapter3)) || !adapter3) return 0;
+    DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+    HRESULT hr = adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info);
+    adapter3->Release();
+    return SUCCEEDED(hr) ? info.Budget >> 20 : 0;
+}
+
+// The primary display's mode, which the game's screen buffers are sized near. It is the real mode,
+// not the one DPI scaling shows a process that is not aware of it, and a spanned set of monitors
+// reports as one wide display.
+static bool ScreenSize(DWORD* width, DWORD* height)
+{
+    DEVMODEW mode = {};
+    mode.dmSize = sizeof mode;
+    if (!EnumDisplaySettingsW(nullptr, ENUM_CURRENT_SETTINGS, &mode) || !mode.dmPelsWidth || !mode.dmPelsHeight) return false;
+    *width = mode.dmPelsWidth;
+    *height = mode.dmPelsHeight;
+    return true;
+}
+
+// The adapter with the most dedicated memory is the one the game renders on. The engine's own
+// log says it enumerates adapters and names one it is "Using", and on the reference laptop it
+// lists the discrete card only, so the two rules agree wherever a discrete card exists.
+//
+// An adapter reporting none at all is still taken, which is why the ranking is written the long
+// way round. Plenty of integrated parts report zero and keep everything in shared memory, and
+// passing on those would leave the canonical flag holding the whole define, the same failure as
+// writing nothing on a small card (DEC-022).
+static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out, uint64_t* budgetMb)
 {
     bool found = false;
     SIZE_T best = 0;
@@ -32,52 +106,155 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
         if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
         DXGI_ADAPTER_DESC1 d = {};
         adapter->GetDesc1(&d);
+        bool better = !(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && (!found || d.DedicatedVideoMemory > best);
+        if (better) {
+            best = d.DedicatedVideoMemory;
+            *out = d;
+            *budgetMb = BudgetMb(adapter);
+            found = true;
+        }
         adapter->Release();
-        if ((d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) || d.DedicatedVideoMemory <= best) continue;
-        best = d.DedicatedVideoMemory;
-        *out = d;
-        found = true;
     }
     return found;
 }
 
+// An exchange, because the two callers are on different threads and one of them now runs under the
+// proxy's lock while the other takes nothing. In every captured run they are 1.7 seconds apart and
+// the loser has no use for the result, it only needs the work not to happen twice, so run once is
+// enough here where it was not enough for the one time init in DStorageGetFactory.
+static std::atomic<bool> g_resolveDone{false};
+
+static bool WantsAutoSizes()
+{
+    if (g_cfg.stagingAuto) return true;
+    for (auto& f : g_cfg.flags) {
+        std::wstring lower = f;   // `Auto` has to count, the same way SplitFlag lowercases it
+        for (auto& ch : lower) ch = (wchar_t)towlower(ch);
+        if (lower.find(L"=auto") != std::wstring::npos) return true;
+    }
+    return false;
+}
+
 void ResolveAutoSizes(IDXGIFactory1* factory)
 {
-    static bool done = false;
-    if (done || !factory) return;
-    done = true;
-    bool wantsAuto = g_cfg.stagingAuto;
-    for (auto& f : g_cfg.flags) if (f.find(L"=auto") != std::wstring::npos) wantsAuto = true;
-    if (!wantsAuto) return;
+    if (!factory || g_resolveDone.exchange(true)) return;
+    if (!WantsAutoSizes()) return;
 
     DXGI_ADAPTER_DESC1 d = {};
-    if (!DiscreteAdapter(factory, &d)) {
-        Log("auto sizes: no adapter with dedicated memory found, the game's own values stay");
+    uint64_t budgetMb = 0;
+    if (!DiscreteAdapter(factory, &d, &budgetMb)) {
+        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set tile_pool_mb and staging_buffer_mb by hand if this run is not headless.");
         return;
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
-    int tilePool = AutoTilePoolMb(vramMb);
+
+    // Windows grants the reference card 5226 of the 5994 MB it reports, 87 percent, so a budget it
+    // cannot report is taken the same way. A card is never granted more than its own memory, and an
+    // integrated GPU is granted the PC's shared memory as if it were its own, 15814 MB to a Radeon
+    // with 496 MB on 2026-10-08, which sized a 6 GB pool out of the memory the game itself runs in.
+    // So a budget above the dedicated memory is cut back to it.
+    const char* budgetFrom = "granted by Windows";
+    if (!budgetMb) {
+        budgetMb = vramMb * 87 / 100;
+        budgetFrom = "assumed, Windows did not say";
+    } else if (budgetMb > vramMb) {
+        budgetMb = vramMb;
+        budgetFrom = "its own memory, Windows granted more, which is shared memory";
+    }
+    DWORD width = 1920, height = 1080;
+    const char* screenFrom = "";
+    if (!ScreenSize(&width, &height)) screenFrom = ", assumed";
+
+    int tilePool = AutoTilePoolMb(vramMb, budgetMb, (uint64_t)width * height);
     int staging = AutoStagingMb(vramMb);
-    Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB, staging buffer %d MB", d.Description, (unsigned long long)vramMb, tilePool, staging);
+    g_sizedFromLuid = d.AdapterLuid;
+    g_sizedFromMb = vramMb;
+    wcsncpy_s(g_sizedFromName, d.Description, _TRUNCATE);
+    g_sizedFromKnown = true;
+    Log("auto sizes: '%ls' has %llu MB dedicated, %llu MB %s, display %lux%lu%s -> tile pool %d MB, staging buffer %d MB",
+        d.Description, (unsigned long long)vramMb, (unsigned long long)budgetMb, budgetFrom, width, height, screenFrom, tilePool, staging);
     if (g_cfg.stagingAuto) g_cfg.stagingMb = staging;
     ApplyAutoFlags(tilePool);
+}
+
+// The other chance to read the card, taken from the late flag pass inside DStorageGetFactory.
+// That runs on the game's own thread rather than under the loader lock, and it beat the engine's
+// tile pool sizing by 361 ms on 2026-09-18 and by 316 ms on 2026-09-20. It does nothing when the game's own factory
+// has already been through here, which on 0.9.1 is always, since that arrives 1.9 seconds
+// earlier. It covers the exe with no import to patch and any launch order that puts
+// DirectStorage first, and creates a factory of its own the same way reflex and timeline do.
+void ResolveAutoSizesFallback()
+{
+    if (g_resolveDone || !WantsAutoSizes()) return;
+    // Loaded rather than looked up, because one of the ways to get here is dxgi.dll not being
+    // loaded yet. This runs on the game's own thread, so a load is safe, and from System32 only,
+    // since the game folder is searched first for a bare name and we ship files into it.
+    HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    PFN_CreateDXGIFactory1 create = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
+    if (!create) {
+        Log("auto sizes: no DXGI factory has reached us and CreateDXGIFactory1 is not available, so nothing is sized and tile_pool_mb goes unwritten, which hands the size to force_canonical_pool_sizes if it is on and to the engine's own formula if it is not. Set tile_pool_mb and staging_buffer_mb by hand.");
+        return;
+    }
+    IDXGIFactory1* own = nullptr;
+    if (FAILED(create(__uuidof(IDXGIFactory1), (void**)&own)) || !own) {
+        Log("auto sizes: no DXGI factory has reached us and our own could not be created, so nothing is sized and tile_pool_mb goes unwritten, which hands the size to force_canonical_pool_sizes if it is on and to the engine's own formula if it is not. Set tile_pool_mb and staging_buffer_mb by hand.");
+        return;
+    }
+    Log("auto sizes: no DXGI factory has reached us by the first DirectStorage call, reading the card off our own instead");
+    ResolveAutoSizes(own);
+    own->Release();
+}
+
+// The swap chain's device parameter is the command queue on D3D12, which is the only path the
+// game takes. Anything else leaves the LUID unknown and every caller stays quiet.
+static bool RenderAdapterLuid(IUnknown* device, LUID* out)
+{
+    if (!device) return false;
+    bool found = false;
+    ID3D12CommandQueue* queue = nullptr;
+    if (SUCCEEDED(device->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) && queue) {
+        ID3D12Device* d3d = nullptr;
+        if (SUCCEEDED(queue->GetDevice(__uuidof(ID3D12Device), (void**)&d3d)) && d3d) {
+            *out = d3d->GetAdapterLuid();
+            found = true;
+            d3d->Release();
+        }
+        queue->Release();
+    }
+    return found;
+}
+
+void CheckAutoSizeAdapter(IDXGIFactory1* factory, IUnknown* device)
+{
+    if (!g_sizedFromKnown || !factory) return;
+    LUID renderLuid = {};
+    if (!RenderAdapterLuid(device, &renderLuid)) return;
+    g_sizedFromKnown = false;   // the answer cannot change, so say it once
+    if (renderLuid.LowPart == g_sizedFromLuid.LowPart && renderLuid.HighPart == g_sizedFromLuid.HighPart) {
+        Log("auto sizes: the game renders on '%ls', the card the sizes were picked from", g_sizedFromName);
+        return;
+    }
+
+    for (UINT i = 0;; ++i) {
+        IDXGIAdapter1* adapter = nullptr;
+        if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
+        DXGI_ADAPTER_DESC1 ad = {};
+        adapter->GetDesc1(&ad);
+        adapter->Release();
+        if (ad.AdapterLuid.LowPart != renderLuid.LowPart || ad.AdapterLuid.HighPart != renderLuid.HighPart) continue;
+        Log("auto sizes: WARNING: the sizes were picked from '%ls' with %llu MB, but the game renders on '%ls' with %llu MB. The pool is already made by now, so set tile_pool_mb and staging_buffer_mb by hand in acevo_perf.ini for the card the game actually uses.",
+            g_sizedFromName, (unsigned long long)g_sizedFromMb, ad.Description, (unsigned long long)(ad.DedicatedVideoMemory >> 20));
+        return;
+    }
+    Log("auto sizes: WARNING: the sizes were picked from '%ls' with %llu MB, but the game renders on an adapter that is not in the factory's list at all.",
+        g_sizedFromName, (unsigned long long)g_sizedFromMb);
 }
 
 void LogDisplayOwner(IDXGIFactory1* factory, IUnknown* device, HWND hwnd)
 {
     if (!factory || !device || !hwnd) return;
     LUID renderLuid = {};
-    bool haveLuid = false;
-    ID3D12CommandQueue* queue = nullptr;
-    if (SUCCEEDED(device->QueryInterface(__uuidof(ID3D12CommandQueue), (void**)&queue)) && queue) {
-        ID3D12Device* d3d = nullptr;
-        if (SUCCEEDED(queue->GetDevice(__uuidof(ID3D12Device), (void**)&d3d)) && d3d) {
-            renderLuid = d3d->GetAdapterLuid();
-            haveLuid = true;
-            d3d->Release();
-        }
-        queue->Release();
-    }
+    bool haveLuid = RenderAdapterLuid(device, &renderLuid);
 
     HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     for (UINT i = 0;; ++i) {

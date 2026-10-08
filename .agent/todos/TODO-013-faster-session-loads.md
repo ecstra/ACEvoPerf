@@ -2,7 +2,7 @@
 name: TODO-013-faster-session-loads
 kind: todo
 description: cut the session load, 17 s on the Nurburgring with three quarters of it in one streaming phase that issues tens of thousands of 30 KB requests at a fifth of the drive's speed, by reading ahead in the proxy and serving those requests from memory
-updated: 2026-09-14
+updated: 2026-09-29
 links: [directstorage-streaming, telemetry, one-percent-low-hunt-2026-09-05, content-package, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, memory-creep-2026-09-14]
 status: open
 by: owner
@@ -114,7 +114,11 @@ without evidence that the reads matter, and the numbers above say they do not.
 
 The load sampler ran for a 26 minute session on 0.9.1: a night Nurburgring single player,
 a Red Bull Ring hotlap, and an online Touristenfahrten server, seven scene loads in all. It
-samples the busiest two dozen threads round robin, a thousand times a second.
+samples two dozen threads round robin, a thousand times a second. The sampler of that day chose
+them by the CPU time each had used since it was created rather than in the last two seconds, so
+after its first refresh it held long lived threads whether they were busy or parked, and busy
+workers came and went. A thread's shares are sound for the stretches it was held. The pick was
+fixed on 2026-09-29, and nothing below has been measured on the fixed sampler yet.
 
 The biggest single hotspot in game code during a load is a spin lock, and it belongs to the
 engine's fiber job queue. The hot address is the `pause` inside a bare test and set loop:
@@ -135,10 +139,11 @@ It is load specific, and not by a little. Its share of all samples, per fifteen 
 
 | window | what was loading | spin share |
 |---|---|---|
-| t+45 | Nurburgring, 16.7 s | 5.8% |
+| t+30 and t+45 | Nurburgring, 16.7 s | 2.2% and 5.8% |
 | t+630 | Red Bull Ring, 7.9 s | 3.1% |
 | t+1260 | Touristenfahrten online, 17.9 s | 6.1% |
-| the other 100 windows | menus and driving | 0.1 to 0.2% |
+| five windows | the menu scene, 2.7 to 5.7 s | 0.2 to 0.9% |
+| the other 93 windows | menus and driving | 0.3% or less |
 
 Every spike is a track load and nothing else in a hundred windows comes near. Game code in
 general goes from 5 to 10 percent of samples at rest to 15.7 and 17.8 percent during the two
@@ -168,11 +173,19 @@ The same threads thirty seconds later, sitting in the pits:
 | Resource Manager Worker 0 | 1.7% | 0.8% | 97.8% |
 | Resource Manager Worker 1 | 1.9% | 0.6% | 97.3% |
 
-So at rest a worker is parked and spins 0.8 percent of the time, and during a load it spins
-between 10 and 27 percent of the time. That is the answer: **about a quarter of a busy resource
+The streaming rows come from two windows and the old pick. Workers 0 and 1 were held through the whole of
+a window that opens seven seconds before the load starts, so their rows mix the menu with the
+load, and workers 3, 6 and 7 were held for only part of theirs. The job lock run with the fix off,
+further down, held all eleven workers through its load window, and there workers 0 and 1 look like the rest, spinning
+21.3 and 22.9 percent against 23.1 to 28.6 for the others. The workers do not split into busy ones
+and ones waiting their turn.
+
+So at rest a worker is parked and spins 0.8 percent of the time, and in that load window it spins
+21 to 29 percent of the time. That is the answer. **About a quarter of a busy resource
 worker's time during a session load is burned in a spin loop that makes no progress**, and most
-of the rest of it is blocked. Real work in the engine's own code is 42 to 52 percent on the
-busy workers and 16 percent on the ones that are mostly waiting their turn.
+of the rest of it is blocked. The sampler counts the spin as game code, so the game code figures
+here include it, and the engine's real work outside the spin is 17 to 26 percent of a worker's
+time.
 
 The lock is badly built, which is why eleven workers on it hurt so much. The loop re-issues
 `xchg` on every iteration rather than reading until the lock looks free, so every spinner takes
@@ -241,14 +254,13 @@ Two Nürburgring loads back to back on the same build, the only difference being
 | jobspin, mean of the workers in the load window | 24.9% | **29.6%** |
 | load, the game's own profiler | 15.69 s | 16.10 s |
 | blocked in a real lock | 40.3% | 34.9% |
-| workers sampled | 11 | 10 |
 
 The patch worked exactly as designed, and the design was wrong. `rva 0x0279FAC0` was the single
-hottest bucket in the run with the fix off, 8.3% of every sample taken, and with the fix on it
-leaves the exe entirely. Time in the wait loop then went **up** by 4.7 points, which on roughly
-4800 samples is about five sigma, so it is a real difference and not run to run noise. The load
-time moved 0.4 s the wrong way, which is inside the spread already seen today (15.69, 16.10 and
-16.66 s for the same track).
+hottest bucket in the run with the fix off, 8.3% of the samples in its load window, and with the
+fix on it leaves the exe entirely. Time in the wait loop then went **up** by 4.7 points, which on
+roughly 4800 samples is about five sigma, so it is a real difference and not run to run noise. The
+load time moved 0.4 s the wrong way, which is inside the spread already seen today (15.69, 16.10
+and 16.66 s for the same track).
 
 Why reading first loses here. With the bare exchange a waiter grabs the lock the instant it is
 free, one round trip. Reading first costs two, a read to notice the release and then the exchange,

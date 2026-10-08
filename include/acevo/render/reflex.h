@@ -14,12 +14,25 @@
 // NVIDIA adapter, or on a driver too old for the entry points, none of this runs.
 namespace reflex {
 
-// Called when the swap chain is hooked. Finds nvapi, resolves the entry points and
-// tells the driver what mode to run in. Safe to call more than once.
+// Called when a swap chain is hooked, which is every swap chain the game's own exe makes
+// after the factory hooks went in, on the runs where they went in at all. A swap chain from
+// another module's own factory presents through the same patched vtable but never reaches
+// here, because only the exe's import table is patched. Finds nvapi, resolves the entry
+// points and tells the driver what mode to run in. The D3D12 device behind the swap chain
+// decides what happens: no device at all means ignore that swap chain, a device already
+// bound means pace whichever of its swap chains is newest, a different device means the
+// game was reset or rebuilt and the layer binds to that one instead.
 void OnSwapChain(IUnknown* swapChain);
 
 // Called from the present hook once the real Present has returned, which is the
 // boundary between one frame and the next and the only frame start a proxy can see.
-void OnFrameBegin();
+// The swap chain that presented is passed because the hooks sit in the vtable inside
+// dxgi.dll, which every swap chain in the process shares, and pacing on someone else's
+// present would sleep twice for one game frame.
+void OnFrameBegin(IUnknown* swapChain);
+
+// Whether the layer took, which is only known after OnSwapChain has run the vendor
+// check. The present hooks ask so they are not installed for a layer that is idle.
+bool Active();
 
 } // namespace reflex

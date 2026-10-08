@@ -2,7 +2,7 @@
 name: TODO-004-release-packaging
 kind: todo
 description: one zip and one script so anyone can install the mod without building
-updated: 2026-09-05
+updated: 2026-10-08
 links: [build-and-release]
 status: done
 by: owner
@@ -23,3 +23,4 @@ fresh machine installs by copying the files into the game folder. Done 2026-09-0
 `dstorage.dll`, `dstorage_orig.dll`, `acevo_perf.ini` and `README.txt`, install is drag and drop
 (DEC-007, the owner's requirement replaced the installer script), the DLL carries a version
 resource that names the zip, verified by extracting the zip over the game folder and launching.
+`release.ps1` and the version resource came in `6acdd91`.

@@ -1,14 +1,21 @@
 # build output
 build/
 dist/dstorage.dll
-dist/dstorage_orig.dll
 dist/acevo_dstoragecore.dll
+dist/acevo_directstorage_license.txt
+dist/acevo_directstorage_notices.txt
 release/
 
 # runtime output copied from the game folder, one folder per session
 logs/
 *.log
 acevo_perf_*.csv
+
+# decoded game content, the default output of kspkg.py extract, never to be published
+extracted/
+
+# secrets, see CONTRIBUTING.md
+.env
 
 # python
 __pycache__/

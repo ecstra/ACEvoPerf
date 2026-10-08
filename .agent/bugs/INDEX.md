@@ -2,7 +2,7 @@
 name: bugs-index
 kind: doc
 description: the defect tracker's index, open bugs first
-updated: 2026-09-16
+updated: 2026-10-08
 links: [agent-index, spec-bugs]
 ---
 
@@ -12,17 +12,13 @@ links: [agent-index, spec-bugs]
 
 bug
 
-- [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
+- [BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size](BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size.md), the auto sizes rank adapters by dedicated video memory and cannot tell an integrated GPU from a discrete one before a device exists, so an APU with a 4 or 8 GB firmware carve out takes a card's bracket and can outrank a smaller real card beside it, accepted as a limit in DEC-022
 - [BUG-018-whole-scene-low-detail-for-a-second-after-load](BUG-018-whole-scene-low-detail-for-a-second-after-load.md), the whole scene is coarse for a second or two after the curtain lifts, at start-up and at track entry, distinct from BUG-001, measurement armed
 - [BUG-019-car-physics-rebuilds-every-tyre-model-five-times](BUG-019-car-physics-rebuilds-every-tyre-model-five-times.md), the 296 GT3's twenty tyre compound builds span 3.52 s on the serial chain that ends the session load, but each build takes about 0.15 ms and the time sits around the compound asset fetch between them
 - [BUG-002-fps-drop-entering-new-track-sections](BUG-002-fps-drop-entering-new-track-sections.md), GPU pinned and thermally throttled during the lap
-- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the same gap on the owner's 5070 desktop with no integrated GPU rules out the integrated GPU present path, the UI view rotation is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, no refresh hold on this laptop even at 60 Hz, the fix driven and holding, PresentMon agrees with the NVIDIA overlay and shows a clean independent flip path, the trace of a good launch spreads the heavy frames over GPU waits, a compositor released frame queue, one heavy stretch of the lap and small engine costs, the bad launch not yet traced
+- [BUG-009-one-percent-lows-far-below-average](BUG-009-one-percent-lows-far-below-average.md), the same gap on a desktop with an RTX 5070 and no integrated GPU rules out the integrated GPU present path, the UI view rotation is about 30 percent of the gap at the Red Bull Ring GP and the HUD every frame removes it at no cost, no refresh hold on this laptop even at 60 Hz, the fix driven and holding, PresentMon agrees with the NVIDIA overlay and shows a clean independent flip path, the trace of a good launch spreads the heavy frames over GPU waits, a compositor released frame queue, one heavy stretch of the lap and small engine costs, the bad launch not yet traced
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
 - [BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load](BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md), 1.2 MB of UI stylesheets read and parsed again at every document load, 38 MB of repeat reads in a 20 minute race session, the parse off the frame thread since the responsive UI
-
-debt
-
-- [BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md), the override layer holds a 64 MB decoded package table for the whole session though the game reads its table in the first seconds
 
 nit
 
@@ -33,13 +29,22 @@ nit
 
 ## Won't fix
 
-- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night reported with `enable_pso_cache` on, the flag was shipped off for a while, back on at the owner's word with nothing on the reference machine showing the fault, a user log reopens it
+- [BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors](BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors.md), with DLSS on the whole picture slides now and then while the camera moves, each eye on its own in VR, because the game's motion vectors sometimes claim a third of a pixel of movement the frame does not have and DLSS follows them, the game's to fix
+- [BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised](BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised.md), a menu view remade at a new size would lose the page fixes, but a fullscreen and windowed switch keeps the same view on 0.9.1, so nothing reaches it
+- [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), one freeze at the start of a thirty AI race with video memory over budget, not reproduced in two later starts of the same grid
+- [BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse](BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse.md), one very slow restart that did not come back on the 0.3.2 release or plain 0.4, and a fix for the streamer's double promise of space that looked blurrier, so the engine keeps its own admission
+- [BUG-035-the-writing-on-the-ground-is-pixelated](BUG-035-the-writing-on-the-ground-is-pixelated.md), the Nordschleife's chalk writing is blocky partly because one writing texture is only 1024 by 64 and shown whole, and partly because a 6 GB card's 1024 MB pool is full there and the streamed decals are not admitted, eased for bigger cards by the budget sizing of BUG-040
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), the 1.2 s is the engine parsing its 63 MB zlib and protobuf track preset at every session start and restart, same on every card
 - [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), the mip a surface gets at a distance is the engine's choice on every card, the streaming path answers in 9 ms bursts
 - [BUG-006-distant-objects-pop-in](BUG-006-distant-objects-pop-in.md), grass fades at 30 m and trees switch at 100 m by the package's own values on every card, the Custom LOD setting moves them at a cost
 
 ## Fixed
 
+- [BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md), the override layer held a 64 MB decoded package table for the whole session, fixed by keeping only the replaced slots when no override adds an entry, about 60 MB less commit, owner driven
+- [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up saw video memory use and GPU load drop and sometimes a hang, because the auto sizes gave them 2048 or 3072 MB of tiles against the game's own 6144 MB, fixed by sizing the pool at launch from the memory Windows grants and the display's size (DEC-025), experimental, verified only on the 6 GB card so far
+- [BUG-039-the-pso-cache-draws-some-materials-wrong](BUG-039-the-pso-cache-draws-some-materials-wrong.md), with `enable_pso_cache` on, which the mod turned on and the game ships off, fences drew as glass, cars glowed, trees went unlit or white at night, a car's main beam vanished and pit rails flashed, cured in every report by the flag off, fixed by leaving the flag out of the shipped ini (DEC-024), the cache measured at 4 to 5 s per load and nothing while driving
+- [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night with `enable_pso_cache` on, one symptom of BUG-039 and fixed with it
+- [BUG-038-fences-look-like-glass-in-sunlight](BUG-038-fences-look-like-glass-in-sunlight.md), the catch fences drawn as glass in sunlight, seen by players on a 4090 and a 4060 and once on the owner's machine, one symptom of BUG-039 and fixed with it
 - [BUG-016-vram-overhead-grows-across-scene-loads](BUG-016-vram-overhead-grows-across-scene-loads.md), the game's memory grew with every scene load, named by the census run as every finished session staying whole in memory behind a cycle between its local server connection and its game mode, fixed by the session leak fix over a six visit run and the owner's own play, what is left of the growth is BUG-031
 - [BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash](BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash.md), the streamer log line read the engine's freed allocator at exit and the game logged a crash report naming the mod, fixed by printing the pool figures the last kick read, a clean quit after the census run's fifteen loads
 - [BUG-029-the-hud-restyles-most-of-its-page-while-driving](BUG-029-the-hud-restyles-most-of-its-page-while-driving.md), the HUD restyled its whole page for 21 to 24 ms when a part left its top level, the wrong way label's data-bind-if and Cohtml's child removal set that matches every node, fixed by the responsive UI's child removal fix, owner driven with five wrong way episodes and no restyle over 15 ms while driving

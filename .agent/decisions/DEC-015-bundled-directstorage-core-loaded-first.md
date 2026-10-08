@@ -2,7 +2,7 @@
 name: DEC-015-bundled-directstorage-core-loaded-first
 kind: decision
 description: the mod ships DirectStorage 1.3.0 as acevo_dstoragecore.dll and calls the core directly, because the game owns the name dstoragecore.dll and loads its own first
-updated: 2026-09-12
+updated: 2026-10-08
 links: [DEC-007-drag-and-drop-install-with-bundled-runtime, DEC-001-dstorage-proxy-as-loader, build-and-release]
 date: 2026-09-12
 area: streaming
@@ -75,7 +75,9 @@ fix, not a measured speed up, and it should not be sold as one.
   loaded module does nothing until an entry point is called, so the cost is the mapping.
 - Every path is a working path. `bundled_runtime=0`, a missing `acevo_dstoragecore.dll`, or a core
   without the expected entry points all fall back to `dstorage_orig.dll` and the game's runtime,
-  and say so in the log with the version read back from the module that really loaded.
+  and say so in the log with the version read back from the module that really loaded. Since 0.4
+  (TODO-029) the fallback calls the game's own core directly with the same three entry points and
+  the forwarder is no longer shipped, since it only ever reached that same core.
 - The proxy now depends on three exports Microsoft does not document,
   `DStorageGetFactoryCore`, `DStorageSetConfigurationCore` and `DStorageCreateCompressionCodecCore`.
   Their signatures were taken from the forwarder's own disassembly, where each is a tail jump with

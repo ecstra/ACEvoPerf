@@ -117,7 +117,7 @@ static const BYTE kLoneTagStub[] = {
 };
 
 // Replaces mov rbx, rsi / mov dword ptr [rbp+0xB70], 1 at the head of each state rule loop. rdi is the
-// compound, 72 bytes with its first simple selector in place, r14 the element.
+// compound with its first simple selector in place, its type at +0 and its value at +8, and r14 the element.
 static const BYTE kStateLoopStub[] = {
     /*00*/ 0x0F, 0xB6, 0x07,                               // movzx eax, byte ptr [rdi]
     /*03*/ 0x3C, 0x01,                                     // cmp al, 1
@@ -226,10 +226,10 @@ void InstallStyleMatchFix()
         Log("[styles] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto nt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[styles] this is not the Cohtml build the style matching fix was written for (stamp %08X, image %08X), nothing patched",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     for (const Region& region : kRegions) {

@@ -132,7 +132,10 @@ static PFN_NodeCall g_markNode = nullptr;
 static void* g_customNameGetter = nullptr;
 static const void* const* g_classAttributeAtom = nullptr;
 
-static std::atomic<uint32_t> g_narrowed{0}, g_marked{0}, g_full{0};
+// The narrowed removals in the high half and the children they marked in the low, added in one step so
+// the probe never takes a removal in one second and its marks in the next.
+static std::atomic<uint64_t> g_narrowedAndMarked{0};
+static std::atomic<uint32_t> g_full{0};
 
 static bool IsCustomType(BYTE type)
 {
@@ -256,23 +259,48 @@ static uint64_t Hook_AddRuleFeatures(void* set, const BYTE* rule, void* arg3)
     return g_addRuleFeatures(set, rule, arg3);
 }
 
+// The document's map from style scope to feature set is a Robin Hood table with Fibonacci hashing, the
+// layout of ska::flat_hash_map. Each entry is 0x18 bytes, its distance from its home slot as a signed byte
+// (negative when empty), the scope and the set. A lookup starts at the scope's home slot and stops once an
+// entry sits closer to its own home than the walk has come, since the scope would have displaced it.
+namespace document {
+    static const ptrdiff_t kStyles = 0x248;         // the document's styler
+    static const ptrdiff_t kScopeEntries = 0x288;
+    static const ptrdiff_t kSlotsMinusOne = 0x290;
+    static const ptrdiff_t kHashShift = 0x298;      // 64 less the log2 of the slot count
+    static const ptrdiff_t kMaxLookups = 0x299;     // the end entry sits this far past the last slot
+}
+static const ptrdiff_t kStylerHasScopes = 0x1A0;    // zero where 0x37BC60 takes the path without a lookup
+static const size_t kScopeEntrySize = 0x18;
+static const uint64_t kFibonacci = 0x9E3779B97F4A7C15ull;
+
 // The lookup 0x37BC60 makes before it invalidates, the feature set of the element's style scope. Null where
-// Cohtml takes the path without it.
+// Cohtml takes the path without it, and for an element outside a document or one being torn down, which
+// then takes Cohtml's own invalidation. The hook runs on every removal in the process, teardown included, and
+// Cohtml's own slot 49 may bail before the lookup this reproduces, so the walk is guarded. No lock is held here.
 static const BYTE* FeatureSetOf(const BYTE* element)
 {
-    const BYTE* document = *(const BYTE* const*)(element + node::kDocument);
-    const BYTE* styles = *(const BYTE* const*)(document + 0x248);
-    if (!styles[0x1A0]) return nullptr;
+    __try {
+        const BYTE* doc = *(const BYTE* const*)(element + node::kDocument);
+        if (!doc) return nullptr;
+        const BYTE* styles = *(const BYTE* const*)(doc + document::kStyles);
+        if (!styles || !styles[kStylerHasScopes]) return nullptr;
 
-    uint64_t scope = *(const uint64_t*)(element + node::kStyleScope);
-    const BYTE* buckets = *(const BYTE* const*)(document + 0x288);
-    BYTE shift = document[0x298] & 63;
-    const BYTE* entry = buckets + ((scope * 0x9E3779B97F4A7C15ull) >> shift) * 0x18;
-    for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += 0x18) {
-        if (*(const uint64_t*)(entry + 8) == scope) return *(const BYTE* const*)(entry + 0x10);
+        uint64_t scope = *(const uint64_t*)(element + node::kStyleScope);
+        const BYTE* entries = *(const BYTE* const*)(doc + document::kScopeEntries);
+        if (!entries) return nullptr;
+        BYTE shift = doc[document::kHashShift] & 63;
+        const BYTE* entry = entries + ((scope * kFibonacci) >> shift) * kScopeEntrySize;
+        for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += kScopeEntrySize) {
+            if (*(const uint64_t*)(entry + 8) == scope) return *(const BYTE* const*)(entry + 0x10);
+        }
+        // Not found reads the end entry's set, as 0x37BC60 does, and a set this file never saw built takes
+        // Cohtml's own invalidation.
+        int64_t end = *(const int64_t*)(doc + document::kSlotsMinusOne) + (int8_t)doc[document::kMaxLookups];
+        return *(const BYTE* const*)(entries + end * kScopeEntrySize + 0x10);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return nullptr;
     }
-    int64_t last = *(const int64_t*)(document + 0x290) + (int8_t)document[0x299];
-    return *(const BYTE* const*)(buckets + last * 0x18 + 0x10);
 }
 
 static bool NameIs(const BYTE* element, const std::string& name)
@@ -354,8 +382,7 @@ static bool MarkChildrenThatLookAtPosition(const BYTE* parent)
     ReleaseSRWLockShared(&g_featureSetsLock);
 
     if (!narrowed) return false;
-    g_narrowed.fetch_add(1, std::memory_order_relaxed);
-    g_marked.fetch_add(marked, std::memory_order_relaxed);
+    g_narrowedAndMarked.fetch_add((1ull << 32) | marked, std::memory_order_relaxed);
     return true;
 }
 
@@ -382,10 +409,10 @@ void InstallChildRemovalFix()
         Log("[children] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto nt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[children] this is not the Cohtml build the child removal fix was written for (stamp %08X, image %08X), nothing patched",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     for (const Region& region : kRegions) {
@@ -441,7 +468,7 @@ void InstallChildRemovalFix()
         size_t length;
     };
     const size_t constructorCount = sizeof kConstructorCalls / sizeof kConstructorCalls[0];
-    Patch patches[8] = {};
+    Patch patches[constructorCount + 2] = {};     // the constructors, the rule add and the removal
     size_t patchCount = 0;
     bool reachable = true;
     for (uint32_t site : kConstructorCalls) {
@@ -473,28 +500,25 @@ void InstallChildRemovalFix()
     g_classAttributeAtom = (const void* const*)(cohtml + kRvaClassAttributeAtom);
 
     // The feature sets are followed from their construction before any removal looks them up, and the
-    // process is still single threaded, so no set is built half seen.
-    size_t written = 0;
+    // process is still single threaded, so no set is built half seen. The removal goes in last and is the
+    // only patch that changes what Cohtml does, so any failed write leaves the removal to Cohtml. Hooks
+    // already written then fill a table nothing reads, which costs a little and changes nothing.
     for (size_t i = 0; i < patchCount; ++i) {
-        if (!WriteCode(cohtml + patches[i].rva, patches[i].code, patches[i].length)) {
-            Log("[children] could not patch Cohtml at rva 0x%06X", (unsigned)patches[i].rva);
-            if (i <= constructorCount) {
-                Log("[children] the style scopes cannot all be followed, the removal is left to Cohtml");
-                return;
-            }
-            continue;
-        }
-        written++;
+        if (WriteCode(cohtml + patches[i].rva, patches[i].code, patches[i].length)) continue;
+        Log("[children] could not patch Cohtml at rva 0x%06X, the child removal fix is off and the removal is left to Cohtml",
+            (unsigned)patches[i].rva);
+        return;
     }
-    Log("[children] child removal fix on at %zu of %zu places, removing a child restyles only the children whose rules look at their position",
-        written, patchCount);
+    Log("[children] child removal fix on at all %zu places, removing a child restyles only the children whose rules look at their position",
+        patchCount);
 }
 
 ChildRemovalCounts ChildRemovalFixTakeCounts()
 {
+    uint64_t narrowedAndMarked = g_narrowedAndMarked.exchange(0, std::memory_order_relaxed);
     ChildRemovalCounts counts;
-    counts.narrowed = g_narrowed.exchange(0, std::memory_order_relaxed);
-    counts.marked = g_marked.exchange(0, std::memory_order_relaxed);
+    counts.narrowed = (uint32_t)(narrowedAndMarked >> 32);
+    counts.marked = (uint32_t)narrowedAndMarked;
     counts.full = g_full.exchange(0, std::memory_order_relaxed);
     return counts;
 }

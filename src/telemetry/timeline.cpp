@@ -18,24 +18,33 @@ static HANDLE OpenCsv(const wchar_t* name, const char* header)
     std::wstring path = g_dir + name;
     HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h != INVALID_HANDLE_VALUE) { DWORD w; WriteFile(h, header, (DWORD)strlen(header), &w, nullptr); }
+    // Said, because a copy left on disk from an earlier run would otherwise be read as this one's.
+    else Log("timeline: could not create %ls (error %lu), it is not written this run", name, GetLastError());
     return h;
 }
 
-// The adapter with the most dedicated memory is the discrete GPU the game renders on.
+// The adapter with the most dedicated memory is the discrete GPU the game renders on. One reporting
+// none is still taken, since plenty of integrated parts report zero and keep everything in shared
+// memory, and QueryVideoMemoryInfo answers for them all the same.
 static IDXGIAdapter3* FindRenderAdapter()
 {
-    HMODULE dxgi = GetModuleHandleW(L"dxgi.dll");
+    // Loaded rather than looked up, so the columns do not depend on the game having loaded dxgi.dll by
+    // its first DirectStorage call. The timeline thread holds no lock, so a load is safe, and from
+    // System32 only, since the game folder is searched first for a bare name and we ship files into it.
+    HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     auto createFactory = dxgi ? (PFN_CreateDXGIFactory1)GetProcAddress(dxgi, "CreateDXGIFactory1") : nullptr;
-    if (!createFactory) return nullptr;
     IDXGIFactory1* factory = nullptr;
-    if (FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) return nullptr;
+    if (!createFactory || FAILED(createFactory(__uuidof(IDXGIFactory1), (void**)&factory)) || !factory) {
+        Log("timeline: no DXGI factory could be made, so the vram columns read 0 this run");
+        return nullptr;
+    }
 
     IDXGIAdapter3* best = nullptr; SIZE_T bestMem = 0; wchar_t bestName[128] = L"";
     for (UINT i = 0;; ++i) {
         IDXGIAdapter1* adapter = nullptr;
         if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
         DXGI_ADAPTER_DESC1 d = {}; adapter->GetDesc1(&d);
-        if (!(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && d.DedicatedVideoMemory > bestMem) {
+        if (!(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && (!best || d.DedicatedVideoMemory > bestMem)) {
             IDXGIAdapter3* a3 = nullptr;
             if (SUCCEEDED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&a3)) && a3) {
                 if (best) best->Release();
@@ -46,6 +55,7 @@ static IDXGIAdapter3* FindRenderAdapter()
     }
     factory->Release();
     if (best) Log("timeline: VRAM queries on adapter '%ls' (%llu MB dedicated)", bestName, (unsigned long long)(bestMem >> 20));
+    else Log("timeline: no adapter the game could render on, so the vram columns read 0 this run");
     return best;
 }
 
@@ -57,6 +67,8 @@ static DWORD WINAPI TimelineThread(void*)
     HANDLE csv = g_cfg.timeline ? OpenCsv(L"acevo_perf_timeline.csv",
         "clock,t_s,frames,fps,avg_ms,max_ms,hitch20,hitch_cfg,tile_req,tile_mb,tile_batches,tile_maxbatch,f2m_req,f2m_mb,gpumem_req,gpumem_mb,submits,vram_used_mb,vram_budget_mb,vram_reservable_mb,cpu_proc_pct,cpu_sys_pct,ws_mb,commit_mb\r\n") : INVALID_HANDLE_VALUE;
     HANDLE framesCsv = g_cfg.frames ? OpenCsv(L"acevo_perf_frames.csv", "t_s,frame_ms,tile_req,f2m_req,gpumem_req,ui_end_frame_ms,ui_advance_ms\r\n") : INVALID_HANDLE_VALUE;
+    // With nowhere to write them the present hook's samples would only pile up to the buffer's cap.
+    if (g_cfg.frames && framesCsv == INVALID_HANDLE_VALUE) g_cfg.frames = false;
     bool anyCsv = csv != INVALID_HANDLE_VALUE || framesCsv != INVALID_HANDLE_VALUE;
     IDXGIAdapter3* adapter = anyCsv ? FindRenderAdapter() : nullptr;
 
@@ -66,9 +78,17 @@ static DWORD WINAPI TimelineThread(void*)
     uint64_t lastProc = FileTimeToU64(k) + FileTimeToU64(u);
     FILETIME sysIdle, sysKernel, sysUser; GetSystemTimes(&sysIdle, &sysKernel, &sysUser);
     uint64_t lastIdle = FileTimeToU64(sysIdle), lastSysBusy = FileTimeToU64(sysKernel) + FileTimeToU64(sysUser);
-    uint64_t lastReq[5] = {}, lastBytes[5] = {}, lastSubmits = 0, lastBatches = 0;
+    // Every counter starts its first second here together, the running totals by a baseline and the
+    // ones each tick takes by being zeroed, so the first row's columns cover the same second.
+    uint64_t lastReq[5] = {}, lastBytes[5] = {};
     for (int i = 0; i < 5; ++i) { lastReq[i] = g_reqByDest[i].load(); lastBytes[i] = g_bytesByDest[i].load(); }
+    uint64_t lastSubmits = g_submitsTotal.load(), lastBatches = g_tileBatches.load();
+    g_frames.store(0); g_frameSumUs.store(0); g_frameMaxUs.store(0);
+    g_hitch20.store(0); g_hitchCfg.store(0); g_tileBatchMax.store(0);
     double lastT = NowSec();
+    // The drained frames, kept across ticks and traded back cleared, so the buffer the present hook
+    // fills keeps the capacity it grew to rather than growing from nothing under g_frameCs every second.
+    std::vector<FrameSample> drained;
 
     // The per second tick runs even with both CSVs off: it refills the hitch log budget and
     // drives the throw log, only the sampling below is skipped.
@@ -127,16 +147,16 @@ static DWORD WINAPI TimelineThread(void*)
         if (csv != INVALID_HANDLE_VALUE && n > 0) { DWORD w; WriteFile(csv, line, (DWORD)n, &w, nullptr); }
 
         if (framesCsv == INVALID_HANDLE_VALUE) continue;
-        std::vector<FrameSample> buf;
-        EnterCriticalSection(&g_frameCs); buf.swap(g_frameBuf); LeaveCriticalSection(&g_frameCs);
-        std::string out; out.reserve(buf.size() * 24);
+        EnterCriticalSection(&g_frameCs); drained.swap(g_frameBuf); LeaveCriticalSection(&g_frameCs);
+        std::string out; out.reserve(drained.size() * 24);
         char tmp[128];
-        for (auto& fr : buf) {
+        for (auto& fr : drained) {
             int m = _snprintf_s(tmp, sizeof tmp, _TRUNCATE, "%.3f,%.2f,%u,%u,%u,%.2f,%.2f\r\n",
                 fr.t, fr.ms, fr.tiles, fr.f2m, fr.gpumem, fr.uiEndFrameMs, fr.uiAdvanceMs);
             out.append(tmp, m);
         }
         if (!out.empty()) { DWORD w; WriteFile(framesCsv, out.data(), (DWORD)out.size(), &w, nullptr); }
+        drained.clear();
     }
 }
 

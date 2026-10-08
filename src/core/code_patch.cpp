@@ -1,4 +1,5 @@
 #include "acevo/core/code_patch.h"
+#include "acevo/core/log.h"
 
 uint64_t Fnv1a64(const BYTE* p, size_t n)
 {
@@ -8,6 +9,26 @@ uint64_t Fnv1a64(const BYTE* p, size_t n)
         h *= 0x100000001B3ull;
     }
     return h;
+}
+
+bool ReadModuleStamp(const BYTE* module, DWORD* stamp, DWORD* image)
+{
+    *stamp = 0;
+    *image = 0;
+    if (!module) return false;
+    __try {
+        auto dos = (const IMAGE_DOS_HEADER*)module;
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+        auto nt = (const IMAGE_NT_HEADERS64*)(module + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+        DWORD readStamp = nt->FileHeader.TimeDateStamp;
+        DWORD readImage = nt->OptionalHeader.SizeOfImage;
+        *stamp = readStamp;
+        *image = readImage;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }
 
 // A 32 bit displacement reaches 2 GB either way.
@@ -40,8 +61,33 @@ bool EncodeRel32(BYTE opcode, const BYTE* from, const BYTE* destination, BYTE* o
     return true;
 }
 
+// Set once DllMain is done. Everything that patches code today runs before that, while the game is
+// still one thread, which is the only reason a plain copy over live code is safe.
+static std::atomic<bool> g_gameIsRunning{false};
+
+void CodePatchingIsNowUnsafe() { g_gameIsRunning.store(true); }
+bool CodePatchingIsLate() { return g_gameIsRunning.load(); }
+
+// Copies straight over live code with no thread suspension and no atomic write. A five byte jump
+// is five stores, and a thread executing that address mid write runs whatever half is there, which
+// is a crash inside the game's own code with nothing of the mod on the stack.
+//
+// Every caller runs from DLL_PROCESS_ATTACH, before the game has made a second thread, so no
+// thread can be there. That is a property of the callers and not of this function, so the function
+// says when it has been broken rather than leaving the next caller to find out in someone else's
+// game. Making it actually safe means suspending every other thread and checking each one's
+// instruction pointer against the range, which is worth writing the day something needs to patch
+// late and not before.
+//
+// Three places copy over code without coming through here, in engine/streamer, ui/restyle_fix and
+// ui/ui_probe, because each changes protection over a range in its own shape. They ask
+// CodePatchingIsLate for themselves, so this is not the choke point it looks like.
 bool WriteCode(BYTE* at, const BYTE* code, size_t length)
 {
+    if (g_gameIsRunning.load())
+        Log("WARNING: code at %p patched after start up, while the game has other threads running. "
+            "A thread executing these %zu bytes mid write will crash. See WriteCode.", at, length);
+
     DWORD old = 0;
     if (!VirtualProtect(at, length, PAGE_EXECUTE_READWRITE, &old)) return false;
     memcpy(at, code, length);

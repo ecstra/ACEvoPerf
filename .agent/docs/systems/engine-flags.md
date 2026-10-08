@@ -2,8 +2,8 @@
 name: engine-flags
 kind: doc
 description: the engine's gflags, which ones matter, and how the mod sets them
-updated: 2026-09-15
-links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
+updated: 2026-10-08
+links: [DEC-002-flags-by-memory-write, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, release-build-ignores-gflags-cli, proxy-architecture, mesh-level-of-detail-2026-09-14]
 ---
 
 # Engine flags
@@ -11,20 +11,27 @@ links: [DEC-002-flags-by-memory-write, DEC-009-pool-and-staging-sizes-by-card, r
 The engine declares 216 gflags (126 bool, 32 double, 31 string, 27 int32). Names, files,
 defaults and help text are in `tools/data/gflags_full.tsv`, recovered from the exe. The release build
 does not parse them from the command line (see the memory `release-build-ignores-gflags-cli`), so
-the mod writes their storage directly (DEC-002, `ScanFlags` in `src/engine/flags.cpp`). The runtime
-scan finds 203 of them on 0.9.0 in about 70 ms.
+the mod writes their storage directly (DEC-002, `ScanFlags` in `src/engine/flags.cpp`). On 0.9.1 the
+runtime scan lists 217, one more than the table, and places the storage of the 186 that are not string
+flags, in about 200 ms. It walks back from each registration only as far as the one before, so a flag
+it cannot place is refused rather than written somewhere else, which is every string flag, whose storage
+is never loaded the way the others' is. Until 2026-09-24 the walk reached further, and its 203 on 0.9.0
+and 204 on 0.9.1 counted string flags holding a neighbour's two addresses, never written.
 
 Any bool, int32 or double name from the table works in the `[flags]` section of the ini as
-`name=value`. Unknown names and string flags are reported in `acevo_perf.log` and skipped.
+`name=value`. Unknown names, string flags, and a value that is not a whole number for an int32, a number
+for a double or one of 1, 0, true, false, yes, no, on or off for a bool are reported in `acevo_perf.log`
+and skipped. A `tile_pool_mb` that is not `auto` or nine plain digits at most falls back to `auto`,
+since an unwritten pool with the canonical flag on takes the whole define.
 
 ## Flags that matter for performance
 
 | flag | default | effect | status |
 |---|---|---|---|
-| `enable_pso_cache` | true | pipeline state cache on disk, fewer shader stalls | shipped on until 0.3.1, off from 2026-09-12 for BUG-015, on again since 2026-09-15 on the owner's word |
+| `enable_pso_cache` | false | keeps compiled pipelines in `Saved Games\ACE\pipeline.library` and hands them back at later loads | shipped on until 0.3.1, off from 2026-09-12 for BUG-015, on again from 2026-09-15, out of the shipped ini since 2026-10-08 because it draws some materials wrong (BUG-039, DEC-024) |
 | `no_intro` | false | skip intro scenes | on by default in the mod |
 | `force_canonical_pool_sizes` | false | fixed pools instead of the dynamic budget, each at the `texturePoolSize` define (1433, 2048, 3072 or 6144 MB for Low to Ultra), and with `tile_pool_mb` set it only sets the mesh budget | on by default, DEC-005 |
-| `tile_pool_mb` | 0 | tile pool size in MB, honoured with or without the canonical flag (`0x1C80EC4` returns before the flag is read), created once at start | `auto` by default, 1024, 1536, 2048 or 3072 by the card's memory, DEC-005 and DEC-009 |
+| `tile_pool_mb` | 0 | tile pool size in MB, honoured with or without the canonical flag (`0x1C80EC4` returns before the flag is read), created once at start | `auto` by default, the video memory Windows grants the game less a reserve that grows with the display's size, up to 6144 MB and never below the old table of 256 to 3072 MB by the card's memory, written for any adapter at all including one reporting no dedicated memory, since the canonical flag takes the whole define when it is not written, DEC-005, DEC-022 and DEC-025 |
 | `texture_tier0` | false | "Force Texture Tier 0" pins every texture to its lowest tier, tile streaming stops | never enable |
 | `ui_force_resource_preloading` | false | preloads 1037 interface files (181 MB) at start, no measurable effect | measured, off |
 | `no_gi` | false | disable global illumination | **measured 2026-09-12: 3.2% of frame time and 416 MB of VRAM, and not shippable** |

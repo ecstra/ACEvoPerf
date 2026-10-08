@@ -2,7 +2,7 @@
 name: TODO-007-package-override-layer
 kind: todo
 description: let loose files under the game folder replace or add package entries without repacking content.kspkg
-updated: 2026-09-05
+updated: 2026-10-08
 links: [directstorage-streaming, content-package, package-override-layer]
 status: done
 by: agent
@@ -41,7 +41,9 @@ A modified copy of a small package file (one visible change) in `acevo_mods\` is
 game, a new file added under `acevo_mods\` is readable by path, the log lists both, and the game
 runs a lap with the layer on with no new errors in `acevo_perf.log`.
 
-## Result
+The layer was built in `57b43fb` and the verification below was recorded in `e36b9cb`.
+
+### Result
 
 Built as `src/overlay/overlay.cpp`, documented in `package-override-layer`. Verified 2026-09-05:
 

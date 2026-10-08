@@ -152,7 +152,8 @@ size_t CommittedPrivate(uintptr_t start, size_t bytes)
 }
 
 // A heap created without serialisation by another component is not safe to touch while it is in
-// use, so a fault on one only skips it.
+// use, a risk the census still takes. The __try keeps the census going past a fault on one, but the
+// fault still costs the stall and the crash report that StillAHeap below is there to avoid.
 bool ReadHeap(HANDLE heap, HEAP_SUMMARY* summary)
 {
     __try {
@@ -170,11 +171,36 @@ void CompactHeap(HANDLE heap)
     }
 }
 
+// Every heap in the process as the list stands now. The call returns the whole count even when the
+// buffer is too short for it, and the buffer then holds only part of the list, the first handles on this
+// Windows and none at all by the documentation. So the buffer grows past the count and the call goes again.
+std::vector<HANDLE> ProcessHeaps()
+{
+    std::vector<HANDLE> heaps(64);
+    for (;;) {
+        DWORD count = GetProcessHeaps((DWORD)heaps.size(), heaps.data());
+        if (count <= heaps.size()) {
+            heaps.resize(count);
+            return heaps;
+        }
+        heaps.resize(count + 16);
+    }
+}
+
+// A heap destroyed while the census runs leaves its handle pointing at freed memory. HeapSummary then
+// fails cleanly on this Windows, but HeapCompact faults, and though the __try survives it the game's
+// crash logger sees the fault first, stalls the thread for 120 to 210 ms and writes a crash report
+// naming the mod (BUG-022). So each heap is looked for in the list again just before it is touched.
+bool StillAHeap(HANDLE heap)
+{
+    std::vector<HANDLE> heaps = ProcessHeaps();
+    return std::find(heaps.begin(), heaps.end(), heap) != heaps.end();
+}
+
 void CompactHeaps()
 {
-    std::vector<HANDLE> heaps(GetProcessHeaps(0, nullptr) + 16);
-    DWORD count = std::min<DWORD>(GetProcessHeaps((DWORD)heaps.size(), heaps.data()), (DWORD)heaps.size());
-    for (DWORD i = 0; i < count; ++i) CompactHeap(heaps[i]);
+    for (HANDLE heap : ProcessHeaps())
+        if (StillAHeap(heap)) CompactHeap(heap);
 }
 
 struct HeapReading {
@@ -191,15 +217,13 @@ struct HeapTotals {
 HeapTotals ReadHeaps()
 {
     HeapTotals totals;
-    std::vector<HANDLE> heaps(GetProcessHeaps(0, nullptr) + 16);
-    DWORD count = std::min<DWORD>(GetProcessHeaps((DWORD)heaps.size(), heaps.data()), (DWORD)heaps.size());
-    for (DWORD i = 0; i < count; ++i) {
+    for (HANDLE heap : ProcessHeaps()) {
         HEAP_SUMMARY summary = {};
         summary.cb = sizeof summary;
-        if (!ReadHeap(heaps[i], &summary)) continue;
+        if (!StillAHeap(heap) || !ReadHeap(heap, &summary)) continue;
         totals.committed += summary.cbCommitted;
         totals.inUse += summary.cbAllocated;
-        if (summary.cbCommitted >= kHeapRowBytes) totals.big.push_back({ heaps[i], summary });
+        if (summary.cbCommitted >= kHeapRowBytes) totals.big.push_back({ heap, summary });
     }
     return totals;
 }
@@ -350,17 +374,22 @@ void InstallMemoryCensus()
 {
     if (!g_cfg.memoryCensus) return;
 
+    // The file first. The hooks cost every VirtualAlloc commit in the process, and they used to go in
+    // before this and stay in for the whole session when the file could not be made, a census that never
+    // ran.
+    std::wstring path = g_dir + L"acevo_perf_memory.csv";
+    g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (g_csv == INVALID_HANDLE_VALUE) {
+        Log("[memory] could not create acevo_perf_memory.csv (error %lu), no census", GetLastError());
+        return;
+    }
+
     int slots = PatchEverywhere("VirtualAlloc", (void*)&Hook_VirtualAlloc, (void**)&g_origVirtualAlloc);
     int slots2 = PatchEverywhere("VirtualAlloc2", (void*)&Hook_VirtualAlloc2, (void**)&g_origVirtualAlloc2);
     if (!g_origVirtualAlloc) {
         Log("[memory] VirtualAlloc not found, no census");
-        return;
-    }
-
-    std::wstring path = g_dir + L"acevo_perf_memory.csv";
-    g_csv = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (g_csv == INVALID_HANDLE_VALUE) {
-        Log("[memory] could not create acevo_perf_memory.csv, no census");
+        CloseHandle(g_csv);
+        g_csv = INVALID_HANDLE_VALUE;
         return;
     }
     const char* header = "t_s,kind,when,a,b,c,d,e,f,g,h\r\n";
