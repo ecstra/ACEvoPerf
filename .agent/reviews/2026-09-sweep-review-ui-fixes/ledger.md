@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-ui-fixes
 kind: review
-description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, twelve findings and one added by another angle's verifier
+description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, nineteen findings in all, merged into 0.4 on 2026-10-08
 updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: sweep/review-ui-fixes
-status: open
+status: closed
 ---
 
 # Review of the four shipped cohtml patches
@@ -29,16 +29,26 @@ for the main stylesheet, and F-14 on 2026-09-29, handed here by the verifier of
 `fix/review-cohtml-build-guard` on 2026-09-20 and lost under a wrong path until batch 1's hunter found it.
 
 Batch 1 was paused on 2026-09-29 at the owner's word with F-01 left as a wontfix on a diagnostic run
-and the hunter's and verifier's five findings recorded open, nothing of them fixed yet.
+and the hunter's and verifier's five findings recorded open.
+
+On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
+the hunter and verifier loop. The rest of batch 1 and batches 2 to 4 were fixed in one pass, read through by
+hand, and confirmed with `sweep/review-ui-probe` by one launch with `ui_probe=1`,
+`logs/uiprobe-review-20261008`. All four patches installed, the child removal fix at all 8 places, no
+exception was logged, the child removal line printed removals and marks together, and hovers marked at most
+24 nodes, so the restyle stub still read the kind under the probe.
+
+Nineteen findings in all, 14 from the review and other angles and 5 from batch 1's hunter and verifier. 15
+fixed and 4 wontfix, F-01, F-10, F-11 and F-13, each with its reason.
 
 ## Batches
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | a removal during a stylesheet parse still invalidates | fixing | 2026-09-29 |
-| 2 | the hooks cannot fault the game | pending | |
-| 3 | a failed install says so | pending | |
-| 4 | the load bearing assumptions are written down | pending | |
+| 1 | a removal during a stylesheet parse still invalidates | closed | 2026-09-29 |
+| 2 | the hooks cannot fault the game | closed | 2026-10-08 |
+| 3 | a failed install says so | closed | 2026-10-08 |
+| 4 | the load bearing assumptions are written down | closed | 2026-10-08 |
 
 ## Findings
 

@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-ui-probe
 kind: review
-description: the UI probe angle of the full review of main, an instrument that can fault while it holds a game thread suspended and that pays its cost in the frames it exists to explain, nine findings
+description: the UI probe angle of the full review of main, an instrument that can fault while it holds a game thread suspended and that pays its cost in the frames it exists to explain, nine findings, all fixed, merged into 0.4 on 2026-10-08
 updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-ui-probe
-status: open
+status: closed
 ---
 
 # Review of the UI probe
@@ -24,14 +24,17 @@ Nine findings, one breaks, two bug, three debt, three nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the sampler cannot fault while it holds a game thread suspended | fixed, launch pending | 2026-10-08 |
-| 2 | the instrument does not distort what it measures | fixed, launch pending | 2026-10-08 |
-| 3 | the report tells the truth about what it dropped | fixed, launch pending | 2026-10-08 |
+| 1 | the sampler cannot fault while it holds a game thread suspended | closed | 2026-10-08 |
+| 2 | the instrument does not distort what it measures | closed | 2026-10-08 |
+| 3 | the report tells the truth about what it dropped | closed | 2026-10-08 |
 
 On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
 the hunter and verifier loop. All three batches were fixed in one pass on a branch stacked on
 `sweep/review-ui-fixes`, checked by hand and by disassembling the rebuilt hook, and confirmed by one launch
-with `ui_probe=1` that covers both angles.
+with `ui_probe=1` that covers both angles, `logs/uiprobe-review-20261008`. The six hooks installed with nine
+modules in the unwind table, no exception was logged, 55 samples lines printed with at most 4 a line thrown
+away, the invalidations line counted the calls past the 192 it keeps, the sampler never ran out of thread
+slots across a load, and hovers marked at most 24 nodes through the thunk.
 
 ## Findings
 
