@@ -2,6 +2,13 @@
 
 Every version of ACEvoPerf and what changed in it, newest first.
 
+## Next (unreleased)
+
+### Changed
+
+- Texture memory is back to the sizes 0.3.2 used.
+- Sizing texture memory from your card and screen, new in 0.4, is now off by default. Turn it on with `tile_pool_from_budget=1` under `[experimental]` in `acevo_perf.ini`.
+
 ## 0.4 (2026-10-08)
 
 ### Fixed

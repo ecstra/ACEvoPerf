@@ -3,7 +3,7 @@ name: BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-tha
 kind: bug
 description: the auto sizes rank adapters by dedicated video memory with no way to tell an integrated GPU from a discrete one before a D3D12 device exists, so an APU whose BIOS carve out is 4 or 8 GB is sized like a card of that size and can outrank a smaller real card beside it
 updated: 2026-10-08
-links: [DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, review-2026-09-sweep-review-render, directstorage-streaming, BUG-003-crash-on-startup-with-low-vram]
+links: [DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, review-2026-09-sweep-review-render, directstorage-streaming, BUG-003-crash-on-startup-with-low-vram, DEC-027-the-tile-pool-goes-back-to-the-table-and-the-budget-rule-is-experimental]
 area: render
 status: open
 severity: bug
@@ -54,6 +54,7 @@ limit in DEC-022 rather than guessed at.
 
 The first integrated GPU on disk is `logs/igpu-detour-20261008`, the reference laptop's own Radeon
 with the NVIDIA card switched off. It reported 496 MB dedicated, so its carve out is small, and Windows
-granted it 15814 MB, the shared memory. The budget rule of DEC-025 now cuts that back to the dedicated
-memory, so an integrated GPU is sized by its carve out exactly as this file describes, and a large carve
-out is still read as a card that size.
+granted it 15814 MB, the shared memory. The budget rule of DEC-025, experimental and off by default
+since DEC-027, cuts that back to the dedicated memory, so an integrated GPU is sized by its carve out
+exactly as this file describes, and a large carve out is still read as a card that size. With that
+switch on a misread adapter can get up to 6144 MB of tiles, where the default table stops at 3072.

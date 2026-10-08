@@ -207,6 +207,8 @@ void LoadConfig()
     g_cfg.overlayClearXor = IniBool(L"overlay", L"clear_xor_flag", true);
     g_cfg.fixBigScreens = IniBool(L"overlay", L"fix_big_screens", true);
 
+    g_cfg.tilePoolFromBudget = IniBool(L"experimental", L"tile_pool_from_budget", false);
+
     // Diagnostics live in one section so it is clear they are for testing, all off by default.
     g_cfg.timeline = IniBool(L"developer", L"timeline", false);
     g_cfg.frames = IniBool(L"developer", L"frames", false);

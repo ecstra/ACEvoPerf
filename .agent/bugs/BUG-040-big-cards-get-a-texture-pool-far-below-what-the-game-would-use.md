@@ -1,11 +1,11 @@
 ---
 name: BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use
 kind: bug
-description: players on cards of 12 GB and more see their video memory use and GPU load drop with the mod and the game sometimes hang, cured by raising the mod's texture pool, because the auto sizes give such a card 2048 or 3072 MB of tiles against the 6144 MB the game's own Ultra pool would take, brackets extrapolated from the 6 GB card that keep its tight margin on every bigger one
+description: players on cards of 12 GB and more see their video memory use and GPU load drop with the mod and the game sometimes hang, cured by raising the mod's texture pool, because the auto sizes give such a card 2048 or 3072 MB of tiles against the 6144 MB the game's own Ultra pool would take, brackets extrapolated from the 6 GB card that keep its tight margin on every bigger one, open again since the budget sizing that fixed it in 0.4 went behind an experimental switch, off by default (DEC-027)
 updated: 2026-10-08
-links: [DEC-025-the-tile-pool-is-sized-from-the-budget-at-launch, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, reported-working-configurations]
+links: [DEC-027-the-tile-pool-goes-back-to-the-table-and-the-budget-rule-is-experimental, DEC-025-the-tile-pool-is-sized-from-the-budget-at-launch, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, reported-working-configurations]
 area: streaming
-status: fixed
+status: open
 severity: bug
 reported: 2026-10-08
 parent:
@@ -23,7 +23,7 @@ suggestion, with no report after it.
 
 ### What the mod gives a big card
 
-`AutoTilePoolMb` in `src/render/adapter.cpp` picks the tile pool by the card's dedicated memory, 2048 MB
+`TableTilePoolMb` in `src/render/adapter.cpp` picks the tile pool by the card's dedicated memory, 2048 MB
 from 11 to 15 GB and 3072 MB from 15 GB up, and nothing above that. The game's own texture pool at Ultra
 is the `texturePoolSize` define, 6144 MB, which is what the canonical flag hands over when nothing is
 written (DEC-022). So a 12 GB card at Ultra gets a third of the texture memory the game would use, and a
@@ -56,6 +56,16 @@ less a reserve of 4200 MB at 1080p that grows with the primary display's pixel c
 own 6144 MB and never below the old table. A 12 GB card at 1440p gets about 5.9 GB where it had 2048 MB,
 and a 16 GB card 6144 MB where it had 3072. Marked experimental in the changelog, with a fixed
 `tile_pool_mb` as the way back.
+
+### Off by default again, 2026-10-08
+
+Shipped in 0.4 and taken back to an opt in the same day (DEC-027). Within hours a player under Proton went
+from 90 to 100 fps on 0.3.2 to about 20 with a broken rear view mirror, and another said the game would no
+longer start, neither with a card named. DXVK reports the whole card as the budget, so the rule overfills a
+card under Proton, and no card above 6 GB had run it before it shipped. `tile_pool_mb=auto` gives the table
+again and the rule runs only with `tile_pool_from_budget=1` under `[experimental]`, on
+`fix/pool-sizing-back-to-the-table`. This bug stays open until the rule, or something like it, is shown
+on cards above 6 GB.
 
 ## Verification
 

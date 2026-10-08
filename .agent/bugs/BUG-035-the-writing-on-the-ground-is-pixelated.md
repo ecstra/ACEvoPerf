@@ -1,7 +1,7 @@
 ---
 name: BUG-035-the-writing-on-the-ground-is-pixelated
 kind: bug
-description: the chalk writing on the Nordschleife's road shows blocky up close, partly the art, since graffiti_brunnchen4 is shown whole at only 1024 by 64, and partly the 1024 MB tile pool of a 6 GB card at Ultra, full there so the streamed decals are not admitted, neither of it the mod's, the pool side eased for bigger cards by the budget sizing of BUG-040
+description: the chalk writing on the Nordschleife's road shows blocky up close, partly the art, since graffiti_brunnchen4 is shown whole at only 1024 by 64, and partly the 1024 MB tile pool of a 6 GB card at Ultra, full there so the streamed decals are not admitted, neither of it the mod's, the pool side eased for bigger cards only with the experimental budget sizing of BUG-040 switched on
 updated: 2026-10-08
 links: [directstorage-streaming, BUG-007-blurry-road-and-textures, BUG-001-texture-low-mip-shown-before-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use, BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse]
 area: streaming
@@ -80,8 +80,9 @@ Not fixed for the 6 GB card, on the owner's call of 2026-10-08. Writing drawn fr
 `graffiti_brunnchen4` stays blocky on every card. For the streamed decals, the 1024 MB pool already leaves about
 600 MB of that card's budget spare, so there is no memory to give, and changing how the engine ranks
 textures for admission means reworking its streamer from the inside. Texture quality one step down eases
-the pressure. Cards of 8 GB and more get two to six times the pool since the budget sizing of BUG-040
-(DEC-025), which should leave room for the writing there. A parked run at `tile_pool_mb=1536` on the 6 GB
+the pressure. With the budget sizing of BUG-040 switched on, experimental and off by default since
+DEC-027, cards of 8 GB and more get two to six times the pool, which should leave room for the writing
+there. A parked run at `tile_pool_mb=1536` on the 6 GB
 card would confirm the reading directly and was not run.
 
 ## Verification
