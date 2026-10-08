@@ -435,7 +435,10 @@ static void AddUiStyleFix(size_t used)
 
     const std::string pkgPath = kUiStylesheet;
     if (PlayerOverrides(pkgPath)) {
-        Log("overlay: the mods folder has its own %s, served as it is, so the responsive UI's stylesheet fix is not applied to it", pkgPath.c_str());
+        // The restyle fix's stub still skips the sibling walk on a hover, which a rule of the player's with a
+        // state left of + or ~ would need, and it went in at attach before this table was built.
+        Log("overlay: the mods folder has its own %s, served as it is, so the responsive UI's stylesheet fix is not applied to it, "
+            "and a hover rule of its own that styles a following sibling will not update", pkgPath.c_str());
         return;
     }
     PackageEntry entry;

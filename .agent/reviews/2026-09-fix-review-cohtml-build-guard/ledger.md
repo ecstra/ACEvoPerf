@@ -2,7 +2,7 @@
 name: review-2026-09-fix-review-cohtml-build-guard
 kind: review
 description: the Cohtml angle of the full review of main, the vtable calls that ignore the build check every byte patch honours, seven findings, one breaks
-updated: 2026-09-24
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: fix/review-cohtml-build-guard
 status: closed
@@ -1321,7 +1321,7 @@ taking files that belong to `sweep/review-ui-fixes`. It should be the first thin
 
 `src/ui/restyle_fix.cpp`, `src/ui/child_removal_fix.cpp`, `src/ui/style_match_fix.cpp` and
 `src/ui/menu_refresh_fix.cpp` carry findings of their own, filed in
-`.agent/reviews/2026-09-sweep-review-ui/ledger.md`, because they are a different surface and a
+`.agent/reviews/2026-09-sweep-review-ui-fixes/ledger.md`, because they are a different surface and a
 different branch.
 
 Checked and clean: the install order is deliberately interleaved, child removal's hashed regions stop

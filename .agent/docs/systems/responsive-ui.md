@@ -2,7 +2,7 @@
 name: responsive-ui
 kind: doc
 description: the responsive UI, the one switch that keeps the game's menus smooth and the HUD from uneven driving frame times, its parts, where each lives, what each patches and how it checks the build first, and the shared Cohtml hooks it and the UI probe stand on
-updated: 2026-09-24
+updated: 2026-10-08
 links: [review-2026-09-fix-review-cohtml-build-guard, responsive-ui-rounds-2026-09-15, ui-lag-deepdive-2026-09-14, BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-009-one-percent-lows-far-below-average, TODO-025-the-ui-view-rotation-test, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, DEC-020-responsive-ui-is-one-switch-on-by-default, package-override-layer, telemetry, proxy-architecture]
 ---
 
@@ -55,7 +55,8 @@ and keeps it for classes, attributes and ids. Three code regions are hashed firs
 surface a frame in turn otherwise, the menu and the car's two dashboard displays, so a menu in a session
 ran at a third of the frame rate. A stub at `0xDE37B7` keeps the main surface in every frame and passes the
 turn between the displays. Which page is shown comes from a hook on Cohtml's URL loader (`0x46B990`), whose
-stub records whether the main view shows one of the known menu pages or `hud.html`.
+stub records whether the last known page any view loaded was a menu page or `hud.html`. It does not tell the
+views apart, which changes nothing shipped since both write the same schedule.
 
 The stub reads a schedule byte, 0 the game's rotation, 1 the main surface every frame with the displays
 taking turns, 2 every surface every frame, the path the game jumps to itself from its main and pause menu
@@ -107,6 +108,14 @@ with Cohtml's own mark (`0x37B5A0`), only the children that could match one of t
 nothing to tell elements apart, a feature set it did not see built, or a parent that is not a plain element
 takes Cohtml's own invalidation. Twelve code regions are hashed and the seven calls checked first. The UI probe
 counts both paths.
+
+A set is inserted empty at its construction and filled rule by rule after, so a removal in between would read
+it as holding nothing to mark. It was not reached in one diagnostic launch on 2026-09-29, one car alone at
+one track through menu pages, a load, part of an out lap and a return to the menu. Every rule was filed on the
+game's Render Worker threads, GameThread only built a set, and nothing was built or filed on the mod's moved
+resource thread. No child was removed while any rule was being filed, and no rule reached a set a removal had
+already used (`sweep/review-ui-fixes` F-01). The UI probe was off, so the run did not count moved work, and
+race, replay and online pages were not visited.
 
 ### Page fixes
 

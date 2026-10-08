@@ -2,7 +2,7 @@
 name: agent-index
 kind: doc
 description: the spine of the agent directory, what exists and where
-updated: 2026-09-29
+updated: 2026-10-08
 links: [agent-readme, conventions, house-rules-agent]
 ---
 
@@ -38,10 +38,10 @@ line in the same commit.
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 14 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026, TODO-029, TODO-030), 12 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 17 open, 14 fixed, 4 won't fix
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 19 standing (DEC-001 to DEC-003, DEC-005, DEC-007, DEC-008, DEC-011 to DEC-023), 4 superseded
-- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 5 open, the full review of main of
-  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 9 closed. The Cohtml
-  build guard, render, proxy and core, package override layer, session leak, teardown, engine hooks
-  and telemetry angles are merged into 0.4
+- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 3 open, the full review of main of
+  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 11 closed. The Cohtml
+  build guard, render, proxy and core, package override layer, session leak, teardown, engine hooks,
+  telemetry, UI fixes and UI probe angles are merged into 0.4
 
 ## Memory and handovers
 
@@ -50,3 +50,4 @@ line in the same commit.
 - [handover/2026-09-05-four-laps-done.md](handover/2026-09-05-four-laps-done.md), state after the fixed pools and latency cap landed
 - [handover/2026-09-13-frame-time-mesh-budget.md](handover/2026-09-13-frame-time-mesh-budget.md), the frame time work after runs N, M and P1 to P3, paused to measure release 0.3.1, superseded by the mesh deep dive
 - [handover/2026-09-20-review-of-main-angle-one-done.md](handover/2026-09-20-review-of-main-angle-one-done.md), the full review of main with one of thirteen angles closed and merged into 0.4, what the batch loop caught, and the next angle to branch
+- [handover/2026-09-29-review-of-main-ui-fixes-batch-1-paused.md](handover/2026-09-29-review-of-main-ui-fixes-batch-1-paused.md), the full review of main paused inside the UI fixes angle's first batch, eight of thirteen angles merged into 0.4, and the five open findings to take up first

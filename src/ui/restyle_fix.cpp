@@ -24,7 +24,8 @@
 // state change can only reach a following sibling through such a rule, so the stub below skips the
 // sibling walk for state changes and keeps it for classes, attributes and ids, which the leaderboard
 // rule needs. The kind is the saved rbp of the only caller (0x37BC60 keeps it in ebp), at [rbp+0x30]
-// in 0x37B690's frame.
+// in 0x37B690's frame. With the UI probe on, its Hook_Invalidate calls 0x37B690 through a thunk that
+// puts the kind in rbp the same way.
 
 static const DWORD kGameTimeDateStamp = 0x6A9EC72A;
 static const DWORD kGameSizeOfImage = 0x06CDD000;
@@ -61,22 +62,11 @@ static const BYTE kGateStub[] = {
 static const size_t kGateStubWalkAt = 12;
 static const size_t kGateStubSkipAt = 17;
 
-// jmp rel32 for code that will run at `from`, written into `out`.
-static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
-{
-    int64_t rel = destination - (from + 5);
-    if (rel > INT32_MAX || rel < INT32_MIN) return false;
-    int32_t value = (int32_t)rel;
-    out[0] = 0xE9;
-    memcpy(out + 1, &value, 4);
-    return true;
-}
-
 void InstallRestyleFix()
 {
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
-    auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
-    if (gameNt->FileHeader.TimeDateStamp != kGameTimeDateStamp || gameNt->OptionalHeader.SizeOfImage != kGameSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(game, &stamp, &image) || stamp != kGameTimeDateStamp || image != kGameSizeOfImage) {
         Log("[restyle] this is not the game build whose stylesheets the UI restyle fix was checked against, nothing patched");
         return;
     }
@@ -85,10 +75,9 @@ void InstallRestyleFix()
         Log("[restyle] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto nt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[restyle] this is not the Cohtml build the UI restyle fix was written for (stamp %08X, image %08X), nothing patched",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     for (const Region* region : { &kSiblingGate, &kInvalidatePrologue, &kInvalidateCaller }) {
@@ -109,9 +98,9 @@ void InstallRestyleFix()
     // The five bytes after the jump are the rest of the original jbe, never reached again.
     BYTE patched[10];
     memset(patched, 0xCC, sizeof patched);
-    if (!EncodeJump(stub + kGateStubWalkAt, cohtml + kRvaSiblingWalk, stub + kGateStubWalkAt) ||
-        !EncodeJump(stub + kGateStubSkipAt, cohtml + kRvaAfterSiblingWalk, stub + kGateStubSkipAt) ||
-        !EncodeJump(gate, stub, patched)) {
+    if (!EncodeRel32(0xE9, stub + kGateStubWalkAt, cohtml + kRvaSiblingWalk, stub + kGateStubWalkAt) ||
+        !EncodeRel32(0xE9, stub + kGateStubSkipAt, cohtml + kRvaAfterSiblingWalk, stub + kGateStubSkipAt) ||
+        !EncodeRel32(0xE9, gate, stub, patched)) {
         VirtualFree(stub, 0, MEM_RELEASE);
         Log("[restyle] the stub is out of reach of Cohtml, nothing patched");
         return;
@@ -128,6 +117,7 @@ void InstallRestyleFix()
     if (CodePatchingIsLate())
         Log("[restyle] WARNING: patching Cohtml's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     if (!VirtualProtect(gate, kSiblingGate.length, PAGE_EXECUTE_READWRITE, &old)) {
+        VirtualFree(stub, 0, MEM_RELEASE);
         Log("[restyle] could not make Cohtml's code writable, nothing patched");
         return;
     }

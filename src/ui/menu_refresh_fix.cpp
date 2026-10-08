@@ -63,6 +63,7 @@ static const char* const kScheduleNames[] = { "the game's rotation", "the main v
 static const int kTestTurnSeconds = 10;
 
 static BYTE* g_schedule = nullptr;      // one byte on a read and write page, read by the rotation stub
+static bool g_rotationPatched = false;
 static SRWLOCK g_scheduleLock = SRWLOCK_INIT;
 static bool g_menuPage = false;
 static Schedule g_hudSchedule = kMainEveryFrame;    // only the developer test changes it
@@ -166,7 +167,10 @@ static bool EndsWithPage(const char* url, size_t length, const char* page)
 }
 
 // Script hands the loader whatever it navigated to, so the URL is read defensively and only a page this
-// knows changes the state.
+// knows changes the state. Any view's load counts, the car displays' too, since the loader's first argument
+// was never matched to the view the Cohtml hooks name. Shipped that changes nothing, a menu page and the HUD
+// both write the main view every frame, but under the developer test a display loading a known page would
+// move the schedule.
 static void OnLoadUrl(void*, const char* url)
 {
     char path[512];
@@ -190,16 +194,6 @@ static void OnLoadUrl(void*, const char* url)
     }
 }
 
-static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
-{
-    int64_t rel = destination - (from + 5);
-    if (rel > INT32_MAX || rel < INT32_MIN) return false;
-    int32_t value = (int32_t)rel;
-    out[0] = 0xE9;
-    memcpy(out + 1, &value, 4);
-    return true;
-}
-
 static bool Matches(BYTE* base, const Region& region)
 {
     if (Fnv1a64(base + region.rva, region.length) == region.fnv1a64) return true;
@@ -211,8 +205,8 @@ void InstallMenuRefreshFix()
 {
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
     BYTE* cohtml = (BYTE*)GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
-    auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
-    if (gameNt->FileHeader.TimeDateStamp != kGameTimeDateStamp || gameNt->OptionalHeader.SizeOfImage != kGameSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(game, &stamp, &image) || stamp != kGameTimeDateStamp || image != kGameSizeOfImage) {
         Log("[menus] this is not the game build the menu refresh fix was written for, nothing patched");
         return;
     }
@@ -220,8 +214,7 @@ void InstallMenuRefreshFix()
         Log("[menus] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto cohtmlNt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (cohtmlNt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || cohtmlNt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[menus] this is not the Cohtml build the menu refresh fix was written for, nothing patched");
         return;
     }
@@ -259,7 +252,7 @@ void InstallMenuRefreshFix()
 
     BYTE pickJump[5], urlJump[5];
     DWORD old = 0;
-    if (!EncodeJump(game + kRvaRotationPick, rotationStub, pickJump) || !EncodeJump(cohtml + kLoadUrl.rva, urlStub, urlJump) ||
+    if (!EncodeRel32(0xE9, game + kRvaRotationPick, rotationStub, pickJump) || !EncodeRel32(0xE9, cohtml + kLoadUrl.rva, urlStub, urlJump) ||
         !VirtualProtect(gameCave, page, PAGE_EXECUTE_READ, &old) || !VirtualProtect(cohtmlCave, page, PAGE_EXECUTE_READ, &old)) {
         VirtualFree(gameCave, 0, MEM_RELEASE);
         VirtualFree(cohtmlCave, 0, MEM_RELEASE);
@@ -273,20 +266,26 @@ void InstallMenuRefreshFix()
     // The URL hook goes in first, so the rotation stub never reads a state nothing has set yet. Until a
     // page loads it reads 0 and the game rotates as it always did.
     if (!WriteCode(cohtml + kLoadUrl.rva, urlJump, sizeof urlJump)) {
+        VirtualFree(gameCave, 0, MEM_RELEASE);
+        VirtualFree(cohtmlCave, 0, MEM_RELEASE);
+        g_schedule = nullptr;
         Log("[menus] could not patch Cohtml's URL loader, nothing patched");
         return;
     }
+    // The URL hook is in and writes the state byte, so both pages stay. Nothing reads the byte, and the
+    // developer test does not run.
     if (!WriteCode(game + kRvaRotationPick, pickJump, sizeof pickJump)) {
         Log("[menus] could not patch the UI surface rotation, menus update as the game does");
         return;
     }
+    g_rotationPatched = true;
     Log("[menus] menu refresh fix on, the menu and the HUD update every frame and the car displays take turns");
     if (g_cfg.hudScheduleTest) Log("[hud test] on, the HUD changes schedule every %d seconds in a shuffled order", kTestTurnSeconds);
 }
 
 void MenuRefreshTick()
 {
-    if (!g_cfg.hudScheduleTest || !g_schedule) return;
+    if (!g_cfg.hudScheduleTest || !g_rotationPatched) return;
     if (g_testSeconds++ % kTestTurnSeconds != 0) return;
 
     // A new shuffled set of three every three turns, so no schedule keeps the same place on the lap.

@@ -7,6 +7,7 @@
 #include "acevo/ui/cohtml_hooks.h"
 #include "acevo/ui/responsive_ui.h"
 #include "acevo/ui/style_match_fix.h"
+#include <cstdarg>
 
 // Written against AssettoCorsaEVO.exe 0.9.1 (the Steam build of 2026-09-11) and
 // cohtml.WindowsDesktop.dll 1.61.0.3, from the UI deep dive of 2026-09-14
@@ -20,7 +21,8 @@
 //
 // The layout sampler suspends a thread only while it is inside Cohtml's layout work, reads its stack
 // with the unwind tables of the modules loaded at start, and resumes it before counting anything. It
-// never allocates, locks or logs while a game thread is suspended.
+// never allocates, locks or logs while a game thread is suspended, and its own reads of the stack stay
+// inside the stack's committed range, so only an unwind table that misleads RtlVirtualUnwind can fault.
 //
 // The style hooks patch Cohtml's own code, one function entry and four calls, only when the module's
 // stamp, size and the patched bytes match what was read. See the style invalidation section.
@@ -457,10 +459,11 @@ struct UnwindModule {
 struct LayoutThread {
     DWORD id;
     HANDLE handle;
+    const NT_TIB* tib;              // the thread's own, for its stack range
     std::atomic<int> inside;
 };
 
-static const int kMaxUnwindModules = 8;
+static const int kMaxUnwindModules = 10;
 static const int kMaxLayoutThreads = 16;
 static const int kMaxFrames = 48;
 static const int kCountSlots = 8192;
@@ -471,7 +474,9 @@ static int g_unwindModuleCount = 0;
 static LayoutThread g_layoutThreads[kMaxLayoutThreads];
 static std::atomic<int> g_layoutThreadCount{0};
 static SRWLOCK g_registerLock = SRWLOCK_INIT;
-static thread_local int t_layoutSlot = -1;
+static const int kNotRegistered = -1;
+static const int kNoSlotLeft = -2;
+static thread_local int t_layoutSlot = kNotRegistered;
 
 // Keys are the module index in the top byte and the function's rva below it.
 struct Count {
@@ -482,16 +487,40 @@ static Count g_leafCounts[kCountSlots];
 static Count g_inclusiveCounts[kCountSlots];
 static uint32_t g_samples = 0, g_unattributed = 0;
 
+// The exception directory and image size of a loaded module, false when its headers cannot be read.
+static bool ReadUnwindDirectory(const BYTE* module, IMAGE_DATA_DIRECTORY* directory, DWORD* image)
+{
+    __try {
+        auto dos = (const IMAGE_DOS_HEADER*)module;
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+        auto nt = (const IMAGE_NT_HEADERS64*)(module + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+        *directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
+        *image = nt->OptionalHeader.SizeOfImage;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// A frame in a module left out here ends its sample, so a full table is said out loud.
+static bool UnwindTableHasRoom(const char* label)
+{
+    if (g_unwindModuleCount < kMaxUnwindModules) return true;
+    Log("[ui] no room for the unwind tables of %s, the layout samples that pass through it are thrown away", label);
+    return false;
+}
+
 static void AddUnwindModule(const wchar_t* name, const char* label)
 {
     HMODULE module = GetModuleHandleW(name);
-    if (!module || g_unwindModuleCount >= kMaxUnwindModules) return;
-    auto nt = (IMAGE_NT_HEADERS64*)((BYTE*)module + ((IMAGE_DOS_HEADER*)module)->e_lfanew);
-    const IMAGE_DATA_DIRECTORY& directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
-    if (!directory.VirtualAddress || !directory.Size) return;
+    if (!module || !UnwindTableHasRoom(label)) return;
+    IMAGE_DATA_DIRECTORY directory = {};
+    DWORD image = 0;
+    if (!ReadUnwindDirectory((const BYTE*)module, &directory, &image) || !directory.VirtualAddress || !directory.Size) return;
     UnwindModule& entry = g_unwindModules[g_unwindModuleCount++];
     entry.base = (uintptr_t)module;
-    entry.end = entry.base + nt->OptionalHeader.SizeOfImage;
+    entry.end = entry.base + image;
     entry.functions = (const RUNTIME_FUNCTION*)((BYTE*)module + directory.VirtualAddress);
     entry.count = directory.Size / sizeof(RUNTIME_FUNCTION);
     entry.label = label;
@@ -500,7 +529,7 @@ static void AddUnwindModule(const wchar_t* name, const char* label)
 // Code the mod placed into the game, with its own function table.
 static void AddUnwindRange(const BYTE* base, size_t size, const RUNTIME_FUNCTION* functions, DWORD count, const char* label)
 {
-    if (g_unwindModuleCount >= kMaxUnwindModules) return;
+    if (!UnwindTableHasRoom(label)) return;
     UnwindModule& entry = g_unwindModules[g_unwindModuleCount++];
     entry.base = (uintptr_t)base;
     entry.end = entry.base + size;
@@ -547,15 +576,22 @@ static void AddCount(Count* table, uint64_t key)
     }
 }
 
-static int FramesOf(HANDLE thread, uint64_t* keys)
+// Called with the thread suspended inside layout work, so it is alive and its TEB is too. The game's crash
+// logger stalls a faulting thread before any handler runs, and here that stall would hold a game thread
+// suspended, so every stack read stays inside the range the stack has committed, and a walk that stops
+// moving up the stack ends. The handler stays for an unwind table that misleads RtlVirtualUnwind.
+static int FramesOf(HANDLE thread, const NT_TIB* tib, uint64_t* keys)
 {
     CONTEXT context = {};
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
     if (!GetThreadContext(thread, &context)) return 0;
+    const DWORD64 stackLow = (DWORD64)tib->StackLimit;
+    const DWORD64 stackHigh = (DWORD64)tib->StackBase;
 
     int frames = 0;
     __try {
         while (frames < kMaxFrames && context.Rip) {
+            if (context.Rsp < stackLow || context.Rsp > stackHigh - 8) break;
             int moduleIndex = -1;
             const RUNTIME_FUNCTION* function = FindFunction((uintptr_t)context.Rip, moduleIndex);
             if (moduleIndex < 0) break;    // code without unwind tables, script or another module
@@ -566,9 +602,11 @@ static int FramesOf(HANDLE thread, uint64_t* keys)
                 context.Rsp += 8;
                 continue;
             }
+            DWORD64 rspBefore = context.Rsp;
             PVOID handlerData = nullptr;
             DWORD64 establisher = 0;
             RtlVirtualUnwind(UNW_FLAG_NHANDLER, module.base, context.Rip, (PRUNTIME_FUNCTION)function, &context, &handlerData, &establisher, nullptr);
+            if (context.Rsp <= rspBefore) break;
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
@@ -580,9 +618,14 @@ static void TakeSample(LayoutThread& thread)
     uint64_t keys[kMaxFrames];
     int frames = 0;
     if (SuspendThread(thread.handle) == (DWORD)-1) return;
-    if (thread.inside.load(std::memory_order_relaxed) > 0) frames = FramesOf(thread.handle, keys);
+    bool inside = thread.inside.load(std::memory_order_acquire) > 0;
+    if (inside) frames = FramesOf(thread.handle, thread.tib, keys);
     ResumeThread(thread.handle);
-    if (!frames) return;
+    if (!inside) return;
+    if (!frames) {
+        g_unattributed++;
+        return;
+    }
 
     g_samples++;
     AddCount(g_leafCounts, keys[0]);
@@ -612,15 +655,27 @@ static int TopCounts(const Count* table, Count* top, int wanted)
     return found;
 }
 
+// Adds to a log line. _snprintf_s returns -1 once it truncates, so the first cut ends the line there and
+// every later append leaves it alone, rather than each one writing a byte further back.
+static int Append(char* line, int length, size_t size, const char* format, ...)
+{
+    if (length < 0) return length;
+    va_list args;
+    va_start(args, format);
+    int written = _vsnprintf_s(line + length, size - length, _TRUNCATE, format, args);
+    va_end(args);
+    return written < 0 ? -1 : length + written;
+}
+
 static int AppendCounts(char* line, int length, size_t size, const char* title, const Count* table)
 {
     Count top[12] = {};
     int found = TopCounts(table, top, 12);
-    length += _snprintf_s(line + length, size - length, _TRUNCATE, " | %s", title);
+    length = Append(line, length, size, " | %s", title);
     for (int i = 0; i < found && length > 0; ++i) {
         int moduleIndex = (int)(top[i].key >> 56) - 1;
         const char* label = moduleIndex >= 0 ? g_unwindModules[moduleIndex].label : "?";
-        length += _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX %.0f%%", label,
+        length = Append(line, length, size, " %s+0x%llX %.0f%%", label,
             (unsigned long long)(top[i].key & 0x00FFFFFFFFFFFFFFull), 100.0 * top[i].samples / std::max<uint32_t>(g_samples, 1));
     }
     return length;
@@ -628,15 +683,17 @@ static int AppendCounts(char* line, int length, size_t size, const char* title, 
 
 static void ReportSamples()
 {
-    if (!g_samples) return;
+    if (!g_samples && !g_unattributed) return;
     char line[3072];
-    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] layout samples %u", g_samples);
+    int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] layout samples %u, %u more thrown away as their stack could not be walked",
+        g_samples, g_unattributed);
     length = AppendCounts(line, length, sizeof line, "innermost", g_leafCounts);
     if (length > 0) AppendCounts(line, length, sizeof line, "on the stack", g_inclusiveCounts);
     Log("%s", line);
     memset(g_leafCounts, 0, sizeof g_leafCounts);
     memset(g_inclusiveCounts, 0, sizeof g_inclusiveCounts);
     g_samples = 0;
+    g_unattributed = 0;
 }
 
 static DWORD WINAPI LayoutSamplerThread(void*)
@@ -645,10 +702,10 @@ static DWORD WINAPI LayoutSamplerThread(void*)
     int64_t lastReport = Qpc();
     for (;;) {
         bool anyInside = false;
-        int count = g_layoutThreadCount.load(std::memory_order_relaxed);
+        int count = g_layoutThreadCount.load(std::memory_order_acquire);
         for (int i = 0; i < count; ++i) {
             LayoutThread& thread = g_layoutThreads[i];
-            if (thread.inside.load(std::memory_order_relaxed) <= 0) continue;
+            if (thread.inside.load(std::memory_order_acquire) <= 0) continue;
             anyInside = true;
             TakeSample(thread);
         }
@@ -660,22 +717,46 @@ static DWORD WINAPI LayoutSamplerThread(void*)
     }
 }
 
+// The game makes its job workers again at every load, under new ids, so a full table first takes the slot of
+// a thread that has exited. One that is not doing layout work is never sampled, so its slot is free to take.
+static int ExitedThreadSlot(int count)
+{
+    for (int i = 0; i < count; ++i) {
+        if (WaitForSingleObject(g_layoutThreads[i].handle, 0) != WAIT_OBJECT_0) continue;
+        CloseHandle(g_layoutThreads[i].handle);
+        return i;
+    }
+    return -1;
+}
+
 static LayoutThread* LayoutThreadForThisThread()
 {
     if (t_layoutSlot >= 0) return &g_layoutThreads[t_layoutSlot];
+    if (t_layoutSlot == kNoSlotLeft) return nullptr;
+    HANDLE handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | SYNCHRONIZE, FALSE, GetCurrentThreadId());
+    if (!handle) return nullptr;
+
     AcquireSRWLockExclusive(&g_registerLock);
     int count = g_layoutThreadCount.load(std::memory_order_relaxed);
-    if (count < kMaxLayoutThreads) {
-        HANDLE handle = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, GetCurrentThreadId());
-        if (handle) {
-            g_layoutThreads[count].id = GetCurrentThreadId();
-            g_layoutThreads[count].handle = handle;
-            t_layoutSlot = count;
-            g_layoutThreadCount.store(count + 1, std::memory_order_relaxed);
-        }
+    int slot = count < kMaxLayoutThreads ? count : ExitedThreadSlot(count);
+    if (slot >= 0) {
+        g_layoutThreads[slot].id = GetCurrentThreadId();
+        g_layoutThreads[slot].handle = handle;
+        g_layoutThreads[slot].tib = (const NT_TIB*)NtCurrentTeb();
+        if (slot == count) g_layoutThreadCount.store(count + 1, std::memory_order_release);
     }
     ReleaseSRWLockExclusive(&g_registerLock);
-    return t_layoutSlot >= 0 ? &g_layoutThreads[t_layoutSlot] : nullptr;
+
+    if (slot < 0) {
+        CloseHandle(handle);
+        t_layoutSlot = kNoSlotLeft;
+        static std::atomic<bool> told{false};
+        if (!told.exchange(true))
+            Log("[ui] %d threads are doing layout work at once, more than the sampler follows, the rest are not sampled", kMaxLayoutThreads);
+        return nullptr;
+    }
+    t_layoutSlot = slot;
+    return &g_layoutThreads[slot];
 }
 
 // ---------------------------------------------------------------------------
@@ -772,12 +853,17 @@ struct InvalidationKind {
     uint32_t maxMarks;
 };
 
+// Keyed by the element's address and the kind, so a call only builds the element's description the first
+// time that element is seen in a second. The table takes no more than three quarters full, which keeps an
+// empty slot to end every probe, and what it turns away is counted.
 struct InvalidatedElement {
+    const void* address;
     char element[80];
     uint8_t kind;
     uint32_t calls;
     uint64_t marks;
 };
+static const int kMaxInvalidatedElements = kInvalidatedElements * 3 / 4;
 
 // A child list change that marks this many nodes restyles most of a page. The first one of each second
 // keeps the call stack that led to it, to tell a binding's change from a script's.
@@ -798,6 +884,8 @@ static thread_local Collection t_collection;
 static thread_local uint32_t t_marks = 0;
 static InvalidationKind g_invalidationKinds[kInvalidationKinds];         // under g_markLock
 static InvalidatedElement g_invalidatedElements[kInvalidatedElements];   // under g_markLock
+static int g_invalidatedElementCount = 0;                                // under g_markLock
+static uint32_t g_invalidationsTurnedAway = 0;                           // under g_markLock
 static BigChildList g_bigChildList = {};                                 // under g_markLock
 static SRWLOCK g_markLock = SRWLOCK_INIT;
 
@@ -882,9 +970,11 @@ static void ReadChangedSet(const BYTE* set, Collection& collection)
         const BYTE* const* buckets = *(const BYTE* const* const*)set;
         uint32_t bucketCount = *(const uint32_t*)(set + 8);
         collection.changed = (uint32_t)*(const uint64_t*)(set + 0x10);
+        // The table never shrinks, so the walk stops once it has every node there is to name.
+        uint32_t wanted = std::min<uint32_t>(collection.changed, 3);
         int length = 0;
-        int named = 0;
-        for (uint32_t i = 0; buckets && i < bucketCount && named < 3; ++i) {
+        uint32_t named = 0;
+        for (uint32_t i = 0; buckets && i < bucketCount && named < wanted; ++i) {
             if (!buckets[i]) continue;
             char name[80];
             DescribeNode(buckets[i], name, sizeof name);
@@ -908,6 +998,29 @@ static uint32_t ReadListCount(const BYTE* list)
     }
 }
 
+// This hook stands where 0x37BC60 called 0x37B690, and the restyle fix's stub inside 0x37B690 reads the kind
+// from its caller's saved rbp, which 0x37BC60 keeps the kind in. The compiler is free to use rbp here, and
+// does, so the hook calls 0x37B690 through this thunk, which puts the kind in rbp as 0x37BC60 does. Without
+// it a state change would take the sibling walk again, and a class change whose stale rbp reads 5 would skip
+// it (`sweep/review-ui-fixes` F-06).
+static const BYTE kInvalidateThunk[] = {
+    0x55,                                       // push rbp
+    0x48, 0x89, 0xD5,                           // mov rbp, rdx                    the kind
+    0x48, 0x83, 0xEC, 0x20,                     // sub rsp, 0x20
+    0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0,         // mov rax, the invalidation
+    0xFF, 0xD0,                                 // call rax
+    0x48, 0x83, 0xC4, 0x20,                     // add rsp, 0x20
+    0x5D,                                       // pop rbp
+    0xC3,                                       // ret
+};
+static const size_t kInvalidateThunkTargetAt = 10;
+// Version 1, an 8 byte prologue with two codes, alloc 0x20 at 8 and push rbp at 1.
+static const BYTE kInvalidateThunkUnwind[] = {
+    0x01, 0x08, 0x02, 0x00,
+    0x08, 0x32,
+    0x01, 0x50,
+};
+
 // Counts the nodes one invalidation marked, by kind and by the element it started from.
 static uint64_t Hook_Invalidate(void* element, uint64_t kind, void* first, void* second)
 {
@@ -915,41 +1028,53 @@ static uint64_t Hook_Invalidate(void* element, uint64_t kind, void* first, void*
     uint64_t result = g_invalidate(element, kind, first, second);
     uint32_t marks = t_marks - marksBefore;
 
-    char description[80];
-    DescribeNode((const BYTE*)element, description, sizeof description);
     uint8_t kindByte = (uint8_t)kind;
-    size_t slot = (size_t)((Fnv1a64((const BYTE*)description, strlen(description)) ^ kindByte) & (kInvalidatedElements - 1));
+    size_t slot = (size_t)((((uint64_t)(uintptr_t)element ^ kindByte) * 0x9E3779B97F4A7C15ull) >> 56) & (kInvalidatedElements - 1);
 
+    // Only the first big change of each second keeps its stack, so the walk is skipped once one is kept.
     void* callers[kBigChildListFrames];
     USHORT frames = 0;
     bool bigChildList = kindByte == kChildListKind && marks >= kBigChildListMarks;
-    if (bigChildList) frames = RtlCaptureStackBackTrace(1, kBigChildListFrames, callers, nullptr);
+    if (bigChildList) {
+        AcquireSRWLockShared(&g_markLock);
+        bool firstThisSecond = g_bigChildList.count == 0;
+        ReleaseSRWLockShared(&g_markLock);
+        if (firstThisSecond) frames = RtlCaptureStackBackTrace(1, kBigChildListFrames, callers, nullptr);
+    }
 
     AcquireSRWLockExclusive(&g_markLock);
-    if (bigChildList && !g_bigChildList.count++) {
-        strcpy_s(g_bigChildList.element, description);
-        g_bigChildList.marks = marks;
-        g_bigChildList.frames = frames;
-        memcpy(g_bigChildList.callers, callers, frames * sizeof callers[0]);
-    }
     InvalidationKind& stats = g_invalidationKinds[std::min<int>(kindByte, kInvalidationKinds - 1)];
     stats.calls++;
     stats.marks += marks;
     stats.maxMarks = std::max(stats.maxMarks, marks);
-    for (int probe = 0; probe < kInvalidatedElements; ++probe, slot = (slot + 1) & (kInvalidatedElements - 1)) {
-        InvalidatedElement& entry = g_invalidatedElements[slot];
-        if (!entry.calls) {
-            strcpy_s(entry.element, description);
-            entry.kind = kindByte;
-            entry.calls = 1;
-            entry.marks = marks;
+    InvalidatedElement* entry = nullptr;
+    for (;; slot = (slot + 1) & (kInvalidatedElements - 1)) {
+        InvalidatedElement& candidate = g_invalidatedElements[slot];
+        if (candidate.calls && candidate.address == element && candidate.kind == kindByte) {
+            entry = &candidate;
             break;
         }
-        if (entry.kind == kindByte && strcmp(entry.element, description) == 0) {
-            entry.calls++;
-            entry.marks += marks;
-            break;
-        }
+        if (candidate.calls) continue;
+        if (g_invalidatedElementCount >= kMaxInvalidatedElements) break;
+        entry = &candidate;
+        entry->address = element;
+        entry->kind = kindByte;
+        DescribeNode((const BYTE*)element, entry->element, sizeof entry->element);
+        g_invalidatedElementCount++;
+        break;
+    }
+    if (entry) {
+        entry->calls++;
+        entry->marks += marks;
+    } else {
+        g_invalidationsTurnedAway++;
+    }
+    if (bigChildList && !g_bigChildList.count++) {
+        if (entry) strcpy_s(g_bigChildList.element, entry->element);
+        else DescribeNode((const BYTE*)element, g_bigChildList.element, sizeof g_bigChildList.element);
+        g_bigChildList.marks = marks;
+        g_bigChildList.frames = frames;
+        memcpy(g_bigChildList.callers, callers, frames * sizeof callers[0]);
     }
     ReleaseSRWLockExclusive(&g_markLock);
     return result;
@@ -1014,10 +1139,10 @@ static void InstallStyleHooks()
 {
     BYTE* base = (BYTE*)GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
     if (!base) return;
-    auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(base, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[ui] this is not the Cohtml build the style hooks were written for (stamp %08X, image %08X), restyles are not traced",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     if (Fnv1a64(base + kRvaAddChangedNode, 16) != kAddChangedNodeEntryFnv) {
@@ -1061,6 +1186,18 @@ static void InstallStyleHooks()
     BYTE* restyleAllStub = emitJump((void*)&Hook_RestyleAll);
     BYTE* invalidateStub = emitJump((void*)&Hook_Invalidate);
 
+    // The thunk Hook_Invalidate calls the invalidation through, then its unwind data and function table.
+    BYTE* thunk = cave + ((jumps - cave + 15) & ~(size_t)15);
+    memcpy(thunk, kInvalidateThunk, sizeof kInvalidateThunk);
+    BYTE* invalidate = base + kInvalidateCall.target;
+    memcpy(thunk + kInvalidateThunkTargetAt, &invalidate, 8);
+    BYTE* thunkUnwind = thunk + ((sizeof kInvalidateThunk + 3) & ~(size_t)3);
+    memcpy(thunkUnwind, kInvalidateThunkUnwind, sizeof kInvalidateThunkUnwind);
+    auto thunkFunction = (RUNTIME_FUNCTION*)(thunkUnwind + ((sizeof kInvalidateThunkUnwind + 3) & ~(size_t)3));
+    thunkFunction->BeginAddress = (DWORD)(thunk - cave);
+    thunkFunction->EndAddress = (DWORD)(thunk - cave + sizeof kInvalidateThunk);
+    thunkFunction->UnwindData = (DWORD)(thunkUnwind - cave);
+
     DWORD old = 0;
     if (!VirtualProtect(cave, page, PAGE_EXECUTE_READ, &old)) {
         VirtualFree(cave, 0, MEM_RELEASE);
@@ -1072,7 +1209,7 @@ static void InstallStyleHooks()
     g_restyleChanged = (PFN_Restyle)(base + kRvaRestyleChanged);
     g_restyleAll = (PFN_Restyle)(base + kRvaRestyleAll);
     g_collectRestyle = (PFN_CollectRestyle)(base + kRvaCollectRestyle);
-    g_invalidate = (PFN_Invalidate)(base + kInvalidateCall.target);
+    g_invalidate = (PFN_Invalidate)thunk;
 
     struct Patch {
         BYTE* at;
@@ -1098,6 +1235,12 @@ static void InstallStyleHooks()
         }
         patch.rel = (int32_t)rel;
     }
+    if (!RtlAddFunctionTable(thunkFunction, 1, (DWORD64)cave)) {
+        VirtualFree(cave, 0, MEM_RELEASE);
+        Log("[ui] could not register the invalidation thunk's unwind data, restyles are not traced");
+        return;
+    }
+    AddUnwindRange(cave, page, thunkFunction, 1, "probe");
     if (CodePatchingIsLate())
         Log("[ui] WARNING: patching Cohtml's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     int written = 0;
@@ -1145,7 +1288,7 @@ static uint64_t Hook_Advance(void* view, double milliseconds, uint64_t arg3, uin
 static uint64_t Hook_ExecuteWork(void* library, uint64_t type, uint64_t mode, uint64_t family)
 {
     LayoutThread* sampled = type == kLayoutWork ? LayoutThreadForThisThread() : nullptr;
-    if (sampled) sampled->inside.fetch_add(1, std::memory_order_relaxed);
+    if (sampled) sampled->inside.fetch_add(1, std::memory_order_release);
     int64_t started = Qpc();
     uint64_t result = g_origExecuteWork(library, type, mode, family);
     uint64_t us = ElapsedUs(started);
@@ -1291,7 +1434,7 @@ static int AppendClock(char* line, int length, size_t size, const char* title, c
 {
     if (!clock.calls || length <= 0) return length;
     double realMs = (clock.lastQpc - clock.firstQpc) * 1000.0 / g_qpf.QuadPart;
-    return length + _snprintf_s(line + length, size - length, _TRUNCATE,
+    return Append(line, length, size,
         " | %s %u calls, from %.3f to %.3f in %.1f ms real, largest step %.3f, backwards %u",
         title, clock.calls, clock.first, clock.last, realMs, clock.largestStep, clock.backwards);
 }
@@ -1313,9 +1456,9 @@ static int AppendAddress(char* line, int length, size_t size, void* address)
 {
     int moduleIndex = -1;
     FindFunction((uintptr_t)address, moduleIndex);
-    if (moduleIndex < 0) return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %p", address);
+    if (moduleIndex < 0) return Append(line, length, size, " %p", address);
     const UnwindModule& module = g_unwindModules[moduleIndex];
-    return length + _snprintf_s(line + length, size - length, _TRUNCATE, " %s+0x%llX", module.label,
+    return Append(line, length, size, " %s+0x%llX", module.label,
         (unsigned long long)((uintptr_t)address - module.base));
 }
 
@@ -1353,8 +1496,11 @@ static void ReportInvalidations()
         top[at] = entry;
         for (; at > 0 && top[at].marks > top[at - 1].marks; --at) std::swap(top[at], top[at - 1]);
     }
+    uint32_t turnedAway = g_invalidationsTurnedAway;
     memset(g_invalidationKinds, 0, sizeof g_invalidationKinds);
     memset(g_invalidatedElements, 0, sizeof g_invalidatedElements);
+    g_invalidatedElementCount = 0;
+    g_invalidationsTurnedAway = 0;
     ReleaseSRWLockExclusive(&g_markLock);
     ReportBigChildList(big);
     if (!found) return;
@@ -1363,12 +1509,13 @@ static void ReportInvalidations()
     int length = _snprintf_s(line, sizeof line, _TRUNCATE, "[ui] invalidations");
     for (int kind = 0; kind < kInvalidationKinds && length > 0; ++kind) {
         if (!kinds[kind].calls) continue;
-        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | kind %d %u calls, %llu marks, max %u",
+        length = Append(line, length, sizeof line, " | kind %d %u calls, %llu marks, max %u",
             kind, kinds[kind].calls, (unsigned long long)kinds[kind].marks, kinds[kind].maxMarks);
     }
-    if (length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | most marks");
+    if (turnedAway) length = Append(line, length, sizeof line, " | %u calls on elements past the %d kept", turnedAway, kMaxInvalidatedElements);
+    length = Append(line, length, sizeof line, " | most marks");
     for (int i = 0; i < found && length > 0; ++i) {
-        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, "%s %s kind %u %u calls %llu marks",
+        length = Append(line, length, sizeof line, "%s %s kind %u %u calls %llu marks",
             i ? ";" : "", top[i].element, top[i].kind, top[i].calls, (unsigned long long)top[i].marks);
     }
     Log("%s", line);
@@ -1407,17 +1554,17 @@ void UiProbeTick()
         const ViewStats& stats = second.views[i];
         if (!stats.advances) continue;
         advanced = true;
-        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | view #%d %ux%u %u advances, %.1f ms, max %.1f ms",
+        length = Append(line, length, sizeof line, " | view #%d %ux%u %u advances, %.1f ms, max %.1f ms",
             stats.number, stats.width, stats.height, stats.advances, stats.us / 1000.0, stats.maxUs / 1000.0);
     }
     static const char* kWorkNames[kWorkTypes] = { "resource", "layout", "other" };
     for (int t = 0; t < kWorkTypes && length > 0; ++t) {
         if (!second.workCalls[t]) continue;
-        length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | %s work %u, %.1f ms, on the render thread %.1f ms, max %.1f ms",
+        length = Append(line, length, sizeof line, " | %s work %u, %.1f ms, on the render thread %.1f ms, max %.1f ms",
             kWorkNames[t], second.workCalls[t], second.workUs[t] / 1000.0, second.workRenderUs[t] / 1000.0, second.workMaxUs[t] / 1000.0);
     }
     uint32_t moved = ResponsiveUiTakeMovedWork();
-    if (moved && length > 0) length += _snprintf_s(line + length, sizeof line - length, _TRUNCATE, " | resource work moved off the render thread %u", moved);
+    if (moved) length = Append(line, length, sizeof line, " | resource work moved off the render thread %u", moved);
     length = AppendClock(line, length, sizeof line, "post clock", second.postClock);
     AppendClock(line, length, sizeof line, "main view clock", second.advanceClock);
     if (advanced || second.endFrames) Log("%s", line);
