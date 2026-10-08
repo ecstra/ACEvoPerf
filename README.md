@@ -56,6 +56,8 @@ For the sharpest textures, set texture quality to Ultra in the game's graphics s
 
 After a game update, copy the files in again. If you changed `acevo_perf.ini`, keep your copy when Windows asks about it.
 
+If you update from 0.3 and keep your own `acevo_perf.ini`, delete its `enable_pso_cache` line. It caused glass looking fences, glowing cars and missing headlights.
+
 ## Uninstall
 
 1. Close the game.
@@ -69,6 +71,19 @@ Everything is in `acevo_perf.ini` in the game folder, one line per setting with 
 ## Problems
 
 If the game won't start or runs worse with the mod, uninstall it. To report a problem, post on the [Overtake page](https://www.overtake.gg/downloads/acevoperf.86467/) or [open an issue](https://github.com/ecstra/ACEvoPerf/issues), and attach `acevo_perf.log` from the game folder.
+
+## Known issues
+
+- Custom tracks are not supported yet. Joining a session with custom track mods installed may crash.
+
+## Game issues
+
+These are the game's own and happen without the mod too.
+
+- With DLSS on, the picture can slide slightly left and right while the camera moves, more in VR.
+- Returning to the pits or restarting a session freezes for about a second.
+- Grass and trees pop in at set distances.
+- The heaviest menu pages can still hitch for a moment as they open.
 
 ## How it works
 
