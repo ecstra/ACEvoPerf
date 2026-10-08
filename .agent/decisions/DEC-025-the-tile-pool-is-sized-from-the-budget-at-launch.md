@@ -17,7 +17,10 @@ with `QueryVideoMemoryInfo` off the game's own DXGI factory before its device ex
 display's mode. The pool is the budget less a reserve for everything else, 4200 MB at 1920 by 1080
 plus 150 bytes for every pixel above that, rounded down to 64 MB, at most 6144 MB and never less than
 the table by dedicated memory the mod used up to 0.3.2. When Windows cannot say, the budget is taken as
-87 percent of dedicated memory, the reference card's share, 5226 of the 5994 MB it reports. Taken on 2026-10-08 on the owner's word for all
+87 percent of dedicated memory, the reference card's share, 5226 of the 5994 MB it reports. A budget
+above the dedicated memory is cut back to it, since a discrete card is never granted more than its own
+and an integrated GPU is granted the PC's shared memory, which sized a 6 GB pool on a Radeon with
+496 MB the same day (BUG-040, BUG-034). Taken on 2026-10-08 on the owner's word for all
 cards, shipped in 0.4 marked experimental in the changelog.
 
 The reserve comes from the one measured card, the 6 GB reference laptop at 1080p, where Windows granted

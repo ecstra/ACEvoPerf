@@ -66,3 +66,19 @@ quit.
 
 The cards this is for are not verified here. A log from a 12 GB or bigger card, its auto sizes line and
 its `[streamer]` loads turned away for space, is what settles it.
+
+### An integrated GPU took a 6 GB pool, 2026-10-08
+
+The same day the owner ran the game on the laptop's AMD integrated GPU with the discrete card switched
+off, `logs/igpu-detour-20261008`. The log read `'AMD Radeon(TM) Graphics' has 496 MB dedicated, 15814
+MB granted by Windows ... -> tile pool 6144 MB`. Windows grants an integrated GPU the PC's shared memory
+as its own, so the rule above sized a 6 GB pool out of the memory the game itself runs in, which on a
+16 GB machine or a handheld could starve the game. Fixed on `fix/integrated-gpu-pool` by cutting a
+budget above the dedicated memory back to it, since a discrete card is never granted more than its own,
+so an integrated GPU gets the old table's 256 MB again and a discrete card is untouched.
+
+The same launch also drew the scene in a 1443 by 812 corner of a 1920 by 1080 screen with ghosted
+edges, the game's own fault and not the mod's. DLSS stayed selected in the settings, NGX reported
+`not available on this hardware/platform`, and the game rendered at DLSS's input size with its jitter
+on and nothing to scale or resolve it, while its own settings still said DLSS was available. Setting
+the upscaler to FSR or off is the way out on an integrated GPU.
