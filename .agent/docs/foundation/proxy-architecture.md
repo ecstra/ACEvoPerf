@@ -139,8 +139,9 @@ string. Every header includes it, every source includes its own header first.
   them. `TextureWritesOnSwapChain` resolves the DirectStorage cores' module ranges so the hook
   itself never takes the loader lock, and `TextureWritesTick` retries that while either is
   missing and writes the `[writes]` line.
-- `render/adapter`: `AutoTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
-  memory, `ResolveAutoSizes` applies them once,
+- `render/adapter`: `TableTilePoolMb` and `AutoStagingMb` hold the size rules by dedicated
+  memory, `BudgetTilePoolMb` the experimental tile rule by budget and screen, `ResolveAutoSizes`
+  applies them once,
   `ResolveAutoSizesFallback` does the same off its own factory when no game factory arrives,
   `CheckAutoSizeAdapter` checks the adapter they came from against the one the game renders on,
   `LogDisplayOwner` compares the monitor's adapter with the D3D12 device's adapter LUID.

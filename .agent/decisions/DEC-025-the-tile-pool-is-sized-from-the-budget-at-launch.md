@@ -3,11 +3,11 @@ name: DEC-025-the-tile-pool-is-sized-from-the-budget-at-launch
 kind: decision
 description: the auto tile pool is sized at every launch from the video memory Windows grants the game and the display's pixel count, less a reserve measured on the 6 GB card, up to the game's own 6144 MB and never below the old table, marked experimental, rather than a table by dedicated memory or a pool that changes size during play
 updated: 2026-10-08
-links: [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, engine-flags]
+links: [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, engine-flags, DEC-027-the-tile-pool-goes-back-to-the-table-and-the-budget-rule-is-experimental]
 date: 2026-10-08
 area: streaming
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-027-the-tile-pool-goes-back-to-the-table-and-the-budget-rule-is-experimental
 ---
 
 ## Decision
