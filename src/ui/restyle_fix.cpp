@@ -24,7 +24,8 @@
 // state change can only reach a following sibling through such a rule, so the stub below skips the
 // sibling walk for state changes and keeps it for classes, attributes and ids, which the leaderboard
 // rule needs. The kind is the saved rbp of the only caller (0x37BC60 keeps it in ebp), at [rbp+0x30]
-// in 0x37B690's frame.
+// in 0x37B690's frame. With the UI probe on, its Hook_Invalidate is the caller instead, and the kind
+// survives only while that function leaves rbp alone before its call, which its comment guards.
 
 static const DWORD kGameTimeDateStamp = 0x6A9EC72A;
 static const DWORD kGameSizeOfImage = 0x06CDD000;

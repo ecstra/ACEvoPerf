@@ -909,6 +909,12 @@ static uint32_t ReadListCount(const BYTE* list)
 }
 
 // Counts the nodes one invalidation marked, by kind and by the element it started from.
+//
+// This hook stands where 0x37BC60 called 0x37B690, and the restyle fix's stub inside 0x37B690 reads the kind
+// from its caller's saved rbp, which 0x37BC60 keeps the kind in. It holds here only because the compiler
+// leaves rbp alone before the call below, so nothing may be added ahead of that call that could make it use
+// rbp. With the probe on, a state change would otherwise take the sibling walk again, and a class change
+// whose stale rbp reads 5 would skip it (`sweep/review-ui-fixes` F-06).
 static uint64_t Hook_Invalidate(void* element, uint64_t kind, void* first, void* second)
 {
     uint32_t marksBefore = t_marks;
