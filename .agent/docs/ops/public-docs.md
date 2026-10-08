@@ -63,8 +63,8 @@ that is fixed.
 
 ## CHANGELOG.md
 
-- The top section is always the next version, `## 0.3.2 (unreleased)` while `v0.3.1` is the last
-  tag, never a bare `Unreleased`.
+- The top section is the next version, `## 0.3.2 (unreleased)` while `v0.3.1` is the last tag, or
+  `## Next (unreleased)` while the owner has not named it yet, never a bare `Unreleased`.
 - A version's sections are Fixed, Added, Changed, Known issues and Game issues, in that order, each only
   when it has entries. Known issues are the mod's own. Game issues are what players see that the game
   does without the mod too, said plainly as the game's under one line that says so, set by the owner on
@@ -84,11 +84,12 @@ since without it the game will not start, and the update advice says to keep a c
 
 ## Versions
 
-The version after the last tag is the next patch number unless the owner names another. Right after
-a release is tagged, open the next version's changelog section and bump `ACEVO_PERF_VERSION` in
-`include/acevo/common.h` and the four version fields in `src/version.rc` in one commit, so a build of
-main reports the version it will ship as. Cutting the release swaps `(unreleased)` for the date, the
-steps are in [build-and-release](build-and-release.md).
+The next version is the owner's to name, and nothing is bumped before that (DEC-026). Once it is named,
+open its changelog section and bump `ACEVO_PERF_VERSION` in `include/acevo/common.h` and the four
+version fields in `src/version.rc` in one commit. Until then a user visible change still gets its
+changelog line, under a `## Next (unreleased)` heading that takes the version's number when it is named.
+Cutting the release swaps `(unreleased)` for the date, the steps are in
+[build-and-release](build-and-release.md).
 
 ## Before and after, 2026-09-15
 

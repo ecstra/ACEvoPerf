@@ -559,7 +559,7 @@ Defects go to `.agent/bugs/`, work goes to `.agent/todos/`, one file each per th
 
 ## 9. Code Review
 
-**Reviewed code merges into the open version branch, `0.4` today, and main holds the released code only (DEC-021). The full protocol lives in `.agent/house-rules.md`, these are the hard lines.**
+**Reviewed code merges into main on the owner's word, and no version branch is open until the owner names the next version (DEC-026). The full protocol lives in `.agent/house-rules.md`, these are the hard lines.**
 
 1. **One branch, one intent** (`feat/`, `fix/`, `sweep/`), sized by intent, never by commit count. A second intent born mid branch forks its own branch immediately. Sweeps group small work by surface and never carry a breaking change.
 2. **Gates first, then review, then PR, then merge.** No step skips, and no PR exists before the branch's review has closed.
