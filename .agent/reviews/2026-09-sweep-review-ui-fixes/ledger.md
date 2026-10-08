@@ -237,8 +237,8 @@ responsive UI is tuned on rides on this.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `InstallResponsiveUi` now says the regions that end where another patch starts and that a widened region or a reorder makes a fix refuse as if Cohtml were another build. Checked against the region tables, the child removal fix's regions skip 0x3EDA76 entirely, so its hash never sees the style match patch in either order, and the restyle fix's region stops short of the probe's site.
 
 `src/ui/style_match_fix.cpp:207`. style_match patches 0x3EDA76 while child_removal hashes
 0x3EDA50..0x3EDA76 and 0x3ED9D0..0x3EDAF9, and restyle hashes 0x37BC60..0x37BD11 while ui_probe

@@ -547,6 +547,11 @@ static void OnLibrary(void* library)
 void InstallResponsiveUi()
 {
     if (!g_cfg.responsiveUi) return;
+    // These fixes and the UI probe, installed after them from dllmain, patch close together. Each hashes its
+    // regions before it writes, and some regions end exactly where another patch starts: the child removal
+    // fix's tag check stops at 0x3EDA76 where the style match fix patches, and the restyle fix's caller
+    // region stops at 0x37BD11 where the probe patches. A region widened by a byte, or an order that puts a
+    // patch inside a region hashed after it, makes a fix refuse as if Cohtml were a different build.
     InstallRestyleFix();
     InstallMenuRefreshFix();
     InstallStyleMatchFix();
