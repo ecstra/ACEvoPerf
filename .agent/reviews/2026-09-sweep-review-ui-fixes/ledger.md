@@ -180,8 +180,8 @@ exist, so it never reached this ledger until batch 1's hunter found it. That poi
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Any failed write now logs that the fix is off and returns, and the success line prints only when all eight are in. Hooks written before the failure only fill the table, which the comment says.
 
 `src/ui/child_removal_fix.cpp:481`. `patches[7]` is the only hook that changes behaviour, indices 0 to
 6 only feed the feature set table. If `WriteCode` fails for index 7 the code takes `continue`, falls

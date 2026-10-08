@@ -483,21 +483,17 @@ void InstallChildRemovalFix()
     g_classAttributeAtom = (const void* const*)(cohtml + kRvaClassAttributeAtom);
 
     // The feature sets are followed from their construction before any removal looks them up, and the
-    // process is still single threaded, so no set is built half seen.
-    size_t written = 0;
+    // process is still single threaded, so no set is built half seen. The removal goes in last and is the
+    // only patch that changes what Cohtml does, so any failed write leaves the removal to Cohtml. Hooks
+    // already written then fill a table nothing reads, which costs a little and changes nothing.
     for (size_t i = 0; i < patchCount; ++i) {
-        if (!WriteCode(cohtml + patches[i].rva, patches[i].code, patches[i].length)) {
-            Log("[children] could not patch Cohtml at rva 0x%06X", (unsigned)patches[i].rva);
-            if (i <= constructorCount) {
-                Log("[children] the style scopes cannot all be followed, the removal is left to Cohtml");
-                return;
-            }
-            continue;
-        }
-        written++;
+        if (WriteCode(cohtml + patches[i].rva, patches[i].code, patches[i].length)) continue;
+        Log("[children] could not patch Cohtml at rva 0x%06X, the child removal fix is off and the removal is left to Cohtml",
+            (unsigned)patches[i].rva);
+        return;
     }
-    Log("[children] child removal fix on at %zu of %zu places, removing a child restyles only the children whose rules look at their position",
-        written, patchCount);
+    Log("[children] child removal fix on at all %zu places, removing a child restyles only the children whose rules look at their position",
+        patchCount);
 }
 
 ChildRemovalCounts ChildRemovalFixTakeCounts()
