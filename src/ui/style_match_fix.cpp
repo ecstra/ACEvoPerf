@@ -117,7 +117,7 @@ static const BYTE kLoneTagStub[] = {
 };
 
 // Replaces mov rbx, rsi / mov dword ptr [rbp+0xB70], 1 at the head of each state rule loop. rdi is the
-// compound, 72 bytes with its first simple selector in place, r14 the element.
+// compound with its first simple selector in place, its type at +0 and its value at +8, and r14 the element.
 static const BYTE kStateLoopStub[] = {
     /*00*/ 0x0F, 0xB6, 0x07,                               // movzx eax, byte ptr [rdi]
     /*03*/ 0x3C, 0x01,                                     // cmp al, 1

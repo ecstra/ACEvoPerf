@@ -253,8 +253,8 @@ deliberate arrangement that reads as a coincidence.
 - severity: nit
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The comment no longer gives a size. The stub reads only +0 and +8, so the size never mattered there, and the 0x40 stride agrees with the child removal fix's own offsets, a first simple selector of 0x30 bytes, the simples pointer at +0x30 and its count at +0x38, then the compound array right after the inline compound at +0x40. In the state loops the 72 bytes was most likely the loop's entry, a compound and one more field.
 
 `src/ui/style_match_fix.cpp:119` calls rdi "the compound, 72 bytes with its first simple selector in
 place", while `src/ui/child_removal_fix.cpp:83` walks the compound array with `(index - 1) * 0x40`.
