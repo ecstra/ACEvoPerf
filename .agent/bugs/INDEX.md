@@ -12,6 +12,7 @@ links: [agent-index, spec-bugs]
 
 bug
 
+- [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up see video memory use and GPU load drop and sometimes a hang, cured by raising the mod's pool, because the auto sizes give them 2048 or 3072 MB of tiles against the game's own 6144 MB at Ultra
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
 - [BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse](BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse.md), the scene comes up mushy and sharpens in several visible stages rather than in one go, and a session restart from mid lap makes the staircase worse or slower than the same scene loaded fresh
 - [BUG-035-the-writing-on-the-ground-is-pixelated](BUG-035-the-writing-on-the-ground-is-pixelated.md), the painted and chalked writing on the track surface is blocky up close while the tarmac under it is sharp, so the layer carrying the writing sits at a lower detail level than the surface it is on

@@ -43,6 +43,10 @@ engine-flags
 
 - [TODO-016-run-the-four-untouched-in-game-engine-flags](TODO-016-run-the-four-untouched-in-game-engine-flags.md), `no_gi`, `log_pso_on_creation`, `ai_run_dynamic_track` and `car_update_complete_max_interval` reachable from the ini today with no build, measured from a fixed stationary view
 
+foundation
+
+- [TODO-032-adapt-the-mod-to-game-version-0-10](TODO-032-adapt-the-mod-to-game-version-0-10.md), when 0.10 and its free roam arrive, read every patch again against the new build, since each stands down on a build it does not know, and take out any UI fix the developers' own work made redundant
+
 ## Done
 
 - render: 3 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean. TODO-025, the HUD schedule test, the UI view rotation is about 30 percent of BUG-009's gap at the Red Bull Ring GP and the HUD every frame removes it. TODO-028, no refresh hold on this laptop even at 60 Hz)
