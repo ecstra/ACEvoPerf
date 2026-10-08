@@ -259,6 +259,21 @@ static uint64_t Hook_AddRuleFeatures(void* set, const BYTE* rule, void* arg3)
     return g_addRuleFeatures(set, rule, arg3);
 }
 
+// The document's map from style scope to feature set is a Robin Hood table with Fibonacci hashing, the
+// layout of ska::flat_hash_map. Each entry is 0x18 bytes, its distance from its home slot as a signed byte
+// (negative when empty), the scope and the set. A lookup starts at the scope's home slot and stops once an
+// entry sits closer to its own home than the walk has come, since the scope would have displaced it.
+namespace document {
+    static const ptrdiff_t kStyles = 0x248;         // the document's styler
+    static const ptrdiff_t kScopeEntries = 0x288;
+    static const ptrdiff_t kSlotsMinusOne = 0x290;
+    static const ptrdiff_t kHashShift = 0x298;      // 64 less the log2 of the slot count
+    static const ptrdiff_t kMaxLookups = 0x299;     // the end entry sits this far past the last slot
+}
+static const ptrdiff_t kStylerHasScopes = 0x1A0;    // zero when no rule is scoped, the path without a lookup
+static const size_t kScopeEntrySize = 0x18;
+static const uint64_t kFibonacci = 0x9E3779B97F4A7C15ull;
+
 // The lookup 0x37BC60 makes before it invalidates, the feature set of the element's style scope. Null where
 // Cohtml takes the path without it, and for an element outside a document or one being torn down, which
 // then takes Cohtml's own invalidation. The hook runs on every removal in the process, teardown included, and
@@ -266,21 +281,23 @@ static uint64_t Hook_AddRuleFeatures(void* set, const BYTE* rule, void* arg3)
 static const BYTE* FeatureSetOf(const BYTE* element)
 {
     __try {
-        const BYTE* document = *(const BYTE* const*)(element + node::kDocument);
-        if (!document) return nullptr;
-        const BYTE* styles = *(const BYTE* const*)(document + 0x248);
-        if (!styles || !styles[0x1A0]) return nullptr;
+        const BYTE* doc = *(const BYTE* const*)(element + node::kDocument);
+        if (!doc) return nullptr;
+        const BYTE* styles = *(const BYTE* const*)(doc + document::kStyles);
+        if (!styles || !styles[kStylerHasScopes]) return nullptr;
 
         uint64_t scope = *(const uint64_t*)(element + node::kStyleScope);
-        const BYTE* buckets = *(const BYTE* const*)(document + 0x288);
-        if (!buckets) return nullptr;
-        BYTE shift = document[0x298] & 63;
-        const BYTE* entry = buckets + ((scope * 0x9E3779B97F4A7C15ull) >> shift) * 0x18;
-        for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += 0x18) {
+        const BYTE* entries = *(const BYTE* const*)(doc + document::kScopeEntries);
+        if (!entries) return nullptr;
+        BYTE shift = doc[document::kHashShift] & 63;
+        const BYTE* entry = entries + ((scope * kFibonacci) >> shift) * kScopeEntrySize;
+        for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += kScopeEntrySize) {
             if (*(const uint64_t*)(entry + 8) == scope) return *(const BYTE* const*)(entry + 0x10);
         }
-        int64_t last = *(const int64_t*)(document + 0x290) + (int8_t)document[0x299];
-        return *(const BYTE* const*)(buckets + last * 0x18 + 0x10);
+        // Not found reads the end entry's set, as 0x37BC60 does, and a set this file never saw built takes
+        // Cohtml's own invalidation.
+        int64_t end = *(const int64_t*)(doc + document::kSlotsMinusOne) + (int8_t)doc[document::kMaxLookups];
+        return *(const BYTE* const*)(entries + end * kScopeEntrySize + 0x10);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return nullptr;
     }

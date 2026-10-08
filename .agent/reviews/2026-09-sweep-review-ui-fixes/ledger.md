@@ -271,8 +271,8 @@ it.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The offsets live in `namespace document` beside the others, and the comment names the table, a Robin Hood map with Fibonacci hashing laid out as ska::flat_hash_map, why the walk stops on the distance byte, and what the not found read returns.
 
 `src/ui/child_removal_fix.cpp:261`. This file puts every structure offset into `namespace node` and
 `namespace selector` with a comment each, and documents every RVA in its header block. Then
