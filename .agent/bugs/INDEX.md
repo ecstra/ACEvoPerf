@@ -12,7 +12,6 @@ links: [agent-index, spec-bugs]
 
 bug
 
-- [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up see video memory use and GPU load drop and sometimes a hang, cured by raising the mod's pool, because the auto sizes give them 2048 or 3072 MB of tiles against the game's own 6144 MB at Ultra
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
 - [BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse](BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse.md), the scene comes up mushy and sharpens in several visible stages rather than in one go, and a session restart from mid lap makes the staircase worse or slower than the same scene loaded fresh
 - [BUG-035-the-writing-on-the-ground-is-pixelated](BUG-035-the-writing-on-the-ground-is-pixelated.md), the painted and chalked writing on the track surface is blocky up close while the tarmac under it is sharp, so the layer carrying the writing sits at a lower detail level than the surface it is on
@@ -44,6 +43,7 @@ nit
 
 ## Fixed
 
+- [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up saw video memory use and GPU load drop and sometimes a hang, because the auto sizes gave them 2048 or 3072 MB of tiles against the game's own 6144 MB, fixed by sizing the pool at launch from the memory Windows grants and the display's size (DEC-025), experimental, verified only on the 6 GB card so far
 - [BUG-039-the-pso-cache-draws-some-materials-wrong](BUG-039-the-pso-cache-draws-some-materials-wrong.md), with `enable_pso_cache` on, which the mod turned on and the game ships off, fences drew as glass, cars glowed, trees went unlit or white at night, a car's main beam vanished and pit rails flashed, cured in every report by the flag off, fixed by leaving the flag out of the shipped ini (DEC-024), the cache measured at 4 to 5 s per load and nothing while driving
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night with `enable_pso_cache` on, one symptom of BUG-039 and fixed with it
 - [BUG-038-fences-look-like-glass-in-sunlight](BUG-038-fences-look-like-glass-in-sunlight.md), the catch fences drawn as glass in sunlight, seen by players on a 4090 and a 4060 and once on the owner's machine, one symptom of BUG-039 and fixed with it

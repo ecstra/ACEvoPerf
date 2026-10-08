@@ -3,9 +3,9 @@ name: BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use
 kind: bug
 description: players on cards of 12 GB and more see their video memory use and GPU load drop with the mod and the game sometimes hang, cured by raising the mod's texture pool, because the auto sizes give such a card 2048 or 3072 MB of tiles against the 6144 MB the game's own Ultra pool would take, brackets extrapolated from the 6 GB card that keep its tight margin on every bigger one
 updated: 2026-10-08
-links: [DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, reported-working-configurations]
+links: [DEC-025-the-tile-pool-is-sized-from-the-budget-at-launch, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, reported-working-configurations]
 area: streaming
-status: open
+status: fixed
 severity: bug
 reported: 2026-10-08
 parent:
@@ -16,7 +16,8 @@ parent:
 Players with 12 GB cards and larger, the top of the range, see video memory use and GPU load drop with
 the mod in. Raising the mod's video memory figure in `acevo_perf.ini` cures it. Some also have the game
 hang and stop, and raising the same figure helps there too. Passed on by the owner on 2026-10-08 from
-several players. Which setting they raised and to what is not recorded yet.
+several players. The one figure on record is a 10 GB RTX 3080 given 5 GB by hand on the owner's
+suggestion, with no report after it.
 
 ## Evidence
 
@@ -49,8 +50,19 @@ play on one.
 
 ## Fix
 
-Absent.
+`b8274e7`, 2026-10-08, on `fix/big-card-texture-pool` (DEC-025). The auto pool is sized at every launch
+from the video memory Windows grants the game, read off its own DXGI factory before its device exists,
+less a reserve of 4200 MB at 1080p that grows with the primary display's pixel count, up to the game's
+own 6144 MB and never below the old table. A 12 GB card at 1440p gets about 5.9 GB where it had 2048 MB,
+and a 16 GB card 6144 MB where it had 3072. Marked experimental in the changelog, with a fixed
+`tile_pool_mb` as the way back.
 
 ## Verification
 
-Absent.
+On the reference machine, `logs/big-card-pool-20261008`: the log read `5994 MB dedicated, 5226 MB
+granted by Windows, display 1920x1080 -> tile pool 1024 MB`, so the budget is readable that early and the
+6 GB card keeps its size, and the game logged `[Tile Pool] sized to 1024 MB (16384 tiles)` with a clean
+quit.
+
+The cards this is for are not verified here. A log from a 12 GB or bigger card, its auto sizes line and
+its `[streamer]` loads turned away for space, is what settles it.
