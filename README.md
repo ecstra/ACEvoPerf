@@ -39,7 +39,6 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - NVIDIA Reflex
 - Higher CPU and GPU priority
 - A newer DirectStorage
-- The game's shader cache, for fewer stutters
 
 What changed in each version is in the [changelog](CHANGELOG.md).
 
