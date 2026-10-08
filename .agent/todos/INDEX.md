@@ -34,10 +34,6 @@ tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames
 
-stability
-
-- [TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track](TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, to reproduce by loading a custom track, the likeliest lead the mod's smaller loading buffer failing a bigger request, which the player's finding that `[dxgi] enabled=0` cures it on 0.3.2 points at
-
 engine-flags
 
 - [TODO-016-run-the-four-untouched-in-game-engine-flags](TODO-016-run-the-four-untouched-in-game-engine-flags.md), `no_gi`, `log_pso_on_creation`, `ai_run_dynamic_track` and `car_update_complete_max_interval` reachable from the ini today with no build, measured from a fixed stationary view
@@ -53,6 +49,6 @@ engine-flags
 
 ## Dropped
 
-- stability: 1 (TODO-003, the crashes stopped with the staging cap)
+- stability: 2 (TODO-003, the crashes stopped with the staging cap. TODO-030, a player's crash joining a session with custom tracks installed, dropped with no custom track to test and custom tracks called not supported for now)
 - ui: 1 (TODO-011, the UI script overhaul, one round tried and closed on the owner's word)
 - engine-flags: 1 (TODO-012, the hidden Free Roam mode unlocked and driven for an afternoon, dropped because the package stops at the complex, DEC-011)
