@@ -451,7 +451,7 @@ void InstallChildRemovalFix()
         size_t length;
     };
     const size_t constructorCount = sizeof kConstructorCalls / sizeof kConstructorCalls[0];
-    Patch patches[8] = {};
+    Patch patches[constructorCount + 2] = {};     // the constructors, the rule add and the removal
     size_t patchCount = 0;
     bool reachable = true;
     for (uint32_t site : kConstructorCalls) {

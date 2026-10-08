@@ -147,8 +147,8 @@ UI freezes.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The array is sized from the constructor list plus the rule add and the removal, so a new site grows it.
 
 `src/ui/child_removal_fix.cpp:444`. `constructorCount` is computed at line 443 from
 `kConstructorCalls`, then line 444 declares the array and lines 448, 453 and 458 fill it with
