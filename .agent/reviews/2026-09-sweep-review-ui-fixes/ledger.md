@@ -71,8 +71,8 @@ way, and evidence for `sweep/review-ui-probe` F-05, which went to that ledger.
 - severity: nit
 - found-by: hunter
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. One 64 bit atomic holds the narrowed removals in its high half and their marks in the low, added and swapped in one step.
 
 `src/ui/child_removal_fix.cpp:357` and `:496`, printed at `src/ui/ui_probe.cpp:1429`. A removal adds to
 `g_narrowed` and then to `g_marked`, and the timeline thread's `ChildRemovalFixTakeCounts` can swap all

@@ -132,7 +132,10 @@ static PFN_NodeCall g_markNode = nullptr;
 static void* g_customNameGetter = nullptr;
 static const void* const* g_classAttributeAtom = nullptr;
 
-static std::atomic<uint32_t> g_narrowed{0}, g_marked{0}, g_full{0};
+// The narrowed removals in the high half and the children they marked in the low, added in one step so
+// the probe never takes a removal in one second and its marks in the next.
+static std::atomic<uint64_t> g_narrowedAndMarked{0};
+static std::atomic<uint32_t> g_full{0};
 
 static bool IsCustomType(BYTE type)
 {
@@ -354,8 +357,7 @@ static bool MarkChildrenThatLookAtPosition(const BYTE* parent)
     ReleaseSRWLockShared(&g_featureSetsLock);
 
     if (!narrowed) return false;
-    g_narrowed.fetch_add(1, std::memory_order_relaxed);
-    g_marked.fetch_add(marked, std::memory_order_relaxed);
+    g_narrowedAndMarked.fetch_add((1ull << 32) | marked, std::memory_order_relaxed);
     return true;
 }
 
@@ -492,9 +494,10 @@ void InstallChildRemovalFix()
 
 ChildRemovalCounts ChildRemovalFixTakeCounts()
 {
+    uint64_t narrowedAndMarked = g_narrowedAndMarked.exchange(0, std::memory_order_relaxed);
     ChildRemovalCounts counts;
-    counts.narrowed = g_narrowed.exchange(0, std::memory_order_relaxed);
-    counts.marked = g_marked.exchange(0, std::memory_order_relaxed);
+    counts.narrowed = (uint32_t)(narrowedAndMarked >> 32);
+    counts.marked = (uint32_t)narrowedAndMarked;
     counts.full = g_full.exchange(0, std::memory_order_relaxed);
     return counts;
 }
