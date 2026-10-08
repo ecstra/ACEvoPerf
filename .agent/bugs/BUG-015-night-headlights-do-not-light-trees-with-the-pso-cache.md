@@ -2,7 +2,7 @@
 name: BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache
 kind: bug
 description: two users on the Overtake listing report that at night the car's own headlights do not light trees at the Nurburgring and light nothing at Oulton Park, and that enable_pso_cache=false cures it, a default the mod turned off for a while and turned back on at the owner's word on 2026-09-15
-updated: 2026-09-15
+updated: 2026-10-08
 links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release]
 area: render
 status: wontfix
@@ -11,7 +11,7 @@ reported: 2026-09-11
 parent:
 ---
 
-## Symptom
+## Problem
 
 Reported on the mod's Overtake listing on 2026-09-10 and 2026-09-11 by two users, both
 reviewing 0.3.1:
@@ -26,7 +26,9 @@ reviewing 0.3.1:
 Neither user posted a log. The reports are independent, one names the cause, and the named
 flag is one the mod turns on and the release build ships off.
 
-## Evidence on the reference machine
+## Evidence
+
+### On the reference machine
 
 The owner's own game log of 2026-09-11 (`log-260911-184948.txt`), mod 0.3.1 installed with
 `enable_pso_cache=true`, game 0.9.1+release.6:
@@ -58,7 +60,7 @@ that morning.
 The cache lives outside the game folder, so it survives a game update, a mod update and a mod
 uninstall. Nothing in the game log says it is versioned against the build.
 
-## Reading
+### Reading
 
 The engine asks the cache for a batch of pipeline state objects, some never answer, and the
 engine re-enables those requests and compiles them itself. It is a recovery path, so the
@@ -77,7 +79,7 @@ is the mod's only default that fixes nothing. It buys shader compile stalls back
 runs. That is a cosmetic convenience standing against a broken night scene for an unknown
 share of users.
 
-## Reproduce
+### Reproduce
 
 1. Install 0.3.1 with the shipped ini, `enable_pso_cache=true`, and keep the
    `pipeline.library` the game has already built.
@@ -115,7 +117,7 @@ Overtake are the ones who can actually close this.
 Still to say when it ships, because the mod cannot reach the file: anyone who saw this should
 delete `Saved Games\ACE\pipeline.library` once.
 
-## The warnings do not stop with the flag off, 2026-09-12
+### The warnings do not stop with the flag off, 2026-09-12
 
 Three short parked runs the same evening, every one with
 `flag enable_pso_cache = false (bool, was false)` at both passes, and every one still logging the
@@ -148,7 +150,7 @@ Closed as fixed on the owner's word, 2026-09-13: "015 is done." The shipped defa
 trees is still not understood, as the section above says, so a report after the next release from a user
 with the flag off reopens it.
 
-## Won't fix, 2026-09-15
+### Won't fix, 2026-09-15
 
 The owner asked for the cache back on: "enable pso cache back again", saying the lights work with it on.
 `dist/acevo_perf.ini` ships `enable_pso_cache=true` again, the 0.3.1 value, and the unreleased changelog

@@ -2,7 +2,7 @@
 name: BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring
 kind: bug
 description: at the Red Bull Ring textures show blurry for a moment after every camera cut of the pit menu showcase and then sharpen, because a cut forces a streamer pass that loads for the new shot before it drops the old one, often cannot load at all and then waits a full second, the car dropped whole at every cut away and the scenery three passes behind at 1024 MB, a follow up pass the correction to test
-updated: 2026-09-16
+updated: 2026-10-08
 links: [texture-streamer-camera-cuts-2026-09-14, session-leak-census-2026-09-16, TODO-024-a-follow-up-streamer-pass-after-a-camera-cut, DEC-009-pool-and-staging-sizes-by-card, DEC-017-streamer-reload-fix-refuses-the-drop, texture-streamer-flip-2026-09-13, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-010-texture-pool-shrinks-on-race-load-and-restart, TODO-019-tile-upload-dedupe-done-properly]
 status: open
 severity: nit
@@ -132,3 +132,7 @@ cut mechanism with a full pool. A texture loads for one shot, is dropped at the 
 back gets only the levels that fit that pass, so it can settle below its first level until later passes
 find room. Telling that apart from a drop while the camera stays put needs one pit box wait with
 `streaming_trace=1` and the poster's texture found in `tex` rows.
+
+## Verification
+
+Absent.

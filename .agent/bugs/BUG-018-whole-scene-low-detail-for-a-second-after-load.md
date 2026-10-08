@@ -2,7 +2,7 @@
 name: BUG-018-whole-scene-low-detail-for-a-second-after-load
 kind: bug
 description: for one or two seconds after the curtain lifts the whole scene is at low detail, meshes and textures together, at game start and on entering a track, distinct from the approach driven mip band of BUG-001
-updated: 2026-09-14
+updated: 2026-10-08
 links: [directstorage-streaming, telemetry, BUG-001-texture-low-mip-shown-before-streaming, TODO-013-faster-session-loads]
 area: streaming
 status: open
@@ -11,7 +11,7 @@ reported: 2026-09-12
 parent:
 ---
 
-## Symptom
+## Problem
 
 Owner, 2026-09-12: "another bug is loading. The textures are blurry for a second or two on-load."
 Then, correcting a wrong reading of it as BUG-001: "the on-load blur is not 'low mip until you
@@ -22,7 +22,7 @@ So this is the whole scene at once, meshes as well as textures, for a bounded mo
 the scene appears, and it settles on its own. It is not the band of mip that a surface carries at
 a distance while driving, which is BUG-001 and was closed as the engine's behaviour on every card.
 
-## Why it is worth its own file
+### Why it is worth its own file
 
 BUG-001 was about a surface sharpening as you drive towards it, and the evidence there showed the
 streaming path answering in 9 ms bursts with the drive keeping up. This is a different shape: a
@@ -40,7 +40,9 @@ What is not yet known is whether anything the mod owns changes that. Candidates 
 `tile_queue_priority` raised to realtime showed no measurable difference on lap two of 2026-09-05
 (TODO-005), and `texture_tier0` was a regression.
 
-## Measured, 2026-09-12
+## Evidence
+
+### Measured, 2026-09-12
 
 One session with `timeline=1`, `logs/bigscreen-builtin-1541`. The game reports
 `Loading complete ... nurburgring.scene total 16.51 s` and `Curtain loading Off` at 15:37:43.839.
@@ -70,7 +72,7 @@ source type, so the mod cannot feed file source requests from memory (TODO-013).
 VRAM is not the constraint either: 4541 MB of a 5226 MB budget at the curtain, 685 MB spare, and it
 barely moves while the burst runs.
 
-## It is intermittent
+### It is intermittent
 
 Owner, 2026-09-12, after the measurement: "the bug 018 only happens sometimes, not all times."
 
@@ -84,7 +86,7 @@ So "sometimes" is expected behaviour for a residency driven ramp, and it is anot
 trade the staging cap for it, since the worst case is a first load and the common case is already
 invisible.
 
-## Where it stands
+### Where it stands
 
 The one lever left that the mod owns is the staging buffer, capped at 128 MB by
 `staging_buffer_mb`. 600 MB through a 128 MB staging buffer in one second is four fills, and a
@@ -96,8 +98,16 @@ without the owner saying so.
 Worth noting against any expectation of a big win: 600 MB in one second is already close to the
 761 MB/s best ever measured on this machine, so the path is not loafing.
 
-## Done when
+### What closes it
 
 Either the settle time is traced to something the mod can move, and it moves, or it is named as
 the engine showing the scene before its own streaming has finished and closed the way BUG-012 was,
 with the numbers written down.
+
+## Fix
+
+Absent.
+
+## Verification
+
+Absent.

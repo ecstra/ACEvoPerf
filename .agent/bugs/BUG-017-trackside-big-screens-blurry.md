@@ -2,7 +2,7 @@
 name: BUG-017-trackside-big-screens-blurry
 kind: bug
 description: the trackside big screens are visibly blurry because their flipbook ships cooked at half size with only three of twelve mip levels, and the engine picks its mip from the whole 8 by 8 sheet rather than the frame on show, so a coarse mip costs eight times the detail
-updated: 2026-09-14
+updated: 2026-10-08
 links: [content-package, package-override-layer, BUG-001-texture-low-mip-shown-before-streaming]
 area: streaming
 status: fixed
@@ -11,14 +11,14 @@ reported: 2026-09-12
 parent:
 ---
 
-## Symptom
+## Problem
 
 Owner, 2026-09-12, with a screenshot of the Nürburgring GP start line: "the displays within the
 map is blurry, never noticed it till now (its a moving display)". Then, importantly: "there is a
 display in main menu as well. and thats not blurry. The displays on track are blurry and looks
 more like 32x32 not 256x256 or 512x512."
 
-## What it is
+### What it is
 
 The screens are `big_screen.mesh` placed six times by
 `content\tracks\nurburgring\containers\big_screens.scene`. Their picture surface is
@@ -70,7 +70,7 @@ Serve a replacement through the mod's own package override layer with the mip ch
 level, so the engine has nothing coarse to fall back to and must sample the 2048 sheet. That is a
 4x sharpening against the current worst case and it invents nothing: `tools/texture_mips.py`
 writes a payload that is a byte for byte prefix of the shipped one, verified by hash. The cost is
-that the texture stays fully resident, 2 MB.
+that the texture stays fully resident, 2 MB. Committed as `9ffe4a3` on 2026-09-12.
 
 The tool is committed, the asset is not. It is the game's own content, so each machine generates
 it from its own `content.kspkg`.
