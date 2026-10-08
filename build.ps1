@@ -22,11 +22,19 @@ Push-Location "$root\build"
 try {
     & rc.exe /nologo /fo "$root\build\version.res" "$root\src\version.rc"
     if ($LASTEXITCODE -ne 0) { throw "rc.exe failed with $LASTEXITCODE" }
-    $sources = Get-ChildItem "$root\src" -Recurse -Filter *.cpp | ForEach-Object { $_.FullName }
-    & cl.exe /nologo /O2 /W4 /MT /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DNOMINMAX `
+    # Sorted, so the link order and with it the binary do not depend on how the folder enumerates.
+    $sources = Get-ChildItem "$root\src" -Recurse -Filter *.cpp | Sort-Object FullName
+    # Every object lands in build\ under its base name, so two sources sharing one would leave a single
+    # object with no warning and drop the other from the DLL.
+    $clashes = $sources | Group-Object Name | Where-Object Count -gt 1
+    if ($clashes) { throw "sources share a file name and would overwrite each other's object: $(($clashes | ForEach-Object { $_.Group.FullName }) -join ', ')" }
+    $sources = $sources | ForEach-Object { $_.FullName }
+    # /WX holds the gate at zero warnings, /Brepro drops the time stamps so the same source builds the same
+    # bytes, and /PDBALTPATH ships the symbols' file name without the folder it was built in.
+    & cl.exe /nologo /O2 /W4 /WX /Brepro /MT /EHsc /std:c++17 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /DNOMINMAX `
         /I"$root\include" /I"$root\third_party\directstorage" /Fo"$root\build\\" $sources `
         /link /DLL /MACHINE:X64 /DEF:"$root\src\exports.def" /OUT:"$root\dist\dstorage.dll" `
-        /IMPLIB:"$root\build\dstorage_proxy.lib" /PDB:"$root\build\dstorage_proxy.pdb" /DEBUG:FULL /OPT:REF /OPT:ICF `
+        /IMPLIB:"$root\build\dstorage_proxy.lib" /PDB:"$root\build\dstorage_proxy.pdb" /PDBALTPATH:%_PDB% /DEBUG:FULL /Brepro /OPT:REF /OPT:ICF `
         "$root\build\version.res" kernel32.lib user32.lib
     if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
 } finally { Pop-Location }
