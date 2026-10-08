@@ -27,8 +27,9 @@ static int FloorTilePoolMb(uint64_t vramMb)
 // about 600 MB spare beside the meshes, the screen buffers and everything else, so the rest of the game
 // takes 4200 MB at that resolution with that margin in it. The screen buffers grow with the pixel count,
 // put at 150 bytes a pixel across the renderer's targets, an estimate, so a 4K screen asks about 900 MB
-// more. A 10 GB card given 5 GB by hand ran clean, and this rule gives it about 4.5 GB. The pool stops
-// at 6144 MB, the game's own pool at the Ultra texture pool size, since nothing above it is used.
+// more. A 10 GB card given 5 GB by hand brought no report after it, and this rule gives it about 4.5 GB.
+// The pool stops at 6144 MB, the most the game itself allocates, its pool at the Ultra texture pool
+// size, since nothing has run it larger (DEC-025).
 static const uint64_t kReserveMb = 4200;
 static const uint64_t kReservePixels = 1920ull * 1080;
 static const uint64_t kReserveBytesPerPixel = 150;
@@ -147,11 +148,11 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
 
-    // Windows grants the 6 GB reference card 85 percent of its memory, so a budget it cannot report
-    // is taken the same way.
+    // Windows grants the reference card 5226 of the 5994 MB it reports, 87 percent, so a budget it
+    // cannot report is taken the same way.
     const char* budgetFrom = "granted by Windows";
     if (!budgetMb) {
-        budgetMb = vramMb * 85 / 100;
+        budgetMb = vramMb * 87 / 100;
         budgetFrom = "assumed, Windows did not say";
     }
     DWORD width = 1920, height = 1080;
