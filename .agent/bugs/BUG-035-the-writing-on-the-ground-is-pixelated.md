@@ -1,11 +1,11 @@
 ---
 name: BUG-035-the-writing-on-the-ground-is-pixelated
 kind: bug
-description: the painted and chalked writing on the track surface shows blocky and low resolution up close while the tarmac under it is sharp, so whatever carries the writing is at a lower detail level than the surface it sits on
+description: the chalk writing on the Nordschleife's road shows blocky up close because the 1024 MB tile pool of a 6 GB card at Ultra is full there and the game never admits the writing's decals, which sit at their coarsest level, a limit of that card's memory rather than of the art or the mod, eased for bigger cards by the budget sizing of BUG-040
 updated: 2026-10-08
-links: [directstorage-streaming, BUG-007-blurry-road-and-textures, BUG-001-texture-low-mip-shown-before-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles]
+links: [directstorage-streaming, BUG-007-blurry-road-and-textures, BUG-001-texture-low-mip-shown-before-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use, BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse]
 area: streaming
-status: open
+status: wontfix
 severity: bug
 reported: 2026-09-20
 parent:
@@ -45,9 +45,40 @@ against a lower setting, to see whether the game scales it at all.
 Reported from the owner's machine, the RTX 3060 Laptop, with the mod on. Not yet checked with the
 mod off, so whether the mod is involved at all is open.
 
+### The art ships whole, 2026-10-08
+
+The Nordschleife's road decals are their own textures in the package, read with `tools/texture_mips.py`:
+`brunnchen_decal` 2048 by 256 with 12 levels, `brunnchen_decal2` and `3` 256 by 64 with 9,
+`flugplatz_decal1` 512 by 512 with 10, `adenauer_forst_decal1` 256 by 256 with 9. Every one carries its
+full chain, so the package holds the detail.
+
+### The streamer never admits them, 2026-10-08
+
+`logs/writing-steps-20261008`, the owner parked at the chalk writing on the Nordschleife for about twenty
+seconds with `streaming_trace=1`, a 1024 MB pool on the RTX 3060 Laptop at Ultra. The owner's screenshot
+shows the writing blocky beside a sharp road.
+
+- The pool was full on every pass while parked, 16,384 tiles with the admission budget of 13,126 all
+  taken, about 260 textures refused a place, and about 128 loads a pass turned away for space.
+- `graffiti_brunnchen4` and its alpha map were seen by the streamer and never loaded a tile of detail in
+  the whole session, so they stayed at their coarsest level.
+- `graffiti_general_2`, four streamed levels, was loaded whole at 45 s, dropped to its coarsest as not
+  admitted at 70 s, loaded again at 202 s and dropped again at 204 s.
+- The reload fix held about 170 MB of drops the engine wanted to make while parked, 76 refused, but all
+  of it was in view with fresh feedback, the arid ground normal map and the guardrails, so dropping it
+  would only have reloaded it a pass later. It does not stand between the writing and a place.
+
+So the writing is blocky because the game ranks it low in a pool too small for everything in view at the
+Nordschleife at Ultra on a 6 GB card, and nothing of the mod's keeps it out.
+
 ## Fix
 
-Absent.
+Not fixed for the 6 GB card, on the owner's call of 2026-10-08. The 1024 MB pool already leaves about
+600 MB of that card's budget spare, so there is no memory to give, and changing how the engine ranks
+textures for admission means reworking its streamer from the inside. Texture quality one step down eases
+the pressure. Cards of 8 GB and more get two to six times the pool since the budget sizing of BUG-040
+(DEC-025), which should leave room for the writing there. A parked run at `tile_pool_mb=1536` on the 6 GB
+card would confirm the reading directly and was not run.
 
 ## Verification
 
