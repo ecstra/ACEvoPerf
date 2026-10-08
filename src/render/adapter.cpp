@@ -4,16 +4,16 @@
 #include "acevo/core/log.h"
 #include "acevo/engine/flags.h"
 
-// Measured on a 6 GB card: 1024 MB of tiles plus the engine's 1433 MB mesh cap leave about
-// 600 MB of budget with everything else. Each step up keeps that margin on the next card size.
-// The two below it are the same budget worked backwards and were never measured on such a card,
-// so they err small, and 256 is where the engine's own dynamic formula bottoms out.
+// The table the mod shipped with up to 0.3.2, by dedicated memory, kept as a floor so no card gets
+// less than it did. Its steps above 6 GB kept the 6 GB card's thin margin on every bigger card, which
+// left a 12 GB card with a third of the game's own Ultra pool and its players with memory to spare
+// and textures turned away (BUG-040). 256 is where the engine's own dynamic formula bottoms out.
 //
 // Writing nothing on a small card was tried and is worse than any number here. The shipped ini
 // sets force_canonical_pool_sizes at the early pass, long before the card is known, and with
 // that on and tile_pool_mb unwritten the engine takes the whole texturePoolSize define, 1433 MB
 // at Low and 6144 at Ultra (DEC-005, engine-flags). So every card gets a figure.
-int AutoTilePoolMb(uint64_t vramMb)
+static int FloorTilePoolMb(uint64_t vramMb)
 {
     if (vramMb < 3072) return 256;
     if (vramMb < 5120) return 512;
@@ -21,6 +21,25 @@ int AutoTilePoolMb(uint64_t vramMb)
     if (vramMb < 11264) return 1536;
     if (vramMb < 15360) return 2048;
     return 3072;
+}
+
+// Measured on a 6 GB card at 1920 by 1080: Windows granted the game 5226 MB, and a 1024 MB pool left
+// about 600 MB spare beside the meshes, the screen buffers and everything else, so the rest of the game
+// takes 4200 MB at that resolution with that margin in it. The screen buffers grow with the pixel count,
+// put at 150 bytes a pixel across the renderer's targets, an estimate, so a 4K screen asks about 900 MB
+// more. A 10 GB card given 5 GB by hand ran clean, and this rule gives it about 4.5 GB. The pool stops
+// at 6144 MB, the game's own pool at the Ultra texture pool size, since nothing above it is used.
+static const uint64_t kReserveMb = 4200;
+static const uint64_t kReservePixels = 1920ull * 1080;
+static const uint64_t kReserveBytesPerPixel = 150;
+static const int kMaxTilePoolMb = 6144;
+
+int AutoTilePoolMb(uint64_t vramMb, uint64_t budgetMb, uint64_t screenPixels)
+{
+    uint64_t extraPixels = screenPixels > kReservePixels ? screenPixels - kReservePixels : 0;
+    uint64_t reserveMb = kReserveMb + ((extraPixels * kReserveBytesPerPixel) >> 20);
+    int fits = budgetMb > reserveMb ? (int)std::min<uint64_t>(budgetMb - reserveMb, kMaxTilePoolMb) : 0;
+    return std::max(fits & ~63, FloorTilePoolMb(vramMb));
 }
 
 // The runtime keeps two staging buffers in video memory. A request larger than the buffer fails
@@ -45,6 +64,30 @@ static bool g_sizedFromKnown = false;
 static wchar_t g_sizedFromName[128] = {};
 static uint64_t g_sizedFromMb = 0;
 
+// What Windows grants this process on the adapter's own memory, 0 when it cannot say.
+static uint64_t BudgetMb(IDXGIAdapter1* adapter)
+{
+    IDXGIAdapter3* adapter3 = nullptr;
+    if (FAILED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&adapter3)) || !adapter3) return 0;
+    DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
+    HRESULT hr = adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info);
+    adapter3->Release();
+    return SUCCEEDED(hr) ? info.Budget >> 20 : 0;
+}
+
+// The primary display's mode, which the game's screen buffers are sized near. It is the real mode,
+// not the one DPI scaling shows a process that is not aware of it, and a spanned set of monitors
+// reports as one wide display.
+static bool ScreenSize(DWORD* width, DWORD* height)
+{
+    DEVMODEW mode = {};
+    mode.dmSize = sizeof mode;
+    if (!EnumDisplaySettingsW(nullptr, ENUM_CURRENT_SETTINGS, &mode) || !mode.dmPelsWidth || !mode.dmPelsHeight) return false;
+    *width = mode.dmPelsWidth;
+    *height = mode.dmPelsHeight;
+    return true;
+}
+
 // The adapter with the most dedicated memory is the one the game renders on. The engine's own
 // log says it enumerates adapters and names one it is "Using", and on the reference laptop it
 // lists the discrete card only, so the two rules agree wherever a discrete card exists.
@@ -53,7 +96,7 @@ static uint64_t g_sizedFromMb = 0;
 // way round. Plenty of integrated parts report zero and keep everything in shared memory, and
 // passing on those would leave the canonical flag holding the whole define, the same failure as
 // writing nothing on a small card (DEC-022).
-static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
+static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out, uint64_t* budgetMb)
 {
     bool found = false;
     SIZE_T best = 0;
@@ -62,12 +105,14 @@ static bool DiscreteAdapter(IDXGIFactory1* factory, DXGI_ADAPTER_DESC1* out)
         if (factory->EnumAdapters1(i, &adapter) != S_OK || !adapter) break;
         DXGI_ADAPTER_DESC1 d = {};
         adapter->GetDesc1(&d);
+        bool better = !(d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && (!found || d.DedicatedVideoMemory > best);
+        if (better) {
+            best = d.DedicatedVideoMemory;
+            *out = d;
+            *budgetMb = BudgetMb(adapter);
+            found = true;
+        }
         adapter->Release();
-        if (d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;
-        if (found && d.DedicatedVideoMemory <= best) continue;
-        best = d.DedicatedVideoMemory;
-        *out = d;
-        found = true;
     }
     return found;
 }
@@ -95,18 +140,32 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     if (!WantsAutoSizes()) return;
 
     DXGI_ADAPTER_DESC1 d = {};
-    if (!DiscreteAdapter(factory, &d)) {
+    uint64_t budgetMb = 0;
+    if (!DiscreteAdapter(factory, &d, &budgetMb)) {
         Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set tile_pool_mb and staging_buffer_mb by hand if this run is not headless.");
         return;
     }
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
-    int tilePool = AutoTilePoolMb(vramMb);
+
+    // Windows grants the 6 GB reference card 85 percent of its memory, so a budget it cannot report
+    // is taken the same way.
+    const char* budgetFrom = "granted by Windows";
+    if (!budgetMb) {
+        budgetMb = vramMb * 85 / 100;
+        budgetFrom = "assumed, Windows did not say";
+    }
+    DWORD width = 1920, height = 1080;
+    const char* screenFrom = "";
+    if (!ScreenSize(&width, &height)) screenFrom = ", assumed";
+
+    int tilePool = AutoTilePoolMb(vramMb, budgetMb, (uint64_t)width * height);
     int staging = AutoStagingMb(vramMb);
     g_sizedFromLuid = d.AdapterLuid;
     g_sizedFromMb = vramMb;
     wcsncpy_s(g_sizedFromName, d.Description, _TRUNCATE);
     g_sizedFromKnown = true;
-    Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB, staging buffer %d MB", d.Description, (unsigned long long)vramMb, tilePool, staging);
+    Log("auto sizes: '%ls' has %llu MB dedicated, %llu MB %s, display %lux%lu%s -> tile pool %d MB, staging buffer %d MB",
+        d.Description, (unsigned long long)vramMb, (unsigned long long)budgetMb, budgetFrom, width, height, screenFrom, tilePool, staging);
     if (g_cfg.stagingAuto) g_cfg.stagingMb = staging;
     ApplyAutoFlags(tilePool);
 }
