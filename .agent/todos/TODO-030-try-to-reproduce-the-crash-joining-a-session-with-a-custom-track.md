@@ -2,13 +2,13 @@
 name: TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track
 kind: todo
 description: load a custom track with the mod on to reproduce a player's report of a crash joining a session with custom track mods installed under 0.3.2, the likeliest lead the mod's 128 to 256 MB loading buffer failing a bigger request a custom track makes, which the player's own finding that [dxgi] enabled=0 cures it on 0.3.2 points at, since that switch also skipped the mod's sizes there
-updated: 2026-09-24
+updated: 2026-10-08
 links: [DEC-003-staging-buffer-128mb, BUG-003-menu-icons-stop-rendering, BUG-004-crash-on-car-or-track-change, BUG-005-crash-on-startup, directstorage-streaming, session-leak-fix, package-override-layer, DEC-023-the-session-free-stays-immediate]
-status: open
+status: dropped
 by: owner
 area: stability
 born: 2026-09-24
-done:
+done: 2026-10-08
 ---
 
 ## What
@@ -76,3 +76,7 @@ since an installer that repacks `content.kspkg` changes what the override layer 
   moves to bugs/ with that evidence.
 - If it loads clean, a custom track with a single file bigger than the loading buffer is found and
   tried, since that is what lead 1 needs.
+
+Dropped on 2026-10-08. The owner has no custom track to load, and the call was that custom tracks may not
+be supported for now. The 0.4 changelog says so under Known issues. A player report with the mod's log
+of a crashing join, or a custom track on hand, reopens it with the leads above.
