@@ -2,7 +2,7 @@
 
 Every version of ACEvoPerf and what changed in it, newest first.
 
-## Next (unreleased)
+## 0.4.1 (2026-10-08)
 
 ### Changed
 
