@@ -2,7 +2,7 @@
 name: optimisation-deepdive-2026-09-12
 kind: doc
 description: eighteen agents across eight angles hunting optimisation outside streaming and VRAM, then every kill re-verified by hand, 24 killed for good and 9 sent back to unresolved of which the DLSS one then closed, the engine is well built and the live leads both sit on one serial chain at the end of a session load, the dynamic track preset and a duplicated tyre build
-updated: 2026-09-29
+updated: 2026-10-08
 links: [moddability, directstorage-streaming, one-percent-low-hunt-2026-09-05, BUG-012-pit-lane-return-freezes-over-a-second, BUG-009-one-percent-lows-far-below-average, BUG-019-car-physics-rebuilds-every-tyre-model-five-times, TODO-013-faster-session-loads, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14]
 ---
 
@@ -309,25 +309,27 @@ were worked through on that rule. **Twenty four hold and nine come back.**
 ### The instrument that invalidated a whole class of kills
 
 Five verdicts rest on a phrase like "zero samples across 52,460 game code samples spanning every
-sampler session this project has run". That census does not exist, and reading the deleted sampler's
-own source says why.
+sampler session this project has run". The figure is exactly the sum of the game code rows the load
+sampler printed in four runs of 2026-09-12, 43,979 in `logs/loadsampler-20260912-1055`, 3,556 in
+`logs/loadsampler-20260912-1128`, 2,506 in `logs/joblock-A-off-1446` and 2,419 in
+`logs/joblock-B-on-1450`. So the reviewers did read the load sampler, in four of its runs.
 
-`src/telemetry/sampler.cpp` at commit `30c99dc^`:
+This doc first traced the figure to the deleted render thread sampler, `src/telemetry/sampler.cpp`
+at commit `30c99dc^`, which was wrong (corrected 2026-10-08). What that source shows is still true of
+that sampler.
 
 - **It samples one thread.** `HANDLE thread = g_renderThread;` and nothing else. There is no loop
-  over other threads anywhere in it. So the render thread is all it ever saw, and the claim that
-  those samples span "the render thread, GameThread, Physics and the resource manager workers" is
-  false.
+  over other threads anywhere in it, so the render thread is all it ever saw.
 - **It discards loading.** `if (s.ms < 100.0f && s.end != s.begin)` drops every frame over 100 ms
   before anything is tallied, and loading frames are hundreds to thousands of milliseconds.
 - **It prints only a top twelve.** `Rank(..., 12, true)` for game code and `10` and `8` for the
   labels outside it. Across every session on disk that comes to **192 printed game code rows
-  totalling 25,862 samples**, which is where the reviewers' denominator came from.
+  totalling 25,862 samples**, so the reviewers' 52,460 did not come from it.
 - **That top twelve is ranked by extra samples in slow frames**, not by total. A cost that is the
   same in a fast frame and a slow one ranks at zero extra and never appears at all, which is exactly
   the shape of an allocator, a lock or a dynamic cast.
 
-The real census is the per second bucket CSV, which no verdict used. Totalled over driving frames
+Its real census is the per second bucket CSV, which no verdict used. Totalled over driving frames
 across the eight sampler sessions, **4,360,295 samples**:
 
 | bucket | samples | share |
@@ -344,14 +346,18 @@ across the eight sampler sessions, **4,360,295 samples**:
 | lock | 8,281 | 0.19% |
 | the rest | under 8,000 each | |
 
-So the reviewers judged against 1 percent of the data, from a list that structurally cannot show a
-steady cost, taken from a thread and a phase that three of their targets were never on.
+The reviewers judged from printed lists, and a printed top sixteen cannot show a steady small
+cost. The rows they summed hold 52,460 of the 123,549 game code samples those four runs took, about
+42 percent, and the rest sit in addresses that never reached a list. An address absent from every
+list was sampled less often than the sixteenth row of each window, so its absence bounds the cost
+and does not zero it.
 
-The instrument that **can** answer those questions already exists and none of them used it: the load
-sampler of 2026-09-12, which walks two dozen threads round robin at 1 kHz and covers loads. It
-prints sixteen game addresses and sixteen outside labels per fifteen second window, 119 distinct
-addresses across 107 windows, with a detection floor around 12 samples in a 13,254 sample window,
-call it 0.1 percent. Three of the five kills below are re-grounded on it and survive.
+Read as bounds, the load sampler **can** answer what those five verdicts asked. It walks two dozen
+threads round robin at 1 kHz and covers loads. It prints sixteen game addresses and sixteen outside
+labels per fifteen second window, 119 distinct addresses across the 107 windows of
+`logs/loadsampler-20260912-1055` and `logs/loadsampler-20260912-1128`, with a detection floor around
+12 samples in a 13,254 sample window, call it 0.1 percent. Three of the five kills below are
+re-grounded on it and survive.
 
 ### The nine that come back to unresolved
 
