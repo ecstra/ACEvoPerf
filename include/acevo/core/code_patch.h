@@ -4,6 +4,11 @@
 // FNV-1a over a range of loaded code, to check the bytes a patch depends on before touching them.
 uint64_t Fnv1a64(const BYTE* p, size_t n);
 
+// The time stamp and image size of a loaded module, the pair every patch tells its build by. False, with
+// both left at 0, when the headers are not a 64 bit image's or cannot be read, so a build whose headers
+// mislead after loading refuses instead of faulting at attach.
+bool ReadModuleStamp(const BYTE* module, DWORD* stamp, DWORD* image);
+
 // Read and write memory within reach of a 32 bit displacement from `anchor`, for stubs a patched
 // jump or call can reach. Null when no free range is near enough.
 BYTE* AllocNear(BYTE* anchor, size_t size);

@@ -11,6 +11,26 @@ uint64_t Fnv1a64(const BYTE* p, size_t n)
     return h;
 }
 
+bool ReadModuleStamp(const BYTE* module, DWORD* stamp, DWORD* image)
+{
+    *stamp = 0;
+    *image = 0;
+    if (!module) return false;
+    __try {
+        auto dos = (const IMAGE_DOS_HEADER*)module;
+        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+        auto nt = (const IMAGE_NT_HEADERS64*)(module + dos->e_lfanew);
+        if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+        DWORD readStamp = nt->FileHeader.TimeDateStamp;
+        DWORD readImage = nt->OptionalHeader.SizeOfImage;
+        *stamp = readStamp;
+        *image = readImage;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 // A 32 bit displacement reaches 2 GB either way.
 BYTE* AllocNear(BYTE* anchor, size_t size)
 {

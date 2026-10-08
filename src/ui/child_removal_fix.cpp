@@ -392,10 +392,10 @@ void InstallChildRemovalFix()
         Log("[children] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto nt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[children] this is not the Cohtml build the child removal fix was written for (stamp %08X, image %08X), nothing patched",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     for (const Region& region : kRegions) {

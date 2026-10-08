@@ -1,4 +1,5 @@
 #include "acevo/ui/cohtml_hooks.h"
+#include "acevo/core/code_patch.h"
 #include "acevo/core/iat.h"
 #include "acevo/core/log.h"
 
@@ -210,8 +211,8 @@ static void InstallUiFrameHooks()
     if (!g_postListenerCount && !g_endListenerCount) return;
 
     BYTE* base = (BYTE*)GetModuleHandleW(nullptr);
-    auto nt = (IMAGE_NT_HEADERS64*)(base + ((IMAGE_DOS_HEADER*)base)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kTimeDateStamp || nt->OptionalHeader.SizeOfImage != kSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(base, &stamp, &image) || stamp != kTimeDateStamp || image != kSizeOfImage) {
         Log("[cohtml] this is not the game build the UI frame hooks were written for, the UI frame is not followed");
         return;
     }

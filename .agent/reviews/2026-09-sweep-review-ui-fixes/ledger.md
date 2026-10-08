@@ -163,8 +163,8 @@ a `static_assert`, not a comment.
 - severity: debt
 - found-by: verifier
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `ReadModuleStamp` in `src/core/code_patch.cpp` checks both magics and the 64 bit optional header under a `__try`, and the four files and the game header read in `cohtml_hooks.cpp` use it. The UI probe's two walks go with `sweep/review-ui-probe`. The build guard ledger's pointer now names this ledger.
 
 `src/ui/restyle_fix.cpp:78` and `:88` are the clearest, and `child_removal_fix.cpp`, `style_match_fix.cpp`
 and `menu_refresh_fix.cpp` walk the same headers. They run from `dllmain.cpp` before `InstallCohtmlHooks`,

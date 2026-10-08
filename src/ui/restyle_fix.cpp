@@ -75,8 +75,8 @@ static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
 void InstallRestyleFix()
 {
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
-    auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
-    if (gameNt->FileHeader.TimeDateStamp != kGameTimeDateStamp || gameNt->OptionalHeader.SizeOfImage != kGameSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(game, &stamp, &image) || stamp != kGameTimeDateStamp || image != kGameSizeOfImage) {
         Log("[restyle] this is not the game build whose stylesheets the UI restyle fix was checked against, nothing patched");
         return;
     }
@@ -85,10 +85,9 @@ void InstallRestyleFix()
         Log("[restyle] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto nt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (nt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || nt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[restyle] this is not the Cohtml build the UI restyle fix was written for (stamp %08X, image %08X), nothing patched",
-            (unsigned)nt->FileHeader.TimeDateStamp, (unsigned)nt->OptionalHeader.SizeOfImage);
+            (unsigned)stamp, (unsigned)image);
         return;
     }
     for (const Region* region : { &kSiblingGate, &kInvalidatePrologue, &kInvalidateCaller }) {

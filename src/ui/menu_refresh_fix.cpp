@@ -211,8 +211,8 @@ void InstallMenuRefreshFix()
 {
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
     BYTE* cohtml = (BYTE*)GetModuleHandleW(L"cohtml.WindowsDesktop.dll");
-    auto gameNt = (IMAGE_NT_HEADERS64*)(game + ((IMAGE_DOS_HEADER*)game)->e_lfanew);
-    if (gameNt->FileHeader.TimeDateStamp != kGameTimeDateStamp || gameNt->OptionalHeader.SizeOfImage != kGameSizeOfImage) {
+    DWORD stamp = 0, image = 0;
+    if (!ReadModuleStamp(game, &stamp, &image) || stamp != kGameTimeDateStamp || image != kGameSizeOfImage) {
         Log("[menus] this is not the game build the menu refresh fix was written for, nothing patched");
         return;
     }
@@ -220,8 +220,7 @@ void InstallMenuRefreshFix()
         Log("[menus] cohtml.WindowsDesktop.dll is not loaded, nothing patched");
         return;
     }
-    auto cohtmlNt = (IMAGE_NT_HEADERS64*)(cohtml + ((IMAGE_DOS_HEADER*)cohtml)->e_lfanew);
-    if (cohtmlNt->FileHeader.TimeDateStamp != kCohtmlTimeDateStamp || cohtmlNt->OptionalHeader.SizeOfImage != kCohtmlSizeOfImage) {
+    if (!ReadModuleStamp(cohtml, &stamp, &image) || stamp != kCohtmlTimeDateStamp || image != kCohtmlSizeOfImage) {
         Log("[menus] this is not the Cohtml build the menu refresh fix was written for, nothing patched");
         return;
     }
