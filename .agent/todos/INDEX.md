@@ -2,7 +2,7 @@
 name: todos-index
 kind: doc
 description: the work tracker's index, open items first
-updated: 2026-09-24
+updated: 2026-10-08
 links: [agent-index, spec-todos]
 ---
 
@@ -26,7 +26,7 @@ streaming
 
 render
 
-- [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the 1 percent low hunt through the 2026-09-14 deep dive, its leads answered or moved to two runs, the done-when waiting on the owner's choice of measure
+- [TODO-010-resume-the-one-percent-low-hunt](TODO-010-resume-the-one-percent-low-hunt.md), the 1 percent low hunt through the 2026-09-14 deep dive, its leads answered or moved to two runs, the done when check waiting on the owner's choice of measure
 - [TODO-022-frame-time-with-and-without-the-mod](TODO-022-frame-time-with-and-without-the-mod.md), the mod's 3.8 percent parked is the mesh detail the 1433 MB budget loads, authored detail per the mesh deep dive, the engine's own readout rode the census run and peaked at 461 of 1433 MB at the Red Bull Ring, the last 1 percent unsplit
 - [TODO-017-tier-2-variable-rate-shading](TODO-017-tier-2-variable-rate-shading.md), built and measured at 4x4, the ceiling: no frames on a thermally pinned card, stage two dropped, and the 3 percent it appeared to gain was the streamer churn it suppressed by starving feedback
 
@@ -45,7 +45,7 @@ engine-flags
 ## Done
 
 - render: 3 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean. TODO-025, the HUD schedule test, the UI view rotation is about 30 percent of BUG-009's gap at the Red Bull Ring GP and the HUD every frame removes it. TODO-028, no refresh hold on this laptop even at 60 Hz)
-- streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified; TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed; TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
+- streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified. TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed. TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
 - release: 1 (TODO-004)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
