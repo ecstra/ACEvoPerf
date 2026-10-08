@@ -29,6 +29,7 @@ nit
 
 ## Won't fix
 
+- [BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors](BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors.md), with DLSS on the whole picture slides now and then while the camera moves, each eye on its own in VR, because the game's motion vectors sometimes claim a third of a pixel of movement the frame does not have and DLSS follows them, the game's to fix
 - [BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised](BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised.md), a menu view remade at a new size would lose the page fixes, but a fullscreen and windowed switch keeps the same view on 0.9.1, so nothing reaches it
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), one freeze at the start of a thirty AI race with video memory over budget, not reproduced in two later starts of the same grid
 - [BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse](BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse.md), one very slow restart that did not come back on the 0.3.2 release or plain 0.4, and a fix for the streamer's double promise of space that looked blurrier, so the engine keeps its own admission
