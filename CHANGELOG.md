@@ -2,10 +2,12 @@
 
 Every version of ACEvoPerf and what changed in it, newest first.
 
-## 0.4 (unreleased)
+## 0.4 (2026-10-08)
 
 ### Fixed
 
+- Fences looking like glass, cars glowing, trees unlit or white at night, your own headlights vanishing and parts of the track flickering, all from the game's shader cache, which the mod no longer turns on (reported by players). If you kept your own `acevo_perf.ini`, delete its `enable_pso_cache` line.
+- Experimental: cards with more than 6 GB left with video memory unused, the graphics card working below what it can and the game sometimes hanging (reported by players). Texture memory is now sized at every launch from what Windows gives the game and your screen resolution, and if it causes trouble, set `tile_pool_mb` in `acevo_perf.ini` to a fixed number such as 2048.
 - NVIDIA Reflex switching off when you turned off frame time measuring in `acevo_perf.ini`, which are two separate settings.
 - NVIDIA Reflex sometimes not turning on at all, and stopping for the rest of the session once the graphics driver resets.
 - Turning off `stats` in `acevo_perf.ini` also turning off the sharp trackside screens, the menu styling and any files you put in the mods folder.
@@ -15,13 +17,11 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - A file in the mods folder that replaces the menu styling or the trackside big screens being ignored.
 - Part of the game failing to load, instead of using the game's own file, when a file in the mods folder could not be opened at startup.
 - A linked file in the mods folder being served empty or cut short.
-- Fences looking like glass, cars glowing, trees unlit or white at night, your own headlights vanishing and parts of the track flickering, all from the game's shader cache, which the mod no longer turns on. If you kept your own `acevo_perf.ini`, delete its `enable_pso_cache` line.
 
 ### Changed
 
 - The mod uses about 60 MB less memory.
 - Cards smaller than 6 GB now have less video memory set aside for textures, sized to the card rather than to a 6 GB one.
-- Experimental: cards with more than 6 GB now get more video memory for textures, sized at every launch from what Windows gives the game and your screen resolution. If it causes trouble, set `tile_pool_mb` in `acevo_perf.ini` to a fixed number such as 2048.
 - Five settings in `acevo_perf.ini` that only ever said to leave them alone are gone. An older ini that still has them works as before.
 - The zip now carries Microsoft's license for the DirectStorage file it includes.
 - The mod no longer needs or ships `dstorage_orig.dll`. If an older version left one in the game folder, you can delete it.
@@ -29,6 +29,15 @@ Every version of ACEvoPerf and what changed in it, newest first.
 ### Known issues
 
 - Custom tracks are not supported yet. Joining a session with custom track mods installed may crash.
+
+### Game issues
+
+These are the game's own and happen without the mod too.
+
+- With DLSS on, the picture can slide slightly left and right now and then while the camera moves, more in VR, where each eye can shift on its own. The game's motion data is off in those frames.
+- Returning to the pits or restarting a session freezes for about a second while the game reloads its track data.
+- Grass and trees pop in at set distances, which is how the game's own detail settings work.
+- The heaviest menu pages can still hitch for a moment as they open, from the game's own page scripts.
 
 ## 0.3.2 (2026-09-18)
 

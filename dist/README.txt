@@ -15,6 +15,10 @@ INSTALL
   After a game update, copy the files in again. If you changed
   acevo_perf.ini, keep your copy when Windows asks about it.
 
+  If you update from 0.3 and keep your own acevo_perf.ini, delete its
+  enable_pso_cache line. It caused glass looking fences, glowing cars
+  and missing headlights.
+
 SETTINGS
   Everything is in acevo_perf.ini, one line per setting with a short note.
   Any fix can be turned off there. Changes apply the next time you start

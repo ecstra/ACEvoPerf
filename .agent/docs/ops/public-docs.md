@@ -65,8 +65,10 @@ that is fixed.
 
 - The top section is always the next version, `## 0.3.2 (unreleased)` while `v0.3.1` is the last
   tag, never a bare `Unreleased`.
-- A version's sections are Fixed, Added, Changed and Known issues, in that order, each only when it
-  has entries.
+- A version's sections are Fixed, Added, Changed, Known issues and Game issues, in that order, each only
+  when it has entries. Known issues are the mod's own. Game issues are what players see that the game
+  does without the mod too, said plainly as the game's under one line that says so, set by the owner on
+  2026-10-08 so players stop putting the game's faults on the mod.
 - One entry per user visible change, written in the same commit as the change. One sentence, or two
   when the player has to do something.
 - Work that landed and came out again before a release gets no entry, and neither does a fix to
