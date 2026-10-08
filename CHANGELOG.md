@@ -20,6 +20,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 ### Changed
 
 - Cards smaller than 6 GB now have less video memory set aside for textures, sized to the card rather than to a 6 GB one.
+- Experimental: cards with more than 6 GB now get more video memory for textures, sized at every launch from what Windows gives the game and your screen resolution. If it causes trouble, set `tile_pool_mb` in `acevo_perf.ini` to a fixed number such as 2048.
 - Five settings in `acevo_perf.ini` that only ever said to leave them alone are gone. An older ini that still has them works as before.
 - The zip now carries Microsoft's license for the DirectStorage file it includes.
 - The mod no longer needs or ships `dstorage_orig.dll`. If an older version left one in the game folder, you can delete it.
