@@ -220,7 +220,7 @@ every 10 seconds that nothing reads. Older, ca09393.
 - found-by: review
 - batch: 4
 - status: fixed
-- fix: 2026-10-08. Written down at both ends, the restyle fix's header and a guard comment on the probe's `Hook_Invalidate` saying nothing may go ahead of its call that could make the compiler use rbp. The probe ships off, so this is the batch's aim of recording the assumption rather than a code change.
+- fix: 2026-10-08. First written down as a guard comment on the probe's `Hook_Invalidate`. The same day `sweep/review-ui-probe` F-02 reworked that hook, and disassembling it showed the compiler now putting the element in rbp before the call, so a comment could not hold it. The hook now calls 0x37B690 through a thunk that puts the kind in rbp as 0x37BC60 does, and the restyle fix's header says so.
 
 `src/ui/restyle_fix.cpp:54`. The stub does `cmp byte ptr [rbp+0x30], 5`, which is valid only while the
 immediate caller of 0x37B690 is cohtml 0x37BC60 with the kind still in ebp. With `ui_probe=1` the probe

@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-ui-probe
 kind: review
 description: the UI probe angle of the full review of main, an instrument that can fault while it holds a game thread suspended and that pays its cost in the frames it exists to explain, nine findings
-updated: 2026-09-29
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, telemetry, reviews-index]
 branch: sweep/review-ui-probe
 status: open
@@ -24,9 +24,14 @@ Nine findings, one breaks, two bug, three debt, three nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the sampler cannot fault while it holds a game thread suspended | pending | |
-| 2 | the instrument does not distort what it measures | pending | |
-| 3 | the report tells the truth about what it dropped | pending | |
+| 1 | the sampler cannot fault while it holds a game thread suspended | fixed, launch pending | 2026-10-08 |
+| 2 | the instrument does not distort what it measures | fixed, launch pending | 2026-10-08 |
+| 3 | the report tells the truth about what it dropped | fixed, launch pending | 2026-10-08 |
+
+On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
+the hunter and verifier loop. All three batches were fixed in one pass on a branch stacked on
+`sweep/review-ui-fixes`, checked by hand and by disassembling the rebuilt hook, and confirmed by one launch
+with `ui_probe=1` that covers both angles.
 
 ## Findings
 
@@ -34,8 +39,8 @@ Nine findings, one breaks, two bug, three debt, three nit.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `FramesOf` reads the suspended thread's committed stack range from its own TEB, kept at registration, and ends the walk before any stack read outside it or once the stack stops moving up. Only an unwind table that misleads `RtlVirtualUnwind` can still fault, and the handler stays for that. The file header says so.
 
 `src/ui/ui_probe.cpp:562`. `TakeSample` suspends at 579, walks at 580 and resumes at 581. Inside that
 window `FramesOf` dereferences an unwound Rsp at 562 and feeds an unwound context to
@@ -57,8 +62,8 @@ reads as true.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The table is keyed by the element's address and the kind, and the description is built only when an element first enters it in a second. Our own disassembly of the rebuilt hook then showed the compiler putting the element in rbp before its call, the hazard `sweep/review-ui-fixes` F-06 had only written down, so the hook now calls the invalidation through a thunk in the probe's cave that puts the kind in rbp as Cohtml's caller does, with unwind data registered for it and the sampler.
 
 `src/ui/ui_probe.cpp:916`. Every invalidation runs `DescribeNode`, which is an SEH region, a
 `_snprintf_s` and up to four 32 character atom walks, then `strlen`, then `Fnv1a64` over the
@@ -74,8 +79,8 @@ pointer and the kind are already in hand and would key the table without buildin
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The table takes at most 192 of its 256 slots, so an empty slot ends every probe, and the calls it turns away are counted and printed on the invalidations line.
 
 `src/ui/ui_probe.cpp:936`. The probe loop has no else after it, so with no free slot and no match it
 falls out after 256 strcmp calls, still holding `g_markLock` exclusive, and the invalidation is silently
@@ -90,8 +95,8 @@ so.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The count is read under the shared lock first and the stack is captured only while none is kept yet this second.
 
 `src/ui/ui_probe.cpp:923`. `RtlCaptureStackBackTrace` is unconditional for kind 0 with 200 or more
 marks, and the decision to keep it is made afterwards at line 926 under the lock. The logs show 66 in
@@ -102,8 +107,8 @@ table lock on the UI thread in a burst of a frame or two. Reading the count befo
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A full table first takes the slot of a thread that has exited, closing its handle, which the workers remade at every load need. A thread that still finds no slot is marked once and never takes the lock again, and the log says once that threads are going unsampled. The handle is opened outside the lock with SYNCHRONIZE for the exit check.
 
 `src/ui/ui_probe.cpp:665`. `t_layoutSlot` stays at -1 on an unregistered thread, so
 `LayoutThreadForThisThread` takes `g_registerLock` exclusive on every call for the rest of the session,
@@ -121,8 +126,8 @@ the slots at `:668` are never freed, so they fill after a few loads whatever the
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The walk stops once it has named as many nodes as the set holds, up to three.
 
 `src/ui/ui_probe.cpp:884`. The loop ends only at three names or the end of the array, and the set size
 read one line earlier at 881 is never used to stop early. Hash tables do not shrink, so after one large
@@ -134,8 +139,8 @@ eight slow restyles a second.
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A sample taken inside layout work whose stack could not be walked now counts, and the samples line prints it beside the kept ones. A module the unwind table has no room for is logged, and the table holds ten now that the thunk takes a place.
 
 `src/ui/ui_probe.cpp:480`. `TakeSample` discards a sample at 582 whenever the walk produced no frames,
 which happens whenever the innermost frame sits in a module with no registered unwind table, and
@@ -148,8 +153,8 @@ dropped into the same blind spot.
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Every accumulation goes through one `Append` that stops the line at the first cut and leaves it alone after.
 
 `src/ui/ui_probe.cpp:616` and `:620`, `AppendClock` at 1274, `AppendAddress` at 1296 and 1298, and
 `UiProbeTick` at 1390, 1396 and 1400 all accumulate the return value. The `length > 0` guards keep every
@@ -161,8 +166,8 @@ tail one byte earlier and the line ends garbled with no indication. The longest 
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The count is published with a release store and the `inside` increment with release, and the sampler reads both with acquire, so it never sees a slot before its handle and stack range.
 
 `src/ui/ui_probe.cpp:671`. `LayoutThreadForThisThread` writes the id and the handle and publishes with a
 relaxed store of the count, all inside the lock, while `LayoutSamplerThread` reads the count at 645 and
