@@ -2,7 +2,7 @@
 name: proxy-architecture
 kind: doc
 description: what the proxy DLL does, in load order, and where each piece lives in the source
-updated: 2026-09-29
+updated: 2026-10-08
 links: [DEC-001-dstorage-proxy-as-loader, DEC-015-bundled-directstorage-core-loaded-first, directstorage-streaming, engine-flags, telemetry, responsive-ui]
 ---
 
@@ -14,9 +14,9 @@ Headers under `include/acevo/`, sources under `src/`, one folder per concern, bu
 | Folder | Files | Holds |
 | --- | --- | --- |
 | `src/` | `dllmain.cpp`, `exports.def`, `version.rc` | attach sequence, the export list, the version resource |
-| `core/` | `log`, `config`, `iat` | log file, ini reading into `g_cfg`, import table and vtable patching |
+| `core/` | `log`, `config`, `iat`, `code_patch` | log file, ini reading into `g_cfg`, import table and vtable patching, the build checks, hashes, stub pages and code writes every in memory patch stands on |
 | `dstorage/` | `proxy`, `stats` | the four exports, `FactoryProxy`, `QueueProxy`, process wide request counters |
-| `engine/` | `flags`, `process`, `streamer`, `session_leak_fix`, `exceptions` | gflags scan and write, priority class, power throttling, timer resolution, the texture streamer's hooks and fixes, the finished sessions the game keeps (see `session-leak-fix`), the throw log |
+| `engine/` | `flags`, `process`, `streamer`, `session_leak_fix`, `exceptions` | gflags scan and write, priority class, GPU scheduling priority, working set floor, power throttling, timer resolution, the texture streamer's hooks and fixes, the finished sessions the game keeps (see `session-leak-fix`), the throw log |
 | `render/` | `dxgi_hooks`, `frame_stats`, `adapter`, `reflex`, `texture_writes` | factory and swap chain hooks, `Present` timing and hitch logging, the card's memory and the auto sizes, the display owner check, NVIDIA Reflex, and the command list copy tracing (developer only) |
 | `telemetry/` | `timeline`, `streaming_trace`, `load_sampler`, `memory_census` | the per second CSV thread and the frame CSV flush, the streaming trace rows, the loading sampler, the memory census (all three developer only) |
 | `overlay/` | `overlay` | the package override layer (TODO-007) |
@@ -29,7 +29,9 @@ string. Every header includes it, every source includes its own header first.
 
 1. `DllMain` attach (`OnAttach`): read `acevo_perf.ini` from the DLL's folder, open
    `acevo_perf.log`, apply process tweaks (`ApplyProcessTweaks`: priority class, power throttling
-   opt out, timer resolution), scan the exe for gflags and write the `[flags]` values
+   opt out, timer resolution, the GPU scheduling priority class through gdi32's
+   `D3DKMTSetProcessSchedulingPriorityClass` from `[process] gpu_priority`, on at high by default,
+   and the working set floor from `working_set_floor_mb`, off by default), scan the exe for gflags and write the `[flags]` values
    (`ApplyFlags("early")`), hook the exe's imports of `CreateDXGIFactory1` and
    `CreateDXGIFactory2` (`InstallDxgiHooks`).
 2. First `DStorageGetFactory` call from the game: load our own DirectStorage core from
@@ -64,7 +66,7 @@ string. Every header includes it, every source includes its own header first.
    handed out, which is to say until this step has finished. Anything that makes the redirect
    reachable earlier, or takes `g_realCs` from a thread holding the loader lock, breaks that.
 3. Game creates queues: `FactoryProxy::CreateQueue` logs the descriptor, optionally raises the
-   capacity, wraps the result in a `QueueProxy` when any of its seven consumers wants one
+   capacity, sets the tile queue's priority when `tile_queue_priority` names one, wraps the result in a `QueueProxy` when any of its seven consumers wants one
    (`QueueProxyWanted`). The wrapper is the only writer of the process wide request counters and
    the only place `OverlayRedirect` is reached from, so a consumer left off that list does not
    fail, it goes quietly empty while its own switch still reads as on.
@@ -83,8 +85,10 @@ string. Every header includes it, every source includes its own header first.
    `CheckAutoSizeAdapter` says so when the adapter the sizes came from is not the one the game
    renders on, `LogDisplayOwner` names the adapter that owns the window's monitor, and
    `TextureWritesOnSwapChain` installs the copy tracing when `streaming_trace` is on.
-5. Also at attach, when `acevo_mods/` holds files: `overlay::Install` hooks the file functions of
-   every loaded module (`PatchEverywhere`) so the package table read at startup can be rewritten.
+5. Also at attach, with the overlay on: `overlay::Install` hooks the file functions of every loaded
+   module (`PatchEverywhere`) so the package table read at startup can be rewritten. It does so with
+   no mods folder at all, because the big screen fix and the UI stylesheet fix are generated from the
+   player's own package and both are on by default (see `package-override-layer`).
 6. Also at attach: `InstallResponsiveUi` patches Cohtml's and the exe's UI code in memory and registers
    its listeners, `InstallUiProbe` registers the probe's when it is on, and `InstallCohtmlHooks` then
    patches the exe's import of Cohtml's `Library::Initialize` and wraps the game UI's frame post and end.
@@ -98,8 +102,10 @@ string. Every header includes it, every source includes its own header first.
 
 - `core/log`: `Log`, one file, one critical section, millisecond timestamps.
 - `core/config`: `LoadConfig` with `GetPrivateProfile*`, comments stripped after `;`.
-- `core/iat`: `PatchIatByAddress` for one module, `PatchEverywhere` for all modules except
-  kernel32, kernelbase and ntdll (their import tables feed the originals), `HookVtableSlot`.
+- `core/iat`: `PatchIatByAddress` for one module, `PatchEverywhere` for all modules except the mod
+  itself, kernel32, kernelbase and ntdll (their import tables feed the originals), `HookVtableSlot`.
+- `core/code_patch`: `ReadModuleStamp`, `Fnv1a64`, `AllocNear`, `EncodeRel32` and `WriteCode`, what every
+  byte patch checks its build and region with and writes through, attach only.
 - `engine/flags`: `ScanFlags`, two passes over `.text`. Types come from a few well known flag names
   per constructor (the `known` table). `ApplyFlags` writes the ini values.
 - `dstorage/proxy`: `FactoryProxy` implements `IDStorageFactory`, `QueueProxy` implements
@@ -154,5 +160,6 @@ string. Every header includes it, every source includes its own header first.
 
 - Write to game files or the content package. The overlay changes the table only in memory, and code
   patches (the texture streamer, the responsive UI, the session leak fix) change the loaded image only.
-- Hook anything on the render thread beyond `Present` and the game UI's frame post and end.
+- Hook anything on the render thread beyond `Present` and the game UI's frame post and end, except the
+  command list copy hooks `streaming_trace=1` installs for the developer trace.
 - Run code for a feature the ini disables: each piece checks its flag and returns early.
