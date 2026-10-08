@@ -2,8 +2,8 @@
 name: house-rules-agent
 kind: doc
 description: the branch contract and code review protocol, the agent's operating version
-updated: 2026-09-24
-links: [spec-reviews, spec-bugs, spec-todos, agent-readme]
+updated: 2026-10-08
+links: [spec-reviews, spec-bugs, spec-todos, agent-readme, DEC-026-work-merges-into-main-after-0-4]
 ---
 
 # House Rules
@@ -23,20 +23,19 @@ CLAUDE.md section 0 names its exact gates and tooling.
 2. **Sweeps carry the small stuff.** Small bugs and small features group
    into a sweep branch by surface, one screen or one subsystem per sweep.
    A sweep never contains a breaking change.
-3. **Branch from the open version branch.** Work collects on a long
-   lived branch named for the version being built, `0.4` today, and every
-   branch cuts from it and merges back into it (DEC-021). Merge whole,
-   never cherry pick out of an unreviewed branch. A merged branch is
-   deleted, its review ledger is the record.
-4. **Main is released code only.** The newest commit on main is the
-   newest published zip, and main moves only when a version is cut, by
-   merging the version branch into it and tagging that merge. Gates
-   first, then review, then PR, then merge. No step skips.
-5. **The version branch opens with its own version.** Whoever opens it
-   bumps `src/version.rc`, `include/acevo/common.h` and the
-   `CHANGELOG.md` heading on it, so main never carries a version that
-   was never released. A hotfix to a shipped release branches from main
-   and merges forward into the open version branch as well.
+3. **Branch from main.** Every branch cuts from main and merges back
+   into it on the owner's word (DEC-026). No version branch is open
+   until the owner names the next version. Merge whole, never cherry
+   pick out of an unreviewed branch. A merged branch is deleted, its
+   review ledger is the record.
+4. **A release is a tag on main.** The version stays at the last
+   release until the owner names the next one, and a release is cut
+   from main and tagged there. Gates first, then review, then PR, then
+   merge. No step skips.
+5. **The next version is the owner's to name.** When the owner names
+   it, the version files, `src/version.rc`, `include/acevo/common.h` and
+   the `CHANGELOG.md` heading, are bumped in one commit on a branch
+   merged into main.
 
 ## The gates
 

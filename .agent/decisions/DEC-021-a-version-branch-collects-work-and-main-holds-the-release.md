@@ -2,12 +2,12 @@
 name: DEC-021-a-version-branch-collects-work-and-main-holds-the-release
 kind: decision
 description: work merges into a long lived branch named for the version it is building, and main only moves when that version ships, so main and the published release never drift apart
-updated: 2026-09-20
-links: [house-rules-agent, build-and-release, DEC-013-overtake-front-door-github-mirror, reviews-index]
+updated: 2026-10-08
+links: [house-rules-agent, build-and-release, DEC-013-overtake-front-door-github-mirror, reviews-index, DEC-026-work-merges-into-main-after-0-4]
 date: 2026-09-20
 area: release
-status: standing
-superseded-by:
+status: superseded
+superseded-by: DEC-026-work-merges-into-main-after-0-4
 ---
 
 ## Decision
