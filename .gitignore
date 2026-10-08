@@ -3,6 +3,8 @@ build/
 dist/dstorage.dll
 dist/dstorage_orig.dll
 dist/acevo_dstoragecore.dll
+dist/acevo_directstorage_license.txt
+dist/acevo_directstorage_notices.txt
 release/
 
 # runtime output copied from the game folder, one folder per session

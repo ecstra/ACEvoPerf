@@ -43,6 +43,9 @@ try {
 # the name dstoragecore.dll and loads its own copy before the proxy gets a say (DEC-015)
 Copy-Item "$root\third_party\directstorage\bin\x64\dstorage.dll" "$root\dist\dstorage_orig.dll" -Force
 Copy-Item "$root\third_party\directstorage\bin\x64\dstoragecore.dll" "$root\dist\acevo_dstoragecore.dll" -Force
+# Microsoft's terms travel with its two files, named so the uninstall's acevo_ step takes them too
+Copy-Item "$root\third_party\directstorage\LICENSE.txt" "$root\dist\acevo_directstorage_license.txt" -Force
+Copy-Item "$root\third_party\directstorage\NOTICES.txt" "$root\dist\acevo_directstorage_notices.txt" -Force
 Write-Host "Built: $root\dist\dstorage.dll (+ dstorage_orig.dll, acevo_dstoragecore.dll)"
 
 if ($Install) {

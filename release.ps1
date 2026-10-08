@@ -25,7 +25,7 @@ New-Item -ItemType Directory -Force "$root\release" | Out-Null
 $zip = "$root\release\ACEvoPerf-$version.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 
-$payload = @("dstorage.dll", "dstorage_orig.dll", "acevo_dstoragecore.dll", "acevo_perf.ini", "README.txt") | ForEach-Object { Join-Path "$root\dist" $_ }
+$payload = @("dstorage.dll", "dstorage_orig.dll", "acevo_dstoragecore.dll", "acevo_directstorage_license.txt", "acevo_directstorage_notices.txt", "acevo_perf.ini", "README.txt") | ForEach-Object { Join-Path "$root\dist" $_ }
 foreach ($f in $payload) { if (-not (Test-Path $f)) { throw "missing payload file $f" } }
 Compress-Archive -Path $payload -DestinationPath $zip -CompressionLevel Optimal
 Write-Host "Release: $zip"

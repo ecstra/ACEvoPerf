@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-public-docs
 kind: review
-description: the player facing angle of the full review of main, an uninstall that can leave the game unable to start and settings whose comments do not say what they turn off, sixteen findings, one breaks
-updated: 2026-09-20
+description: the player facing angle of the full review of main, an uninstall that can leave the game unable to start and settings whose comments do not say what they turn off, sixteen findings, one breaks, all fixed, merged into 0.4 on 2026-10-08
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, public-docs, build-and-release, reviews-index]
 branch: sweep/review-public-docs
-status: open
+status: closed
 ---
 
 # Review of the player facing documents and the shipped release
@@ -30,11 +30,16 @@ Sixteen findings, one breaks, four bug, nine debt, two nit.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the uninstall cannot leave a broken game | pending | |
-| 2 | every setting comment names what turning it off costs | pending, F-03 and F-04 already closed by sweep/review-render | |
-| 3 | the readme and the changelog agree with each other and with the trackers | pending | |
-| 4 | what we redistribute carries what it has to carry | pending | |
-| 5 | tone and the leftovers | pending | |
+| 1 | the uninstall cannot leave a broken game | closed | 2026-10-08 |
+| 2 | every setting comment names what turning it off costs | closed, F-03 and F-04 by sweep/review-render | 2026-10-08 |
+| 3 | the readme and the changelog agree with each other and with the trackers | closed | 2026-10-08 |
+| 4 | what we redistribute carries what it has to carry | closed | 2026-10-08 |
+| 5 | tone and the leftovers | closed | 2026-10-08 |
+
+On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
+the hunter and verifier loop. All five batches were fixed in one pass, the five dropped ini lines checked
+against their code defaults in `src/core/config.cpp`, and a build confirmed the licence copies land in
+`dist/` and stay out of git. All sixteen fixed.
 
 ## Findings
 
@@ -42,8 +47,8 @@ Sixteen findings, one breaks, four bug, nine debt, two nit.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Step 3 in the zip readme and the readme now says it puts the game's own dstorage.dll back and that without it the game will not start.
 
 `dist/README.txt:22`. Step 2 says to delete dstorage.dll, dstorage_orig.dll and everything starting with
 acevo_. Step 3 says only "In Steam, right click the game, then Properties, Installed Files and Verify
@@ -59,8 +64,8 @@ Verified by me against the file on 2026-09-20.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both readmes say to keep a changed `acevo_perf.ini` when Windows asks, after a game update.
 
 `README.md:57` says "After a game update, copy the files in again", and `dist/README.txt:15` says the
 same immediately after step 4, "When Windows asks, replace the file". The zip carries
@@ -113,8 +118,8 @@ and a new log line now both name.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A Known issues line under 0.4 names the unlit lights and trees and `enable_pso_cache=false`, and the ini comment says when to set it false.
 
 `dist/acevo_perf.ini:36` ships `enable_pso_cache=true` with the comment "true means fewer shader
 stutters", and `README.md:42` advertises it. BUG-015 records two independent Overtake reports on 0.3.1
@@ -131,8 +136,8 @@ it. One Known issues line naming the key.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The line reads "Your own car going blurry in races with AI", and `public-docs.md` says a partial fix is named only for its fixed part.
 
 `README.md:31` lists "Blurry cars in races with AI" flat, while `CHANGELOG.md:41` says under Known
 issues that in a full race AI cars and some trackside buildings can still look blurry. BUG-020 agrees.
@@ -144,8 +149,8 @@ near other cars, is the fix.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A Known issues line under 0.4 says the game can stop responding at the start of a race with a full AI grid. The released 0.3.2 section stays as it shipped.
 
 `CHANGELOG.md:37`. The 0.3.2 Known issues section lists four items, all about menus, frame pacing and
 textures. BUG-032 is open, reported 2026-09-18, the same date as the 0.3.2 heading, and is the most
@@ -156,8 +161,8 @@ to word it carefully and not a reason to leave it out.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The crash line says a large block of video memory and smaller cards, with no number. The texture line had none.
 
 `README.md:77` says the game sets aside about 2 GB of video memory for loading, which leaves a 6 GB card
 short, and line 78 does the same for textures. `public-docs.md:28` is flat about it, no measurements, no
@@ -168,8 +173,8 @@ the three player files is clean on this.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08, by `sweep/review-tools` F-09. The release refuses any `[developer]` switch left on.
 
 `release.ps1:11`. Recorded here as the doc side of the tools branch F-09, because the thing it fails to
 check is a player facing file. The 0.3.2 zip is clean, so this is a missing guard rather than a live
@@ -179,8 +184,8 @@ defect.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `stats` stays on, and its comment says the numbers help when a player reports a problem, which is why the Problems section asks for the log.
 
 `dist/acevo_perf.ini:18` ships `stats=1` with `stats_interval_s=10`, so every player gets a loading
 telemetry line in acevo_perf.log every ten seconds for the whole session. `CHANGELOG.md:34` tells players
@@ -193,8 +198,8 @@ whole override layer with it, so the code fix has to land first.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The three lines are out of the shipped ini. The code still reads them with the same defaults, so an older ini that has them behaves as before, and the changelog says so.
 
 `dist/acevo_perf.ini:9` to 11: `min_queue_capacity` ("leave at 0, the game already sets the maximum"),
 `submit_threads` ("leave at 0 to let DirectStorage choose") and `cpu_decompression_threads` ("leave at 0,
@@ -206,8 +211,8 @@ ships settings knobs.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both lines are out of the shipped ini, the code defaults being the shipped values, `unchanged` and true.
 
 `dist/acevo_perf.ini:17`, `tile_queue_priority=unchanged`, maps to a sentinel that makes its only
 consumer's branch unreachable. `dist/acevo_perf.ini:48`, `clear_xor_flag=1`, leaves both of its arms in
@@ -217,8 +222,8 @@ overlay.cpp unentered. Either they earn a reachable default or they leave the in
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `public-docs.md` records that the list has no source under `.agent/` and is checked with the owner before a release repeats it. Where it came from is the owner's to say.
 
 `README.md:23` says players have reported it working on RTX 2060, 3060 Ti, 3070 Ti, 4050 and 4060 cards.
 Nothing under `.agent/` records those reports, and BUG-015 shows that Overtake reports do get filed when
@@ -229,8 +234,8 @@ person can check it before the next release repeats it.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The build copies Microsoft's `LICENSE.txt` and `NOTICES.txt` into `dist/` under `acevo_` names, so the uninstall step removes them too, the release zips them, and both readmes name them. The readme's credits say `tools/data` is read from the game and belongs to its makers, and `build-and-release.md` says the binaries are under Microsoft's licence and only the headers under MIT. Generating the schema locally instead of committing it was left, the carve out being the cheaper of the two the finding offers.
 
 Two of the five files in the zip are Microsoft's DirectStorage 1.3.0 runtime. The only mention of their
 terms is `dist/README.txt:35`, a one line credit with no copy of the text and no link.
@@ -252,8 +257,8 @@ Found independently by two reviewers.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The opening rewraps into one sentence ending "how agents behave", the colon and the hyphenated compound are gone.
 
 `CONTRIBUTING.md:3`. Lines 3 to 5 wrap into a dangling fragment that ends on a line holding only
 "behavior." Line 9 has a mid sentence colon, line 18 has a hyphenated compound that is not an
@@ -264,8 +269,8 @@ established one, and line 5 spells "behavior" while the rest of the repo uses Br
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The comment names `acevo_perf_load_samples.csv`.
 
 `dist/acevo_perf.ini:62`. Every other CSV producing key in the section names its file. This one writes
 `acevo_perf_load_samples.csv` and does not say so.

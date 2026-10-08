@@ -12,7 +12,8 @@ INSTALL
   For the sharpest textures, set texture quality to Ultra in the game's
   graphics settings.
 
-  After a game update, copy the files in again.
+  After a game update, copy the files in again. If you changed
+  acevo_perf.ini, keep your copy when Windows asks about it.
 
 SETTINGS
   Everything is in acevo_perf.ini, one line per setting with a short note.
@@ -24,7 +25,8 @@ UNINSTALL
   2. In the game folder, delete dstorage.dll, dstorage_orig.dll and
      everything whose name starts with acevo_.
   3. In Steam, right click the game, then Properties, Installed Files and
-     Verify integrity of game files.
+     Verify integrity of game files. This puts the game's own dstorage.dll
+     back. Without this step the game will not start.
 
 PROBLEMS
   If the game won't start or runs worse, uninstall the mod. To report a
@@ -33,4 +35,6 @@ PROBLEMS
   https://www.overtake.gg/downloads/acevoperf.86467/
 
 dstorage_orig.dll and acevo_dstoragecore.dll are Microsoft's DirectStorage
-1.3.0, included under Microsoft's license.
+1.3.0, included under Microsoft's license, which is in
+acevo_directstorage_license.txt with its notices in
+acevo_directstorage_notices.txt.

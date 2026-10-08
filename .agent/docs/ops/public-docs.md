@@ -2,7 +2,7 @@
 name: public-docs
 kind: doc
 description: how the readme, the changelog and the readme in the zip are written, for players who have never seen the code, and how the next version is tracked, set on 2026-09-15 after the owner called the old ones AI slop
-updated: 2026-09-15
+updated: 2026-10-08
 links: [build-and-release, feedback-public-docs-are-for-players, feedback-ship-as-installable-mod, TODO-020-cut-0-3-2-after-the-three-open-investigations]
 ---
 
@@ -56,6 +56,10 @@ The sections, in order.
 There is no "what else it does" section. Anything a player gets by default goes under What it adds
 and the rest lives in the ini notes.
 
+The cards in the overview have no record under `.agent/`, so the list is checked with the owner before
+a release repeats it. A fix the changelog calls partial is named in What it fixes only for the part
+that is fixed.
+
 ## CHANGELOG.md
 
 - The top section is always the next version, `## 0.3.2 (unreleased)` while `v0.3.1` is the last
@@ -71,7 +75,9 @@ and the rest lives in the ini notes.
 ## dist/README.txt
 
 Plain text for Notepad, lines wrapped near 76 characters. Install, Settings, Uninstall and Problems
-as numbered steps or a few sentences, then the Microsoft credit line. Nothing a player cannot act on.
+as numbered steps or a few sentences, then the Microsoft credit line naming the licence and notices
+files the zip carries. Nothing a player cannot act on. The uninstall's Steam step says why it matters,
+since without it the game will not start, and the update advice says to keep a changed ini.
 
 ## Versions
 
