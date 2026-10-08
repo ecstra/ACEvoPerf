@@ -1,7 +1,7 @@
 ---
 name: public-docs
 kind: doc
-description: how the readme, the changelog and the readme in the zip are written, for players who have never seen the code, and how the next version is tracked, set on 2026-09-15 after the owner called the old ones AI slop
+description: how the readme, the changelog, the readme in the zip and the release notes are written, for players who have never seen the code, and how the next version is tracked, set on 2026-09-15 after the owner called the old ones AI slop
 updated: 2026-10-08
 links: [build-and-release, feedback-public-docs-are-for-players, feedback-ship-as-installable-mod, TODO-020-cut-0-3-2-after-the-three-open-investigations, reported-working-configurations]
 ---
@@ -9,8 +9,13 @@ links: [build-and-release, feedback-public-docs-are-for-players, feedback-ship-a
 # Public docs
 
 Three files leave the repo and get read by players. `README.md` on GitHub, `CHANGELOG.md`, and
-`dist/README.txt` inside the zip. The GitHub release notes and the Overtake description are cut from
+`dist/README.txt` inside the zip. The GitHub release notes and the Overtake changelog are cut from
 the same text. Their reader downloaded a mod and has never seen the code.
+
+The GitHub release notes follow 0.3.2's shape, a `## New in <version>` heading over the version's Fixed,
+Added and Changed sections and nothing else. No install steps, credits or links, and no Known issues or
+Game issues, which describe the mod as it stands and live in the readme. The owner set this on
+2026-10-08 and keeps the Overtake changelog the same way.
 
 On 2026-09-15 the owner read the readme and the changelog and called them AI slop and word salad.
 They were written for someone who already knew the codebase, with a paragraph of mechanism behind
@@ -49,9 +54,11 @@ The sections, in order.
 5. Install, then Uninstall, both numbered
 6. Settings, a few sentences about the ini
 7. Problems, what to do and which file to attach
-8. How it works, one short paragraph and one or two plain sentences per fix
-9. Build, numbered steps with the commands
-10. Credits
+8. Known issues, the mod's own limits a player will notice
+9. Game issues, under one line saying they are the game's own and happen without the mod too
+10. How it works, one short paragraph and one or two plain sentences per fix
+11. Build, numbered steps with the commands
+12. Credits
 
 There is no "what else it does" section. Anything a player gets by default goes under What it adds
 and the rest lives in the ini notes.
