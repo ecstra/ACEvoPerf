@@ -125,8 +125,8 @@ run both kinds. The records should say what was seen and drop the rest. 02f6806 
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `FeatureSetOf` checks the document, the styler and the bucket table for null and runs under a `__try` that hands the removal to Cohtml's own invalidation. No lock is held there, so the trap below does not apply. The child walk under the lock reads only the parent's live children and stays unguarded.
 
 `src/ui/child_removal_fix.cpp:263`. `Hook_ChildRemoved` runs on every child removal in the process,
 including removals during document teardown and on elements outside any document. It dereferences

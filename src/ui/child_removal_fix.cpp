@@ -260,22 +260,30 @@ static uint64_t Hook_AddRuleFeatures(void* set, const BYTE* rule, void* arg3)
 }
 
 // The lookup 0x37BC60 makes before it invalidates, the feature set of the element's style scope. Null where
-// Cohtml takes the path without it.
+// Cohtml takes the path without it, and for an element outside a document or one being torn down, which
+// then takes Cohtml's own invalidation. The hook runs on every removal in the process, teardown included, and
+// Cohtml's own slot 49 may bail before the lookup this reproduces, so the walk is guarded. No lock is held here.
 static const BYTE* FeatureSetOf(const BYTE* element)
 {
-    const BYTE* document = *(const BYTE* const*)(element + node::kDocument);
-    const BYTE* styles = *(const BYTE* const*)(document + 0x248);
-    if (!styles[0x1A0]) return nullptr;
+    __try {
+        const BYTE* document = *(const BYTE* const*)(element + node::kDocument);
+        if (!document) return nullptr;
+        const BYTE* styles = *(const BYTE* const*)(document + 0x248);
+        if (!styles || !styles[0x1A0]) return nullptr;
 
-    uint64_t scope = *(const uint64_t*)(element + node::kStyleScope);
-    const BYTE* buckets = *(const BYTE* const*)(document + 0x288);
-    BYTE shift = document[0x298] & 63;
-    const BYTE* entry = buckets + ((scope * 0x9E3779B97F4A7C15ull) >> shift) * 0x18;
-    for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += 0x18) {
-        if (*(const uint64_t*)(entry + 8) == scope) return *(const BYTE* const*)(entry + 0x10);
+        uint64_t scope = *(const uint64_t*)(element + node::kStyleScope);
+        const BYTE* buckets = *(const BYTE* const*)(document + 0x288);
+        if (!buckets) return nullptr;
+        BYTE shift = document[0x298] & 63;
+        const BYTE* entry = buckets + ((scope * 0x9E3779B97F4A7C15ull) >> shift) * 0x18;
+        for (int8_t distance = 0; (int8_t)entry[0] >= distance; ++distance, entry += 0x18) {
+            if (*(const uint64_t*)(entry + 8) == scope) return *(const BYTE* const*)(entry + 0x10);
+        }
+        int64_t last = *(const int64_t*)(document + 0x290) + (int8_t)document[0x299];
+        return *(const BYTE* const*)(buckets + last * 0x18 + 0x10);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return nullptr;
     }
-    int64_t last = *(const int64_t*)(document + 0x290) + (int8_t)document[0x299];
-    return *(const BYTE* const*)(buckets + last * 0x18 + 0x10);
 }
 
 static bool NameIs(const BYTE* element, const std::string& name)
