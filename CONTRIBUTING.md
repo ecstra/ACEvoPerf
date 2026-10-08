@@ -1,13 +1,12 @@
 # Contributing
 
 The rules of the road, human or agent. The operating version is
-`.agent/house-rules.md` and CLAUDE.md carries agent
-behavior.
+`.agent/house-rules.md`, and CLAUDE.md carries how agents behave.
 
 ## The absolutes
 
-- **No commit lands on main directly.** All work rides a branch: one
-  branch, one intent. Branches merge into the open version branch, `0.4`
+- **No commit lands on main directly.** All work rides a branch, one
+  branch per intent. Branches merge into the open version branch, `0.4`
   today, and main only moves when that version is published.
 - **No PR exists before the branch's code review has closed.** The owner
   calls the timing and the agent runs it, its ledger lives under
@@ -16,7 +15,7 @@ behavior.
 - **No merge without the owner's explicit ask.** Same for opening the PR
   itself.
 - **Single author, no co-authors, no AI attribution anywhere.** Not in
-  commits, not in PR titles or bodies, no generated-with footers.
+  commits, not in PR titles or bodies, and no footers naming a tool.
 - **Gates before review.** Suites, analyzer, builds, and validators are
   green before a review starts. Reviewers judge working code.
 - **Secrets only in the gitignored root `.env`.** Never in code, docs,

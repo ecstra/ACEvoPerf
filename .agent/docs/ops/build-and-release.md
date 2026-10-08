@@ -26,14 +26,18 @@ For development, `build.ps1 -Install` copies the fresh `dstorage.dll` into the f
 never run it, they install by drag and drop.
 
 The DirectStorage headers and binaries come from `third_party/directstorage` (Microsoft NuGet
-package `Microsoft.Direct3D.DirectStorage` 1.3.0, MIT, license included). A clean build has zero
+package `Microsoft.Direct3D.DirectStorage` 1.3.0, the binaries under Microsoft's own licence and the
+headers under MIT, both included). The build copies `LICENSE.txt` and `NOTICES.txt` into `dist/` as
+`acevo_directstorage_license.txt` and `acevo_directstorage_notices.txt`, and the zip carries them,
+since the licence asks that its terms reach the people the binaries are passed to. A clean build has zero
 errors and zero warnings, and `/WX` makes any warning fail the build.
 
 ## Install
 
 Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `dstorage_orig.dll`
 and `acevo_dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
-`third_party/directstorage/bin/x64/`, the core renamed on the way into `dist/`), `acevo_perf.ini`
+`third_party/directstorage/bin/x64/`, the core renamed on the way into `dist/`), Microsoft's licence
+and notices as `acevo_directstorage_license.txt` and `acevo_directstorage_notices.txt`, `acevo_perf.ini`
 and `README.txt`. The user copies them into the game folder and lets Windows replace
 `dstorage.dll`. Uninstalling is deleting the mod's files and letting Steam verify the game files,
 which brings the game's own `dstorage.dll` back, as the readme and `dist/README.txt` say. Renaming
@@ -52,7 +56,8 @@ looking correct while still running 1.2.3.
 ## Release
 
 `release.ps1` runs `build.ps1` (which also copies Microsoft's two files into `dist/` as
-`dstorage_orig.dll` and `acevo_dstoragecore.dll`), then zips the five payload files into
+`dstorage_orig.dll` and `acevo_dstoragecore.dll`, and its licence and notices), then zips the seven
+payload files into
 `release/ACEvoPerf-<FileVersion>.zip`. It refuses when the newest `CHANGELOG.md` heading is not this
 version with a date, which an `(unreleased)` heading never is, or when any `[developer]` switch in
 `dist/acevo_perf.ini` is not 0. The version comes

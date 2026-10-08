@@ -27,7 +27,7 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - Crashes at startup and on car or track changes
 - Missing icons in the vehicle hub and menus
 - Mushy road, tyre and ground textures
-- Blurry cars in races with AI
+- Your own car going blurry in races with AI
 - Blurry trackside big screens
 - Laggy menus
 - Uneven frame pacing while driving
@@ -54,13 +54,13 @@ What changed in each version is in the [changelog](CHANGELOG.md).
 
 For the sharpest textures, set texture quality to Ultra in the game's graphics settings.
 
-After a game update, copy the files in again.
+After a game update, copy the files in again. If you changed `acevo_perf.ini`, keep your copy when Windows asks about it.
 
 ## Uninstall
 
 1. Close the game.
 2. In the game folder, delete `dstorage.dll`, `dstorage_orig.dll` and everything whose name starts with `acevo_`.
-3. In Steam, right click the game, then **Properties**, **Installed Files** and **Verify integrity of game files**. This puts the game's own `dstorage.dll` back.
+3. In Steam, right click the game, then **Properties**, **Installed Files** and **Verify integrity of game files**. This puts the game's own `dstorage.dll` back. Without this step the game will not start.
 
 ## Settings
 
@@ -74,7 +74,7 @@ If the game won't start or runs worse with the mod, uninstall it. To report a pr
 
 The game loads Microsoft's DirectStorage from `dstorage.dll` in its folder to read its files. The mod's `dstorage.dll` takes that spot, passes everything on to the real DirectStorage and fixes these problems while the game runs.
 
-- **Crashes and missing icons:** the game sets aside about 2 GB of video memory just for loading, which leaves a 6 GB card short. The mod sets aside only what loading needs.
+- **Crashes and missing icons:** the game sets aside a large block of video memory just for loading, which leaves smaller cards short. The mod sets aside only what loading needs.
 - **Mushy textures:** the game decides how much memory textures get while the previous track is still loaded, so they get too little. The mod sets it once, sized for your card.
 - **Blurry cars in races:** once texture memory is full, the game ranks textures by the car that needs them least and loads new detail only when all of it fits. The mod ranks them by the car that needs them most and loads what fits.
 - **Big screens:** the screens fall back to very low detail copies of their video. The mod hides those copies, so the sharp one always shows.
@@ -108,4 +108,4 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install
 
 ## Credits
 
-`dstorage_orig.dll` and `acevo_dstoragecore.dll` are Microsoft's DirectStorage 1.3.0, included under Microsoft's license. Everything else is by **ecstra**, under the [MIT licence](LICENSE).
+`dstorage_orig.dll` and `acevo_dstoragecore.dll` are Microsoft's DirectStorage 1.3.0, included under Microsoft's license, which ships beside them in the zip and lives in `third_party/directstorage`. The files in `tools/data` are read from the game and belong to its makers. Everything else is by **ecstra**, under the [MIT licence](LICENSE).

@@ -19,6 +19,13 @@ Every version of ACEvoPerf and what changed in it, newest first.
 ### Changed
 
 - Cards smaller than 6 GB now have less video memory set aside for textures, sized to the card rather than to a 6 GB one.
+- Five settings in `acevo_perf.ini` that only ever said to leave them alone are gone. An older ini that still has them works as before.
+- The zip now carries Microsoft's license for the DirectStorage files it includes.
+
+### Known issues
+
+- For a few players the car's headlights and the trees look unlit at night. Setting `enable_pso_cache=false` in `acevo_perf.ini` cures it.
+- The game can stop responding at the start of a race with a full AI grid.
 
 ## 0.3.2 (2026-09-18)
 
