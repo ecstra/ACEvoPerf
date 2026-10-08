@@ -149,11 +149,17 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     uint64_t vramMb = d.DedicatedVideoMemory >> 20;
 
     // Windows grants the reference card 5226 of the 5994 MB it reports, 87 percent, so a budget it
-    // cannot report is taken the same way.
+    // cannot report is taken the same way. A card is never granted more than its own memory, and an
+    // integrated GPU is granted the PC's shared memory as if it were its own, 15814 MB to a Radeon
+    // with 496 MB on 2026-10-08, which sized a 6 GB pool out of the memory the game itself runs in.
+    // So a budget above the dedicated memory is cut back to it.
     const char* budgetFrom = "granted by Windows";
     if (!budgetMb) {
         budgetMb = vramMb * 87 / 100;
         budgetFrom = "assumed, Windows did not say";
+    } else if (budgetMb > vramMb) {
+        budgetMb = vramMb;
+        budgetFrom = "its own memory, Windows granted more, which is shared memory";
     }
     DWORD width = 1920, height = 1080;
     const char* screenFrom = "";
