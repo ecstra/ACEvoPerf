@@ -61,17 +61,6 @@ static const BYTE kGateStub[] = {
 static const size_t kGateStubWalkAt = 12;
 static const size_t kGateStubSkipAt = 17;
 
-// jmp rel32 for code that will run at `from`, written into `out`.
-static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
-{
-    int64_t rel = destination - (from + 5);
-    if (rel > INT32_MAX || rel < INT32_MIN) return false;
-    int32_t value = (int32_t)rel;
-    out[0] = 0xE9;
-    memcpy(out + 1, &value, 4);
-    return true;
-}
-
 void InstallRestyleFix()
 {
     BYTE* game = (BYTE*)GetModuleHandleW(nullptr);
@@ -108,9 +97,9 @@ void InstallRestyleFix()
     // The five bytes after the jump are the rest of the original jbe, never reached again.
     BYTE patched[10];
     memset(patched, 0xCC, sizeof patched);
-    if (!EncodeJump(stub + kGateStubWalkAt, cohtml + kRvaSiblingWalk, stub + kGateStubWalkAt) ||
-        !EncodeJump(stub + kGateStubSkipAt, cohtml + kRvaAfterSiblingWalk, stub + kGateStubSkipAt) ||
-        !EncodeJump(gate, stub, patched)) {
+    if (!EncodeRel32(0xE9, stub + kGateStubWalkAt, cohtml + kRvaSiblingWalk, stub + kGateStubWalkAt) ||
+        !EncodeRel32(0xE9, stub + kGateStubSkipAt, cohtml + kRvaAfterSiblingWalk, stub + kGateStubSkipAt) ||
+        !EncodeRel32(0xE9, gate, stub, patched)) {
         VirtualFree(stub, 0, MEM_RELEASE);
         Log("[restyle] the stub is out of reach of Cohtml, nothing patched");
         return;

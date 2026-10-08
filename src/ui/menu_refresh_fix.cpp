@@ -191,16 +191,6 @@ static void OnLoadUrl(void*, const char* url)
     }
 }
 
-static bool EncodeJump(const BYTE* from, const BYTE* destination, BYTE* out)
-{
-    int64_t rel = destination - (from + 5);
-    if (rel > INT32_MAX || rel < INT32_MIN) return false;
-    int32_t value = (int32_t)rel;
-    out[0] = 0xE9;
-    memcpy(out + 1, &value, 4);
-    return true;
-}
-
 static bool Matches(BYTE* base, const Region& region)
 {
     if (Fnv1a64(base + region.rva, region.length) == region.fnv1a64) return true;
@@ -259,7 +249,7 @@ void InstallMenuRefreshFix()
 
     BYTE pickJump[5], urlJump[5];
     DWORD old = 0;
-    if (!EncodeJump(game + kRvaRotationPick, rotationStub, pickJump) || !EncodeJump(cohtml + kLoadUrl.rva, urlStub, urlJump) ||
+    if (!EncodeRel32(0xE9, game + kRvaRotationPick, rotationStub, pickJump) || !EncodeRel32(0xE9, cohtml + kLoadUrl.rva, urlStub, urlJump) ||
         !VirtualProtect(gameCave, page, PAGE_EXECUTE_READ, &old) || !VirtualProtect(cohtmlCave, page, PAGE_EXECUTE_READ, &old)) {
         VirtualFree(gameCave, 0, MEM_RELEASE);
         VirtualFree(cohtmlCave, 0, MEM_RELEASE);

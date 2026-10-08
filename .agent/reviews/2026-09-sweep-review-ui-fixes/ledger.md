@@ -315,8 +315,8 @@ patch surface reachable only by a diagnostic that ships off. The comment on line
 - severity: nit
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both copies are gone and every jump is encoded with `EncodeRel32(0xE9, ...)`.
 
 `src/ui/menu_refresh_fix.cpp:193` and `src/ui/restyle_fix.cpp:65`, two identical five line bodies. Both
 files include `acevo/core/code_patch.h` on their line 2, and `EncodeRel32(0xE9, from, destination, out)`
