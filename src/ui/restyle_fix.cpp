@@ -127,6 +127,7 @@ void InstallRestyleFix()
     if (CodePatchingIsLate())
         Log("[restyle] WARNING: patching Cohtml's code after start up, with the game's own threads running. One executing these bytes mid write will crash. See WriteCode.");
     if (!VirtualProtect(gate, kSiblingGate.length, PAGE_EXECUTE_READWRITE, &old)) {
+        VirtualFree(stub, 0, MEM_RELEASE);
         Log("[restyle] could not make Cohtml's code writable, nothing patched");
         return;
     }

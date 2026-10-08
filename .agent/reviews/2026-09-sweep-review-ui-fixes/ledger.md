@@ -195,8 +195,8 @@ The log tells the owner the opposite of what happened.
 - severity: nit
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. That path frees the stub page like the others.
 
 `src/ui/restyle_fix.cpp:129`. Every other bail out at lines 104, 115 and 122 calls `VirtualFree` on the
 cave. The VirtualProtect failure at 128 returns without it, leaking the 4 KB reservation for the
