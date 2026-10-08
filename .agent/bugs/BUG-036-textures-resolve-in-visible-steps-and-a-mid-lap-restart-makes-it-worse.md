@@ -1,11 +1,11 @@
 ---
 name: BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse
 kind: bug
-description: textures come up mushy and then sharpen in visible stages rather than in one go, and a session restart mid lap makes the staircase worse or slower, which points at the mip chain arriving level by level and at a restart starting from a worse position than a fresh load
+description: textures come up mushy and sharpen in visible stages, and a mid lap restart was much slower on the first run, not seen again on the 0.3.2 release or plain 0.4, and an admission fix for the streamer's double promise looked blurrier, so it stays as the engine has it
 updated: 2026-10-08
 links: [directstorage-streaming, BUG-018-whole-scene-low-detail-for-a-second-after-load, BUG-010-texture-pool-shrinks-on-race-load-and-restart, BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, texture-streamer-camera-cuts-2026-09-14]
 area: streaming
-status: open
+status: wontfix
 severity: bug
 reported: 2026-09-20
 parent:
@@ -60,9 +60,32 @@ laid side by side.
 Reported from the owner's machine, the RTX 3060 Laptop, with the mod on. Not yet checked with the
 mod off.
 
+### Eight Nordschleife runs, 2026-10-08
+
+All in `logs/writing-steps-20261008`, at 1024 MB with a join, a lap and a mid lap restart each.
+
+- The first run with every streamer fix on restarted very slowly. A run with them all off, and a run
+  with only the rank fix off, restarted faster. The trace of the slow run showed admitted textures
+  waiting for room at a load gate of 0, the player's car among them.
+- From the exe, the admission budget counts the coarsest level of every tracked texture as free, but
+  a texture left out keeps that level and is never charged for it, so about 1,500 tiles are promised
+  twice and what arrived last waits for them. A restart moves the car rather than reloading the track,
+  and for about 12 s after any move the game keeps asking for the textures of the spot the car left.
+- A fix that charged those levels before the admission walk cut the waiting tiles after a restart
+  from about 1,600 to 160. With a preference for loaded levels added against the churn it caused, the
+  owner still saw it as much blurrier than 0.3.2, and a restart stuck one step short of sharp. The
+  exact charge pushes the least important textures to their coarsest copy, which shows more than the
+  detail it buys elsewhere.
+- The 0.3.2 release and plain 0.4, both with the same over promise and the same waiting numbers as the
+  slow run, looked sharp to the owner and restarted near instantly, plain 0.4 twice.
+
 ## Fix
 
-Absent.
+Won't fix, on the owner's call of 2026-10-08. The symptom did not come back on the 0.3.2 release or on
+plain 0.4, and the owner puts the early slow restarts down to caching. The trace cannot tell that from
+the variance between restart spots. The over promise is real, but correcting it looked worse, so the
+branch that carried it was deleted. If slow restarts come back, the first step is a by eye A/B of the
+release against the current build with two restarts each.
 
 ## Verification
 

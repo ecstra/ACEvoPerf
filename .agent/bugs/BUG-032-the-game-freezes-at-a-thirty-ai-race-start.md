@@ -1,10 +1,10 @@
 ---
 name: BUG-032-the-game-freezes-at-a-thirty-ai-race-start
 kind: bug
-description: at the start of a thirty AI race at the Nürburgring the game stopped presenting frames for 45 s with its own threads frozen while the mod's threads kept running, no exception anywhere and video memory over budget, and the owner ended it
-updated: 2026-09-24
+description: at the start of a thirty AI race at the Nürburgring the game stopped presenting frames for 45 s with its own threads frozen while the mod's threads kept running, no exception anywhere and video memory over budget, and the owner ended it, not seen again in two later starts of the same grid
+updated: 2026-10-08
 links: [BUG-016-vram-overhead-grows-across-scene-loads, session-leak-fix, BUG-002-fps-drop-entering-new-track-sections, telemetry, DEC-023-the-session-free-stays-immediate]
-status: open
+status: wontfix
 severity: bug
 area: render
 reported: 2026-09-18
@@ -40,13 +40,15 @@ next one and only what was read on the day is kept here.
 
 ## Reproduce
 
-Not reproduced yet. The second attempt the same evening ran the same race with the same build and did not
-freeze, so it needs the census off, the same thirty AI grid at the Nürburgring, and a Task Manager dump taken
-while the game is frozen.
+Not reproduced. The second attempt the same evening ran the same race with the same build and did not
+freeze. On 2026-10-08 the owner ran a 30 car race at the Nürburgring from the grid on 0.4 with the census
+off, one lap, and it started clean (`logs/repro-20261008`).
 
 ## Fix
 
-Absent.
+Won't fix, closed as not reproduced on 2026-10-08 after two clean starts of the same grid, the one freeze
+having come with video memory over budget. If it comes back, a Task Manager dump taken while the game is
+frozen is what names it.
 
 ## Verification
 

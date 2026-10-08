@@ -108,5 +108,8 @@ flag off settled it. What was checked here on 2026-10-08: the shipped `acevo_per
 the flag, nothing in `src/` writes it, the `[flags]` reader writes only the keys an ini holds, and the
 flag off launch of `logs/pso-ab-20261008` logged no cached pipeline handed back.
 
+One more from the field on 2026-10-08: the player whose car glowed white in the showroom and the menus,
+told that morning to turn the flag off, reported it normal again that afternoon.
+
 Not verified on the reference machine, which showed the glitch once in weeks of play. TODO-031 is the
 attempt to see it here, which a fix keeping the cache would need.

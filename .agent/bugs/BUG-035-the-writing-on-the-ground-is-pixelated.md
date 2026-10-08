@@ -1,7 +1,7 @@
 ---
 name: BUG-035-the-writing-on-the-ground-is-pixelated
 kind: bug
-description: the chalk writing on the Nordschleife's road shows blocky up close because the 1024 MB tile pool of a 6 GB card at Ultra is full there and the game never admits the writing's decals, which sit at their coarsest level, a limit of that card's memory rather than of the art or the mod, eased for bigger cards by the budget sizing of BUG-040
+description: the chalk writing on the Nordschleife's road shows blocky up close, partly the art, since graffiti_brunnchen4 is shown whole at only 1024 by 64, and partly the 1024 MB tile pool of a 6 GB card at Ultra, full there so the streamed decals are not admitted, neither of it the mod's, the pool side eased for bigger cards by the budget sizing of BUG-040
 updated: 2026-10-08
 links: [directstorage-streaming, BUG-007-blurry-road-and-textures, BUG-001-texture-low-mip-shown-before-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use, BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse]
 area: streaming
@@ -60,20 +60,24 @@ shows the writing blocky beside a sharp road.
 
 - The pool was full on every pass while parked, 16,384 tiles with the admission budget of 13,126 all
   taken, about 260 textures refused a place, and about 128 loads a pass turned away for space.
-- `graffiti_brunnchen4` and its alpha map were seen by the streamer and never loaded a tile of detail in
-  the whole session, so they stayed at their coarsest level.
+- `graffiti_brunnchen4` and its alpha map never loaded a tile in the whole session, but that is no
+  refusal. The texture is 1024 by 64 with 11 mips in 12 tiles, which the streamer holds as a single
+  level that is always resident, so it was at full size the whole time (corrected later the same day).
 - `graffiti_general_2`, four streamed levels, was loaded whole at 45 s, dropped to its coarsest as not
   admitted at 70 s, loaded again at 202 s and dropped again at 204 s.
 - The reload fix held about 170 MB of drops the engine wanted to make while parked, 76 refused, but all
   of it was in view with fresh feedback, the arid ground normal map and the guardrails, so dropping it
   would only have reloaded it a pass later. It does not stand between the writing and a place.
 
-So the writing is blocky because the game ranks it low in a pool too small for everything in view at the
-Nordschleife at Ultra on a 6 GB card, and nothing of the mod's keeps it out.
+So the writing is blocky for two reasons. `graffiti_brunnchen4` is shown whole and is only 1024 by 64
+pixels, which is blocky up close at that size on the road, so it is the art. The streamed decals like
+`graffiti_general_2` are ranked low in a pool too small for everything in view at the Nordschleife at
+Ultra on a 6 GB card. Nothing of the mod's keeps either of them out.
 
 ## Fix
 
-Not fixed for the 6 GB card, on the owner's call of 2026-10-08. The 1024 MB pool already leaves about
+Not fixed for the 6 GB card, on the owner's call of 2026-10-08. Writing drawn from a texture as small as
+`graffiti_brunnchen4` stays blocky on every card. For the streamed decals, the 1024 MB pool already leaves about
 600 MB of that card's budget spare, so there is no memory to give, and changing how the engine ranks
 textures for admission means reworking its streamer from the inside. Texture quality one step down eases
 the pressure. Cards of 8 GB and more get two to six times the pool since the budget sizing of BUG-040

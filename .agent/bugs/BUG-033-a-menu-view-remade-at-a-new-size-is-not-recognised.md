@@ -1,11 +1,11 @@
 ---
 name: BUG-033-a-menu-view-remade-at-a-new-size-is-not-recognised
 kind: bug
-description: the menu and HUD view is identified by being first or by matching the first view's size, so one torn down and remade at a different size, which a fullscreen to windowed change does, is never recognised again and the page fixes stop reaching it for the rest of the session
-updated: 2026-09-20
+description: the menu and HUD view is identified by being first or by matching the first view's size, so one torn down and remade at a different size, which a fullscreen to windowed change does, is never recognised again and the page fixes stop reaching it for the rest of the session, closed because a fullscreen and windowed switch keeps the same view on 0.9.1
+updated: 2026-10-08
 links: [responsive-ui, review-2026-09-fix-review-cohtml-build-guard, BUG-013-one-percent-lows-drop-after-window-or-input-switch, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open]
 area: ui
-status: open
+status: wontfix
 severity: bug
 reported: 2026-09-20
 parent:
@@ -53,9 +53,18 @@ The game window's client rectangle, found by walking the process's own top level
 no dependency on another subsystem or on any setting, at the cost of about fifteen lines of window
 enumeration and a question about what exists at the moment the first view is made.
 
+### The switch keeps the view, 2026-10-08
+
+`logs/repro-20261008`: the owner switched the game from windowed to fullscreen and back in the graphics
+settings. The game log shows both monitor updates, and the mod's log shows the one 1920x1080 view made at
+start and no other, the page fixes script given once. The controls and vehicle setup pages opened without
+lag afterwards.
+
 ## Fix
 
-Absent.
+Won't fix, closed on 2026-10-08. The case the review feared, a fullscreen and windowed switch remaking the
+view at a new size, keeps the same view on 0.9.1, so nothing reaches the limitation. If a later build remakes
+the view, the game window's client rectangle is the signal to use, as read above.
 
 ## Verification
 
