@@ -23,10 +23,6 @@ bug
 - [BUG-013-one-percent-lows-drop-after-window-or-input-switch](BUG-013-one-percent-lows-drop-after-window-or-input-switch.md), pause and HUD reload stalls through a rolling counter plus the device rebuild on a device change, diagnostics removed, the device stays to be named
 - [BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load](BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load.md), 1.2 MB of UI stylesheets read and parsed again at every document load, 38 MB of repeat reads in a 20 minute race session, the parse off the frame thread since the responsive UI
 
-debt
-
-- [BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md), the override layer holds a 64 MB decoded package table for the whole session though the game reads its table in the first seconds
-
 nit
 
 - [BUG-031-the-heap-still-grows-about-5-mb-a-visit-with-the-session-leak-fix](BUG-031-the-heap-still-grows-about-5-mb-a-visit-with-the-session-leak-fix.md), with every finished session freed the live heap still grows about 5 MB a Red Bull Ring visit, the remaining leak in the owner's words, not named yet
@@ -43,6 +39,7 @@ nit
 
 ## Fixed
 
+- [BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session](BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session.md), the override layer held a 64 MB decoded package table for the whole session, fixed by keeping only the replaced slots when no override adds an entry, about 60 MB less commit, owner driven
 - [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up saw video memory use and GPU load drop and sometimes a hang, because the auto sizes gave them 2048 or 3072 MB of tiles against the game's own 6144 MB, fixed by sizing the pool at launch from the memory Windows grants and the display's size (DEC-025), experimental, verified only on the 6 GB card so far
 - [BUG-039-the-pso-cache-draws-some-materials-wrong](BUG-039-the-pso-cache-draws-some-materials-wrong.md), with `enable_pso_cache` on, which the mod turned on and the game ships off, fences drew as glass, cars glowed, trees went unlit or white at night, a car's main beam vanished and pit rails flashed, cured in every report by the flag off, fixed by leaving the flag out of the shipped ini (DEC-024), the cache measured at 4 to 5 s per load and nothing while driving
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night with `enable_pso_cache` on, one symptom of BUG-039 and fixed with it

@@ -2,8 +2,8 @@
 name: package-override-layer
 kind: doc
 description: how loose files under acevo_mods replace or add entries of content.kspkg at run time
-updated: 2026-09-24
-links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, responsive-ui]
+updated: 2026-10-08
+links: [content-package, directstorage-streaming, proxy-architecture, TODO-007-package-override-layer, TODO-009-overlay-serves-copies-so-loose-files-stay-editable, BUG-017-trackside-big-screens-blurry, BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session, responsive-ui]
 ---
 
 # Package override layer
@@ -94,6 +94,15 @@ it: `acevo_perf.log` shows `replace ... (1029 bytes) -> virtual offset 690707496
 (83 bytes)`, `table rebuilt, 122398 entries used, 1 replaced` (later `2 added`), `redirected
 request #1 ... +0 size 1029 -> MEMORY`, and the game log shows the markers from both files. Table
 rebuild costs 80 ms at startup (64 MB read and decoded once).
+
+## Memory
+
+The table is read and decoded whole once, to find and edit the overridden slots. When every override
+replaces an entry the package already has, the edited table differs from the package's only in those
+slots, so just they are kept, 256 bytes each, and written into whatever part of the table a later read
+covers. The 64 MB copy goes as soon as they are taken, about 60 MB less commit for the whole session
+(BUG-023, `logs/overlay-table-20261008`). An override that adds an entry shifts every slot after it, so
+then the whole edited table is kept as before.
 
 ## Limits
 
