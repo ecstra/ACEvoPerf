@@ -93,10 +93,12 @@ the owner's other repos use, with EVO outlined, from glyphs defined in the scrip
 Two channels, the same zip, decided in DEC-013. In this order once the tag exists:
 
 1. GitHub: `gh release create v<version> release/ACEvoPerf-<version>.0.zip --title
-   "ACEvoPerf <version>"` with `--notes-file` pointing at notes written to
-   [public-docs](public-docs.md), the Overtake link at the top, then what it fixes and adds,
-   install, uninstall, the version's changelog section and the credits. `gh release edit`
-   replaces the notes later.
+   "ACEvoPerf <version>"` with `--notes-file` pointing at notes cut from the version's changelog
+   as [public-docs](public-docs.md) says, `## New in <version>` over its Fixed, Added and Changed
+   sections. A build sent to a player first to confirm a fix goes up with `--prerelease`, which
+   keeps the Latest badge on the last full release, as 0.4.1 did on 2026-10-08, and
+   `gh release edit v<version> --prerelease=false --latest` makes it the full release once it is
+   confirmed. `gh release edit` replaces the notes later.
 2. Overtake: "Post an update" on the listing (`overtake.gg/downloads/acevoperf.86467`) with
    the same zip, the version number and a short update text. The listing's description
    holds the same content as the readme in plain paragraphs, the credits line for the
