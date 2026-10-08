@@ -15,6 +15,7 @@ Every version of ACEvoPerf and what changed in it, newest first.
 - A file in the mods folder that replaces the menu styling or the trackside big screens being ignored.
 - Part of the game failing to load, instead of using the game's own file, when a file in the mods folder could not be opened at startup.
 - A linked file in the mods folder being served empty or cut short.
+- Fences looking like glass, cars glowing, trees unlit or white at night, your own headlights vanishing and parts of the track flickering, all from the game's shader cache, which the mod no longer turns on. If you kept your own `acevo_perf.ini`, delete its `enable_pso_cache` line.
 
 ### Changed
 
@@ -24,7 +25,6 @@ Every version of ACEvoPerf and what changed in it, newest first.
 
 ### Known issues
 
-- For a few players the car's headlights and the trees look unlit at night. Setting `enable_pso_cache=false` in `acevo_perf.ini` cures it.
 - The game can stop responding at the start of a race with a full AI grid.
 
 ## 0.3.2 (2026-09-18)

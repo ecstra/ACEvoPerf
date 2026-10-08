@@ -3,9 +3,9 @@ name: BUG-038-fences-look-like-glass-in-sunlight
 kind: bug
 description: the wire catch fences show as flat see through sheets that read as glass in sunlight, the gaps between the wires filling in as the car gets closer and some fences blocked solid even far off, much less in shade, first reported by a player on a 4090 and seen on the owner's machine on 2026-09-24, most likely how the fence is drawn and lit rather than texture streaming, and cleared by a game restart with nothing changed
 updated: 2026-10-08
-links: [reported-working-configurations, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, engine-flags]
+links: [reported-working-configurations, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, engine-flags, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: open
+status: fixed
 severity: bug
 reported: 2026-09-24
 parent:
@@ -77,10 +77,20 @@ bad state belongs to one session. Still there, it belongs to the process, and th
 worth saving before the quit. A run with `enable_pso_cache=false` can only show anything over enough
 sessions to have seen it come back with the flag on.
 
+### One symptom of BUG-039, 2026-10-08
+
+Settled by a player on an RTX 4060 8 GB who saw these fences on every launch. Deleting
+`pipeline.library` gave one clean run and the fences came back on every run after it, and with
+`enable_pso_cache=false` they never came back. On the owner's machine it showed once and a restart
+cleared it, which a cache that holds a bad blob only sometimes would also do. The fences are one symptom
+of [BUG-039](BUG-039-the-pso-cache-draws-some-materials-wrong.md) and are fixed with it.
+
 ## Fix
 
-Absent.
+Fixed with BUG-039 on 2026-10-08 in `beaca33`, the mod no longer turning on `enable_pso_cache`
+(DEC-024).
 
 ## Verification
 
-Absent.
+As BUG-039. The 4060 player's fences never came back with the flag off. Not verified on the owner's
+machine, where they showed once.

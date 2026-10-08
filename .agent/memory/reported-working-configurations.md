@@ -1,10 +1,10 @@
 ---
 name: reported-working-configurations
 kind: memory
-description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, the glass fences since seen here as BUG-038, and why none of them points at a card, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-09-25
+description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
+updated: 2026-10-08
 type: project
-links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache]
+links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
 
 The mod is developed on one machine, an RTX 3060 Laptop GPU with 6 GB. Everything else in the `Overview`
@@ -44,21 +44,28 @@ report on one distribution and one Proton build is not a supported platform, whi
 
 ## Open reports
 
-Four reports, three of which nobody has reproduced. The hardware is written down only because the
-reporter gave it, and not as a grouping. Nothing in any of them points at the card, and the owner's call
-of 2026-09-19 on the first one is the standing reading for all of them: the card and the fault are
-unrelated. A setting, a leftover shader cache, a driver, or something else local to that machine is at
-least as likely as either the GPU or the mod.
+The hardware is written down only because the reporter gave it, and not as a grouping. The owner's call
+of 2026-09-19 on the first one was that the card and the fault are unrelated. Since 2026-10-08 most of the
+graphical ones read as BUG-039, the shader cache the mod turns on, which the flag off cured for everyone
+who tried it. That leans toward the 40 series without proving it, and it is a fault of the cache rather
+than of any card.
 
-- Fences take on a glass look. Reported once, by someone on a 4090, and seen on the owner's machine on
-  2026-09-24, so it is now BUG-038 and no longer one nobody has reproduced.
+- Fences take on a glass look. Reported by someone on a 4090, then on a 4060 8 GB on every launch, and
+  seen on the owner's machine on 2026-09-24. Now one symptom of BUG-039, the shader cache the mod turns
+  on. The same 4060 player saw pit fencing flashing every frame, and a second machine of theirs, a 2070
+  8 GB, never showed either.
 - Cars glowing. Reported once, by someone on a 4070 Ti with a 14700K and 64 GB. The owner's answer was to
-  restart the game and send the log if it persisted, and no log came back.
+  restart the game and send the log if it persisted, and no log came back. Possibly BUG-039 as well.
 - Single player improved and multiplayer freezes stayed. Reported once, by someone who said only "Radeon
   here". There is no Radeon on hand to look into it.
 - Worse performance, stutters at fixed places on a track and trees bright white in night races, on the
-  game's 0.9. Reported once, on 2026-09-25, with no card, no settings, no numbers and no log, so the
-  owner's word is that nobody knows yet whether it is a bug at all, and it is filed nowhere else.
+  game's 0.9. Reported once, on 2026-09-25, with no card, no settings, no numbers and no log. The white
+  trees now read as BUG-039, and the stutters are still unexplained. The same player later found the game
+  smooth at Ultra, with liveries sharpening slowly on a game installed on a hard disk.
+- A car's own main beam vanishing at night on a server, seen in VR, card not given. Read as BUG-039.
+
+The 4060 8 GB player above also reported much steadier frame rates with the mod, which makes a third 4060
+in the list above in all but name.
 
 These are not in the readme list, because nobody on those machines said the mod worked for them, not
 because the cards are suspect. Reading a list of faults as a list of bad cards is exactly the inference to

@@ -2,7 +2,7 @@
 name: TODO-025-the-ui-view-rotation-test
 kind: todo
 description: one launch of a developer build that takes the UI view schedule through three schedules in 10 second turns at the Red Bull Ring GP, the game's rotation, the main view every frame and every view every frame, to show whether the UI rotation sets BUG-009's width now that the integrated GPU is ruled out
-updated: 2026-09-15
+updated: 2026-10-08
 links: [BUG-009-one-percent-lows-far-below-average, one-percent-lows-2026-09-14, ui-lag-deepdive-2026-09-14, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, responsive-ui, telemetry, TODO-026-one-lean-etw-trace-of-the-slow-frames]
 status: done
 by: agent
@@ -37,8 +37,8 @@ mean frame time and the 3 frame fold.
 
 The deep dive of 2026-09-14 read in the exe that the game advances one UI view per frame in turn and found
 a matching 3 frame ripple in every two display car's driving on disk. It was never tested, because the
-present path through the integrated GPU looked like the larger part. On 2026-09-15 the owner's 5070
-desktop with no integrated GPU showed the same gap (BUG-009), so the UI rotation is the first lead left
+present path through the integrated GPU looked like the larger part. On 2026-09-15 a desktop with an
+RTX 5070 and no integrated GPU showed the same gap (BUG-009), so the UI rotation is the first lead left
 standing and the owner's own theory. Turns inside one launch take the section, the clock and the
 temperature out of the comparison, which two launches could not.
 

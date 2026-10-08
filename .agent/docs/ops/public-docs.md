@@ -3,7 +3,7 @@ name: public-docs
 kind: doc
 description: how the readme, the changelog and the readme in the zip are written, for players who have never seen the code, and how the next version is tracked, set on 2026-09-15 after the owner called the old ones AI slop
 updated: 2026-10-08
-links: [build-and-release, feedback-public-docs-are-for-players, feedback-ship-as-installable-mod, TODO-020-cut-0-3-2-after-the-three-open-investigations]
+links: [build-and-release, feedback-public-docs-are-for-players, feedback-ship-as-installable-mod, TODO-020-cut-0-3-2-after-the-three-open-investigations, reported-working-configurations]
 ---
 
 # Public docs
@@ -56,8 +56,9 @@ The sections, in order.
 There is no "what else it does" section. Anything a player gets by default goes under What it adds
 and the rest lives in the ini notes.
 
-The cards in the overview have no record under `.agent/`, so the list is checked with the owner before
-a release repeats it. A fix the changelog calls partial is named in What it fixes only for the part
+The cards in the overview come from player reports kept in
+[reported-working-configurations](../../memory/reported-working-configurations.md), and the readme line
+changes only when that file does. A fix the changelog calls partial is named in What it fixes only for the part
 that is fixed.
 
 ## CHANGELOG.md

@@ -223,7 +223,7 @@ overlay.cpp unentered. Either they earn a reachable default or they leave the in
 - found-by: review
 - batch: 3
 - status: fixed
-- fix: 2026-10-08. `public-docs.md` records that the list has no source under `.agent/` and is checked with the owner before a release repeats it. Where it came from is the owner's to say.
+- fix: 2026-10-08. Overtaken before this pass reached it. `.agent/memory/reported-working-configurations.md`, added on 2026-09-25, records every card in the list with its source, and `public-docs.md` now points at it. The first fix line here said the list had no source, which was wrong and was corrected the same day on `fix/pso-cache-glitches`.
 
 `README.md:23` says players have reported it working on RTX 2060, 3060 Ti, 3070 Ti, 4050 and 4060 cards.
 Nothing under `.agent/` records those reports, and BUG-015 shows that Overtake reports do get filed when

@@ -3,9 +3,9 @@ name: BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache
 kind: bug
 description: two users on the Overtake listing report that at night the car's own headlights do not light trees at the Nurburgring and light nothing at Oulton Park, and that enable_pso_cache=false cures it, a default the mod turned off for a while and turned back on at the owner's word on 2026-09-15
 updated: 2026-10-08
-links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release]
+links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: wontfix
+status: fixed
 severity: bug
 reported: 2026-09-11
 parent:
@@ -16,12 +16,12 @@ parent:
 Reported on the mod's Overtake listing on 2026-09-10 and 2026-09-11 by two users, both
 reviewing 0.3.1:
 
-- `mld35`: at night the car's headlights do not illuminate the trees at the Nurburgring, and
-  at Oulton Park they illuminate neither the track nor the trees. Other players' headlights
-  in multiplayer light everything correctly. Tested with the 964.
-- `MaxBal`: "Regarding the tree lighting issue, set `enable_pso_cache=false`", with the note
-  that turning it off costs some micro stuttering when the same car and track are reloaded,
-  which is the game's own default anyway.
+- One: at night the car's headlights do not illuminate the trees at the Nurburgring, and at
+  Oulton Park they illuminate neither the track nor the trees. Other players' headlights in
+  multiplayer light everything correctly. Tested with the 964.
+- The other: setting `enable_pso_cache=false` cures the tree lighting, with the note that
+  turning it off costs some micro stuttering when the same car and track are reloaded, which
+  is the game's own default anyway.
 
 Neither user posted a log. The reports are independent, one names the cause, and the named
 flag is one the mod turns on and the release build ships off.
@@ -156,3 +156,12 @@ The owner asked for the cache back on: "enable pso cache back again", saying the
 `dist/acevo_perf.ini` ships `enable_pso_cache=true` again, the 0.3.1 value, and the unreleased changelog
 entry for the avoidance is gone. Nothing on the reference machine shows the cache breaking the scene, so
 the flag stays on until a user report with a game log shows it.
+
+### Reopened as part of BUG-039, 2026-10-08
+
+Players have since reported fences drawn as glass, trees white at night, a car's own main beam gone and
+pit fencing flashing, every one cured by the flag off, and one of them showed that a run starting with
+`pipeline.library` deleted is clean and the runs after it are not. That is the report this section was
+waiting for, short only of a game log, so the unlit trees are now one symptom of
+[BUG-039](BUG-039-the-pso-cache-draws-some-materials-wrong.md) and are fixed with it. Fixed on 2026-10-08
+in `beaca33`, the flag out of the shipped ini (DEC-024), verified as BUG-039 is.

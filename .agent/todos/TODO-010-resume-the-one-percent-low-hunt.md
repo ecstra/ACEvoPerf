@@ -28,7 +28,7 @@ Nürburgring protocol.
 
 - **Displays on the discrete GPU.** Not possible on the reference machine, no MUX and no cable, see
   [reference-machine-has-no-direct-gpu-display](../memory/reference-machine-has-no-direct-gpu-display.md).
-  Answered on 2026-09-15 by the owner's 5070 desktop, which has no integrated GPU and shows the same gap,
+  Answered on 2026-09-15 by a desktop with an RTX 5070, which has no integrated GPU and shows the same gap,
   so the integrated GPU is not the cause (BUG-009). The UI view rotation goes first.
 - **Which job the render thread waits for.** Answered, no lock and no job. Lock waits add 0.01 to 0.22 ms
   per slow frame and the scheduler about 0.06 ms, the extra waiting is the present call and the frame
