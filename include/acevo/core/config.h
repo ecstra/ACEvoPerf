@@ -63,6 +63,8 @@ struct Config {
     std::wstring overlayFolder = L"acevo_mods";
     bool overlayClearXor = true;    // serve override entries as plain data (XOR flag cleared)
     bool fixBigScreens = true;      // serve the trackside flipbook with one mip level, BUG-017
+    // [experimental], off by default
+    bool tilePoolFromBudget = false; // tile_pool_mb=auto sized from the budget and the screen, DEC-027
 };
 
 extern Config g_cfg;

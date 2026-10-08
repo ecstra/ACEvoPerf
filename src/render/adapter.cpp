@@ -4,16 +4,18 @@
 #include "acevo/core/log.h"
 #include "acevo/engine/flags.h"
 
-// The table the mod shipped with up to 0.3.2, by dedicated memory, kept as a floor so no card gets
-// less than it did. Its steps above 6 GB kept the 6 GB card's thin margin on every bigger card, which
-// left a 12 GB card with a third of the game's own Ultra pool and its players with memory to spare
-// and textures turned away (BUG-040). 256 is where the engine's own dynamic formula bottoms out.
+// What tile_pool_mb=auto gives by default, the 0.3.2 table by dedicated memory with the small card
+// steps 0.4 added. 0.4 sized every card from the budget instead, and on its first day a Proton player
+// went from 90 fps to 20 with a broken mirror, where DXVK reports the whole card as the budget, so the
+// budget rule went behind [experimental] tile_pool_from_budget (DEC-027). The steps above 6 GB keep
+// the 6 GB card's thin margin on every bigger card, which leaves a 12 GB card a third of the game's own
+// Ultra pool (BUG-040). 256 is where the engine's own dynamic formula bottoms out.
 //
 // Writing nothing on a small card was tried and is worse than any number here. The shipped ini
 // sets force_canonical_pool_sizes at the early pass, long before the card is known, and with
 // that on and tile_pool_mb unwritten the engine takes the whole texturePoolSize define, 1433 MB
 // at Low and 6144 at Ultra (DEC-005, engine-flags). So every card gets a figure.
-static int FloorTilePoolMb(uint64_t vramMb)
+static int TableTilePoolMb(uint64_t vramMb)
 {
     if (vramMb < 3072) return 256;
     if (vramMb < 5120) return 512;
@@ -29,18 +31,18 @@ static int FloorTilePoolMb(uint64_t vramMb)
 // put at 150 bytes a pixel across the renderer's targets, an estimate, so a 4K screen asks about 900 MB
 // more. A 10 GB card given 5 GB by hand brought no report after it, and this rule gives it about 4.5 GB.
 // The pool stops at 6144 MB, the most the game itself allocates, its pool at the Ultra texture pool
-// size, since nothing has run it larger (DEC-025).
+// size, since nothing has run it larger (DEC-025). Only with [experimental] tile_pool_from_budget on.
 static const uint64_t kReserveMb = 4200;
 static const uint64_t kReservePixels = 1920ull * 1080;
 static const uint64_t kReserveBytesPerPixel = 150;
 static const int kMaxTilePoolMb = 6144;
 
-int AutoTilePoolMb(uint64_t vramMb, uint64_t budgetMb, uint64_t screenPixels)
+int BudgetTilePoolMb(uint64_t vramMb, uint64_t budgetMb, uint64_t screenPixels)
 {
     uint64_t extraPixels = screenPixels > kReservePixels ? screenPixels - kReservePixels : 0;
     uint64_t reserveMb = kReserveMb + ((extraPixels * kReserveBytesPerPixel) >> 20);
     int fits = budgetMb > reserveMb ? (int)std::min<uint64_t>(budgetMb - reserveMb, kMaxTilePoolMb) : 0;
-    return std::max(fits & ~63, FloorTilePoolMb(vramMb));
+    return std::max(fits & ~63, TableTilePoolMb(vramMb));
 }
 
 // The runtime keeps two staging buffers in video memory. A request larger than the buffer fails
@@ -135,19 +137,10 @@ static bool WantsAutoSizes()
     return false;
 }
 
-void ResolveAutoSizes(IDXGIFactory1* factory)
+// The experimental rule, with its inputs on a line of their own, since a report of trouble from it is
+// read against them first.
+static int TilePoolFromBudget(uint64_t vramMb, uint64_t budgetMb)
 {
-    if (!factory || g_resolveDone.exchange(true)) return;
-    if (!WantsAutoSizes()) return;
-
-    DXGI_ADAPTER_DESC1 d = {};
-    uint64_t budgetMb = 0;
-    if (!DiscreteAdapter(factory, &d, &budgetMb)) {
-        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set tile_pool_mb and staging_buffer_mb by hand if this run is not headless.");
-        return;
-    }
-    uint64_t vramMb = d.DedicatedVideoMemory >> 20;
-
     // Windows grants the reference card 5226 of the 5994 MB it reports, 87 percent, so a budget it
     // cannot report is taken the same way. A card is never granted more than its own memory, and an
     // integrated GPU is granted the PC's shared memory as if it were its own, 15814 MB to a Radeon
@@ -165,14 +158,33 @@ void ResolveAutoSizes(IDXGIFactory1* factory)
     const char* screenFrom = "";
     if (!ScreenSize(&width, &height)) screenFrom = ", assumed";
 
-    int tilePool = AutoTilePoolMb(vramMb, budgetMb, (uint64_t)width * height);
+    Log("auto sizes: experimental tile_pool_from_budget is on, %llu MB %s, display %lux%lu%s",
+        (unsigned long long)budgetMb, budgetFrom, width, height, screenFrom);
+    return BudgetTilePoolMb(vramMb, budgetMb, (uint64_t)width * height);
+}
+
+void ResolveAutoSizes(IDXGIFactory1* factory)
+{
+    if (!factory || g_resolveDone.exchange(true)) return;
+    if (!WantsAutoSizes()) return;
+
+    DXGI_ADAPTER_DESC1 d = {};
+    uint64_t budgetMb = 0;
+    if (!DiscreteAdapter(factory, &d, &budgetMb)) {
+        Log("auto sizes: the factory lists no adapter the game could render on, so nothing is sized. With force_canonical_pool_sizes on and tile_pool_mb left at auto the engine takes the whole texturePoolSize define, so set tile_pool_mb and staging_buffer_mb by hand if this run is not headless.");
+        return;
+    }
+    uint64_t vramMb = d.DedicatedVideoMemory >> 20;
+
+    int tilePool = g_cfg.tilePoolFromBudget ? TilePoolFromBudget(vramMb, budgetMb) : TableTilePoolMb(vramMb);
     int staging = AutoStagingMb(vramMb);
     g_sizedFromLuid = d.AdapterLuid;
     g_sizedFromMb = vramMb;
     wcsncpy_s(g_sizedFromName, d.Description, _TRUNCATE);
     g_sizedFromKnown = true;
-    Log("auto sizes: '%ls' has %llu MB dedicated, %llu MB %s, display %lux%lu%s -> tile pool %d MB, staging buffer %d MB",
-        d.Description, (unsigned long long)vramMb, (unsigned long long)budgetMb, budgetFrom, width, height, screenFrom, tilePool, staging);
+    Log("auto sizes: '%ls' has %llu MB dedicated -> tile pool %d MB %s, staging buffer %d MB",
+        d.Description, (unsigned long long)vramMb, tilePool,
+        g_cfg.tilePoolFromBudget ? "from the budget" : "by dedicated memory", staging);
     if (g_cfg.stagingAuto) g_cfg.stagingMb = staging;
     ApplyAutoFlags(tilePool);
 }
