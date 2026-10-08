@@ -1,8 +1,8 @@
 ---
 name: BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load
 kind: bug
-description: the game reads and parses its 1.2 MB of UI stylesheets again at every document load, pause, resume, back to the pits and each main menu page, 38 MB of repeated reads in a 20 minute race session plus a full parse each time, off the frame thread since the responsive UI, while the 2.3 MB script is read once
-updated: 2026-09-15
+description: the game reads and parses its 1.2 MB of UI stylesheets again at every document load, pause, resume, back to the pits and each main menu page, 38 MB of repeated reads in a 20 minute race session plus a full parse each time, off the frame thread since the responsive UI, while the 2.3 MB script is read once, and the engine's own preload leaves every page unstyled on 1.61
+updated: 2026-10-08
 links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, ui-lag-deepdive-2026-09-14, TODO-021-the-engine-reads-the-same-data-twice, TODO-027-the-ui-developer-build-and-one-session, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-028-page-opens-still-hold-frames-of-100-to-200-ms]
 status: open
 severity: bug
@@ -29,6 +29,16 @@ From the deep dive of 2026-09-14,
 - The stylesheet's parse error near `-2ren` is logged after every page load, 30 times for 29 loads in
   census-ai30, so the sheet is parsed again each time.
 - The parse costs 0 to 45 ms on the render thread per load, inside the stall frame.
+
+### The preload tried, 2026-10-08
+
+A build called the system's slot 22 for `coui://uiresources/css/ui.css` and `coui://uiresources/css/uicomponents.css`
+right after `Library::CreateSystem` returned. Slot 22 is the preload: it is the method whose helper
+(`0x45D930` in cohtml 1.61.0.3) logs "PreloadAndCacheStylesheet invoked with invalid URL". The cache took:
+the narrowed sheet was fetched once and the `-2ren` parse error appeared once in the whole session
+(`logs/ui-preload-20261008`). But every page came up unstyled, plain text over the scene, with no crash.
+So the pages found the cached sheets and could not apply them, the reuse failure Coherent fixed in 1.65.
+The build was dropped and never committed.
 
 ## Fix
 
