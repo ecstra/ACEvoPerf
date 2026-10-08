@@ -2,7 +2,7 @@
 name: review-2026-09-sweep-review-ui-fixes
 kind: review
 description: the four shipped cohtml patches in the full review of main, a marking window that skips invalidation and a row of load bearing assumptions written down nowhere, twelve findings and one added by another angle's verifier
-updated: 2026-09-29
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, responsive-ui, reviews-index]
 branch: sweep/review-ui-fixes
 status: open
@@ -47,7 +47,7 @@ and the hunter's and verifier's five findings recorded open, nothing of them fix
 - found-by: review
 - batch: 1
 - status: wontfix
-- fix: 2026-09-29. The window is real in the code and never reached in the game. A temporary diagnostic, not committed, logged the threads and every overlap for one launch, `logs/uifix-b1-diag-20260929`. Cohtml builds and fills feature sets in its style work on the game's Render Worker threads and GameThread, never on the mod's moved resource thread, and across menu pages, a load, a lap and a return to the menu no child was removed while any rule was being filed and no rule reached a set a removal had already used. The premise that the moved parse files rules does not hold, so nothing is changed and `.agent/docs/systems/responsive-ui.md` records why.
+- fix: 2026-09-29. The window is real in the code and was not reached in one diagnostic launch. A temporary diagnostic, not committed, logged the threads and every overlap for that launch, `logs/uifix-b1-diag-20260929`. Every rule was filed on the game's Render Worker threads, GameThread only built a set, and nothing was built or filed on the mod's moved resource thread. Across menu pages, a load, part of an out lap and a return to the menu no child was removed while any rule was being filed and no rule reached a set a removal had already used. The UI probe was off, so the run did not count moved work. Nothing is changed and `.agent/docs/systems/responsive-ui.md` records what was seen. Wording narrowed on 2026-10-08 by V-01 to V-03.
 
 `src/ui/child_removal_fix.cpp:333`. `Hook_ConstructFeatureSet` inserts an empty FeatureSet with
 anyChild false, and `Hook_AddRuleFeatures` then fills it rule by rule. Between those two the set reads
@@ -89,8 +89,8 @@ next rule, and raised three, all about the records claiming more than one launch
 - severity: nit
 - found-by: verifier
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both now say "not reached in one diagnostic launch" and name what the run did not visit.
 
 `.agent/docs/systems/responsive-ui.md:112` and F-01's fix line. The run was one car alone at one track
 with no race, replay or online pages, and its thread lines show the window open across threads, rules
@@ -102,8 +102,8 @@ launch". 02f6806 wrote it.
 - severity: nit
 - found-by: verifier
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both say part of an out lap, and that GameThread only built a set.
 
 `.agent/docs/systems/responsive-ui.md:113` and F-01's fix line. The game log shows part of an out lap, the
 pit lane at 21:12:59 and splits 0 and 1 with no lap end, and GameThread built one set and filed no rule,
@@ -113,8 +113,8 @@ every rule filed on a Render Worker. 02f6806 wrote it.
 - severity: nit
 - found-by: verifier
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. "In its style work" and the disproved premise are gone, and both say the run did not count moved work.
 
 F-01's fix line and "in its style work" there and at `.agent/docs/systems/responsive-ui.md:112`. No set
 was built or filled on the mod's thread, but the count of moved work is read only by the UI probe, which
