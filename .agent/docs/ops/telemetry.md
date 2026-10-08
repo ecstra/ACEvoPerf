@@ -2,7 +2,7 @@
 name: telemetry
 kind: doc
 description: the log and CSV files the mod writes, their columns, and the external GPU sampler
-updated: 2026-09-29
+updated: 2026-10-08
 links: [proxy-architecture, tools, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, tile-pool-reshuffle-2026-09-12, memory-creep-2026-09-14, texture-streamer-camera-cuts-2026-09-14, responsive-ui, responsive-ui-rounds-2026-09-15, BUG-022-pool-readout-faults-at-exit-and-the-game-logs-a-crash, BUG-029-the-hud-restyles-most-of-its-page-while-driving, BUG-016-vram-overhead-grows-across-scene-loads, TODO-023-name-what-the-game-keeps-across-identical-loads]
 ---
 
@@ -134,6 +134,15 @@ letters hold. Levels count from 0, the coarsest, and a tile is 64 KB.
 - `req`, a texture tile request. a resource, b subresource, c tiles, d package offset, e bytes
 - `reread`, a read into memory that repeats an earlier read exactly. a file (the `file=` of the
   `OpenFile` log line), b offset, c bytes, d how many times it has now been read
+- `write`, a copy into a streamed texture that did not come from DirectStorage, from the command
+  list hooks in `src/render/texture_writes.cpp`. a the copy call, b the texture, c seconds since it
+  was first streamed, d `exe` or `other` for the caller, e the caller as an exe offset or an
+  address, f width, g height, h format, i layout, j resource flags
+
+With the trace on, the log also gets a `[writes]` line every `stats_interval_s`: the streamed
+textures and how they were created, the copies into them by DirectStorage, by the game and by
+anything else split by copy call, and the copies into other resources and into a new resource at a
+streamed texture's old address.
 
 The log gets a `[streamer]` line every `stats_interval_s` with the same counts and the engine's
 own tile pool figures (used, capacity, pending) as the last kick read them, and a separate
@@ -142,6 +151,16 @@ it is printed once per interval whichever queue's report reaches it first, and o
 shutdown, rather than attached to a queue's own line as it used to be. The shutdown one needs its
 own latch, because the queues that get a final report arrive in the same millisecond. In every
 captured run those are the two `GpuUpload` queues, and `FileToMemory Queue` never gets one.
+
+## acevo_perf_load_samples.csv
+
+Written only with `[developer] load_sampler=1` (`src/telemetry/load_sampler.cpp`), which samples the
+game's busiest threads about a thousand times a second at the default `sample_us`. One row per second,
+the header `clock,t_s,samples` and then one column per bucket the sampler sorts a sample into, named in
+`kBucketNames`. Each row holds only its own second's counts, and `t_s` is seconds since attach on the
+same clock as the other CSVs. The log gets a `[loadsampler]` summary per window with a table of the
+sampled threads ranked by running samples and the sampler's own CPU time, and says so when the CSV
+could not be created.
 
 ## acevo_perf_memory.csv
 

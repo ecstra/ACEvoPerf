@@ -2,7 +2,7 @@
 name: TODO-002-general-optimisation-pass
 kind: todo
 description: raise the lap frame rate on the 6 GB laptop GPU without visible quality loss
-updated: 2026-09-06
+updated: 2026-10-08
 links: [BUG-002-fps-drop-entering-new-track-sections, BUG-009-one-percent-lows-far-below-average, lap-2026-09-05-nordschleife, one-percent-low-hunt-2026-09-05, engine-flags, telemetry]
 status: done
 by: owner
@@ -32,7 +32,11 @@ fixes what the engine gets wrong, it does not ship knobs), so the earlier candid
 Quality, clouds, volumetrics, motion blur and grass one step down, fewer GI probes) are the
 owner's own menu choices and not this item.
 
-## Candidates, 2026-09-06
+The staging buffer cap, the PSO cache flag and the process tweaks landed in `0140743`, the fixed
+pools in `d5197d5`, the throw log that cleared the exceptions in `3c87596` and the close in
+`71e5f6e`.
+
+### Candidates, 2026-09-06
 
 - C++ exceptions on the render thread: cleared on 2026-09-06, lap 21. The throw log hooked
   the exe's `_CxxThrowException` import for a whole session, menu and lap, and counted zero

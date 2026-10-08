@@ -2,7 +2,7 @@
 name: TODO-027-the-ui-developer-build-and-one-session
 kind: todo
 description: the UI lane, one developer build that times the engine side of the UI, toggles the pit menu flag and switches the controls page and vehicle setup fixes on alternate page entries, then one owner session of about 15 minutes that decides BUG-024 to BUG-026 and names the interaction cost
-updated: 2026-09-15
+updated: 2026-10-08
 links: [BUG-014-ui-pages-lag-on-open-switch-and-interaction, BUG-024-pit-menu-pages-update-the-ui-one-frame-in-three, BUG-025-controls-page-scans-the-page-once-per-new-row, BUG-026-vehicle-setup-asks-for-the-setup-twice-per-open, BUG-027-ui-stylesheets-are-read-and-parsed-again-on-every-page-load, ui-lag-deepdive-2026-09-14, DEC-019-ui-lag-work-reopened, responsive-ui-rounds-2026-09-15, responsive-ui]
 status: done
 by: owner
@@ -46,7 +46,7 @@ unknown.
 The session is read and every pass or kill line of the build's section in the research doc is answered in
 BUG-024, BUG-025, BUG-026 and BUG-014, and the fixes that passed are on a fix branch the owner has driven.
 
-## Done, 2026-09-15
+### Done, 2026-09-15
 
 The build became the developer UI probe (`[developer] ui_probe`) and the one session became seven laps
 over two days, each a fix attempt or a decisive test
@@ -55,3 +55,6 @@ were built, the page fixes on alternate visits at first and on every visit from 
 gave way to reading the rotation in the exe and a stub that keeps the menu in every frame, and item 4 was
 not built, the measured page open work pointing at style matching first. BUG-014, BUG-024, BUG-025 and
 BUG-026 are fixed on `fix/ui-lag` and owner driven, BUG-027 and BUG-028 stay open.
+
+The probe and the page fixes came in `5ef8d7d`, the hover and menu fixes in `f74523e`, `13f4308` and
+`f2792ad`, all of it shipped as the responsive UI in `6848b45`, and the item closed in `c3a55e2`.

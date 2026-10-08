@@ -2,7 +2,7 @@
 name: BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse
 kind: bug
 description: textures come up mushy and then sharpen in visible stages rather than in one go, and a session restart mid lap makes the staircase worse or slower, which points at the mip chain arriving level by level and at a restart starting from a worse position than a fresh load
-updated: 2026-09-20
+updated: 2026-10-08
 links: [directstorage-streaming, BUG-018-whole-scene-low-detail-for-a-second-after-load, BUG-010-texture-pool-shrinks-on-race-load-and-restart, BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, texture-streamer-camera-cuts-2026-09-14]
 area: streaming
 status: open
@@ -11,7 +11,7 @@ reported: 2026-09-20
 parent:
 ---
 
-## Symptom
+## Problem
 
 Owner, 2026-09-20: "The textures are mushy and blurry at the start, then it becomes less blurrier
 and then less blurrier before finally loading. (worsens or slows on session restart mid lap)."
@@ -26,7 +26,9 @@ The restart: doing a session restart from mid lap makes it worse or slower than 
 loaded fresh. A restart reuses a process that has already been driving, so whatever state it
 starts from is not the state a fresh load starts from.
 
-## Why it is filed separately from BUG-018
+## Evidence
+
+### Why it is filed separately from BUG-018
 
 BUG-018 is the whole scene at low detail for one or two seconds after the curtain lifts, at game
 start and at track entry, settling on its own. This is a different shape in both halves. The
@@ -37,7 +39,7 @@ They may turn out to be the same mechanism seen from two angles, in which case o
 into the other. Filing it separately keeps the restart evidence from being lost inside a record
 that does not mention restarts.
 
-## What it probably touches
+### What it probably touches
 
 - BUG-010 measured the engine resizing the texture tile pool during scene transitions, 633 MB in a
   race and 526 MB after a restart, and was fixed by the fixed pool size. A restart being worse is
@@ -46,14 +48,22 @@ that does not mention restarts.
   old one, and the scenery running three passes behind at a 1024 MB pool. Several passes behind is
   what a staircase looks like from the inside.
 
-## What would settle it
+### What would settle it
 
 A `streaming_trace=1` capture of a fresh load and of a mid lap restart of the same session,
 compared on how many passes each takes to settle and what the pool holds when each starts. The
 telemetry already records the tile queue and the pool figures per second, so the two runs can be
 laid side by side.
 
-## Notes
+### Notes
 
 Reported from the owner's machine, the RTX 3060 Laptop, with the mod on. Not yet checked with the
 mod off.
+
+## Fix
+
+Absent.
+
+## Verification
+
+Absent.

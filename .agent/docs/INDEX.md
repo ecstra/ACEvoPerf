@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-09-16
+updated: 2026-10-08
 links: [agent-index, spec-docs]
 ---
 
@@ -41,7 +41,7 @@ links: [agent-index, spec-docs]
 - [ghost-car-2026-09-06](research/ghost-car-2026-09-06.md), the ghost car flag records, saves, loads and samples a lap every frame and nothing draws it, two sessions and the disassembly, dropped
 - [reflex-2026-09-12](research/reflex-2026-09-12.md), Reflex added to a game that ships none, confirmed by the driver, and four two lap runs showing why a card pinned at its thermal limit cannot show a difference in rate, read again as the part of the mod that evens the frame pacing
 - [directstorage-1-3-2026-09-12](research/directstorage-1-3-2026-09-12.md), the runtime taken to 1.3.0, what the forwarder and core split really is, the attempt that shipped and silently did nothing, and the measurements showing the upgrade changed nothing
-- [optimisation-deepdive-2026-09-12](research/optimisation-deepdive-2026-09-12.md), eighteen agents over eight angles outside streaming, then every kill re-verified by hand, 24 killed for good and 9 back to unresolved of which DLSS then closed, with the sampler census five verdicts leaned on shown not to exist
+- [optimisation-deepdive-2026-09-12](research/optimisation-deepdive-2026-09-12.md), eighteen agents over eight angles outside streaming, then every kill re-verified by hand, 24 killed for good and 9 back to unresolved of which DLSS then closed, with the 52,460 samples five verdicts leaned on traced to the load sampler's printed top sixteens, which bound a cost and cannot zero it
 - [engine-flags-in-game-2026-09-12](research/engine-flags-in-game-2026-09-12.md), three parked runs on the never used in-game flags: global illumination costs 3.2 percent and 416 MB and neither half is reachable, the probe count is dead, the PSO log line does not exist in the release build, and the machine loses 8.3 percent standing still
 - [tile-pool-reshuffle-2026-09-12](research/tile-pool-reshuffle-2026-09-12.md), the parked tile churn as first measured, 22 MB/s and about 4 percent of frame time, with the probe and dedupe of that day and the readings the next round corrected
 - [frame-time-mod-against-passive-2026-09-13](research/frame-time-mod-against-passive-2026-09-13.md), the mod costs 3.8 percent parked and 8 percent on a lap against itself passive on a GPU held still, most of it mesh detail the 1433 MB mesh budget loads, which 366 MB gets back unseen but starves the mesh streamer, frozen on the GP and churning at the Red Bull Ring, with the corrections of the mesh deep dive

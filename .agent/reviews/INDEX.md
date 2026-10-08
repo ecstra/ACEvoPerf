@@ -1,7 +1,7 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, twelve of them done
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, all done
 updated: 2026-10-08
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
@@ -22,10 +22,8 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Twelve angles are done as of 2026-10-08, the Cohtml
-build guard, the render layer, the proxy and core, the package override layer, the session leak fix,
-the teardown path, the engine hooks, the telemetry instruments, the UI fixes, the UI probe, the tools
-and the public docs, and the agent directory below them is open.
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. All thirteen angles are done and merged into 0.4
+as of 2026-10-08.
 
 From 2026-10-08 the owner asked for the rest to be finished fast, with manual checks and a launch per
 code change in place of the hunter and verifier loop. Under that pass the UI probe's rework undid one of
@@ -115,12 +113,13 @@ ledger.
 
 ## Active
 
-- [2026-09-sweep-review-agent-dir](2026-09-sweep-review-agent-dir/ledger.md), knowledge docs describing
-  code that changed underneath them and tracker files that break their own specs, 24 findings plus 1
-  from another angle's verifier
+None.
 
 ## Closed
 
+- [2026-09-sweep-review-agent-dir](2026-09-sweep-review-agent-dir/ledger.md), knowledge docs describing
+  code that changed underneath them and tracker files that broke their own specs, 24 findings plus 1
+  from another angle's verifier, 24 fixed and 1 wontfix in one pass, merged into 0.4 on 2026-10-08
 - [2026-09-sweep-review-public-docs](2026-09-sweep-review-public-docs/ledger.md), an uninstall that could
   leave the game unable to start and settings whose comments hid what they turn off, 16 findings and 1
   of them breaks, all fixed in one pass, merged into 0.4 on 2026-10-08
