@@ -10,6 +10,12 @@ logs/
 *.log
 acevo_perf_*.csv
 
+# decoded game content, the default output of kspkg.py extract, never to be published
+extracted/
+
+# secrets, see CONTRIBUTING.md
+.env
+
 # python
 __pycache__/
 
