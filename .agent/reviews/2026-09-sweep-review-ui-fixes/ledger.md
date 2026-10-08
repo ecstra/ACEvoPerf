@@ -301,8 +301,8 @@ stub records whether the main view shows a known menu page, which the code does 
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-10-08. The two branches are what `hud_schedule_test` measures with (BUG-009, TODO-025), and the comment beside `g_hudSchedule` already says only the developer test changes it.
 
 `src/ui/menu_refresh_fix.cpp:88`. The stub bytes at 88 and 90 encode comparisons against 0 and 2. The
 schedule byte is written only by `WriteSchedule` at line 149 as
@@ -326,8 +326,8 @@ from that header is exactly what each one does. A reader sees three spellings of
 - severity: debt
 - found-by: verifier
 - batch: 4
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-10-08. The stub goes in at attach and the overlay builds its table later, so standing it down needs a flag the stub reads at run time, new stub code for a rule no known UI mod ships. The overlay's line for a player's own `uicomponents.css` now says a hover rule of its own that styles a following sibling will not update, so the log says why. A player's copy of another stylesheet still gets no line.
 
 `src/ui/restyle_fix.cpp:22` states the premise. The game's stylesheets hold no rule with a
 pseudo-class to the left of `+` or `~`, so the stub skips the sibling walk for state changes. The
