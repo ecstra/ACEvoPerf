@@ -43,6 +43,7 @@ nit
 
 ## Fixed
 
+- [BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use](BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use.md), players on 12 GB cards and up saw video memory use and GPU load drop and sometimes a hang, because the auto sizes gave them 2048 or 3072 MB of tiles against the game's own 6144 MB, fixed by sizing the pool at launch from the memory Windows grants and the display's size (DEC-025), experimental, verified only on the 6 GB card so far
 - [BUG-039-the-pso-cache-draws-some-materials-wrong](BUG-039-the-pso-cache-draws-some-materials-wrong.md), with `enable_pso_cache` on, which the mod turned on and the game ships off, fences drew as glass, cars glowed, trees went unlit or white at night, a car's main beam vanished and pit rails flashed, cured in every report by the flag off, fixed by leaving the flag out of the shipped ini (DEC-024), the cache measured at 4 to 5 s per load and nothing while driving
 - [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache](BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache.md), unlit trees at night with `enable_pso_cache` on, one symptom of BUG-039 and fixed with it
 - [BUG-038-fences-look-like-glass-in-sunlight](BUG-038-fences-look-like-glass-in-sunlight.md), the catch fences drawn as glass in sunlight, seen by players on a 4090 and a 4060 and once on the owner's machine, one symptom of BUG-039 and fixed with it

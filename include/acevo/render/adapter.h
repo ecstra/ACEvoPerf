@@ -3,7 +3,9 @@
 
 // The card the game renders on, read from the DXGI factory the game creates (before the
 // renderer sizes its pools and before DirectStorage starts), and what follows from it.
-int AutoTilePoolMb(uint64_t vramMb);      // tile pool for a card with this much dedicated memory
+// Tile pool for a card with this much dedicated memory, of which Windows grants the game budgetMb,
+// driving a display of this many pixels.
+int AutoTilePoolMb(uint64_t vramMb, uint64_t budgetMb, uint64_t screenPixels);
 int AutoStagingMb(uint64_t vramMb);       // DirectStorage staging buffer for it
 void ResolveAutoSizes(IDXGIFactory1* factory);   // fills in every ini value set to auto, once
 

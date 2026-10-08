@@ -96,10 +96,15 @@ once, so with the mod's defaults the canonical flag only sets the mesh budget, a
 on demand ([mesh-level-of-detail-2026-09-14](../research/mesh-level-of-detail-2026-09-14.md)). Lap four of 2026-09-05 with that default and texture quality Ultra: 4556 to 4614 MB
 in use while driving, one second at 5222 MB during the race load, budget 5226 MB.
 
-Since 2026-09-06 both sizes default to `auto` (DEC-009, brackets and the rest by DEC-022): the proxy reads the render adapter's
-dedicated memory off the first DXGI factory the game creates and picks 256, 512, 1024, 1536, 2048
-or 3072 MB of tiles for cards under 3, 5, 7, 11 and 15 GB and above, and 128, 192 or 256 MB of
-staging on the 7 and 11 GB steps, so the 6 GB numbers above are what a 6 GB card still gets.
+Since 2026-09-06 both sizes default to `auto` (DEC-009, DEC-022, and since 2026-10-08 DEC-025 for the
+tiles): the proxy reads the render adapter off the first DXGI factory the game creates. The tile pool
+is the video memory Windows grants the game there, less a reserve of 4200 MB at 1920 by 1080 plus 150
+bytes for each pixel of the primary display above that, at most 6144 MB, the game's own Ultra pool, and
+never below the old table of 256, 512, 1024, 1536, 2048 or 3072 MB for cards under 3, 5, 7, 11 and 15
+GB and above. Staging stays 128, 192 or 256 MB on the 7 and 11 GB steps, so the 6 GB numbers above are
+what a 6 GB card still gets, confirmed by the launch of 2026-10-08, which read 5226 MB granted and
+picked 1024 MB. A 12 GB card at 1440p gets about 5.9 GB and a 16 GB card the 6144 MB cap, where the
+table gave 2048 and 3072 (BUG-040). The rule ships marked experimental.
 
 Every card gets a figure, including an integrated GPU whose reported dedicated memory is a carve
 out of a few hundred MB, or none at all, which plenty of them report while keeping everything in
