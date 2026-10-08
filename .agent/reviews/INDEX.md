@@ -1,7 +1,7 @@
 ---
 name: reviews-index
 kind: doc
-description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, ten of them done
+description: index of code review ledgers, active first, with the 2026-09-20 full review of main and its thirteen branches, eleven of them done
 updated: 2026-10-08
 links: [agent-index, spec-reviews, house-rules-agent]
 ---
@@ -22,10 +22,10 @@ checked against the code a second time before they were written down here.
 The gate passed first. `build.ps1` exits 0, and the one warning in the entire tree is a narrowing
 conversion instantiated from `src/engine/flags.cpp:152`, filed as `sweep/review-engine` F-07.
 
-151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Ten angles are done as of 2026-10-08, the Cohtml
+151 findings: 12 breaks, 48 bug, 62 debt, 29 nit. Eleven angles are done as of 2026-10-08, the Cohtml
 build guard, the render layer, the proxy and core, the package override layer, the session leak fix,
-the teardown path, the engine hooks, the telemetry instruments, the UI fixes and the UI probe, and the
-three below them are open.
+the teardown path, the engine hooks, the telemetry instruments, the UI fixes, the UI probe and the
+tools, and the two below them are open.
 
 From 2026-10-08 the owner asked for the rest to be finished fast, with manual checks and a launch per
 code change in place of the hunter and verifier loop. Under that pass the UI probe's rework undid one of
@@ -115,9 +115,6 @@ ledger.
 
 ## Active
 
-- [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that can write
-  outside its output folder and parsers that produce a wrong file at exit 0, 18 findings plus 2 from
-  other angles' sub agents, 1 breaks
 - [2026-09-sweep-review-public-docs](2026-09-sweep-review-public-docs/ledger.md), an uninstall that can
   leave the game unable to start and settings whose comments hide what they turn off, 16 findings, 1 breaks
 - [2026-09-sweep-review-agent-dir](2026-09-sweep-review-agent-dir/ledger.md), knowledge docs describing
@@ -126,6 +123,10 @@ ledger.
 
 ## Closed
 
+- [2026-09-sweep-review-tools](2026-09-sweep-review-tools/ledger.md), a package extract that could write
+  outside its output folder and parsers that produced a wrong file at exit 0, 18 findings plus 2 from
+  other angles' sub agents, 1 of them breaks, all fixed in one pass and run against the real package
+  and settings, merged into 0.4 on 2026-10-08
 - [2026-09-sweep-review-ui-probe](2026-09-sweep-review-ui-probe/ledger.md), an instrument that could fault
   while holding a game thread suspended and paid its cost in the frames it explains, 9 findings and 1 of
   them breaks, all fixed in one pass with the UI fixes and runtime confirmed by one launch, merged into

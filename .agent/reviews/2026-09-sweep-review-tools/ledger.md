@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-tools
 kind: review
-description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings and two added by other angles' sub agents, one breaks
-updated: 2026-09-29
+description: the tooling angle of the full review of main, a package extract that can write outside its output folder and a row of parsers that produce a wrong file at exit 0, eighteen findings and two added by other angles' sub agents, one breaks, all fixed, merged into 0.4 on 2026-10-08
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, tools, build-and-release, reviews-index]
 branch: sweep/review-tools
-status: open
+status: closed
 ---
 
 # Review of the Python tools, the build and the release scripts
@@ -30,11 +30,18 @@ visible in the log.
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | a tool cannot write outside where it was told to | pending | |
-| 2 | a truncated or odd input fails loudly instead of producing a wrong file | pending | |
-| 3 | a write to the game's own files is always recoverable | pending | |
-| 4 | the build and the release check what they ship | pending | |
-| 5 | the tools read the way the house style says | pending | |
+| 1 | a tool cannot write outside where it was told to | closed | 2026-10-08 |
+| 2 | a truncated or odd input fails loudly instead of producing a wrong file | closed | 2026-10-08 |
+| 3 | a write to the game's own files is always recoverable | closed | 2026-10-08 |
+| 4 | the build and the release check what they ship | closed | 2026-10-08 |
+| 5 | the tools read the way the house style says | closed | 2026-10-08 |
+
+On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
+the hunter and verifier loop. All five batches were fixed in one pass and each tool was run against the
+real package or a copy of the real settings, `kspkg.py info` and `verify` matching the old output, the
+report matching on a real session, and `release.ps1` refusing today's unreleased changelog. Testing F-05
+found one more trap in the fix itself, a backup that could overwrite the one being restored, fixed before
+commit. All twenty fixed.
 
 ## Findings
 
@@ -42,8 +49,8 @@ visible in the log.
 - severity: breaks
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Every target is resolved with `os.path.realpath` and refused unless `os.path.commonpath` puts it inside the output folder, a path on another drive included, and the run exits nonzero when any was refused. Checked by hand on a drive letter path, a parent escape and a plain one.
 
 `tools/kspkg.py:145`. `out = os.path.join(a.out, e.path)` where `e.path` comes from the TOC slot, and
 `parse_slot` only checks that the bytes are printable ASCII, which allows both a parent directory
@@ -62,8 +69,8 @@ Found independently by two reviewers.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A short read raises with the entry's name and the missing byte count, so `cat` exits nonzero, which `texture_mips.kspkg_cat` catches, and `extract` removes the partial file before it fails.
 
 `tools/kspkg.py:97`. Only the first slot's offset plus size is checked against the file size, at line
 77. For every other entry `f.seek(e.offset)` past end of file succeeds in Python, `f.read` returns
@@ -75,8 +82,8 @@ empty, the loop breaks, and `cmd_extract` writes a zero byte or half length file
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `parse` takes every length and fixed width field through a bounds check and `read_varint` stops at the end, and `main` turns the error into a message with nothing written. A 7 byte header claiming 5 bytes after 2 now fails by name.
 
 `tools/texture_mips.py:95`. Python slicing does not raise past the end, so `data[at : at + size]`
 silently yields fewer bytes than `size` claims and `at += size` runs the loop out. `emit` then writes
@@ -90,8 +97,8 @@ malformed override asset into the folder the game loads from.
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A refused descriptor is printed to stderr and left out of the added set, so what depends on it is tried last and fails by name. The broad handlers around the varint walk now catch only `IndexError` and `ValueError`. `show` on the real settings loaded the whole schema with nothing refused.
 
 `tools/protodesc.py:41`. `pool.Add(fd)` raises on a duplicate symbol or a conflicting redefinition, the
 exception is bound to a name and discarded, and `added.add(n)` runs anyway, so `load` returns a pool
@@ -111,8 +118,8 @@ Found independently by three reviewers.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Restore backs up the current file first, and a backup never overwrites another, which a restore in the same second as the set before it would otherwise have done to the very backup it restores from, found while testing this fix. A missing backup or settings folder gives a message. Tested on a copy of the real settings, set then restore in one second, and the file came back byte for byte.
 
 `tools/acevo_settings.py:140`. The module docstring and `.agent/docs/ops/tools.md` both say every write
 copies the file to a timestamped backup first. `cmd_set` does. `cmd_restore` calls `shutil.copy2`
@@ -126,8 +133,8 @@ rather than a message.
 - severity: bug
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `correlation` returns None when either side never moves and the report says so in place of the number.
 
 `tools/telemetry_report.py:254`. A session with the GPU clock pinned, a locked laptop clock or a menu
 idle window where the reported clock never moves, gives pairs with zero variance on one axis.
@@ -140,8 +147,8 @@ edge case in this file most likely to actually bite.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Only an all zero slot ends the table. A slot with bytes that does not read is counted, left out and named in a warning, and a path is read as UTF-8 without control characters rather than printable ASCII. `info` and `verify` on the real package give the same 122,398 entries as before with no warning.
 
 `tools/kspkg.py:83`. `parse_slot` returns None for any path with a byte outside the printable range,
 which is the intended stop for the zero padded tail and also fires on the first localised or non ASCII
@@ -156,8 +163,8 @@ silent miss.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The build refuses when two sources share a file name and names both.
 
 `build.ps1:27`. Verified with the same toolchain: compiling two same named sources from different
 folders into one output directory exits 0, prints no warning and leaves one object file. The project's
@@ -170,8 +177,8 @@ installed at static init simply disappears from the DLL. No collision exists tod
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The release refuses unless the newest changelog heading is this version with a date, and refuses any `[developer]` switch in the shipped ini other than 0, `sample_us` being a value and not a switch. Run today it refuses on `## 0.4 (unreleased)`.
 
 `release.ps1:6` reads `VersionInfo.FileVersion`, the `StringFileInfo` value, which is independent of the
 numeric `FILEVERSION` two lines above it in `src/version.rc` and of `ACEVO_PERF_VERSION` in
@@ -187,8 +194,8 @@ a shippable 0.3.3 zip against an empty unreleased changelog section and say noth
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `extracted/` and `.env` are ignored, `git check-ignore` confirms both, and `texture_mips.py` keeps its decoded files in a temporary folder removed when it exits.
 
 `.gitignore`. `kspkg.py extract` writes into `.\extracted\` by default and `git check-ignore` confirms
 it is not ignored, so the next `git add -A` sweeps the game's own assets into a public repo. The release
@@ -205,8 +212,8 @@ warning.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `/WX` is on, the tree building clean with it, the sources are sorted for the link, and `/Brepro` is on for the compiler and the linker. Two builds still differ in 73 bytes, all in the stamp, the debug directory and the PDB id, which the full debug info makes new at each link, and the code is identical. `build-and-release.md` says so.
 
 `build.ps1:26`. The build gate is "zero errors", and `build-and-release.md` records one expected C4244
 from inside the STL. A real truncation warning in the mod's own code scrolls past in the same output and
@@ -220,8 +227,8 @@ order follows a directory enumeration, so two builds of identical source differ.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `/PDBALTPATH:%_PDB%` is on, and the built DLL carries `dstorage_proxy.pdb` with no folder.
 
 `build.ps1:29`. `/DEBUG:FULL` plus `/PDB` writes the debug path into the PE, confirmed present in the
 current `dist/dstorage.dll`. No username in it today, and this is the exact channel that publishes one
@@ -233,8 +240,8 @@ and ships only the file name.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both files are annotated throughout and their parsers are built one statement a line.
 
 `tools/acevo_settings.py:68` has none anywhere, and `tools/kspkg.py` is half done. `telemetry_report.py`
 and `texture_mips.py` are fully annotated, so a reader cannot tell from the folder which contract is
@@ -245,8 +252,8 @@ at `kspkg.py:197` to 199 and `acevo_settings.py:151` to 154.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Rewritten with a docstring, annotations, named functions and locals, one statement a line and a `with` for the exe.
 
 `tools/protodesc.py:3`. Its five siblings follow the house style and this one breaks naming, typing and
 spacing together. Line 27 opens a file with no context manager where every other tool uses `with`. It is
@@ -257,8 +264,8 @@ follow to understand any settings failure.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `Field` is `tuple[int, int, int | bytes]` and the call sites narrow with `isinstance`, so all five ignores are gone. A strip of the big screen flipbook on the real package wrote the same 2,097,152 byte payload.
 
 `tools/texture_mips.py:115`, and again at 136, 157, 160 and 162. `Field = tuple[int, int, object]` at
 line 36 throws away what the third element actually is, and each ignore asserts at a call site what the
@@ -270,8 +277,8 @@ arithmetic against the payload length at line 183 before writing anything.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The streamer counter and `GpuSample.reasons` are gone, and the docstring says only what is read.
 
 `tools/telemetry_report.py:105`, the streamer Counter, is filled by a lowercase substring scan at line
 118 against every timestamped line of a multi megabyte game log and is never referenced after the unpack
@@ -283,8 +290,8 @@ docstring at line 103 expects both to appear in the report.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The locals are named and the lambda is a function, `digits`. The report on `logs/uiprobe-review-20261008` prints the same 53 lines before and after.
 
 `tools/telemetry_report.py:172`. Every function is annotated and then the bodies read as single letters.
 `num = lambda s: ...` at line 88 is an unnamed callable rebuilt on every csv row inside `read_gpu`.
@@ -293,8 +300,8 @@ docstring at line 103 expects both to appear in the report.
 - severity: nit
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The usage line names all four profiles.
 
 `tools/acevo_settings.py:12`. `PROFILES` at line 28 holds four entries and the docstring that `--help`
 is built from names only two, so a user has to run the separate `profiles` subcommand to learn that
@@ -304,8 +311,8 @@ is built from names only two, so a user has to run the separate `profiles` subco
 - severity: nit
 - found-by: hunter
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The docstring has no pad bytes and puts the flags at 0xE4 and the path length at 0xE6.
 
 `tools/kspkg.py:8` lays the slot out as
 `path[0xE4] | u8 pad | u8 pad | u16 flags | u16 pathlen | u64 hash | u64 size | u64 offset`, which
@@ -323,8 +330,8 @@ this angle.
 - severity: debt
 - found-by: verifier
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The report reads the mod's "could not create" line first, refuses a timeline the mod did not write this run and leaves out such a frames CSV with a line saying so. A CSV left from an older run while the switch is off carries no such line and is still read, which the log cannot tell apart.
 
 `tools/telemetry_report.py:174` and `:184`. Since 70c3ade on `sweep/review-telemetry` the mod logs
 `timeline: could not create acevo_perf_timeline.csv (error 32)` when the file is held elsewhere, but

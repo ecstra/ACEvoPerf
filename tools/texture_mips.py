@@ -26,14 +26,17 @@ extension. The game folder comes from `ACEVO_GAME_DIR` as with every other tool.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 WIRE_VARINT, WIRE_64, WIRE_LEN, WIRE_32 = 0, 1, 2, 5
 TILE_BYTES = 65536
 
-Field = tuple[int, int, object]
+# a varint field holds an int, every other wire type the bytes it carries
+Field = tuple[int, int, "int | bytes"]
 
 FIELD_NAMES = {
     1: "width",
@@ -62,6 +65,8 @@ TILING_NAMES = {
 def read_varint(data: bytes, at: int) -> tuple[int, int]:
     result = shift = 0
     while True:
+        if at >= len(data):
+            raise ValueError(f"a varint runs past the end at byte {at}")
         byte = data[at]
         at += 1
         result |= (byte & 0x7F) << shift
@@ -80,6 +85,13 @@ def write_varint(value: int) -> bytes:
             return bytes(out)
 
 
+def take(data: bytes, at: int, size: int, field: int) -> bytes:
+    """The size bytes at at, which a slice would quietly shorten past the end of the header."""
+    if at + size > len(data):
+        raise ValueError(f"field {field} claims {size} bytes at byte {at} but only {len(data) - at} remain")
+    return data[at : at + size]
+
+
 def parse(data: bytes) -> list[Field]:
     """Flat (field, wire, value) list, order and repeats preserved so it can be re-emitted."""
     fields: list[Field] = []
@@ -92,13 +104,13 @@ def parse(data: bytes) -> list[Field]:
             fields.append((field, wire, value))
         elif wire == WIRE_LEN:
             size, at = read_varint(data, at)
-            fields.append((field, wire, data[at : at + size]))
+            fields.append((field, wire, take(data, at, size, field)))
             at += size
         elif wire == WIRE_32:
-            fields.append((field, wire, data[at : at + 4]))
+            fields.append((field, wire, take(data, at, 4, field)))
             at += 4
         elif wire == WIRE_64:
-            fields.append((field, wire, data[at : at + 8]))
+            fields.append((field, wire, take(data, at, 8, field)))
             at += 8
         else:
             raise ValueError(f"unknown wire type {wire} at byte {at}")
@@ -109,13 +121,12 @@ def emit(fields: list[Field]) -> bytes:
     out = bytearray()
     for field, wire, value in fields:
         out += write_varint((field << 3) | wire)
-        if wire == WIRE_VARINT:
-            out += write_varint(int(value))
-        else:
-            blob = bytes(value)  # type: ignore[arg-type]
-            if wire == WIRE_LEN:
-                out += write_varint(len(blob))
-            out += blob
+        if isinstance(value, int):
+            out += write_varint(value)
+            continue
+        if wire == WIRE_LEN:
+            out += write_varint(len(value))
+        out += value
     return bytes(out)
 
 
@@ -129,11 +140,11 @@ def packed(blob: bytes) -> list[int]:
 
 
 def varint_of(fields: list[Field], field: int) -> int:
-    return next(int(v) for f, w, v in fields if f == field and w == WIRE_VARINT)
+    return next(v for f, w, v in fields if f == field and isinstance(v, int))
 
 
 def blob_of(fields: list[Field], field: int) -> bytes:
-    return next(bytes(v) for f, w, v in fields if f == field and w == WIRE_LEN)  # type: ignore[arg-type]
+    return next(v for f, w, v in fields if f == field and w == WIRE_LEN and isinstance(v, bytes))
 
 
 def kspkg_cat(game_dir: Path, package_path: str, into: Path) -> None:
@@ -144,23 +155,23 @@ def kspkg_cat(game_dir: Path, package_path: str, into: Path) -> None:
             [sys.executable, str(tool), "cat", package_path],
             stdout=out,
             check=True,
-            env={**__import__("os").environ, "ACEVO_GAME_DIR": str(game_dir)},
+            env={**os.environ, "ACEVO_GAME_DIR": str(game_dir)},
         )
 
 
 def show(header: bytes) -> None:
     for field, wire, value in parse(header):
         label = FIELD_NAMES.get(field, f"field{field}")
-        if wire == WIRE_VARINT:
+        if isinstance(value, int):
             print(f"  {label:18} = {value}")
             continue
-        print(f"  {label:18} = <{len(value)} bytes>")  # type: ignore[arg-type]
+        print(f"  {label:18} = <{len(value)} bytes>")
         if field != 12:
             continue
-        for tf, tw, tv in parse(bytes(value)):  # type: ignore[arg-type]
-            tlabel = TILING_NAMES.get(tf, f"field{tf}")
-            rendered = tv if tw == WIRE_VARINT else packed(bytes(tv))  # type: ignore[arg-type]
-            print(f"      {tlabel:26} = {rendered}")
+        for tiling_field, tiling_wire, tiling_value in parse(value):
+            tiling_label = TILING_NAMES.get(tiling_field, f"field{tiling_field}")
+            rendered = tiling_value if isinstance(tiling_value, int) else packed(tiling_value)
+            print(f"      {tiling_label:26} = {rendered}")
 
 
 def strip(
@@ -211,8 +222,6 @@ def strip(
 
 
 def main() -> int:
-    import os
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["show", "strip"])
     parser.add_argument("name", help="package path without the extension")
@@ -225,24 +234,28 @@ def main() -> int:
     if not game or not (game / "AssettoCorsaEVO.exe").exists():
         raise SystemExit("set ACEVO_GAME_DIR to the folder holding AssettoCorsaEVO.exe")
 
-    scratch = Path(os.environ.get("TEMP", ".")) / "acevo_texture_mips"
-    scratch.mkdir(parents=True, exist_ok=True)
-    header_file = scratch / "header.bin"
-    payload_file = scratch / "payload.bin"
-    kspkg_cat(game, args.name + ".texture", header_file)
-    header = header_file.read_bytes()
-
-    print(f"{args.name}.texture:")
-    show(header)
-
-    if args.command == "show":
-        return 0
-    if not args.out:
+    if args.command == "strip" and not args.out:
         raise SystemExit("strip needs --out")
 
-    kspkg_cat(game, args.name + ".texturemips", payload_file)
-    payload = payload_file.read_bytes()
-    new_header, new_payload = strip(header, payload, args.keep)
+    # The decoded game files stay in a folder that goes away with the run, never in the working tree.
+    with tempfile.TemporaryDirectory(prefix="acevo_texture_mips_") as scratch:
+        header_file = Path(scratch) / "header.bin"
+        kspkg_cat(game, args.name + ".texture", header_file)
+        header = header_file.read_bytes()
+        payload = b""
+        if args.command == "strip":
+            payload_file = Path(scratch) / "payload.bin"
+            kspkg_cat(game, args.name + ".texturemips", payload_file)
+            payload = payload_file.read_bytes()
+
+    try:
+        print(f"{args.name}.texture:")
+        show(header)
+        if args.command == "show":
+            return 0
+        new_header, new_payload = strip(header, payload, args.keep)
+    except ValueError as error:
+        raise SystemExit(f"{args.name}.texture is not a header this tool can read, nothing was written: {error}")
 
     leaf = args.name.replace("/", "\\").split("\\")[-1]
     args.out.mkdir(parents=True, exist_ok=True)

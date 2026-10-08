@@ -2,7 +2,7 @@
 name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
-updated: 2026-09-20
+updated: 2026-10-08
 links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
 ---
 
@@ -12,10 +12,13 @@ links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-ove
 
 `build.ps1` at the root compiles every `.cpp` under `src/` (recursive) into `dist/dstorage.dll`
 with the newest installed MSVC 2022 toolset and the newest Windows 10 SDK that has `d3d12.h`.
-Headers are found through `/I include`. Flags: `/O2 /W4 /MT /std:c++17`, linked against
+Headers are found through `/I include`. Flags: `/O2 /W4 /WX /Brepro /MT /std:c++17`, linked against
 `kernel32.lib` and `user32.lib` only, exports from `src/exports.def`, version resource from
 `src/version.rc` (compiled with `rc.exe`). A new source file needs no build script change, a new
-folder neither. The toolset is found through `vswhere.exe` and the `ProgramFiles(x86)` variable,
+folder neither, but two sources may not share a file name, since every object lands in `build\` under
+its base name, and the script refuses the build when they do. The DLL carries only the PDB's file
+name (`/PDBALTPATH:%_PDB%`), never the folder it was built in. Two builds of the same source have the
+same code and differ only in the stamp and the PDB id, which the debug info makes new at each link. The toolset is found through `vswhere.exe` and the `ProgramFiles(x86)` variable,
 nothing in the script names a machine specific folder.
 
 For development, `build.ps1 -Install` copies the fresh `dstorage.dll` into the folder named by the
@@ -24,7 +27,7 @@ never run it, they install by drag and drop.
 
 The DirectStorage headers and binaries come from `third_party/directstorage` (Microsoft NuGet
 package `Microsoft.Direct3D.DirectStorage` 1.3.0, MIT, license included). A clean build has zero
-errors and one known warning (`C4244` inside the STL, from a `wchar_t` to `char` copy).
+errors and zero warnings, and `/WX` makes any warning fail the build.
 
 ## Install
 
@@ -50,7 +53,9 @@ looking correct while still running 1.2.3.
 
 `release.ps1` runs `build.ps1` (which also copies Microsoft's two files into `dist/` as
 `dstorage_orig.dll` and `acevo_dstoragecore.dll`), then zips the five payload files into
-`release/ACEvoPerf-<FileVersion>.zip`. The version comes
+`release/ACEvoPerf-<FileVersion>.zip`. It refuses when the newest `CHANGELOG.md` heading is not this
+version with a date, which an `(unreleased)` heading never is, or when any `[developer]` switch in
+`dist/acevo_perf.ini` is not 0. The version comes
 from `src/version.rc`, keep it equal to `ACEVO_PERF_VERSION` in `include/acevo/common.h`. Built binaries
 and the release folder stay out of git (`.gitignore`), the two committed runtime DLLs are the
 exception because the payload needs them and their license allows it.
