@@ -5,7 +5,7 @@ description: two users on the Overtake listing report that at night the car's ow
 updated: 2026-10-08
 links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: open
+status: branched
 severity: bug
 reported: 2026-09-11
 parent:

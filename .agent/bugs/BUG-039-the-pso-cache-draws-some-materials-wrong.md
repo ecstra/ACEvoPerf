@@ -5,7 +5,7 @@ description: with enable_pso_cache on, which the mod turns on and the game ships
 updated: 2026-10-08
 links: [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-038-fences-look-like-glass-in-sunlight, engine-flags, engine-flags-in-game-2026-09-12, reported-working-configurations]
 area: render
-status: open
+status: branched
 severity: bug
 reported: 2026-09-10
 parent:
@@ -24,8 +24,13 @@ mod's Overtake page and on the owner's machine, between 2026-09-10 and 2026-10-0
 - A car's own main beam vanishing mid drive at night on a server at the Nurburgring 24h, the dipped lights
   and other cars' beams still drawn, seen in VR, with the same replay drawn correctly later on a monitor.
 - At Donington National in daylight the top of the pit fencing flashing on and off every frame, and the pit
-  bay lines flashing in the mirror. RTX 4060 8 GB, with texture quality at Ultra.
-- Possibly cars glowing, reported once on an RTX 4070 Ti with no log and no word on the flag.
+  bay lines flashing in the mirror. RTX 4060 8 GB, with texture quality at Ultra. Two screenshots under a
+  second apart show the fence's top rail lit bright yellow in one and plain grey in the other, and the
+  mirror's pit box lines changing shape between them, the rest of the scene identical.
+- A car glowing. Screenshots of a BMW M3 in the menu showroom with the whole body blown out to a white
+  glow, then in another showroom and on track with the roof and every window solid white while the paint
+  is right, on 0.9.1, from a player who said it was normal the day before. Also reported once on an RTX
+  4070 Ti with no log.
 
 Not part of this: livery textures sharpening slowly on a game installed on a hard disk, which is
 streaming from a slow drive, and a per eye jitter with DLSS in VR, which the owner sees without the mod.
@@ -87,7 +92,12 @@ seen clean over long play on every machine that tried it.
 
 ## Fix
 
-Absent.
+The mod stops turning the cache on (DEC-024), on `fix/pso-cache-glitches` on 2026-10-08.
+`enable_pso_cache` is out of the shipped `acevo_perf.ini`, so the mod writes nothing and the game keeps
+its own default, off, the state every player who tried it was cured by. The readme no longer lists the
+shader cache, and the changelog tells a player who kept an older ini to delete the line. The mod cannot
+fix the cache itself, since which blob goes to which pipeline is decided inside the exe, and nothing ever
+measured it helping.
 
 ## Verification
 

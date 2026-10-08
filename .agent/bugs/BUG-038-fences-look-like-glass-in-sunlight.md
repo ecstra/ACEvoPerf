@@ -5,7 +5,7 @@ description: the wire catch fences show as flat see through sheets that read as 
 updated: 2026-10-08
 links: [reported-working-configurations, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, engine-flags, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: open
+status: branched
 severity: bug
 reported: 2026-09-24
 parent:
