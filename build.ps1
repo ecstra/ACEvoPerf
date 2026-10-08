@@ -38,15 +38,16 @@ try {
         "$root\build\version.res" kernel32.lib user32.lib
     if ($LASTEXITCODE -ne 0) { throw "cl.exe failed with $LASTEXITCODE" }
 } finally { Pop-Location }
-# the zip payload also needs Microsoft's runtime: the forwarder under the name the proxy falls back
-# to, and the core itself under a name nothing else in the process asks for, because the game owns
-# the name dstoragecore.dll and loads its own copy before the proxy gets a say (DEC-015)
-Copy-Item "$root\third_party\directstorage\bin\x64\dstorage.dll" "$root\dist\dstorage_orig.dll" -Force
+# the zip payload also needs Microsoft's runtime core, under a name nothing else in the process asks
+# for, because the game owns the name dstoragecore.dll and loads its own copy before the proxy gets a
+# say (DEC-015). The proxy calls the core itself, so Microsoft's forwarder is not shipped.
 Copy-Item "$root\third_party\directstorage\bin\x64\dstoragecore.dll" "$root\dist\acevo_dstoragecore.dll" -Force
-# Microsoft's terms travel with its two files, named so the uninstall's acevo_ step takes them too
+# Microsoft's terms travel with its file, named so the uninstall's acevo_ step takes them too
 Copy-Item "$root\third_party\directstorage\LICENSE.txt" "$root\dist\acevo_directstorage_license.txt" -Force
 Copy-Item "$root\third_party\directstorage\NOTICES.txt" "$root\dist\acevo_directstorage_notices.txt" -Force
-Write-Host "Built: $root\dist\dstorage.dll (+ dstorage_orig.dll, acevo_dstoragecore.dll)"
+# a forwarder left in dist by an older build would otherwise sit there looking like part of the payload
+Remove-Item "$root\dist\dstorage_orig.dll" -ErrorAction SilentlyContinue
+Write-Host "Built: $root\dist\dstorage.dll (+ acevo_dstoragecore.dll)"
 
 if ($Install) {
     $game = $env:ACEVO_GAME_DIR
@@ -54,9 +55,7 @@ if ($Install) {
     if (-not (Test-Path "$game\AssettoCorsaEVO.exe")) { throw "ACEVO_GAME_DIR=$game does not contain AssettoCorsaEVO.exe" }
     if (Get-Process AssettoCorsaEVO -ErrorAction SilentlyContinue) { throw "close the game before installing" }
     Copy-Item "$root\dist\dstorage.dll" "$game\dstorage.dll" -Force
-    # both Microsoft files are copied every time: they move with the bundled runtime version, and a
-    # stale one next to a fresh proxy is exactly the mismatch the log had to be taught to catch
-    Copy-Item "$root\dist\dstorage_orig.dll" "$game\dstorage_orig.dll" -Force
+    # the core is copied every time, since it moves with the bundled runtime version
     Copy-Item "$root\dist\acevo_dstoragecore.dll" "$game\acevo_dstoragecore.dll" -Force
     if (-not (Test-Path "$game\acevo_perf.ini")) { Copy-Item "$root\dist\acevo_perf.ini" "$game\acevo_perf.ini" }
     Write-Host "Installed into $game (existing ini kept)"

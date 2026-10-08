@@ -12,7 +12,6 @@ links: [agent-index, spec-todos]
 
 release
 
-- [TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core](TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core.md), drop the forwarder from the zip and call the game's own core directly, which gives up nothing because that core has no `DStorageSetConfiguration1Core` for the forwarder to reach either, after the review of main is finished
 - [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post, all three done, the zip built and main tagged `v0.3.2`, waiting on the GitHub release and the Overtake update
 
 streaming
@@ -35,10 +34,6 @@ tooling
 
 - [TODO-026-one-lean-etw-trace-of-the-slow-frames](TODO-026-one-lean-etw-trace-of-the-slow-frames.md), one Windows performance trace started from the owner's elevated prompt, naming what the present thread waits on and who wakes it in the slowest frames
 
-stability
-
-- [TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track](TODO-030-try-to-reproduce-the-crash-joining-a-session-with-a-custom-track.md), a player on reddit reports a crash joining a session with custom track mods installed under 0.3.2 that the stock files do not have, to reproduce by loading a custom track, the likeliest lead the mod's smaller loading buffer failing a bigger request, which the player's finding that `[dxgi] enabled=0` cures it on 0.3.2 points at
-
 engine-flags
 
 - [TODO-016-run-the-four-untouched-in-game-engine-flags](TODO-016-run-the-four-untouched-in-game-engine-flags.md), `no_gi`, `log_pso_on_creation`, `ai_run_dynamic_track` and `car_update_complete_max_interval` reachable from the ini today with no build, measured from a fixed stationary view
@@ -52,12 +47,12 @@ foundation
 - render: 3 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean. TODO-025, the HUD schedule test, the UI view rotation is about 30 percent of BUG-009's gap at the Red Bull Ring GP and the HUD every frame removes it. TODO-028, no refresh hold on this laptop even at 60 Hz)
 - streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified. TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed. TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
-- release: 1 (TODO-004)
+- release: 2 (TODO-004. TODO-029, the forwarder out of the zip and the fallback on the game's own core directly, both runtimes launched without it)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
 - stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a cycle between its connection and its game mode, about 57 MB a Red Bull Ring visit)
 
 ## Dropped
 
-- stability: 1 (TODO-003, the crashes stopped with the staging cap)
+- stability: 2 (TODO-003, the crashes stopped with the staging cap. TODO-030, a player's crash joining a session with custom tracks installed, dropped with no custom track to test and custom tracks called not supported for now)
 - ui: 1 (TODO-011, the UI script overhaul, one round tried and closed on the owner's word)
 - engine-flags: 1 (TODO-012, the hidden Free Roam mode unlocked and driven for an afternoon, dropped because the package stops at the complex, DEC-011)

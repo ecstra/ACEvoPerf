@@ -36,19 +36,22 @@ errors and zero warnings, and `/WX` makes any warning fail the build.
 
 ## Install
 
-Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `dstorage_orig.dll`
-and `acevo_dstoragecore.dll` (Microsoft's DirectStorage 1.3.0, both from
-`third_party/directstorage/bin/x64/`, the core renamed on the way into `dist/`), Microsoft's licence
-and notices as `acevo_directstorage_license.txt` and `acevo_directstorage_notices.txt`, `acevo_perf.ini`
-and `README.txt`. The user copies them into the game folder and lets Windows replace
-`dstorage.dll`. Uninstalling is deleting the mod's files and letting Steam verify the game files,
-which brings the game's own `dstorage.dll` back, as the readme and `dist/README.txt` say. Renaming
-`dstorage_orig.dll` back, the uninstall up to 0.3.1, no longer gives the stock game, because that
-file is Microsoft's 1.3.0 forwarder since DEC-015 and it runs on the game's 1.2.3 core.
+Drag and drop, no scripts (DEC-007). The zip holds `dstorage.dll` (the proxy), `acevo_dstoragecore.dll`
+(Microsoft's DirectStorage 1.3.0 core from `third_party/directstorage/bin/x64/`, renamed on the way into
+`dist/`), Microsoft's licence and notices as `acevo_directstorage_license.txt` and
+`acevo_directstorage_notices.txt`, `acevo_perf.ini` and `README.txt`. The user copies them into the game
+folder and lets Windows replace `dstorage.dll`. Uninstalling is deleting the mod's files and letting
+Steam verify the game files, which brings the game's own `dstorage.dll` back, as the readme and
+`dist/README.txt` say.
 
-`dstorage_orig.dll` is only a forwarder, the runtime is the core beside it, and the game claims the
-name `dstoragecore.dll` at start-up, so the mod carries its core under a name nothing else asks for
-and calls its entry points directly (DEC-015). No game file is replaced, so a game update shipping
+Up to 0.3.2 the zip also carried `dstorage_orig.dll`, Microsoft's forwarder, which the proxy fell back
+to. Since 0.4 (TODO-029) the fallback calls the game's own `dstoragecore.dll` directly, the same way it
+calls the bundled core, so the forwarder is not shipped. One left behind by an older version is never
+loaded, and the uninstall steps name it for anyone who has one.
+
+A runtime is a forwarder plus a core, the game claims the name `dstoragecore.dll` at start-up, so the
+mod carries its core under a name nothing else asks for and calls its entry points directly (DEC-015).
+No game file is replaced, so a game update shipping
 its own DirectStorage changes nothing. A forwarder and a core have no version check between each
 other, which is why the proxy reads `DStorageSDKVersion` off the module it actually loaded and
 writes it to the log as `[runtime] DirectStorage 1.x.y in use`. That line is the gate for any
@@ -59,9 +62,8 @@ proxy can win the name and how the raw SDK version number reads are in
 
 ## Release
 
-`release.ps1` runs `build.ps1` (which also copies Microsoft's two files into `dist/` as
-`dstorage_orig.dll` and `acevo_dstoragecore.dll`, and its licence and notices), then zips the seven
-payload files into
+`release.ps1` runs `build.ps1` (which also copies Microsoft's core into `dist/` as
+`acevo_dstoragecore.dll`, with its licence and notices), then zips the six payload files into
 `release/ACEvoPerf-<FileVersion>.zip`. It refuses when the newest `CHANGELOG.md` heading is not this
 version with a date, which an `(unreleased)` heading never is, or when any `[developer]` switch in
 `dist/acevo_perf.ini` is not 0. The version comes

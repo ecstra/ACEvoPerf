@@ -37,8 +37,9 @@ string. Every header includes it, every source includes its own header first.
 2. First `DStorageGetFactory` call from the game: load our own DirectStorage core from
    `acevo_dstoragecore.dll` and resolve its `DStorageGetFactoryCore`,
    `DStorageSetConfigurationCore` and `DStorageCreateCompressionCodecCore`
-   (`LoadBundledCore`, DEC-015), falling back to `dstorage_orig.dll` when any of that fails
-   (`EnsureReal`). Everything after that happens under `g_realCs`, held for the whole step, which
+   (`LoadBundledCore`, DEC-015), falling back to the game's own `dstoragecore.dll`, whose same three
+   core entry points are called the same way (`LoadGameCore`, `EnsureReal`), and to a message box
+   only when neither loads. Everything after that happens under `g_realCs`, held for the whole step, which
    is what makes the order below an order rather than a race: a second thread asking for the
    factory at the same moment waits and then finds the work done, instead of skipping it and
    creating a factory ahead of it.

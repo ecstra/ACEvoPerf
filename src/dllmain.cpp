@@ -95,7 +95,7 @@ static void OnAttach(HMODULE h)
 
     // Truncation is checked because past MAX_PATH the buffer still comes back null terminated, so
     // g_dir would silently name an ancestor of the real folder: no ini found, and the absolute
-    // load of dstorage_orig.dll failing into the message box with nothing saying why.
+    // loads of both DirectStorage cores failing into the message box with nothing saying why.
     std::vector<wchar_t> path(MAX_PATH);
     for (;;) {
         DWORD n = GetModuleFileNameW(h, path.data(), (DWORD)path.size());
