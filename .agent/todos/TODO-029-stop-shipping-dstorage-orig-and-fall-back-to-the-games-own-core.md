@@ -2,13 +2,13 @@
 name: TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core
 kind: todo
 description: drop dstorage_orig.dll from the zip and point the fallback at the game's own dstoragecore.dll directly, which the proxy already knows how to call, so the payload loses a file that confuses uninstall and gives up nothing the fallback still provided
-updated: 2026-09-20
+updated: 2026-10-08
 links: [DEC-015-bundled-directstorage-core-loaded-first, build-and-release, DEC-007-drag-and-drop-install-with-bundled-runtime, public-docs]
-status: open
+status: done
 by: owner
 area: release
 born: 2026-09-20
-done:
+done: 2026-10-08
 ---
 
 ## What
@@ -61,3 +61,15 @@ rather than assuming.
 settings: `bundled_runtime=1` still logging the 1.3 runtime in use, and `bundled_runtime=0` logging the
 game's own and reaching a playable session. Its own branch off the open version branch, because it
 changes the load path rather than the paper around it.
+
+Done on 2026-10-08 on `sweep/drop-dstorage-orig`. `64704e1` points the fallback at the game's own
+`dstoragecore.dll` through the same three core entry points the bundled core uses, and drops the
+forwarder's runtime report and the plain configuration path only it ever set. `ac11680` drops the file
+from the build and the zip, `f064300` from the readmes and the changelog, which keep it in the uninstall
+step only for a leftover, and `85cd5dc` from the docs and DEC-015.
+
+Verified with the forwarder moved out of the game folder, `logs/drop-orig-20261008`. With
+`bundled_runtime=0` the log read `DirectStorage 1.2.3 in use, from dstoragecore.dll`, the configuration
+call returned 0, which it never did through the forwarder, the Nurburgring loaded and played, and the quit
+was clean. With `bundled_runtime=1` it read `DirectStorage 1.3.0 in use, from acevo_dstoragecore.dll`.
+No exception in either game log.

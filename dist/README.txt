@@ -22,8 +22,9 @@ SETTINGS
 
 UNINSTALL
   1. Close the game.
-  2. In the game folder, delete dstorage.dll, dstorage_orig.dll and
-     everything whose name starts with acevo_.
+  2. In the game folder, delete dstorage.dll, everything whose name
+     starts with acevo_, and dstorage_orig.dll if an older version left
+     one.
   3. In Steam, right click the game, then Properties, Installed Files and
      Verify integrity of game files. This puts the game's own dstorage.dll
      back. Without this step the game will not start.
@@ -34,7 +35,7 @@ PROBLEMS
   folder.
   https://www.overtake.gg/downloads/acevoperf.86467/
 
-dstorage_orig.dll and acevo_dstoragecore.dll are Microsoft's DirectStorage
-1.3.0, included under Microsoft's license, which is in
+acevo_dstoragecore.dll is Microsoft's DirectStorage 1.3.0, included under
+Microsoft's license, which is in
 acevo_directstorage_license.txt with its notices in
 acevo_directstorage_notices.txt.

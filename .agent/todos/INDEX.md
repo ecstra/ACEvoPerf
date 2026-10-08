@@ -12,7 +12,6 @@ links: [agent-index, spec-todos]
 
 release
 
-- [TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core](TODO-029-stop-shipping-dstorage-orig-and-fall-back-to-the-games-own-core.md), drop the forwarder from the zip and call the game's own core directly, which gives up nothing because that core has no `DStorageSetConfiguration1Core` for the forwarder to reach either, after the review of main is finished
 - [TODO-020-cut-0-3-2-after-the-three-open-investigations](TODO-020-cut-0-3-2-after-the-three-open-investigations.md), 0.3.2 waits for TODO-018, BUG-009 and BUG-016 to each have their round, because the release is meant to be final rather than a staging post, all three done, the zip built and main tagged `v0.3.2`, waiting on the GitHub release and the Overtake update
 
 streaming
@@ -48,7 +47,7 @@ engine-flags
 - render: 3 (TODO-002, the optimisation pass: exceptions, the tiled instances buffer, BypassIO and the thread pools all checked and clean. TODO-025, the HUD schedule test, the UI view rotation is about 30 percent of BUG-009's gap at the Red Bull Ring GP and the HUD every frame removes it. TODO-028, no refresh hold on this laptop even at 60 Hz)
 - streaming: 5 (TODO-001, TODO-005, TODO-007 the package override layer, replace and add verified. TODO-015, the game's texture requests cannot merge, zero of 32201, measured and closed. TODO-018, the streaming layer looked at directly, the churn traced to the streamer's feedback flip and fixed)
 - tooling: 1 (TODO-006)
-- release: 1 (TODO-004)
+- release: 2 (TODO-004. TODO-029, the forwarder out of the zip and the fallback on the game's own core directly, both runtimes launched without it)
 - ui: 1 (TODO-027, the UI developer build became the UI probe and seven laps that fixed BUG-014 as the responsive UI)
 - stability: 1 (TODO-023, the census run with two memory dumps, every session left in memory behind a cycle between its connection and its game mode, about 57 MB a Red Bull Ring visit)
 
