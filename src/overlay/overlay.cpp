@@ -53,7 +53,17 @@ struct Override {
 };
 
 static std::vector<Override> g_files;
-static std::vector<BYTE> g_toc;          // modified table, XOR encoded like the original
+// The modified table, XOR encoded like the original. Kept whole only when an override adds an entry,
+// which shifts every slot after it. When every override replaces an entry the package already has, the
+// table differs from the package's only in those slots, so just they are kept, and the 64 MB copy goes
+// once they are taken (BUG-023).
+static std::vector<BYTE> g_toc;
+
+struct EditedSlot {
+    uint64_t offset;        // from the start of the table
+    BYTE bytes[SLOT];       // the slot as served, XOR encoded
+};
+static std::vector<EditedSlot> g_editedSlots;
 static uint64_t g_pkgSize = 0, g_tocStart = 0, g_tocSize = 0, g_virtBase = 0, g_virtEnd = 0;
 static bool g_active = false;
 // The table is built by whichever thread reads it first, and any other reader waits for that in
@@ -554,7 +564,11 @@ static void BuildToc()
         done += got;
     }
     g_origCloseHandle(h);
-    if (done != g_tocSize) { Log("overlay: short table read (%llu of %llu)", (unsigned long long)done, (unsigned long long)g_tocSize); return; }
+    if (done != g_tocSize) {
+        Log("overlay: short table read (%llu of %llu)", (unsigned long long)done, (unsigned long long)g_tocSize);
+        std::vector<BYTE>().swap(g_toc);
+        return;
+    }
     XorRange(g_toc.data(), (size_t)g_tocSize);
 
     // count used slots: they are contiguous from the start, sorted by hash, empty slots are zero
@@ -569,6 +583,7 @@ static void BuildToc()
     // alone took for a table, logging it rebuilt while nothing applied.
     if (used == 0 || used == slots || !FirstSlotIsEntry()) {
         Log("overlay: the 64 MB table was not recognised (used=%zu), so no override applies this session", used);
+        std::vector<BYTE>().swap(g_toc);
         return;
     }
 
@@ -580,12 +595,14 @@ static void BuildToc()
     g_virtBase = (g_pkgSize + VIRT_ALIGN - 1) & ~(VIRT_ALIGN - 1);
     uint64_t next = g_virtBase;
     int replaced = 0, inserted = 0;
+    std::vector<size_t> replacedSlots;
     for (auto& o : g_files) {
         if (o.pkgPath.size() >= PATH_LIMIT) { Log("overlay: path too long, skipped: %s", o.pkgPath.c_str()); continue; }
         uint64_t hash = Fnv1a64Utf16(o.pkgPath);
         const size_t lo = LowerBoundByHash(used, hash);
         BYTE* e = g_toc.data() + lo * SLOT;
         bool exists = lo < used && SlotHash(lo) == hash;
+        if (exists) replacedSlots.push_back(lo);
         if (!exists) {
             if (used + 1 >= slots) { Log("overlay: table full, cannot add %s", o.pkgPath.c_str()); continue; }
             memmove(e + SLOT, e, (used - lo) * SLOT);
@@ -608,9 +625,23 @@ static void BuildToc()
     }
     g_virtEnd = next;
     XorRange(g_toc.data(), (size_t)g_tocSize);
+
+    // A slot index taken before an insertion would be stale after it, which is fine, since with any
+    // insertion the whole table is kept and the indexes are not used.
+    if (inserted == 0) {
+        for (size_t slot : replacedSlots) {
+            EditedSlot edited;
+            edited.offset = slot * SLOT;
+            memcpy(edited.bytes, g_toc.data() + edited.offset, SLOT);
+            g_editedSlots.push_back(edited);
+        }
+        std::vector<BYTE>().swap(g_toc);
+    }
     g_tocBuilt.store(true);
-    Log("overlay: table rebuilt, %zu entries used, %d replaced, %d added, virtual range %llu..%llu", used, replaced, inserted,
-        (unsigned long long)g_virtBase, (unsigned long long)g_virtEnd);
+    Log("overlay: table rebuilt, %zu entries used, %d replaced, %d added, virtual range %llu..%llu, %s", used, replaced, inserted,
+        (unsigned long long)g_virtBase, (unsigned long long)g_virtEnd,
+        inserted ? "the whole 64 MB table kept since an added entry shifts the slots after it"
+                 : "only the replaced slots kept and the 64 MB copy freed (BUG-023)");
 }
 
 static Override* FindByVirtual(uint64_t off)
@@ -631,7 +662,19 @@ static void PatchTableRead(uint64_t off, BYTE* buf, DWORD len)
     std::call_once(g_tocOnce, BuildToc);
     if (!g_tocBuilt.load()) return;
     uint64_t a = std::max(off, g_tocStart), b = std::min(end, g_tocStart + g_tocSize);
-    memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
+    if (!g_toc.empty()) {
+        memcpy(buf + (a - off), g_toc.data() + (a - g_tocStart), (size_t)(b - a));
+        return;
+    }
+
+    // Only the replaced slots differ from what the package just handed back, so only the part of each
+    // that falls inside this read is written, at the same place in the table.
+    for (const EditedSlot& edited : g_editedSlots) {
+        const uint64_t slotStart = g_tocStart + edited.offset, slotEnd = slotStart + SLOT;
+        const uint64_t from = std::max(a, slotStart), to = std::min(b, slotEnd);
+        if (from >= to) continue;
+        memcpy(buf + (from - off), edited.bytes + (from - slotStart), (size_t)(to - from));
+    }
 }
 
 // 0.9.1 reads the table with plain synchronous reads through the C runtime. Only a read that nobody

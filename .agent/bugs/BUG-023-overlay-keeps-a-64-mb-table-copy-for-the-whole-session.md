@@ -1,10 +1,10 @@
 ---
 name: BUG-023-overlay-keeps-a-64-mb-table-copy-for-the-whole-session
 kind: bug
-description: the package override layer keeps its 64 MB decoded copy of the package table for the whole session, although the game reads its table in the first seconds, 64 MB of commit the mod holds for nothing
-updated: 2026-09-14
+description: the package override layer keeps its 64 MB decoded copy of the package table for the whole session, although the game reads its table in the first seconds, 64 MB of commit the mod holds for nothing, fixed by keeping only the replaced slots when nothing is added
+updated: 2026-10-08
 links: [package-override-layer, memory-creep-2026-09-14, BUG-016-vram-overhead-grows-across-scene-loads]
-status: open
+status: fixed
 severity: debt
 area: streaming
 reported: 2026-09-14
@@ -27,12 +27,18 @@ Whether any later read touches the table range was not checked, so the fix has t
 
 ## Fix
 
-Absent. The shape proposed by the dive is to keep only the slots that differ from the package, the
-replaced and added entries, and serve the rest of a table read from the file itself, falling back to
-the full copy when an added file inserts a slot and shifts the sorted table. A hash compare of the
-served range guards it.
+Fixed on 2026-10-08 on `fix/overlay-table-memory`, in the shape the dive proposed. A table read already
+comes back from the package with the package's own bytes, which match the edited table everywhere but the
+replaced slots, so when no override adds an entry only those slots are kept and copied into the part of
+each read they cover, and the 64 MB vector is released once the table is built. An added entry shifts
+every slot after it, so then the whole table is kept as before. The failure paths that read the table and
+gave up now release it too. The hash compare the dive suggested is not needed, since the bytes around the
+edited slots are the package's own.
 
 ## Verification
 
-Absent. One normal launch with an override present, logging private commit before and after the table
-build, and the log still showing the overlay's redirected request lines.
+Owner driven on 2026-10-08, `logs/overlay-table-20261008`: the log says the copy was freed, both of the
+mod's own corrections were found through the edited slots and served (`redirected request #1` for the UI
+stylesheet, `#2` for the big screen flipbook), the menus stayed smooth, and the process commit settled in
+the menu at 8,096 MB against 8,152 to 8,202 MB in three runs that day without the fix, about 60 MB lower
+from the first second.
