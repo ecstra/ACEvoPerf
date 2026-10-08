@@ -1,11 +1,11 @@
 ---
 name: review-2026-09-sweep-review-agent-dir
 kind: review
-description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings and one added by another angle's verifier
-updated: 2026-09-29
+description: the agent directory angle of the full review of main, knowledge docs describing code that changed underneath them and tracker files that break their own specs, twenty four findings and one added by another angle's verifier, 24 fixed and 1 wontfix, merged into 0.4 on 2026-10-08
+updated: 2026-10-08
 links: [spec-reviews, house-rules-agent, conventions, spec-bugs, spec-todos, reviews-index]
 branch: sweep/review-agent-dir
-status: open
+status: closed
 ---
 
 # Review of the agent directory
@@ -32,12 +32,22 @@ Twenty four findings, eight bug, nine debt, seven nit. F-25 was added on 2026-09
 
 | batch | theme | status | owner ack |
 |---|---|---|---|
-| 1 | the docs stop describing code that is no longer there | pending | |
-| 2 | the parts nothing documents get a home | pending | |
-| 3 | the tracker files match their specs | pending | |
-| 4 | the dates the 2026-09-18 round skipped | pending | |
-| 5 | memory and handover boundaries | pending | |
-| 6 | the leftovers | pending | |
+| 1 | the docs stop describing code that is no longer there | closed | 2026-10-08 |
+| 2 | the parts nothing documents get a home | closed | 2026-10-08 |
+| 3 | the tracker files match their specs | closed | 2026-10-08 |
+| 4 | the dates the 2026-09-18 round skipped | closed | 2026-10-08 |
+| 5 | memory and handover boundaries | closed | 2026-10-08 |
+| 6 | the leftovers | closed | 2026-10-08 |
+
+On 2026-10-08 the owner asked for the remaining angles to be finished fast, with manual checks in place of
+the hunter and verifier loop. The architecture and ops docs were fixed by hand against the code, and the
+bug, todo, memory and deep dive files by three sub agents working on separate files in parallel, each
+told to edit only its own files and commit nothing, then read through by hand before commit. Their
+reports raised what they saw and left alone, and the clear ones were fixed in the same pass, three bugs
+filed after the review with the same section gaps, two leftover sections in closed todos, a hyphen in an
+index line, a stale byte identical claim and a mid sentence colon in `build-and-release.md`, and one more
+personal detail in a research doc. Three earlier angles had already fixed F-18, F-19 and part of F-03 and
+F-20, and later commits had overtaken F-08.
 
 ## Findings
 
@@ -45,8 +55,8 @@ Twenty four findings, eight bug, nine debt, seven nit. F-25 was added on 2026-09
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Step 5 says the overlay installs whenever it is on, with no mods folder at all, for the two generated fixes, and points at `package-override-layer`.
 
 `.agent/docs/foundation/proxy-architecture.md:54`. The overlay installs those hooks with no mods folder
 at all, because the trackside screen fix and the UI stylesheet fix are generated from the player's own
@@ -60,8 +70,8 @@ doc.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Step 1 and the engine row name all five, the GPU scheduling priority through `D3DKMTSetProcessSchedulingPriorityClass` from `gpu_priority`, on at high, and the working set floor from `working_set_floor_mb`, off.
 
 `.agent/docs/foundation/proxy-architecture.md:31`, repeated in the engine row at line 19. It also sets
 the process D3DKMT GPU scheduling priority class and the working set floor,
@@ -74,8 +84,8 @@ priority ships on at high, so a shipped default that calls into gdi32's
 - severity: bug
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The render row and a Reflex and a texture_writes piece were already added by earlier angles. The core row now lists `code_patch` and the pieces give it an entry.
 
 `.agent/docs/foundation/proxy-architecture.md:17` and `:20`. The core row lists log, config and iat, and
 `src/core/code_patch.cpp` also exists, the foundation every in memory patch stands on, used by six
@@ -94,8 +104,8 @@ Found by both reviewers independently.
 - severity: bug
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The paragraph says the file feeds the developer trace its streamer rows, that its census is gone in 9518e7d, and where the memory census lives.
 
 `.agent/docs/systems/directstorage-streaming.md:43`. The streamer census was deleted in commit 9518e7d.
 `src/engine/streamer.cpp` has no census code and includes only `telemetry/streaming_trace.h`. The only
@@ -105,8 +115,8 @@ census left is `src/telemetry/memory_census.cpp`, a different subsystem behind a
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Problem, Evidence, Fix and Verification in order, the dated sections as subsections under Evidence and Verification with their text unchanged, the Done when heading gone with its closing paragraph kept, `reported: 2026-09-12` added, and the description says it was fixed in 1363062 and closed in 75894a6.
 
 `.agent/bugs/BUG-016-vram-overhead-grows-across-scene-loads.md`. `spec/bugs.md` fixes the body sections
 as Problem, Evidence, Fix, Verification. This file has none of those four headings, it runs Symptom,
@@ -120,8 +130,8 @@ required `reported:` field, which its earliest evidence puts at 2026-09-12.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `born:` and `by: owner` in the frontmatter, the done when text moved into a Done when section, and the old sections now subsections of What.
 
 `.agent/todos/TODO-010-resume-the-one-percent-low-hunt.md:9`. `created:` where the spec says `born:`, a
 free form `done-when:` in frontmatter that belongs in the body, no `by:` at all, and body sections that
@@ -131,8 +141,8 @@ are none of the two the spec requires.
 - severity: bug
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The stub heading and its "Absent" are gone, and the real Verification stands alone.
 
 `.agent/bugs/BUG-007-blurry-road-and-textures.md:47`. Line 41 holds the real evidence, the owner after
 lap four of 2026-09-05 with tile traffic going from 700 MB to 1.7 GB. Line 47 is a leftover template
@@ -142,8 +152,8 @@ stub whose whole body is the word "Absent". A false claim sitting inside a fixed
 - severity: bug
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Overtaken by later work. All six files have since been edited with their dates moved, the two indexes, BUG-016 and `session-leak-fix.md` to 2026-09-24 and later, the spine and `telemetry.md` to 2026-10-08, so none still reads 2026-09-16.
 
 `spec/conventions.md` says any change to a file updates its `updated:` date and its index line in the
 same commit. Commits 0c7bfc6, 11f5d5c, 75894a6 and afd3e12, all on 2026-09-18, made real content edits
@@ -156,8 +166,8 @@ freeze paragraph) and `.agent/docs/systems/session-leak-fix.md` (a rewritten cov
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The kind list has `write` with its ten columns, read off `NoteWrite`, and a paragraph says what the `[writes]` line carries.
 
 `.agent/docs/ops/telemetry.md:85` lists kick, tex, want, drop, drop0, req and reread. A `write` kind goes
 into the same file from `NoteWrite` in `src/render/texture_writes.cpp` for every copy into a streamed
@@ -169,8 +179,8 @@ reader parsing the CSV from this doc meets a row kind the doc denies exists.
 - severity: debt
 - found-by: review
 - batch: 2
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. `telemetry.md` has an `acevo_perf_load_samples.csv` section, its header, one row per second holding only that second, `t_s` from attach, and the `[loadsampler]` log summary.
 
 `.agent/docs/ops/telemetry.md:14`. The doc's own description is the log and CSV files the mod writes and
 their columns, and it gives a section to four of them. The load sampler appears only as a name in a
@@ -183,8 +193,8 @@ should say.
 - severity: debt
 - found-by: review
 - batch: 1
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The bullet names the command list copy hooks `streaming_trace=1` installs as the exception.
 
 `.agent/docs/foundation/proxy-architecture.md:102` says the mod never hooks anything on the render thread
 beyond Present and the UI frame post and end. With `streaming_trace=1` it patches four
@@ -197,8 +207,8 @@ saves the default case, and the sentence as written is false.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Both end on Fix and Verification, "Absent.", and BUG-018 also gained an Evidence heading over its dated sections, with its Done when made a subsection of it. Three bugs filed after the review, BUG-035, BUG-036 and BUG-038, had the same gaps and the Symptom heading, and got the same shape.
 
 `.agent/bugs/BUG-018-whole-scene-low-detail-for-a-second-after-load.md` has no Fix and no Verification
 heading at all, and `.agent/bugs/BUG-021-textures-blur-after-camera-cuts-at-the-red-bull-ring.md` ends at
@@ -209,8 +219,8 @@ the spec asks for.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The Fix section names `9ffe4a3` of 2026-09-12, the first commit `git log -S fix_big_screens` finds. Left as found, its text still describes the loose file route of `tools/texture_mips.py`, while that commit changes a header byte inside the mod, which only its Verification says.
 
 `.agent/bugs/BUG-017-trackside-big-screens-blurry.md:67`. The spec says the Fix section holds the root
 cause, the commit hash and the date. This one describes the mip trim and names the tool, with no hash and
@@ -220,8 +230,8 @@ no date. Twelve of the fourteen fixed bugs give a hash.
 - severity: debt
 - found-by: review
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Each names its commits in Done when, found from `git log --follow` on the todo and the files the work touched, and every hash resolves.
 
 `spec/todos.md` says a closed item names its commits there. TODO-002, TODO-004, TODO-007, TODO-015 and
 TODO-027 close with prose only. Seven of the twelve done todos do name hashes, so the convention exists
@@ -231,8 +241,8 @@ and these five miss it.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-10-08. Taking the block out now would be one more edit after the fact, and it would leave the handover pointing a reader at a race line its own author found confounded. The snapshot below the block is as it was written, and the rule is kept from here on.
 
 `.agent/handover/2026-09-13-frame-time-mesh-budget.md:5`. `spec/handover.md` says a handover is a
 snapshot, dated, and never updated after the fact, and that a resumed stream that pauses again writes a
@@ -244,8 +254,8 @@ one, or left to the research doc, with this file untouched.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Shrunk to the three beats with no `area:` key. Its documentation already sat almost word for word in `directstorage-1-3-2026-09-12`, so `build-and-release.md` links that doc from its forwarder paragraph rather than copying it.
 
 `.agent/memory/dstorage-dll-is-only-a-forwarder.md:8`. `spec/memory.md` says the body is three beats, the
 fact, why it matters and how to apply it, and that a fact which grows into real documentation graduates
@@ -258,8 +268,8 @@ graduate into `docs/systems/directstorage-streaming.md`.
 - severity: debt
 - found-by: review
 - batch: 5
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The file keeps only the project fact, the reference machine rendering on one GPU and presenting through another with no way to change that, why it mattered and how to apply it. The cable, the wiring, the other machine's owner and the quotes are gone. The same personal detail in `one-percent-lows-2026-09-14` now reads as a desktop with an RTX 5070.
 
 `.agent/memory/reference-machine-has-no-direct-gpu-display.md:11`. `spec/memory.md` and
 `.agent/README.md:42` both forbid this. The file records which cable the owner does not own, names a
@@ -273,8 +283,8 @@ local agent memory, which is allowed to point into the repo and not the other wa
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: Before 2026-10-08, by an earlier angle. Step 2 names `StartLoadSampler` beside `StartTimeline`.
 
 `.agent/docs/foundation/proxy-architecture.md:43`. The same one shot guard that runs `ApplyFlags("late")`
 and `StartTimeline` also runs `StartLoadSampler` (`proxy.cpp:444`).
@@ -283,8 +293,8 @@ and `StartTimeline` also runs `StartLoadSampler` (`proxy.cpp:444`).
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: Before 2026-10-08, by `sweep/review-render`. The paragraph gives staging its own three sizes on the 7 and 11 GB steps.
 
 `.agent/docs/systems/directstorage-streaming.md:100` shares one bracket list between the tile pool and
 the staging buffer. The tile pool does have four brackets at 7, 11 and 15 GB. Staging has three and stops
@@ -295,8 +305,8 @@ implies.
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. Step 3 names the tile queue priority, and the wrapper for any of its consumers was already named by an earlier angle.
 
 `.agent/docs/foundation/proxy-architecture.md:45`. It also overrides the tile queue's priority when
 `tile_queue_priority` is not unchanged (`proxy.cpp:334`), and it wraps the queue when `logRequests` or
@@ -306,8 +316,8 @@ implies.
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The skip list names the mod itself first, as `iat.cpp` builds it.
 
 `.agent/docs/foundation/proxy-architecture.md:69` gives it as kernel32, kernelbase and ntdll.
 `src/core/iat.cpp:47` builds `HMODULE skip[4] = { g_self, kernel32, kernelbase, ntdll }`.
@@ -316,8 +326,8 @@ implies.
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The paragraph gives every flag, define and include path `build.ps1` passes, with the `/WX`, `/Brepro` and `/PDBALTPATH` the tools angle added.
 
 `.agent/docs/ops/build-and-release.md:15` gives the flags as `/O2 /W4 /MT /std:c++17` and one include
 path. `build.ps1:26` to 27 also passes /EHsc, /DUNICODE, /D_UNICODE, /DWIN32_LEAN_AND_MEAN, /DNOMINMAX
@@ -328,8 +338,8 @@ and a second include path. Everything else in that section checks out. The same 
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. All four open on Problem, and their other top level sections now sit under the four the spec names.
 
 BUG-015, BUG-016, BUG-017 and BUG-018, each at line 14. Twenty six of the thirty use Problem.
 
@@ -337,8 +347,8 @@ BUG-015, BUG-016, BUG-017 and BUG-018, each at line 14. Twenty six of the thirty
 - severity: nit
 - found-by: review
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The two semicolons, on the streaming line of the Done list by then, are full stops. TODO-015, TODO-027 and TODO-007 keep their extra notes as subsections of Done when, and TODO-002's candidates and TODO-015's old status went under Done when and What the same way.
 
 `.agent/todos/INDEX.md:43` carries the only semicolon anywhere under `.agent/`, which the shared prose
 rule bans. Separately, `spec/todos.md` says completion notes go in Done when and never anywhere else, and
@@ -349,8 +359,8 @@ section, and TODO-007 adds a Result section.
 - severity: nit
 - found-by: verifier
 - batch: 6
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. The doc traces 52,460 to the load sampler's printed rows over the four runs, rechecked against the logs, marks the render sampler trace as wrong with its facts kept, and keeps the point that a printed top sixteen bounds a cost and cannot zero it. Its `docs/INDEX.md` line says the same. Seen and left, its table row 2 still says the window does not include loading, against the doc's own 2026-09-14 correction.
 
 `.agent/docs/research/optimisation-deepdive-2026-09-12.md:311` to `:313`, `:324` and `:350`, and the doc's
 line in `.agent/docs/INDEX.md`. The verdicts cite 52,460 game code samples, and the load sampler's

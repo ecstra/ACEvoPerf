@@ -3,7 +3,7 @@ name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
 updated: 2026-10-08
-links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first]
+links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first, directstorage-1-3-2026-09-12]
 ---
 
 # Build and release
@@ -12,14 +12,16 @@ links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-ove
 
 `build.ps1` at the root compiles every `.cpp` under `src/` (recursive) into `dist/dstorage.dll`
 with the newest installed MSVC 2022 toolset and the newest Windows 10 SDK that has `d3d12.h`.
-Headers are found through `/I include`. Flags: `/O2 /W4 /WX /Brepro /MT /std:c++17`, linked against
-`kernel32.lib` and `user32.lib` only, exports from `src/exports.def`, version resource from
+Headers are found through `/I include` and `/I third_party/directstorage`. Flags: `/O2 /W4 /WX /Brepro
+/MT /EHsc /std:c++17` with `UNICODE`, `_UNICODE`, `WIN32_LEAN_AND_MEAN` and `NOMINMAX` defined, linked
+against `kernel32.lib` and `user32.lib` only, exports from `src/exports.def`, version resource from
 `src/version.rc` (compiled with `rc.exe`). A new source file needs no build script change, a new
 folder neither, but two sources may not share a file name, since every object lands in `build\` under
 its base name, and the script refuses the build when they do. The DLL carries only the PDB's file
 name (`/PDBALTPATH:%_PDB%`), never the folder it was built in. Two builds of the same source have the
-same code and differ only in the stamp and the PDB id, which the debug info makes new at each link. The toolset is found through `vswhere.exe` and the `ProgramFiles(x86)` variable,
-nothing in the script names a machine specific folder.
+same code and differ only in the stamp and the PDB id, which the debug info makes new at each link.
+The toolset is found through `vswhere.exe` and the `ProgramFiles(x86)` variable, nothing in the
+script names a machine specific folder.
 
 For development, `build.ps1 -Install` copies the fresh `dstorage.dll` into the folder named by the
 `ACEVO_GAME_DIR` environment variable (refuses while the game runs, keeps an existing ini). Users
@@ -50,8 +52,10 @@ and calls its entry points directly (DEC-015). No game file is replaced, so a ga
 its own DirectStorage changes nothing. A forwarder and a core have no version check between each
 other, which is why the proxy reads `DStorageSDKVersion` off the module it actually loaded and
 writes it to the log as `[runtime] DirectStorage 1.x.y in use`. That line is the gate for any
-change here: a mismatched pair works and says nothing, and the first attempt at this change shipped
-looking correct while still running 1.2.3.
+change here, because a mismatched pair works and says nothing, and the first attempt at this change
+shipped looking correct while still running 1.2.3. How the forwarder finds its core, why no preload by the
+proxy can win the name and how the raw SDK version number reads are in
+[directstorage-1-3-2026-09-12](../research/directstorage-1-3-2026-09-12.md).
 
 ## Release
 
@@ -101,9 +105,10 @@ Two channels, the same zip, decided in DEC-013. In this order once the tag exist
 3. The repo's About link stays on the Overtake page, the readme's badge row and install step
    name both downloads as the same file.
 
-Overtake filters uploads that contain game files, and `dstorage_orig.dll` is byte identical
-to the game's own, so a takedown without notice can happen. It did on 2026-09-06 and their
-support restored the page the same evening. The mirror is what keeps the download reachable
+Overtake filters uploads that contain game files, and up to 0.3.1 `dstorage_orig.dll` was byte
+identical to the game's own, so a takedown without notice happened on 2026-09-06 and their support
+restored the page the same evening. Since DEC-015 it is Microsoft's 1.3.0 forwarder and the game ships
+1.2.3, so the zip no longer carries a game file, but a filter can still match on Microsoft's files. The mirror is what keeps the download reachable
 in the meantime.
 
 ## Gates
