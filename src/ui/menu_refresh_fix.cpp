@@ -167,7 +167,10 @@ static bool EndsWithPage(const char* url, size_t length, const char* page)
 }
 
 // Script hands the loader whatever it navigated to, so the URL is read defensively and only a page this
-// knows changes the state.
+// knows changes the state. Any view's load counts, the car displays' too, since the loader's first argument
+// was never matched to the view the Cohtml hooks name. Shipped that changes nothing, a menu page and the HUD
+// both write the main view every frame, but under the developer test a display loading a known page would
+// move the schedule.
 static void OnLoadUrl(void*, const char* url)
 {
     char path[512];

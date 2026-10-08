@@ -285,8 +285,8 @@ or what the line 274 fallback returns.
 - severity: debt
 - found-by: review
 - batch: 4
-- status: open
-- fix:
+- status: wontfix
+- fix: 2026-10-08. Shipped, a menu page and the HUD write the same schedule, so which view loaded never matters. Telling the views apart needs the loader's first argument matched to the view `cohtml_hooks.cpp` names, which only a probe run can show, for a developer test that ships off. The code comment and `.agent/docs/systems/responsive-ui.md` now say any view's load counts.
 
 `src/ui/menu_refresh_fix.cpp:170`. The first parameter, the view, is unnamed and unused, and only the
 URL is inspected. The car dashboard displays are Cohtml views too and load their own documents.

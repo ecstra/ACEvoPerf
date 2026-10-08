@@ -55,7 +55,8 @@ and keeps it for classes, attributes and ids. Three code regions are hashed firs
 surface a frame in turn otherwise, the menu and the car's two dashboard displays, so a menu in a session
 ran at a third of the frame rate. A stub at `0xDE37B7` keeps the main surface in every frame and passes the
 turn between the displays. Which page is shown comes from a hook on Cohtml's URL loader (`0x46B990`), whose
-stub records whether the main view shows one of the known menu pages or `hud.html`.
+stub records whether the last known page any view loaded was a menu page or `hud.html`. It does not tell the
+views apart, which changes nothing shipped since both write the same schedule.
 
 The stub reads a schedule byte, 0 the game's rotation, 1 the main surface every frame with the displays
 taking turns, 2 every surface every frame, the path the game jumps to itself from its main and pause menu
