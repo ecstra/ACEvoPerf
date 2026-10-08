@@ -270,7 +270,7 @@ namespace document {
     static const ptrdiff_t kHashShift = 0x298;      // 64 less the log2 of the slot count
     static const ptrdiff_t kMaxLookups = 0x299;     // the end entry sits this far past the last slot
 }
-static const ptrdiff_t kStylerHasScopes = 0x1A0;    // zero when no rule is scoped, the path without a lookup
+static const ptrdiff_t kStylerHasScopes = 0x1A0;    // zero where 0x37BC60 takes the path without a lookup
 static const size_t kScopeEntrySize = 0x18;
 static const uint64_t kFibonacci = 0x9E3779B97F4A7C15ull;
 
