@@ -2,7 +2,7 @@
 name: tools
 kind: doc
 description: the Python tools in tools/ and what each command does
-updated: 2026-09-15
+updated: 2026-10-08
 links: [content-package, settings-files, telemetry]
 ---
 
@@ -26,7 +26,10 @@ Reads `content.kspkg` (format in content-package).
 - `verify`: recompute every path hash
 - `stats`: size by extension and cipher flag
 
-The package is `ACEVO_GAME_DIR\content.kspkg`, pass `-p` for another file.
+The package is `ACEVO_GAME_DIR\content.kspkg`, pass `-p` for another file. A table slot that cannot be
+read is left out with a warning, an entry that runs past the end of the package fails with a nonzero
+exit and leaves no partial file, and `extract` refuses any path that would land outside its output
+folder. Its default folder `extracted\` is gitignored, since it holds the game's own content.
 
 ## texture_mips.py
 
@@ -39,7 +42,9 @@ can cut its mip chain.
   first `N` mip levels, for the override folder
 
 `NAME` is a package path without the extension. The payload it writes is a byte for byte prefix
-of the shipped one, so nothing is invented and nothing in the package is touched.
+of the shipped one, so nothing is invented and nothing in the package is touched. A header whose
+lengths run past its end fails with nothing written, and the decoded files it reads go into a
+temporary folder that is removed when it exits.
 
 Its reason to exist is BUG-017: the trackside big screens use a flipbook of 64 frames in an 8 by 8
 grid, so the engine's mip choice is driven by the whole sheet rather than the frame on show and
@@ -56,19 +61,24 @@ Reads and edits the game's binary settings files with the schema pulled from the
 - `profile NAME`: apply a named group (`profiles` lists them)
 - `restore [BACKUP]`: put back the newest or a named backup
 
-Every write first copies the file to `<file>.bak-<timestamp>`. Close the game before editing.
+Every write, a restore included, first copies the file to `<file>.bak-<timestamp>`, with a number
+added when that name is taken, so a restore of the wrong backup can itself be undone. Close the game
+before editing.
 
 ## protodesc.py
 
 Library used by the settings tool. `load(exe)` returns a descriptor pool and the raw
-`FileDescriptorProto` objects found in the exe. `tools/data/proto_schema.txt` is the text dump.
+`FileDescriptorProto` objects found in the exe. A descriptor the pool refuses is printed and left out.
+`tools/data/proto_schema.txt` is the text dump.
 
 ## telemetry_report.py
 
 `telemetry_report.py SESSION_DIR [--slow-fps N] [--from HH:MM:SS] [--to HH:MM:SS]` summarises a
 session folder: frame time percentiles, per second fps, VRAM against budget, streaming volume and
 batch sizes, CPU, GPU clocks and throttle reasons, slow clusters with everything joined on the
-clock second, the logged hitches and PSO activity from the game log.
+clock second, the logged hitches and PSO activity from the game log. When `acevo_perf.log` says the
+mod could not create the timeline or frames CSV that run, the copy in the folder is an older run's, so
+the report refuses the timeline and leaves the frames out.
 
 ## data/gflags_full.tsv
 

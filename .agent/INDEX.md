@@ -38,10 +38,10 @@ line in the same commit.
 - [todos/INDEX.md](todos/INDEX.md), the work tracker: 14 open (TODO-009, TODO-010, TODO-013, TODO-014, TODO-016, TODO-017, TODO-019 to TODO-022, TODO-024, TODO-026, TODO-029, TODO-030), 12 done, 3 dropped
 - [bugs/INDEX.md](bugs/INDEX.md), the defect tracker: 17 open, 14 fixed, 4 won't fix
 - [decisions/INDEX.md](decisions/INDEX.md), the decision record: 19 standing (DEC-001 to DEC-003, DEC-005, DEC-007, DEC-008, DEC-011 to DEC-023), 4 superseded
-- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 3 open, the full review of main of
-  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 11 closed. The Cohtml
+- [reviews/INDEX.md](reviews/INDEX.md), code review ledgers: 2 open, the full review of main of
+  2026-09-20 split one branch per angle, 151 findings, 12 of them breaks, and 12 closed. The Cohtml
   build guard, render, proxy and core, package override layer, session leak, teardown, engine hooks,
-  telemetry, UI fixes and UI probe angles are merged into 0.4
+  telemetry, UI fixes, UI probe and tools angles are merged into 0.4
 
 ## Memory and handovers
 
