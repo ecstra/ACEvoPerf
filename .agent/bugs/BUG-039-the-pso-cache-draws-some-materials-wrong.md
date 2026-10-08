@@ -96,8 +96,9 @@ The mod stops turning the cache on (DEC-024), on `fix/pso-cache-glitches` on 202
 `enable_pso_cache` is out of the shipped `acevo_perf.ini`, so the mod writes nothing and the game keeps
 its own default, off, the state every player who tried it was cured by. The readme no longer lists the
 shader cache, and the changelog tells a player who kept an older ini to delete the line. The mod cannot
-fix the cache itself, since which blob goes to which pipeline is decided inside the exe, and nothing ever
-measured it helping.
+fix the cache itself, since which blob goes to which pipeline is decided inside the exe. Measured the same
+day, [pso-cache-ab-2026-10-08](../docs/research/pso-cache-ab-2026-10-08.md), the cache saves about 4 to 5 s
+per load once its file exists and one short stutter leaving the pits, and nothing while driving.
 
 ## Verification
 
