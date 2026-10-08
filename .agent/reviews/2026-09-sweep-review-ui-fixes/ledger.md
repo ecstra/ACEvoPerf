@@ -208,8 +208,8 @@ Batch 1's hunter raised one more of F-04's shape.
 - severity: nit
 - found-by: hunter
 - batch: 3
-- status: open
-- fix:
+- status: fixed
+- fix: 2026-10-08. A failed URL loader write frees both caves and clears the schedule pointer, as nothing was written. A failed rotation write keeps both, since the URL hook is in and writes the byte, and the developer test now runs only once the rotation stub is in.
 
 `src/ui/menu_refresh_fix.cpp:275` and `:279` return on a failed `WriteCode` while `g_schedule` is still set
 from `:240`, and both caves stay. With `hud_schedule_test=1`, `MenuRefreshTick` then logs a schedule turn
