@@ -3,9 +3,9 @@ name: BUG-039-the-pso-cache-draws-some-materials-wrong
 kind: bug
 description: with enable_pso_cache on, which the mod turns on and the game ships off, some materials are drawn wrong, fences as glass, trees unlit or white at night, a car's own main beam gone, pit fencing and lines flashing every frame and cars glowing, on several cards and most often on the 40 series, cured in every report by turning the flag off, and one player found a run with the cache file deleted clean and every run after it not, while the game's own log shows it handing cached pipeline blobs back and recompiling the ones it sees changed
 updated: 2026-10-08
-links: [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-038-fences-look-like-glass-in-sunlight, engine-flags, engine-flags-in-game-2026-09-12, reported-working-configurations]
+links: [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-038-fences-look-like-glass-in-sunlight, engine-flags, engine-flags-in-game-2026-09-12, reported-working-configurations, DEC-024-the-pso-cache-stays-off, pso-cache-ab-2026-10-08, TODO-031-reproduce-the-pso-cache-glitches-at-medium-textures]
 area: render
-status: branched
+status: fixed
 severity: bug
 reported: 2026-09-10
 parent:
@@ -92,7 +92,7 @@ seen clean over long play on every machine that tried it.
 
 ## Fix
 
-The mod stops turning the cache on (DEC-024), on `fix/pso-cache-glitches` on 2026-10-08.
+The mod stops turning the cache on (DEC-024), on `fix/pso-cache-glitches` on 2026-10-08, `beaca33`.
 `enable_pso_cache` is out of the shipped `acevo_perf.ini`, so the mod writes nothing and the game keeps
 its own default, off, the state every player who tried it was cured by. The readme no longer lists the
 shader cache, and the changelog tells a player who kept an older ini to delete the line. The mod cannot
@@ -102,4 +102,11 @@ per load once its file exists and one short stutter leaving the pits, and nothin
 
 ## Verification
 
-Absent.
+The fix is the state players were already cured by, so it is verified by their reports. Every player who
+turned the flag off saw the glitches go, and one tested deleting the cache file run by run until the
+flag off settled it. What was checked here on 2026-10-08: the shipped `acevo_perf.ini` no longer carries
+the flag, nothing in `src/` writes it, the `[flags]` reader writes only the keys an ini holds, and the
+flag off launch of `logs/pso-ab-20261008` logged no cached pipeline handed back.
+
+Not verified on the reference machine, which showed the glitch once in weeks of play. TODO-031 is the
+attempt to see it here, which a fix keeping the cache would need.

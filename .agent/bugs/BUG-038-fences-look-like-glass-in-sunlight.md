@@ -5,7 +5,7 @@ description: the wire catch fences show as flat see through sheets that read as 
 updated: 2026-10-08
 links: [reported-working-configurations, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, engine-flags, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: branched
+status: fixed
 severity: bug
 reported: 2026-09-24
 parent:
@@ -87,8 +87,10 @@ of [BUG-039](BUG-039-the-pso-cache-draws-some-materials-wrong.md) and are fixed 
 
 ## Fix
 
-Absent.
+Fixed with BUG-039 on 2026-10-08 in `beaca33`, the mod no longer turning on `enable_pso_cache`
+(DEC-024).
 
 ## Verification
 
-Absent.
+As BUG-039. The 4060 player's fences never came back with the flag off. Not verified on the owner's
+machine, where they showed once.

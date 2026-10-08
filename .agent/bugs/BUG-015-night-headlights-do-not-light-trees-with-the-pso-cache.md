@@ -5,7 +5,7 @@ description: two users on the Overtake listing report that at night the car's ow
 updated: 2026-10-08
 links: [engine-flags, DEC-013-overtake-front-door-github-mirror, build-and-release, BUG-039-the-pso-cache-draws-some-materials-wrong]
 area: render
-status: branched
+status: fixed
 severity: bug
 reported: 2026-09-11
 parent:
@@ -163,4 +163,5 @@ Players have since reported fences drawn as glass, trees white at night, a car's
 pit fencing flashing, every one cured by the flag off, and one of them showed that a run starting with
 `pipeline.library` deleted is clean and the runs after it are not. That is the report this section was
 waiting for, short only of a game log, so the unlit trees are now one symptom of
-[BUG-039](BUG-039-the-pso-cache-draws-some-materials-wrong.md) and are fixed with it.
+[BUG-039](BUG-039-the-pso-cache-draws-some-materials-wrong.md) and are fixed with it. Fixed on 2026-10-08
+in `beaca33`, the flag out of the shipped ini (DEC-024), verified as BUG-039 is.
