@@ -12,7 +12,6 @@ links: [agent-index, spec-bugs]
 
 bug
 
-- [BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors](BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors.md), with DLSS on the whole picture slides now and then while the camera moves, each eye on its own in VR, because the game's motion vectors sometimes claim a third of a pixel of movement the frame does not have and DLSS follows them, the jitter and the create flags being correct
 - [BUG-032-the-game-freezes-at-a-thirty-ai-race-start](BUG-032-the-game-freezes-at-a-thirty-ai-race-start.md), the game stopped presenting at the start of a thirty AI race at the Nürburgring with its own threads frozen for 45 s while the mod's kept running, no exception and video memory over budget, not reproduced since
 - [BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse](BUG-036-textures-resolve-in-visible-steps-and-a-mid-lap-restart-makes-it-worse.md), the scene comes up mushy and sharpens in several visible stages rather than in one go, and a session restart from mid lap makes the staircase worse or slower than the same scene loaded fresh
 - [BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size](BUG-034-an-integrated-gpu-with-a-large-uma-carve-out-is-read-as-a-card-that-size.md), the auto sizes rank adapters by dedicated video memory and cannot tell an integrated GPU from a discrete one before a device exists, so an APU with a 4 or 8 GB firmware carve out takes a card's bracket and can outrank a smaller real card beside it, accepted as a limit in DEC-022
@@ -37,6 +36,7 @@ nit
 
 ## Won't fix
 
+- [BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors](BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors.md), with DLSS on the whole picture slides now and then while the camera moves, each eye on its own in VR, because the game's motion vectors sometimes claim a third of a pixel of movement the frame does not have and DLSS follows them, the game's to fix
 - [BUG-035-the-writing-on-the-ground-is-pixelated](BUG-035-the-writing-on-the-ground-is-pixelated.md), the Nordschleife's chalk writing is blocky because a 6 GB card's 1024 MB pool is full there and the game never admits the writing's decals, which ship whole, a limit of that card's memory, eased for bigger cards by the budget sizing of BUG-040
 - [BUG-012-pit-lane-return-freezes-over-a-second](BUG-012-pit-lane-return-freezes-over-a-second.md), the 1.2 s is the engine parsing its 63 MB zlib and protobuf track preset at every session start and restart, same on every card
 - [BUG-001-texture-low-mip-shown-before-streaming](BUG-001-texture-low-mip-shown-before-streaming.md), the mip a surface gets at a distance is the engine's choice on every card, the streaming path answers in 9 ms bursts

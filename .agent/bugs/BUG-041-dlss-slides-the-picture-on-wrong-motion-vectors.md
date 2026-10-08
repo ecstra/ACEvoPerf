@@ -1,11 +1,11 @@
 ---
 name: BUG-041-dlss-slides-the-picture-on-wrong-motion-vectors
 kind: bug
-description: with DLSS on the whole picture slides left and right now and then while the camera moves, worst in VR where each eye shifts on its own, because the game's motion vectors sometimes claim a third of a pixel of camera movement the rendered frame does not have, and DLSS follows them, while the jitter, its sign and the create flags are all correct
+description: with DLSS on the whole picture slides left and right now and then while the camera moves, worst in VR where each eye shifts on its own, because the game's motion vectors sometimes claim a third of a pixel of camera movement the rendered frame does not have, and DLSS follows them, while the jitter, its sign and the create flags are all correct, left to the game on the owner's call
 updated: 2026-10-08
 links: [BUG-039-the-pso-cache-draws-some-materials-wrong, telemetry]
 area: render
-status: open
+status: wontfix
 severity: bug
 reported: 2026-10-08
 parent:
@@ -53,8 +53,10 @@ fits each eye shifting on its own.
 
 ## Fix
 
-Absent. A fix in the mod means finding the code that fills the previous view for the motion vector pass and
-making it the view actually rendered the frame before, in the game's renderer, for both eyes.
+Won't fix, on the owner's call of 2026-10-08: the motion vectors are the game's own and not the mod's to
+fix. A fix in the mod would mean finding the code that fills the previous view for the motion vector pass
+and making it the view actually rendered the frame before, in the game's renderer, for both eyes, against a
+build that 0.10 replaces. The probe that measured it is kept outside the repo and was never committed.
 
 ## Verification
 
