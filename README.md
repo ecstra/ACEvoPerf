@@ -27,6 +27,7 @@ Made on an RTX 3060 Laptop GPU with 6 GB. Players have also reported it working 
 - Crashes at startup and on car or track changes
 - Missing icons in the vehicle hub and menus
 - Mushy road, tyre and ground textures
+- Cards with more than 6 GB left with video memory unused (experimental)
 - Your own car going blurry in races with AI
 - Blurry trackside big screens
 - Laggy menus
@@ -65,7 +66,7 @@ If you update from 0.3 and keep your own `acevo_perf.ini`, delete its `enable_ps
 
 ## Settings
 
-Everything is in `acevo_perf.ini` in the game folder, one line per setting with a short note. Any fix can be turned off there. Settings under `[experimental]` are still being tried and are off by default. Changes apply the next time you start the game.
+Everything is in `acevo_perf.ini` in the game folder, one line per setting with a short note. Any fix can be turned off there. Changes apply the next time you start the game.
 
 ## Problems
 
@@ -74,6 +75,7 @@ If the game won't start or runs worse with the mod, uninstall it. To report a pr
 ## Known issues
 
 - Custom tracks are not supported yet. Joining a session with custom track mods installed may crash.
+- On Linux, 0.4.0 can run very slowly with a broken rear view mirror. Use the [0.4.0 for Linux](https://github.com/ecstra/ACEvoPerf/releases/tag/v0.4.0-linux) download instead.
 
 ## Game issues
 
@@ -89,7 +91,7 @@ These are the game's own and happen without the mod too.
 The game loads Microsoft's DirectStorage from `dstorage.dll` in its folder to read its files. The mod's `dstorage.dll` takes that spot, passes everything on to the real DirectStorage and fixes these problems while the game runs.
 
 - **Crashes and missing icons:** the game sets aside a large block of video memory just for loading, which leaves smaller cards short. The mod sets aside only what loading needs.
-- **Mushy textures:** the game decides how much memory textures get while the previous track is still loaded, so they get too little. The mod sets it once at launch, sized for your card.
+- **Mushy textures:** the game decides how much memory textures get while the previous track is still loaded, so they get too little. The mod sets it once at launch, from the video memory Windows gives the game and your screen resolution, so bigger cards get more.
 - **Blurry cars in races:** once texture memory is full, the game ranks textures by the car that needs them least and loads new detail only when all of it fits. The mod ranks them by the car that needs them most and loads what fits.
 - **Big screens:** the screens fall back to very low detail copies of their video. The mod hides those copies, so the sharp one always shows.
 - **Menus:** the menus redo far more work than they need to on every hover and page change, and in a session they only update every third frame. The mod cuts the extra work and updates them every frame.
