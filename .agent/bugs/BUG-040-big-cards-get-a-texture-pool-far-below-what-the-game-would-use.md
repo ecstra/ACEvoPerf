@@ -72,7 +72,9 @@ on cards above 6 GB.
 The Proton player, an RTX 3080 10 GB on one 1440p screen, confirmed the table build fixed both the frame rate
 and the mirror, so it went up as the pre-release `v0.4.0-linux` and 0.4.0 stays the release for Windows. On
 Windows a 5070 Ti with 16 GB reported 0.4.0 running better than 0.3.2, with more of the card in use, the first
-card above 6 GB on record running the rule. The next version is meant to turn the rule back on by default and
+card above 6 GB on record running the rule. Two 8 GB cards followed the same day, a 4060 with no issues and
+one whose owner confirmed `tile_pool_mb=auto`, smooth in a 26 car lobby, the player who had needed 5120 by hand
+on 0.3.2 to stop load screen hangs. The next version is meant to turn the rule back on by default and
 skip it under Proton, which Wine marks with `wine_get_version` in ntdll.
 
 ## Verification
