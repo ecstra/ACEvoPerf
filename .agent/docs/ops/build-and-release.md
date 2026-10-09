@@ -2,7 +2,7 @@
 name: build-and-release
 kind: doc
 description: how to build, install, uninstall, package and publish the mod, the first releases cut on 2026-09-06, Overtake as the front door and GitHub as the mirror
-updated: 2026-10-08
+updated: 2026-10-09
 links: [public-docs, TODO-004-release-packaging, proxy-architecture, DEC-013-overtake-front-door-github-mirror, DEC-015-bundled-directstorage-core-loaded-first, directstorage-1-3-2026-09-12]
 ---
 
@@ -96,9 +96,13 @@ Two channels, the same zip, decided in DEC-013. In this order once the tag exist
    "ACEvoPerf <version>"` with `--notes-file` pointing at notes cut from the version's changelog
    as [public-docs](public-docs.md) says, `## New in <version>` over its Fixed, Added and Changed
    sections. A build sent to a player first to confirm a fix goes up with `--prerelease`, which
-   keeps the Latest badge on the last full release, as 0.4.1 did on 2026-10-08, and
+   keeps the Latest badge on the last full release, and
    `gh release edit v<version> --prerelease=false --latest` makes it the full release once it is
-   confirmed. `gh release edit` replaces the notes later.
+   confirmed. `gh release edit` replaces the notes later. A build for one platform stays a
+   pre-release under the version it varies, the way the Linux build went up as `v0.4.1` on
+   2026-10-08 and was renamed `v0.4.0-linux` the next day so Windows players would not take a
+   higher number for a newer release. Renaming is `gh release edit <old> --tag <new>` after the
+   new tag is pushed, then the zip uploaded again under the new name and the old tag deleted.
 2. Overtake: "Post an update" on the listing (`overtake.gg/downloads/acevoperf.86467`) with
    the same zip, the version number and a short update text. The listing's description
    holds the same content as the readme in plain paragraphs, the credits line for the

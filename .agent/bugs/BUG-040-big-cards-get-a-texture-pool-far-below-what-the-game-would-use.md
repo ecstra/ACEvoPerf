@@ -2,7 +2,7 @@
 name: BUG-040-big-cards-get-a-texture-pool-far-below-what-the-game-would-use
 kind: bug
 description: players on cards of 12 GB and more see their video memory use and GPU load drop with the mod and the game sometimes hang, cured by raising the mod's texture pool, because the auto sizes give such a card 2048 or 3072 MB of tiles against the 6144 MB the game's own Ultra pool would take, brackets extrapolated from the 6 GB card that keep its tight margin on every bigger one, open again since the budget sizing that fixed it in 0.4 went behind an experimental switch, off by default (DEC-027)
-updated: 2026-10-08
+updated: 2026-10-09
 links: [DEC-027-the-tile-pool-goes-back-to-the-table-and-the-budget-rule-is-experimental, DEC-025-the-tile-pool-is-sized-from-the-budget-at-launch, DEC-022-every-card-gets-a-size-and-the-pick-is-checked-after, DEC-005-fixed-pool-sizes-by-default, directstorage-streaming, BUG-020-overloaded-streaming-blurs-textures-until-they-get-tiles, BUG-032-the-game-freezes-at-a-thirty-ai-race-start, reported-working-configurations]
 area: streaming
 status: open
@@ -66,6 +66,14 @@ card under Proton, and no card above 6 GB had run it before it shipped. `tile_po
 again and the rule runs only with `tile_pool_from_budget=1` under `[experimental]`, on
 `fix/pool-sizing-back-to-the-table`. This bug stays open until the rule, or something like it, is shown
 on cards above 6 GB.
+
+### From the field, 2026-10-09
+
+The Proton player, an RTX 3080 10 GB on one 1440p screen, confirmed the table build fixed both the frame rate
+and the mirror, so it went up as the pre-release `v0.4.0-linux` and 0.4.0 stays the release for Windows. On
+Windows a 5070 Ti with 16 GB reported 0.4.0 running better than 0.3.2, with more of the card in use, the first
+card above 6 GB on record running the rule. The next version is meant to turn the rule back on by default and
+skip it under Proton, which Wine marks with `wine_get_version` in ntdll.
 
 ## Verification
 

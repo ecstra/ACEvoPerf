@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-10-08
+updated: 2026-10-09
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
@@ -25,6 +25,8 @@ From the Overtake listing reviews and the r/assettocorsaevo thread, all on 0.3.1
   AMD card and says nothing either way about the rest of the mod, since Reflex is one small addition
   beside the streaming, memory and UI work.
 - One report of a 6 GB card that did not say which
+- RTX 5070 Ti with a 9800X3D, on 0.4.0, from an Overtake review on 2026-10-09, better GPU and video memory
+  use than 0.3.2, the first card above 6 GB on record running 0.4's budget sizing
 
 ## Reported working on Linux, 2026-09-20
 
@@ -41,6 +43,12 @@ owner answered that he had no idea and to give it a shot.
 Those launch options are the reporter's own for the game and are not something the mod asks for. One
 report on one distribution and one Proton build is not a supported platform, which is why the readme says
 "reported working" rather than "supported".
+
+## On Linux with 0.4.0, 2026-10-09
+
+A GitHub issue from a player under Proton with an RTX 3080 10 GB on one 1440p screen: 90 to 100 fps on
+0.3.2, about 20 with a broken rear view mirror on 0.4.0, and both fixed by the build with the 0.3.2 table,
+published as `v0.4.0-linux` (BUG-040, DEC-027). The readme's Known issues points Linux players at it.
 
 ## Open reports
 
