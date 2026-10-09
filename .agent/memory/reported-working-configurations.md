@@ -27,7 +27,9 @@ From the Overtake listing reviews and the r/assettocorsaevo thread, all on 0.3.1
 - One report of a 6 GB card that did not say which
 - RTX 5070 Ti with a 9800X3D, on 0.4.0, from an Overtake review on 2026-10-09, better GPU and video memory
   use than 0.3.2, the first card above 6 GB on record running 0.4's budget sizing
-- RTX 4060 8 GB, the shader cache reporter of the open reports below, on 0.4.0 with no issues, 2026-10-09
+- RTX 4060 8 GB with an i7 14700F on triple 1080p screens, the shader cache reporter of the open reports
+  below, on 0.4.0 with no issues, 2026-10-09. Spanned triples give the budget sizing its largest screen
+  reserve on record, about 2.3 GB of tiles on that card where one 1080p screen gets 2.9
 - An 8 GB card of unstated model on 0.4.0 with `tile_pool_mb=auto`, confirmed by its owner, smooth in a 26
   car online lobby apart from network spikes, 2026-10-09. The same player had set 5120 by hand on 0.3.2
   to stop load screen hangs on car changes.
