@@ -81,8 +81,15 @@ than of any card.
   repeatable on the 4060 player's second PC, an RTX 2070 8 GB with a Ryzen 7 3700X and 16 GB of RAM on
   triple 1080p screens with DLSS Performance, and not on the 4060 itself. On the reference laptop on
   2026-10-13 two applies changed nothing, 93.6, 93.3 and 93.4 fps with the same video memory, clocks and
-  power, the card pinned at 98 percent (`logs/fullscreen-toggle-20261013/run2`). That player offered a run
-  on the 2070 with the timeline, frames and GPU sampler.
+  power, the card pinned at 98 percent (`logs/fullscreen-toggle-20261013/run2`). The 2070 run of the same
+  day (`logs/rich-2070-fullscreen-20261013`) measured it: 77 fps before, 85 after the first apply and held
+  for the minute, the card at 100 percent and its 175 W limit both times at the same or lower clocks, video
+  memory under budget both times and 46 MB lower after, and the game log's render settings identical,
+  2880x540 DLSS on 5760x1080 triples. So the card does about a tenth less work per frame after the reset,
+  for a reason nothing logged shows. The best guess is presentation: the swap chain is made 0.26 s before
+  the window goes fullscreen, which may leave every frame going through the desktop compositor until the
+  apply. The second apply added a 50 to 80 ms stall every 5.05 s with no streaming behind it, absent on the
+  reference laptop after its second apply.
 - A 5090 VR player with a Pimax Crystal Light and OpenKneeboard has 0.4 crash every launch with a stack
   overflow on the game thread about 3 s into the first menu load, and 0.3.2 once, game logs in
   `logs/vr-5090-crash-20261009`. Cause not known.
