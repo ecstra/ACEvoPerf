@@ -2,7 +2,7 @@
 name: BUG-039-the-pso-cache-draws-some-materials-wrong
 kind: bug
 description: with enable_pso_cache on, which the mod turns on and the game ships off, some materials are drawn wrong, fences as glass, trees unlit or white at night, a car's own main beam gone, pit fencing and lines flashing every frame and cars glowing, on several cards and most often on the 40 series, cured in every report by turning the flag off, and one player found a run with the cache file deleted clean and every run after it not, while the game's own log shows it handing cached pipeline blobs back and recompiling the ones it sees changed
-updated: 2026-10-08
+updated: 2026-10-13
 links: [BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-038-fences-look-like-glass-in-sunlight, engine-flags, engine-flags-in-game-2026-09-12, reported-working-configurations, DEC-024-the-pso-cache-stays-off, pso-cache-ab-2026-10-08, TODO-031-reproduce-the-pso-cache-glitches-at-medium-textures]
 area: render
 status: fixed
@@ -47,7 +47,8 @@ it writes are `no_intro`, `force_canonical_pool_sizes` and `tile_pool_mb`.
 The cards named are a 4090, a 4060 (twice in different scenes), a 4070 Ti and the owner's 3060 Laptop,
 where it showed once in weeks of play. A player on a 2070 8 GB and the reports on 20 and 30 series cards
 in `reported-working-configurations` never mention it. That leans toward the 40 series without proving it,
-since nobody else said which way their flag was set.
+since nobody else said which way their flag was set. On 2026-10-10 the 4060 player turned the cache on by
+hand for that 2070 8 GB and saw glass fences and washed out cars there too, so the 20 series is hit as well.
 
 ### The cache file decides it
 
