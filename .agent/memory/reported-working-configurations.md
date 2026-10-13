@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-10-09
+updated: 2026-10-13
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
@@ -77,6 +77,15 @@ than of any card.
   trees now read as BUG-039, and the stutters are still unexplained. The same player later found the game
   smooth at Ultra, with liveries sharpening slowly on a game installed on a hard disk.
 - A car's own main beam vanishing at night on a server, seen in VR, card not given. Read as BUG-039.
+- About 6 fps more, 82 to 88 in the pit box, after toggling fullscreen off and on and pressing Apply,
+  repeatable on the 4060 player's second PC, an RTX 2070 8 GB with a Ryzen 7 3700X and 16 GB of RAM on
+  triple 1080p screens with DLSS Performance, and not on the 4060 itself. On the reference laptop on
+  2026-10-13 two applies changed nothing, 93.6, 93.3 and 93.4 fps with the same video memory, clocks and
+  power, the card pinned at 98 percent (`logs/fullscreen-toggle-20261013/run2`). That player offered a run
+  on the 2070 with the timeline, frames and GPU sampler.
+- A 5090 VR player with a Pimax Crystal Light and OpenKneeboard has 0.4 crash every launch with a stack
+  overflow on the game thread about 3 s into the first menu load, and 0.3.2 once, game logs in
+  `logs/vr-5090-crash-20261009`. Cause not known.
 
 The 4060 8 GB player above also reported much steadier frame rates with the mod, which makes a third 4060
 in the list above in all but name.
