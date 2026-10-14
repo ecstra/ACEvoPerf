@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-10-13
+updated: 2026-10-14
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
@@ -92,7 +92,11 @@ than of any card.
   reference laptop after its second apply.
 - A 5090 VR player with a Pimax Crystal Light and OpenKneeboard has 0.4 crash every launch with a stack
   overflow on the game thread about 3 s into the first menu load, and 0.3.2 once, game logs in
-  `logs/vr-5090-crash-20261009`. Cause not known.
+  `logs/vr-5090-crash-20261009`. Cause not known. A second try on 2026-10-13 without OpenKneeboard died
+  earlier and for another reason: the Pimax runtime got 212 "RPC server unavailable" errors from its own
+  service, OpenXR found no headset (`XR_ERROR_SYSTEM_INVALID`) and the game threw at `VRManager.cpp:790`,
+  before it made a graphics device, which it would do without the mod. That run also shows the OpenXR
+  layers he runs, OpenXR Toolkit, OpenXR Motion Compensation and the RaceLab overlay.
 
 The 4060 8 GB player above also reported much steadier frame rates with the mod, which makes a third 4060
 in the list above in all but name.
