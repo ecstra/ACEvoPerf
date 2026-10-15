@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-10-14
+updated: 2026-10-15
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
@@ -89,7 +89,12 @@ than of any card.
   for a reason nothing logged shows. The best guess is presentation: the swap chain is made 0.26 s before
   the window goes fullscreen, which may leave every frame going through the desktop compositor until the
   apply. The second apply added a 50 to 80 ms stall every 5.05 s with no streaming behind it, absent on the
-  reference laptop after its second apply.
+  reference laptop after its second apply. A PresentMon run the same evening
+  (`logs/rich-2070-presentmon-20261013`, three applies) ruled the presentation guess out: every frame of
+  the run is `Composed: Flip`, before and after each apply. The gain is the game's own GPU work, a median of
+  12.87 ms busy per frame before and 12.07 after the first apply with the GPU never waiting, 77 to 82.5 fps,
+  with no UI view, swap chain or Reflex change in the mod's log. The second apply brought the 5 s stall back,
+  30 ms this time and all CPU, and the third cleared it.
 - A 5090 VR player with a Pimax Crystal Light and OpenKneeboard has 0.4 crash every launch with a stack
   overflow on the game thread about 3 s into the first menu load, and 0.3.2 once, game logs in
   `logs/vr-5090-crash-20261009`. Cause not known. A second try on 2026-10-13 without OpenKneeboard died
