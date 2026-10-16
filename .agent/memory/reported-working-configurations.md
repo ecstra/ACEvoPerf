@@ -2,7 +2,7 @@
 name: reported-working-configurations
 kind: memory
 description: the machines players report the mod working on and where each report came from, Nvidia and Radeon and Linux through Proton, plus the open reports, most of the graphical ones now BUG-039, the shader cache the mod turns on, because the readme claims a list and nothing else in the repo recorded it
-updated: 2026-10-15
+updated: 2026-10-16
 type: project
 links: [public-docs, DEC-013-overtake-front-door-github-mirror, BUG-015-night-headlights-do-not-light-trees-with-the-pso-cache, BUG-039-the-pso-cache-draws-some-materials-wrong]
 ---
@@ -101,7 +101,13 @@ than of any card.
   earlier and for another reason: the Pimax runtime got 212 "RPC server unavailable" errors from its own
   service, OpenXR found no headset (`XR_ERROR_SYSTEM_INVALID`) and the game threw at `VRManager.cpp:790`,
   before it made a graphics device, which it would do without the mod. That run also shows the OpenXR
-  layers he runs, OpenXR Toolkit, OpenXR Motion Compensation and the RaceLab overlay.
+  layers he runs, OpenXR Toolkit, OpenXR Motion Compensation and the RaceLab overlay. On 2026-10-14 he ran
+  0.4 without OpenKneeboard with no crash, and on 2026-10-15 with it the same stack overflow came back at the
+  same place (`logs/vr-5090-crash-20261009/run-20261015-openkneeboard`). The mod's log ends on its first
+  `Present sync interval` line, the game's first present of the 1280x720 mirror swap chain, 11 ms before
+  the overflow. OpenKneeboard hooks Present as well, and the mod's Present hook in `frame_stats.cpp` is a
+  vtable patch for Reflex and the frame times, so two hooks calling into each other is the leading reading.
+  With `reflex=0` and `frame_stats=0` the mod installs no Present hook at all.
 
 The 4060 8 GB player above also reported much steadier frame rates with the mod, which makes a third 4060
 in the list above in all but name.
