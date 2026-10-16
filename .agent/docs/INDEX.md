@@ -2,7 +2,7 @@
 name: docs-index
 kind: doc
 description: index of the knowledge library, one line per doc
-updated: 2026-10-08
+updated: 2026-10-16
 links: [agent-index, spec-docs]
 ---
 
@@ -52,4 +52,5 @@ links: [agent-index, spec-docs]
 - [texture-streamer-camera-cuts-2026-09-14](research/texture-streamer-camera-cuts-2026-09-14.md), BUG-021's deep dive, a camera cut forces a streamer pass that loads before it drops, starts at most 128 loads and none while other resource jobs run, then waits a second, the car dropped whole and the scenery three passes behind, the shipped fixes changing none of it, and a follow up pass as the correction
 - [memory-creep-2026-09-14](research/memory-creep-2026-09-14.md), BUG-016's deep dive, the census read with VRAM taken out, a one time heap fill then about 110 MB a track the game keeps, every heap lever from a DLL measured and not worth shipping, the VRAM overhead spike as placement, page file space the only cost
 - [session-leak-census-2026-09-16](research/session-leak-census-2026-09-16.md), TODO-023's census run, seven identical Red Bull Ring visits and two memory dumps, the live heap growing about 57 MB a visit because every session stays whole in memory behind a cycle, the game mode a local server connection owns holding that connection in a list of strong pointers, with the slack, the VRAM side flat and the mesh budget never reached
+- [mod-cost-2026-10-16](research/mod-cost-2026-10-16.md), four parked pit box launches with PresentMon, the mod costing about 6 percent of frame rate on the reference laptop as graphics card work on the detail the game would otherwise drop to 405 MB pools, not the UI fixes and not the presentation path
 - [pso-cache-ab-2026-10-08](research/pso-cache-ab-2026-10-08.md), BUG-039's measurement, three launches with the game's pipeline cache off, building and warm, a warm cache taking 4 to 5 s off a load and one stutter cluster leaving the pits, nothing for the frame rate or the 1 percent low while driving
