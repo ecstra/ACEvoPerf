@@ -2,7 +2,7 @@
 name: memory-index
 kind: doc
 description: index of project memory, one line per fact
-updated: 2026-10-08
+updated: 2026-10-16
 links: [agent-index, spec-memory]
 ---
 
@@ -17,7 +17,7 @@ project
 - [game-requests-1gb-staging-buffer](game-requests-1gb-staging-buffer.md), the one call that starves texture pools on small cards
 - [release-build-ignores-gflags-cli](release-build-ignores-gflags-cli.md), only a whitelist of single dash switches is parsed, the per logger level switches among them
 - [thermal-throttle-dominates-lap-fps](thermal-throttle-dominates-lap-fps.md), the reference GPU throttles at 87 °C two minutes into a lap, the undervolt that held it flat hung the GPU and came off again
-- [reference-machine-has-no-direct-gpu-display](reference-machine-has-no-direct-gpu-display.md), the reference machine renders on its NVIDIA GPU and presents through its integrated one, a path that cannot be tested away there, and it is not what makes the 1 percent lows
+- [reference-machine-has-no-direct-gpu-display](reference-machine-has-no-direct-gpu-display.md), the reference machine presented through its integrated GPU until 2026-10-16, when a USB-C to DisplayPort cable put the monitor on the NVIDIA GPU, and that path is not what makes the 1 percent lows
 - [handled-faults-stall-the-game](handled-faults-stall-the-game.md), the game's crash logger stalls a thread 120 to 210 ms on every access violation, even one the mod handles, so mod code never probes memory by faulting
 
 reference
