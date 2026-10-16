@@ -94,7 +94,13 @@ than of any card.
   the run is `Composed: Flip`, before and after each apply. The gain is the game's own GPU work, a median of
   12.87 ms busy per frame before and 12.07 after the first apply with the GPU never waiting, 77 to 82.5 fps,
   with no UI view, swap chain or Reflex change in the mod's log. The second apply brought the 5 s stall back,
-  30 ms this time and all CPU, and the third cleared it.
+  30 ms this time and all CPU, and the third cleared it. Without the mod on 2026-10-15 he read 87 fps,
+  then 90 and 90 after two applies, against 82 to 88 with it the same evening, by eye from the Steam
+  counter. His PresentMon file of that run (`logs/rich-2070-nomod-20261015`) covers only 15 s of menu and
+  the game log he sent was the 2026-10-13 one, but those 15 s show `Hardware: Independent Flip` with
+  tearing allowed, where every frame of both runs with the mod was `Composed: Flip`. If that holds in the
+  pit box, the mod is blocking the direct path on his Surround setup, which would be the mod's own fps
+  cost there. The reference laptop runs independent flip with the mod (`logs/presentmon-drive-20260915`).
 - A 5090 VR player with a Pimax Crystal Light and OpenKneeboard has 0.4 crash every launch with a stack
   overflow on the game thread about 3 s into the first menu load, and 0.3.2 once, game logs in
   `logs/vr-5090-crash-20261009`. Cause not known. A second try on 2026-10-13 without OpenKneeboard died
